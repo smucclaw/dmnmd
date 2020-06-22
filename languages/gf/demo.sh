@@ -7,6 +7,6 @@ autumn='Row 4 (Many (BaseFCell (ColHd "Season" (FNullary (VS "Autumn"))) (ColHd 
 other='Row 5 (Many (BaseFCell (ColHd "Season" FAnything) (ColHd "Guest count" FAnything))) (Single (ColHd "Dish" (FNullary (VS "Pea soup")))) (CommentString "I give up")'
 
 
-table="l -bind Table (ConsDTRow ($winter) (ConsDTRow ($spring) (ConsDTRow ($summer) (BaseDTRow ($autumn) ($other)))))"
+table="l -bind -treebank Table (ConsDTRow ($winter) (ConsDTRow ($spring) (ConsDTRow ($summer) (BaseDTRow ($autumn) ($other)))))"
 
 echo $table | gf --run DMNEng*.gf | sed -E 's/ \\ /\\/g' | tr '\' '\n'
