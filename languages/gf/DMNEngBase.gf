@@ -77,7 +77,7 @@ incomplete concrete DMNEngBase of DMN = open
     FInRange,
     FInRangeInt = \bg,end -> {          -- : Float  -> Float  -> FEELexp ;
       s = table {
-        B3 => \\_ => "[" ++ bg.s ++ ".." ++ end.s ++ "]" ; -- postprocess or use BIND to remove spaces
+        B3 => \\_ => bg.s ++ "-" ++ end.s ; -- postprocess or use BIND to remove spaces
         _  => \\_ => "between" ++ bg.s ++ "and" ++ end.s } ; -- TODO: depend on headertype
       t = ERange ;
       } ;
