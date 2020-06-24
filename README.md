@@ -60,14 +60,14 @@ A plain text version formatted for Markdown looks literally like this:
 
 ### Example 2: Who's coming?
 
-| U | Season               | Guest Count | Dish (out)                   | Blah            | # Annotation  |
-|---|----------------------|-------------|------------------------------|-----------------|---------------|
-| 1 | Fall                 | <= 8        | Spareribs                    | guest_count + 3 |               |
-| 2 | Winter               | <= 8        | Roastbeef                    |                 |               |
-| 3 | Spring               | <= 4        | Dry Aged Gourmet Steak       |                 |               |
-| 4 | Spring               | [5..8]      | Steak                        |                 |               |
-| 5 | Fall, Winter, Spring | > 8         | Stew                         |                 |               |
-| 6 | Summer               | -           | Light Salad and a nice Steak |                 | Hey, why not? |
+| U | Season               | Guest Count | Dish (out)                   | # Annotation  |
+|---|----------------------|-------------|------------------------------|---------------|
+| 1 | Fall                 | <= 8        | Spareribs                    |               |
+| 2 | Winter               | <= 8        | Roastbeef                    |               |
+| 3 | Spring               | <= 4        | Dry Aged Gourmet Steak       |               |
+| 4 | Spring               | [5..8]      | Steak                        |               |
+| 5 | Fall, Winter, Spring | > 8         | Stew                         |               |
+| 6 | Summer               | -           | Light Salad and a nice Steak | Hey, why not? |
 
     | U | Season               | Guest Count | Dish (out)                   | # Annotation  |
     |---|----------------------|-------------|------------------------------|---------------|
@@ -79,6 +79,8 @@ A plain text version formatted for Markdown looks literally like this:
     | 6 | Summer               | -           | Light Salad and a nice Steak | Hey, why not? |
 
 Yeah, DMN allows spaces in variable names. What could possibly go wrong?
+
+But if you think of them as properties in a dictionary, that's not so bad.
 
 ### XML source
 
@@ -187,7 +189,7 @@ We use "props" here as a synonym for the more proper term "context".
 
 ### to Javascript
 
-This works today.
+This works today, modulo full support for hit policies.
 
     % stack exec -- dmnmd README.md --pick="Example 2" --to=js
     export function Example_2 ( Season, Guest_Count ) {
