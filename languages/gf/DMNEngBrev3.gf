@@ -11,5 +11,5 @@ concrete DMNEngBrev3 of DMN = DMNEngBase
 
   oper
 
-    tablesep = "," ;
+    tablesep = ";" ;
 }
