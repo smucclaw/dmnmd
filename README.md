@@ -28,7 +28,9 @@ Both:
 
     git clone git@github.com:smucclaw/dmnmd.git
     cd dmnmd/languages/haskell
-    stack test build install
+    stack test
+    stack build
+    stack install
 
 In future packaged binaries will be made available.
 
@@ -330,6 +332,8 @@ By default, brevity is 1.
 
 Some linguistic magic happens behind the scenes. Different parameters take different determiners.
 
+See [languages/gf/](languages/gf/) for more.
+
 ### to LegalRuleML
 
 On the roadmap.
@@ -359,27 +363,46 @@ Your IDE may need a plugin to work with Markdown tables.
 
 ## Evaluation
 
-On the roadmap, not ready yet:
-
 A decision table is basically a function. Let's run it.
 
 Interactively, on the command line:
 
-    $ dmnmd README.md --dt="Example 1"
-    Season? Winter
-    Dish: Roastbeef
-    
-    Season? Spring
-    Dish: Steak
+    $ dmnmd -q README.md --pick "Example 1"
+    Example 1> Fall
+    Example 1: "Dish":"Spareribs"
 
-Batch-mode:
+    Example 1> Winter
+    Example 1: "Dish":"Roastbeef"
+
+    Example 1> Spring
+    Example 1: "Dish":"Steak"
+
+    Example 1> Summer
+    Example 1: "Dish":"Light Salad and a nice Steak"
+
+    Example 1> ^D
+    
+    
+    
+    $ dmnmd -q README.md --pick "Example 2"
+    Example 2> Fall, 7
+    Example 2: "Dish":"Spareribs"
+
+    Example 2> Fall, 9
+    Example 2: "Dish":"Stew"
+
+    Example 2> Summer, 10
+    Example 2: "Dish":"Light Salad and a nice Steak"
+
+
+Coming soon: Batch-mode.
 
     $ echo "Winter" | dmnmd README.md --dt="Example 1"
     Roastbeef
 
-JSON in, JSON out.
+Coming soon: JSON in, JSON out.
 
-    $ echo '{ "Season": "Winter" }' | dmnmd README.md --dt="Example 1"
+    $ echo '{ "Season": "Winter" }' | dmnmd README.md --pick "Example 1" -j
     { "Season": "Winter", "Dish": "Roastbeef" }
 
 ## Extensions
