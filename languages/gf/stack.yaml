@@ -1,0 +1,7 @@
+resolver: lts-12.26
+
+extra-deps:
+  - git: https://github.com/GrammaticalFramework/gf-core.git
+    commit: 65cfdf1775dc060f1f85956443db2eb56e1460ce
+    subdirs:
+      - src/runtime/haskell-bind # for PGF2
