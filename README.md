@@ -2,11 +2,13 @@
 
 > Show me your flowchart and conceal your tables, and I shall continue to be mystified. Show me your tables, and I won't usually need your flowchart; it'll be obvious." -- Fred Brooks, The Mythical Man Month (1975)
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/Pe34U9QuhXA" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Wouldn't it be nice to be able to do this in your text editor?
+
 The semantics are DMN.
 
 The syntax is Markdown.
-
-(Hence the name; apologies to any aibohphobes.)
 
 The input is plain-text.
 
@@ -15,6 +17,8 @@ The output is JS. (And, in future, XML, Python, English, LegalRuleML...)
 The interface is CLI. No mouse needed!
 
 ## Installing from Source
+
+At the moment, `dmnmd` is an executable program written in Haskell. In future it may switch to Python.
 
 OS X:
 
