@@ -2,9 +2,11 @@
 
 > Show me your flowchart and conceal your tables, and I shall continue to be mystified. Show me your tables, and I won't usually need your flowchart; it'll be obvious." -- Fred Brooks, The Mythical Man Month (1975)
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/Pe34U9QuhXA" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+# Inspiration
 
-Wouldn't it be nice to be able to do this in your text editor?
+Watch this real quick: https://youtu.be/Pe34U9QuhXA ... Wouldn't it be nice to be able to do this in your text editor?
+
+## DMNMD brings embeds DMN in plain text source code or Markdown
 
 The semantics are DMN.
 
