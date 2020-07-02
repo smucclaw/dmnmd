@@ -1,4 +1,7 @@
-abstract DMN = {
+abstract DMN =
+  WordnetNPs
+  --, Numeral
+  ** {
 
   flags startcat = DTable ;
 
@@ -52,11 +55,11 @@ abstract DMN = {
     Weight,     -- {XWeight,3 kg} ~ "X weighs 3 kg"
     Length,     -- {XLength,3 m} ~ "X is 3 m long"
     Height     -- {XHeight,3 m} ~ "X is 3 m tall"
-      : String -> FEELexp -> FCell ;
+     : CN -> FEELexp -> FCell ;
 
     AmountMass, -- {Cups,X,5} ~ "With 5 Cups of X". NB. the header needs to contain the unit and the material.
     AmountCount -- {Count, X, =<10} ~ "With 10 or fewer Xs"
-      : String -> String -> FEELexp -> FCell ;
+      : CN -> CN -> FEELexp -> FCell ;
 
     -- BaseFCell, ConsFCell constructed automatically thanks to [FCell]{2}
     Many : [FCell] -> FCells ;
@@ -74,4 +77,5 @@ abstract DMN = {
     Table : [DTRow] -> DTable ;
 
     Consequence : [DTRow] -> DTable ;
+
 }

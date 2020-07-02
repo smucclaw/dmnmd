@@ -1,7 +1,15 @@
-concrete DMNEngHornBrev1 of DMN = DMNEngBase
-  with
-   (Prelude = Prelude),
-   (Coordination = Coordination) ** open DMNTextPatterns in {
+concrete DMNEngHornBrev1 of DMN =
+  WordnetNPsEng
+--  ,NumeralEng
+   **
+  DMNBase
+    with
+     (Prelude = Prelude),
+     (Coordination = Coordination),
+     (Syntax = SyntaxEng),
+     (Symbolic = SymbolicEng),
+     (LexDMN = LexDMNEng)
+     ** open DMNParams in {
 
   oper
     brev = B1 ;
