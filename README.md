@@ -66,7 +66,7 @@ A plain text version formatted for Markdown looks literally like this:
     | 3 | Spring | Steak                        |               |
     | 4 | Summer | Light Salad and a nice Steak | Hey, why not? |
 
-### Example 2: Who's coming?
+### Example 2: How many guests are coming?
 
 | U | Season               | Guest Count | Dish (out)                   | # Annotation  |
 |---|----------------------|-------------|------------------------------|---------------|
@@ -127,13 +127,15 @@ The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.
 
 | O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
 |   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
-|---+-----+-------------------+----------------------+------------------------+------------------------+-----------------------------|
+|---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 | 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
 | 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
 | 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
 
 For hit policy "O", the order of results in the output is determined by the order of the column enums.
+
+This example comes from the DMM 1.3 specification, page 96.
 
 Note that advanced hit policies are not yet implemented for code generation, only for evaluation.
 
