@@ -6,7 +6,7 @@
 
 Watch this real quick: https://youtu.be/Pe34U9QuhXA ... Wouldn't it be nice to be able to do this in your text editor?
 
-## DMNMD brings embeds DMN in plain text source code or Markdown
+## DMNMD embeds DMN in plain text source code or Markdown
 
 The semantics are DMN.
 
@@ -126,6 +126,7 @@ The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.
 #### Example 3: Routing Rules
 
 | O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
+|---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 |   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
 |---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 | 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
