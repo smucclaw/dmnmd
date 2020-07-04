@@ -123,11 +123,25 @@ This implementation only supports vertical layout. Horizontal and crosstab layou
 
 The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.3 spec.
 
-#### Example 3: Routing Rules
+#### Example 3a: Routing Rules
+
+Github's Markdown renderer is slightly broken. This version of the table is for looking at:
 
 | O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
 |---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 |   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
+| 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
+| 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
+| 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
+| 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
+
+#### Example 3: Routing Rules (actual)
+
+This version of the table is for actually running:
+
+| O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
+|   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
+|---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 | 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
 | 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
