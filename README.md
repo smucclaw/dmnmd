@@ -128,7 +128,6 @@ The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.
 | O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
 |---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 |   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
-|---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 | 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
 | 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
