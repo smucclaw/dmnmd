@@ -16,9 +16,11 @@ import Data.Attoparsec.Text
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import DmnXmlSpec (xmlSpec)
+
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec] $ hspec
   return ()
 
 parseHelloWorld :: Parser ()
