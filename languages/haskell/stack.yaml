@@ -44,6 +44,7 @@ extra-deps:
 - hxt-relaxng-9.1.5.5
 - hxt-xpath-9.1.2.2
 - MissingH-1.4.3.0
+# - fadno-xml-1.1.3@sha256:2f097d297a85db5e607467fd5d08c314e8e3297d4feb78a736745855418a362c,1391
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

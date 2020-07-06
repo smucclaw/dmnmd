@@ -33,6 +33,8 @@ dependencies:
 - raw-strings-qq
 - optparse-applicative
 - MissingH
+- hxt
+# - fadno-xml
 
 library:
   source-dirs: src
