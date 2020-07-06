@@ -65,8 +65,8 @@ parseHeaderRow :: Parser HeaderRow
 parseHeaderRow = do
   pipeSeparator <?> "pipeSeparator"
   myhitpolicy <- parseHitPolicy  <?> "hitPolicy"
-  mychs <- many ( pipeSeparator *> parseColHeader <?> "parseColHeader" ) <?> "mychs"
   pipeSeparator <?> "pipeSeparator"
+  mychs <- many (parseColHeader <* pipeSeparator <?> "parseColHeader" ) <?> "mychs"
   endOfLine <|> endOfInput
   return $ DTHR myhitpolicy mychs
 

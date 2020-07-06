@@ -24,6 +24,8 @@ import Data.Void (Void)
 
 import DmnXmlSpec (xmlSpec)
 
+-- * Helper functions
+
 -- shouldParse :: Parser a -> a -> Expectation
 -- shouldParse = undefined -- HM.shouldParse . parse ""
 
@@ -37,6 +39,11 @@ shouldSucceedOn p = HM.shouldSucceedOn $ parse p ""
 
 shouldFailOn :: Show a => Parser a -> Text -> Expectation
 shouldFailOn p = HM.shouldFailOn $ parse p ""
+
+throwOnLeft :: Either String a -> a
+throwOnLeft = either error id
+
+-- * Main content
 
 main :: IO ()
 main = do
@@ -306,25 +313,25 @@ spec3 = do
 
   describe "evalTable dmn1" $ do
     it "should run standard dmn example 1: Fall -> Spareribs"
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1)) (mkFs (Just DMN_String) "Fall")) `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1)) (mkFs (Just DMN_String) "Fall")) `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
     it "should run standard dmn example 1: Winter -> Roastbeef"
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1)) (mkFs (Just DMN_String) "Fall")) `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1)) (mkFs (Just DMN_String) "Fall")) `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
   
   describe "evalTable dmn1c" $ do
     it "should run standard dmn example 1c: Fall -> Spareribs"
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1c)) (mkFs (Just DMN_String) "Fall")) `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) (mkFs (Just DMN_String) "Fall")) `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
     it "should run standard dmn example 1c: Winter -> [Roastbeef, Strawberries]"
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1c)) (mkFs (Just DMN_String) "Winter")) `shouldBe` Right [[[FNullary $ VS "Roastbeef", FNullary $ VS "Strawberries"]]]
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) (mkFs (Just DMN_String) "Winter")) `shouldBe` Right [[[FNullary $ VS "Roastbeef", FNullary $ VS "Strawberries"]]]
     it "should run standard dmn example 1c: Spring -> Stew"
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Spring"])) `shouldBe` Right [[[FNullary $ VS "Stew"]]]
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Spring"])) `shouldBe` Right [[[FNullary $ VS "Stew"]]]
     it "should run standard dmn example 1c: Summer -> Stew"
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Summer"])) `shouldBe` Right [[[FNullary $ VS "Stew"]]]
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Summer"])) `shouldBe` Right [[[FNullary $ VS "Stew"]]]
     it "should run standard dmn example 1c: Never -> Left \"no match\""
-      $ (evalTable (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Never"])) `shouldBe` Left "no rows returned -- a unique table should have one result!"
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Never"])) `shouldBe` Left "no rows returned -- a unique table should have one result!"
 
  
   describe "evalTable dmn2" $ do
-    let evaled2 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn2))
+    let evaled2 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn2))
     it "should handle multiple inputs: Fall, 5"   $ evalTable evaled2 [FNullary (VS "Fall"),   FNullary (VN 5)] `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
     it "should handle multiple inputs: Fall, 9"   $ evalTable evaled2 [FNullary (VS "Fall"),   FNullary (VN 9)] `shouldBe` Right [[[FNullary $ VS "Stew"]]]
     it "should handle multiple inputs: Winter, 5" $ evalTable evaled2 [FNullary (VS "Winter"), FNullary (VN 5)] `shouldBe` Right [[[FNullary $ VS "Roastbeef"]]]
@@ -335,7 +342,7 @@ spec3 = do
     it "should handle multiple inputs: Summer, 9" $ evalTable evaled2 [FNullary (VS "Summer"), FNullary (VN 9)] `shouldBe` Right [[[FNullary $ VS "Light Salad and a nice Steak"]]]
 
   describe "evalTable dmn3a - collect" $ do
-    let evaled3 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn3a))
+    let evaled3 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn3a))
     it "should return all rows: 17, HIGH, True"   $ evalTable evaled3 [FNullary (VN 17.0),   FNullary (VS "HIGH"), FNullary (VB True)] `shouldBe`
       Right [ [[FNullary $ VS "ACCEPT"],  [FNullary $ VS "NONE"],    [FNullary $ VS "Acceptable"]]
             , [[FNullary $ VS "DECLINE"], [FNullary $ VS "NONE"],    [FNullary $ VS "Applicant too young"]]
@@ -359,7 +366,7 @@ spec3 = do
         ,DTrow (Just 3) [[FAnything], mkFs (Just DMN_String) "HIGH", [FAnything]] [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 1", mkFs (Just DMN_String) "High risk application"] []
         ,DTrow (Just 4) [[FAnything], [FAnything], [FNullary (VB True)]]          [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 2", mkFs (Just DMN_String) "Applicant under debt review"]   []
         ])
-    let evaled3 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn3count))
+    let evaled3 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn3count))
     it "17 should return a count of 4"   $ evalTable evaled3 [FNullary (VN 17.0),   FNullary (VS "HIGH"), FNullary (VB True)] `shouldBe` Right [ [[FNullary $ VN 4.0 ]] ]
     it "18 should return a count of 3"   $ evalTable evaled3 [FNullary (VN 18.0),   FNullary (VS "HIGH"), FNullary (VB True)] `shouldBe` Right [ [[FNullary $ VN 3.0 ]] ]
 
@@ -369,7 +376,7 @@ spec3 = do
 -- So, for example, if called with Age = 17, Risk category = “HIGH” and Debt review = true, the Routing rules table in Figure 8.19 would return the outputs of all four rules, in the order 2, 4, 3, 1.
 -- p 96
   describe "evalTable dmn3 - ordered output" $ do
-    let evaled3 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn3b))
+    let evaled3 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn3b))
     it "should return all rows in order of specification in the subheader"   $ evalTable evaled3 [FNullary (VN 17.0),   FNullary (VS "HIGH"), FNullary (VB True)] `shouldBe`
       Right [ [[FNullary $ VS "DECLINE"], [FNullary $ VS "NONE"],    [FNullary $ VS "Applicant too young"]]
             , [[FNullary $ VS "REFER"],   [FNullary $ VS "LEVEL 2"], [FNullary $ VS "Applicant under debt review"]]
@@ -392,7 +399,7 @@ spec3 = do
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  mkFs (Just DMN_Number) "6"]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  mkFs (Just DMN_Number) "8"]    []
         ])
-    let evaled3 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn4sum))
+    let evaled3 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn4sum))
     it "17 should return 3 magical objects"    $ evalTable evaled3 [FNullary (VN 17.0)] `shouldBe` Right [ [[FNullary $ VN  3.0 ]] ]
     it "18 should return 18 magical objects"   $ evalTable evaled3 [FNullary (VN 18.0)] `shouldBe` Right [ [[FNullary $ VN 18.0 ]] ]
 
@@ -411,7 +418,7 @@ spec3 = do
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  mkFs (Just DMN_Number) "6"]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  mkFs (Just DMN_Number) "8"]    []
         ])
-    let evaled3 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn4count))
+    let evaled3 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn4count))
     it "17 should match 1 row"    $ evalTable evaled3 [FNullary (VN 17.0)] `shouldBe` Right [ [[FNullary $ VN  1.0 ]] ]
     it "18 should match 2 rows"   $ evalTable evaled3 [FNullary (VN 18.0)] `shouldBe` Right [ [[FNullary $ VN  2.0 ]] ]
 
@@ -431,7 +438,7 @@ spec3 = do
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  mkFs (Just DMN_Number) "6"]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  mkFs (Just DMN_Number) "8"]    []
         ])
-    let evaled3 = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn4min))
+    let evaled3 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn4min))
     it "17 should have min result of 1"   $ evalTable evaled3 [FNullary (VN 17.0)] `shouldBe` Right [ [[FNullary $ VN  1.0 ]] ]
     it "18 should have min result of 3"   $ evalTable evaled3 [FNullary (VN 18.0)] `shouldBe` Right [ [[FNullary $ VN  3.0 ]] ]
 
@@ -488,7 +495,7 @@ spec3 = do
         ])
 
   describe "function evaluation " $ do
-    let evaled = (fromRight (error "parse error") (parseOnly (parseTable "mytable1") dmn6a))
+    let evaled = (throwOnLeft (parseOnly (parseTable "mytable1") dmn6a))
     it "17 should have result of 0"      $ evalTable evaled [FNullary (VN 17.0)] `shouldBe` Right [ [[FNullary (VB False)], [FNullary $ VN    0.0 ]] ]
     it "18 should have result of 750"    $ evalTable evaled [FNullary (VN 18.0)] `shouldBe` Right [ [[FNullary (VB True)],  [FNullary $ VN  750.0 ]] ]
     it "30 should have result of 3000"   $ evalTable evaled [FNullary (VN 30.0)] `shouldBe` Right [ [[FNullary (VB True)],  [FNullary $ VN 3000.0 ]] ]
