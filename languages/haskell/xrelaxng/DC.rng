@@ -1,0 +1,204 @@
+<rng:grammar xmlns:rng="http://relaxng.org/ns/structure/1.0" xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ns="http://www.omg.org/spec/DMN/20180521/DC/" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+	<rng:start combine="choice">
+<rng:ref name="Color"/>
+</rng:start>
+<rng:define name="Color">
+<rng:element name="Color">
+<rng:ref name="Color"/>
+</rng:element>
+</rng:define>
+	<rng:start combine="choice">
+<rng:ref name="Point"/>
+</rng:start>
+<rng:define name="Point">
+<rng:element name="Point">
+<rng:ref name="Point"/>
+</rng:element>
+</rng:define>
+	<rng:start combine="choice">
+<rng:ref name="Bounds"/>
+</rng:start>
+<rng:define name="Bounds">
+<rng:element name="Bounds">
+<rng:ref name="Bounds"/>
+</rng:element>
+</rng:define>
+	<rng:start combine="choice">
+<rng:ref name="Dimension"/>
+</rng:start>
+<rng:define name="Dimension">
+<rng:element name="Dimension">
+<rng:ref name="Dimension"/>
+</rng:element>
+</rng:define>
+
+	<rng:define name="Color">
+		<a:documentation>
+			Color is a data type that represents a color value in the RGB format.
+		</a:documentation>
+		<rng:attribute name="red">
+<rng:ref name="rgb"/>
+</rng:attribute>
+		<rng:attribute name="green">
+<rng:ref name="rgb"/>
+</rng:attribute>
+		<rng:attribute name="blue">
+<rng:ref name="rgb"/>
+</rng:attribute>
+	</rng:define>
+
+	<rng:define name="rgb">
+		<rng:data type="int">
+			<rng:param name="minInclusive">0</rng:param>
+			<rng:param name="maxInclusive">255</rng:param>
+		</rng:data>
+	</rng:define>
+
+	<rng:define name="Point">
+		<a:documentation>
+			A Point specifies an location in some x-y coordinate system.
+		</a:documentation>
+		<rng:attribute name="x">
+<rng:data type="double"/>
+</rng:attribute>
+		<rng:attribute name="y">
+<rng:data type="double"/>
+</rng:attribute>
+	</rng:define>
+
+	<rng:define name="Dimension">
+		<a:documentation>
+			Dimension specifies two lengths (width and height) along the x and y axes in some x-y coordinate system.
+		</a:documentation>
+		<rng:attribute name="width">
+<rng:data type="double"/>
+</rng:attribute>
+		<rng:attribute name="height">
+<rng:data type="double"/>
+</rng:attribute>
+	</rng:define>
+
+	<rng:define name="Bounds">
+	   <a:documentation>
+			Bounds specifies a rectangular area in some x-y coordinate system that is defined by a location (x and y) and a size (width and height).
+		</a:documentation>
+		<rng:attribute name="x">
+<rng:data type="double"/>
+</rng:attribute>
+		<rng:attribute name="y">
+<rng:data type="double"/>
+</rng:attribute>
+		<rng:attribute name="width">
+<rng:data type="double"/>
+</rng:attribute>
+		<rng:attribute name="height">
+<rng:data type="double"/>
+</rng:attribute>
+	</rng:define>
+
+	<rng:define name="AlignmentKind">
+		<a:documentation>
+			AlignmentKind enumerates the possible options for alignment for layout purposes.
+		</a:documentation>
+		<rng:choice>
+			<rng:value>start</rng:value>
+			<rng:value>end</rng:value>
+			<rng:value>center</rng:value>
+		</rng:choice>
+	</rng:define>
+
+	<rng:define name="KnownColor">
+		<a:documentation>
+			KnownColor is an enumeration of 17 known colors.
+		</a:documentation>
+		<rng:choice>
+			<rng:value>maroon</rng:value>
+				<a:documentation>
+					a color with a value of #800000
+				</a:documentation>
+			
+			<rng:value>red</rng:value>
+				<a:documentation>
+					a color with a value of #FF0000
+				</a:documentation>
+			
+			<rng:value>orange</rng:value>
+				<a:documentation>
+					a color with a value of #FFA500
+				</a:documentation>
+			
+			<rng:value>yellow</rng:value>
+				<a:documentation>
+					a color with a value of #FFFF00
+				</a:documentation>
+			
+			<rng:value>olive</rng:value>
+				<a:documentation>
+					a color with a value of #808000
+				</a:documentation>
+			
+			<rng:value>purple</rng:value>
+				<a:documentation>
+					a color with a value of #800080
+				</a:documentation>
+			
+			<rng:value>fuchsia</rng:value>
+				<a:documentation>
+					a color with a value of #FF00FF
+				</a:documentation>
+			
+			<rng:value>white</rng:value>
+				<a:documentation>
+					a color with a value of #FFFFFF
+				</a:documentation>
+			
+			<rng:value>lime</rng:value>
+				<a:documentation>
+					a color with a value of #00FF00
+				</a:documentation>
+			
+			<rng:value>green</rng:value>
+				<a:documentation>
+					a color with a value of #008000
+				</a:documentation>
+			
+			<rng:value>navy</rng:value>
+				<a:documentation>
+					a color with a value of #000080
+				</a:documentation>
+			
+			<rng:value>blue</rng:value>
+				<a:documentation>
+					a color with a value of #0000FF
+				</a:documentation>
+			
+			<rng:value>aqua</rng:value>
+				<a:documentation>
+					a color with a value of #00FFFF
+				</a:documentation>
+			
+			<rng:value>teal</rng:value>
+				<a:documentation>
+					a color with a value of #008080
+				</a:documentation>
+			
+			<rng:value>black</rng:value>
+				<a:documentation>
+					a color with a value of #000000
+				</a:documentation>
+			
+			<rng:value>silver</rng:value>
+				<a:documentation>
+					a color with a value of #C0C0C0
+				</a:documentation>
+			
+			<rng:value>gray</rng:value>
+				<a:documentation>
+					a color with a value of #808080
+				</a:documentation>
+			
+		</rng:choice>
+	</rng:define>
+
+</rng:grammar>

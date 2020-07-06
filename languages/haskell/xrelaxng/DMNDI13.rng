@@ -1,0 +1,237 @@
+<rng:grammar xmlns:rng="http://relaxng.org/ns/structure/1.0" xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0" xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ns="https://www.omg.org/spec/DMN/20191111/DMNDI/" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+    <rng:include href="DC.rng" ns="http://www.omg.org/spec/DMN/20180521/DC/" />
+    <rng:include href="DI.rng" ns="http://www.omg.org/spec/DMN/20180521/DI/" />
+
+    <rng:start combine="choice">
+        <rng:ref name="DMNDI" />
+    </rng:start>
+    <rng:define name="DMNDI">
+        <rng:element name="DMNDI">
+            <rng:ref name="DMNDI" />
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNDiagram" />
+    </rng:start>
+    <rng:define name="DMNDiagram">
+        <rng:element name="DMNDiagram">
+            <rng:ref name="DMNDiagram" />
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNDiagramElement" />
+    </rng:start>
+    <rng:define name="DMNDiagramElement">
+        <rng:element name="DMNDiagramElement">
+            <rng:ref name="DiagramElement" />
+            <a:documentation>
+			This element should never be instantiated directly, but rather concrete implementation should. It is placed there only to be referred in the sequence
+		</a:documentation>
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNShape" />
+    </rng:start>
+    <rng:define name="DMNShape">
+        <rng:element name="DMNShape">
+            <rng:ref name="DMNShape" />
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNEdge" />
+    </rng:start>
+    <rng:define name="DMNEdge">
+        <rng:element name="DMNEdge">
+            <rng:ref name="DMNEdge" />
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNStyle" />
+    </rng:start>
+    <rng:define name="DMNStyle">
+        <rng:element name="DMNStyle">
+            <rng:ref name="DMNStyle" />
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNLabel" />
+    </rng:start>
+    <rng:define name="DMNLabel">
+        <rng:element name="DMNLabel">
+            <rng:ref name="DMNLabel" />
+        </rng:element>
+    </rng:define>
+    <rng:start combine="choice">
+        <rng:ref name="DMNDecisionServiceDividerLine" />
+    </rng:start>
+    <rng:define name="DMNDecisionServiceDividerLine">
+        <rng:element name="DMNDecisionServiceDividerLine">
+            <rng:ref name="DMNDecisionServiceDividerLine" />
+        </rng:element>
+    </rng:define>
+
+    <rng:define name="DMNDI">
+
+        <rng:zeroOrMore>
+            <rng:ref name="DMNDiagram" />
+        </rng:zeroOrMore>
+        <rng:zeroOrMore>
+            <rng:ref name="DMNStyle" />
+        </rng:zeroOrMore>
+
+    </rng:define>
+
+    <rng:define name="DMNDiagram">
+
+        <rng:ref name="Diagram" />
+
+        <rng:optional>
+            <rng:element name="Size">
+                <rng:ref name="Dimension" />
+            </rng:element>
+        </rng:optional>
+        <rng:zeroOrMore>
+            <rng:ref name="DMNDiagramElement" />
+        </rng:zeroOrMore>
+
+
+    </rng:define>
+
+    <rng:define name="DMNShape">
+
+        <rng:ref name="Shape" />
+
+        <rng:optional>
+            <rng:ref name="DMNLabel" />
+        </rng:optional>
+        <rng:optional>
+            <rng:ref name="DMNDecisionServiceDividerLine" />
+        </rng:optional>
+
+        <rng:attribute name="dmnElementRef">
+            <rng:data type="QName" />
+        </rng:attribute>
+        <rng:optional>
+            <rng:attribute name="isListedInputData">
+                <rng:data type="boolean" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="isCollapsed" ns_1:defaultValue="false">
+                <rng:data type="boolean" />
+            </rng:attribute>
+        </rng:optional>
+
+
+    </rng:define>
+
+    <rng:define name="DMNDecisionServiceDividerLine">
+
+        <rng:ref name="Edge" />
+
+    </rng:define>
+
+    <rng:define name="DMNEdge">
+
+        <rng:ref name="Edge" />
+
+        <rng:optional>
+            <rng:ref name="DMNLabel" />
+        </rng:optional>
+
+        <rng:attribute name="dmnElementRef">
+            <rng:data type="QName" />
+        </rng:attribute>
+        <rng:optional>
+            <rng:attribute name="sourceElement">
+                <rng:data type="QName" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="targetElement">
+                <rng:data type="QName" />
+            </rng:attribute>
+        </rng:optional>
+
+
+    </rng:define>
+
+    <rng:define name="DMNLabel">
+
+        <rng:ref name="Shape" />
+
+        <rng:optional>
+            <rng:element name="Text">
+                <rng:data type="string" />
+            </rng:element>
+        </rng:optional>
+
+
+    </rng:define>
+
+    <rng:define name="DMNStyle">
+
+        <rng:ref name="Style" />
+
+        <rng:optional>
+            <rng:element name="FillColor">
+                <rng:ref name="Color" />
+            </rng:element>
+        </rng:optional>
+        <rng:optional>
+            <rng:element name="StrokeColor">
+                <rng:ref name="Color" />
+            </rng:element>
+        </rng:optional>
+        <rng:optional>
+            <rng:element name="FontColor">
+                <rng:ref name="Color" />
+            </rng:element>
+        </rng:optional>
+
+        <rng:optional>
+            <rng:attribute name="fontFamily">
+                <rng:data type="string" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="fontSize">
+                <rng:data type="double" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="fontItalic">
+                <rng:data type="boolean" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="fontBold">
+                <rng:data type="boolean" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="fontUnderline">
+                <rng:data type="boolean" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="fontStrikeThrough">
+                <rng:data type="boolean" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="labelHorizontalAlignement">
+                <rng:ref name="AlignmentKind" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="labelVerticalAlignment">
+                <rng:ref name="AlignmentKind" />
+            </rng:attribute>
+        </rng:optional>
+
+
+    </rng:define>
+
+</rng:grammar>
