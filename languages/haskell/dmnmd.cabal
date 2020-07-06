@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b3852de6a9f949ef842ce6c3f18caf40b54dffa515ab9ac694e92857dfb90d18
+-- hash: 57000b0f8ea53db9123d2e8ed5c680bc1deb8c135096153fb8e103bdf54e6447
 
 name:           dmnmd
 version:        0.1.0.1
@@ -31,9 +31,9 @@ library
       DMN.DecisionTable
       DMN.ParseFEEL
       DMN.ParseTable
+      DMN.ParsingUtils
       DMN.Translate.JS
       DMN.Types
-      DMN.XML.ParseDMN
   other-modules:
       Paths_dmnmd
   hs-source-dirs:
@@ -46,7 +46,9 @@ library
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-megaparsec
     , hxt
+    , megaparsec
     , optparse-applicative
     , raw-strings-qq
     , regex-pcre
@@ -71,7 +73,9 @@ executable dmnmd
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-megaparsec
     , hxt
+    , megaparsec
     , optparse-applicative
     , raw-strings-qq
     , regex-pcre
@@ -85,7 +89,6 @@ test-suite dmnmd-test
   main-is: Spec.hs
   other-modules:
       DmnXmlSpec
-      ParseTableSpec
       Paths_dmnmd
   hs-source-dirs:
       test
@@ -99,7 +102,9 @@ test-suite dmnmd-test
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-megaparsec
     , hxt
+    , megaparsec
     , optparse-applicative
     , raw-strings-qq
     , regex-pcre

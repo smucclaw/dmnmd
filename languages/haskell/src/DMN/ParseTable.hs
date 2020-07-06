@@ -9,10 +9,13 @@ import Data.Char
 import Data.Either
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.List (filter, dropWhileEnd, transpose)
-import Control.Applicative 
-import Data.Attoparsec.Text
+import Control.Applicative hiding (many, some)
+-- import Data.Attoparsec.Text
 import Data.Text (Text)
 import qualified Data.Text as T
+import Text.Megaparsec hiding (label)
+import Text.Megaparsec.Char
+import DMN.ParsingUtils
 import DMN.Types
 
 pipeSeparator :: Parser ()

@@ -7,20 +7,24 @@ import Data.Char
 import Data.Either
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.List (filter, dropWhileEnd, transpose)
-import Control.Applicative 
-import Data.Attoparsec.Text
+import Control.Applicative hiding (many, some) 
+import Text.Megaparsec
+import Text.Megaparsec.Char
 import Data.Text (Text)
 import qualified Data.Text as T
 import DMN.Types
+import DMN.ParsingUtils
+
 
 -- parser for low-level expressions, e.g. FEEL, common to all DMN syntaxes.
 
 -- let's allow spaces in variable names. what could possibly go wrong?
 parseVarname :: Parser Text
 parseVarname = do
-  firstLetter <- letter
---  remainder <- takeWhile (\c -> c /= ':' && c /= '|' && c /= '(' ) -- inClass "a-zA-Z0-9_"
-  remainder <- takeWhile (inClass "a-zA-Z0-9_ ")
+  firstLetter <- letterChar
+  -- remainder <- takeWhileP Nothing (\c -> c /= ':' && c /= '|' && c /= '(' ) -- inClass "a-zA-Z0-9_"
+  remainder <- takeWhileP Nothing (inClass "a-zA-Z0-9_ ")
+  -- remainder <- takeWhileP Nothing (inClass $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_ ")
   return $ T.strip $ T.append (T.singleton firstLetter) remainder
 
 
@@ -70,11 +74,12 @@ parseFNOp2 =
 escape :: Parser String
 escape = do
     d <- char '\\'
-    c <- satisfy (inClass ['\\', '\"', '0', 'n', 'r', 'v', 't', 'b', 'f'])
+    c <- oneOf ['\\', '\"', '0', 'n', 'r', 'v', 't', 'b', 'f']
     return [d, c]
 
 nonEscape :: Parser Char
-nonEscape = satisfy (notInClass ['\\', '\"', '\0', '\n', '\r', '\v', '\t', '\b', '\f'])
-  
-skipHorizontalSpace = skipWhile isHorizontalSpace
+nonEscape = noneOf ['\\', '\"', '\0', '\n', '\r', '\v', '\t', '\b', '\f']
+
+skipHorizontalSpace :: Parser ()
+skipHorizontalSpace = skipWhile isHorizontalSpace <?> "Horizontal whitespace"
 

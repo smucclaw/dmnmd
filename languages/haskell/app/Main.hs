@@ -23,13 +23,16 @@ import DMN.Translate.JS
 import DMN.ParseFEEL
 
 import Test.Hspec
-import Data.Attoparsec.Text
+-- import Data.Attoparsec.Text
+import Text.Megaparsec hiding (label)
+import Text.Megaparsec.Char
+import DMN.ParsingUtils
 import qualified Data.Text as T
 import Data.Either
 import qualified Options.Applicative as OA
-import Options.Applicative (long, short, help, helper, fullDesc, progDesc, strOption, switch, value, info, metavar, str, many, argument)
+import Options.Applicative (long, short, help, helper, fullDesc, progDesc, strOption, switch, value, info, metavar, str, argument)
 import Data.Semigroup ((<>))
-import Control.Applicative
+import Control.Applicative hiding (many, some)
 import System.Posix.Terminal (queryTerminal)
 import System.Posix.IO (stdOutput)
 
@@ -56,7 +59,7 @@ argOptions = ArgOptions
   <*> strOption (long "to"         <> short 't' <> metavar "OutputFormat" <> value ""    <> help "output format" )
   <*> strOption (long "out"        <> short 'o' <> metavar "FILE"         <> value "-"   <> help "output file" )
   <*> strOption (long "pick"       <> short 'p' <> metavar "TABLE,..."    <> value ""    <> help "name of desired decision table" )
-  <*> many ( argument str (metavar "FILES..."))
+  <*> OA.many ( argument str (metavar "FILES..."))
 
 main :: IO ()
 main = do

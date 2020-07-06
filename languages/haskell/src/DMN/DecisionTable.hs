@@ -14,10 +14,13 @@ import Data.Char (toLower)
 import Data.Ord (Ordering(EQ, LT, GT))
 import Debug.Trace
 import DMN.Types
-import Data.Attoparsec.Text
+-- import Data.Attoparsec.Text
+import Text.Megaparsec hiding (label)
+import Text.Megaparsec.Char
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import DMN.ParsingUtils
 
 -- main = do
 --     putStrLn $ show example1_dish
