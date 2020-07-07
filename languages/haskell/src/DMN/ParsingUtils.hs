@@ -47,8 +47,9 @@ isHorizontalSpace :: Char -> Bool
 isHorizontalSpace c = c == ' ' || c == '\t'
 {-# INLINE isHorizontalSpace #-}
 
+-- Note: According to the docs of Scientific, we should use Data.Scientifc.toRealFloat instead of realToFrac
 double :: Parser Double
-double = float
+double = realToFrac <$> scientific
 -- double = read <$> many1 digit
 
 -- | Parse a single digit, as recognised by 'isDigit'.
@@ -57,7 +58,7 @@ digit = satisfy isDigit <?> "digit"
 {-# INLINE digit #-}
 
 parseOnly :: HasCallStack => Parser a -> Text -> Either String a
-parseOnly p = first errorBundlePretty . parse p ""
+parseOnly p = first errorBundlePretty . parse (p <* eof) ""
 
 -- | Match either a single newline character @\'\\n\'@, or a carriage
 -- return followed by a newline character @\"\\r\\n\"@.

@@ -29,7 +29,7 @@ parseVarname = do
 
 
 parseFNumFunction :: Parser FNumFunction
-parseFNumFunction = 
+parseFNumFunction =
   choice $ fmap try [ parseFNF3, parseFNF0, parseFNF1 ]
 -- age * 2  -- FNF3 (FNF1 "age") FNMul (FNF0 $ VN 2.0)
 -- age      -- FNF1 "age"

@@ -494,6 +494,30 @@ spec3 = do
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_String) "seven",  [(FNullary $ VB False)]]    []
         ])
 
+  -- Example 6 was troublesome when switching to megaparsec
+  describe "example 6" $ do
+    it "should parse a simple expression" $
+      "age * 100" ~> parseFNumFunction `shouldParse` FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0))
+    let evaled = columnSigs . reviseInOut . throwOnLeft $ parseOnly parseHeaderRow $ head $ T.lines dmn6a
+    it "should handle the last line" $
+      (last (T.lines dmn6a) <> "\n") ~> (parseDataRow evaled) `shouldParse`
+        (DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] [])
+    -- parseOnly (parseDataRow [(DTCH_In,Just DMN_Number),(DTCH_Out,Just DMN_Boolean),(DTCH_Out,Just DMN_Number)]) "| 4 | >25          | True                   | age * 100            |\n"
+    it "should parse correctly" $
+      dmn6a ~> (parseTable "mytable1") `shouldParse`
+      (DTable "mytable1" HP_First
+        [ DTCH DTCH_In "age" (Just DMN_Number) Nothing
+        , DTCH DTCH_Out "mayBuy" (Just DMN_Boolean) Nothing
+        , DTCH DTCH_Out "limit" (Just DMN_Number) Nothing
+        ]
+        [ DThr
+        , DTrow (Just 1) [[FSection Flt (VN 18.0)]] [[FNullary $ VB False], [FNullary (VN 0.0)]] []
+        , DTrow (Just 2) [[FInRange 18.0 21.0]]     [[FNullary $ VB True], [FNullary (VN 750.0)]] []
+        , DTrow (Just 3) [[FInRange 21.0 25.0]]     [[FNullary $ VB True], [FNullary (VN 1500.0)]] []
+        , DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] []
+        ]
+      )
+
   describe "function evaluation " $ do
     let evaled = (throwOnLeft (parseOnly (parseTable "mytable1") dmn6a))
     it "17 should have result of 0"      $ evalTable evaled [FNullary (VN 17.0)] `shouldBe` Right [ [[FNullary (VB False)], [FNullary $ VN    0.0 ]] ]

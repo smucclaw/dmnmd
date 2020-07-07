@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RecordWildCards #-}
+{-# LANGUAGE LambdaCase, RecordWildCards, NoOverloadedStrings #-}
 
 module DMN.DecisionTable where
 
@@ -147,7 +147,7 @@ mkF (Just DMN_Boolean) arg1 = FNullary (mkVB arg1)
       | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = VB False
       | otherwise = error $  "unable to parse an alleged boolean: " ++ arg
 mkF (Just DMN_Number)  arg1
-  | not (null ("+-*/" `intersect` arg2)) = either (error $ "error: parsing suspected function expression " ++ arg2) FFunction (parseOnly parseFNumFunction (T.pack arg2))
+  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> error $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) FFunction (parseOnly parseFNumFunction (T.pack arg2))
   | "<=" `isPrefixOf` arg2 = FSection Flte (mkVN $ trim $ drop 2 arg2)
   | "<"  `isPrefixOf` arg2 = FSection Flt  (mkVN $ trim $ drop 1 arg2)
   | ">=" `isPrefixOf` arg2 = FSection Fgte (mkVN $ trim $ drop 2 arg2)
