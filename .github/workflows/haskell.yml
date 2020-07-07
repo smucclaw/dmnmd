@@ -38,11 +38,14 @@ jobs:
       run: |
         # stack update
         stack build --only-dependencies
+      working-directory: languages/haskell
 
     - name: Build
       run: |
         stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+      working-directory: languages/haskell
 
     - name: Test
       run: |
         stack test --system-ghc
+      working-directory: languages/haskell
