@@ -5,8 +5,12 @@ name: Haskell CI
 # Trigger the workflow on push or pull request, but only for the master branch
 on:
   pull_request:
+    paths:
+    - 'languages/haskell'
   push:
     branches: [master]
+    paths:
+    - 'languages/haskell'
 
 jobs:
 
