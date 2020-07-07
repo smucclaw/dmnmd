@@ -9,14 +9,19 @@ import Data.Char
 import Data.Either
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.List (filter, dropWhileEnd, transpose)
-import Control.Applicative 
-import Data.Attoparsec.Text
+import Control.Applicative hiding (many, some)
+-- import Data.Attoparsec.Text
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Text.Megaparsec as Mega
+import Text.Megaparsec hiding (label)
+import Text.Megaparsec.Char
+import DMN.ParsingUtils
 import DMN.Types
 
 pipeSeparator :: Parser ()
-pipeSeparator = skipHorizontalSpace >> skip (=='|') >> skipHorizontalSpace
+pipeSeparator = try $ Mega.label "pipeSeparator" $ skipHorizontalSpace >> "|" >> skipHorizontalSpace
+-- pipeSeparator = Mega.label "pipeSeparator" $ try skipHorizontalSpace >> skip (=='|') >> skipHorizontalSpace
 
 getpipeSeparator :: Parser Text
 getpipeSeparator = skipHorizontalSpace *> "|" <* skipHorizontalSpace
@@ -62,8 +67,8 @@ parseHeaderRow :: Parser HeaderRow
 parseHeaderRow = do
   pipeSeparator <?> "pipeSeparator"
   myhitpolicy <- parseHitPolicy  <?> "hitPolicy"
-  mychs <- many ( pipeSeparator *> parseColHeader <?> "parseColHeader" ) <?> "mychs"
   pipeSeparator <?> "pipeSeparator"
+  mychs <- many (parseColHeader <* pipeSeparator <?> "parseColHeader" ) <?> "mychs"
   endOfLine <|> endOfInput
   return $ DTHR myhitpolicy mychs
 
@@ -119,7 +124,7 @@ parseTable tableName = do
 
 parseDThr :: Parser DTrow
 parseDThr = do
-    ("|---" <|> "| -") >> skipWhile (/='\n') >> endOfLine
+    ("|---" <|> "| -") >> skipWhile "character" (/='\n') >> endOfLine
     return DThr
 
 -- continuation rows are used to batch both subheads and datarow continuations    
@@ -129,7 +134,7 @@ parseContinuationRows = do
   return $ trim . unwords <$> transpose plainrows
 
 parseContinuationRow :: Parser [String]
-parseContinuationRow = do
+parseContinuationRow = try $ do -- We need try since it starts with a pipe
       pipeSeparator
       skipHorizontalSpace
       pipeSeparator
@@ -137,7 +142,7 @@ parseContinuationRow = do
 
 parseTail :: Parser [String]
 parseTail = do
-  rowtail <- manyTill (manyTill (satisfy (/='|')) pipeSeparator) (skipHorizontalSpace >> endOfLine)
+  rowtail <- manyTill (manyTill (satisfy (/='|') <?> "Non-pipe") pipeSeparator <?> "headr") (skipHorizontalSpace >> endOfLine)
   return $ trim <$> rowtail
   
 -- the pattern is this:
