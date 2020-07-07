@@ -32,7 +32,7 @@ import DmnXmlSpec (xmlSpec)
 -- shouldParse = HM.shouldParse
 
 (~>) :: Text -> Parser a -> Either (ParseErrorBundle Text Void) a
-t ~> p = parse p "" t
+t ~> p = parse (p <* eof) "" t
 
 shouldSucceedOn :: Show a => Parser a -> Text -> Expectation
 shouldSucceedOn p = HM.shouldSucceedOn $ parse p ""
@@ -40,7 +40,7 @@ shouldSucceedOn p = HM.shouldSucceedOn $ parse p ""
 shouldFailOn :: Show a => Parser a -> Text -> Expectation
 shouldFailOn p = HM.shouldFailOn $ parse p ""
 
-throwOnLeft :: Either String a -> a
+throwOnLeft :: HasCallStack => Either String a -> a
 throwOnLeft = either error id
 
 -- * Main content

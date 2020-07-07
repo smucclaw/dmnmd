@@ -187,7 +187,7 @@ getTableLine = do
 
 irrelevantLine :: Parser (Maybe String)
 irrelevantLine = do
-  endOfLine <|> (notChar '|' >> skipWhile (/= '\n') >> endOfLine)
+  endOfLine <|> (notChar '|' >> skipWhile "character" (/= '\n') >> endOfLine)
   return Nothing
 
 maybeHeaderLines :: Parser (Maybe String)

@@ -14,6 +14,7 @@ import Data.Void (Void)
 import qualified Data.Attoparsec.Text as Atto
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import Text.Megaparsec.Char.Lexer
 
 import GHC.Stack (HasCallStack)
 
@@ -27,8 +28,8 @@ inClass = Atto.inClass
 notInClass :: [Char] -> Char -> Bool
 notInClass s = not . inClass s
   
-skipWhile :: (Char -> Bool) -> Parser ()
-skipWhile p = () <$ takeWhileP Nothing p
+skipWhile :: String -> (Char -> Bool) -> Parser ()
+skipWhile tokenLabel p = () <$ takeWhileP (Just tokenLabel) p
 
 -- | The parser @skip p@ succeeds for any character for which the
 -- predicate @p@ returns 'True'.
@@ -37,6 +38,8 @@ skipWhile p = () <$ takeWhileP Nothing p
 -- >    where isDigit c = c >= '0' && c <= '9'
 skip :: (Char -> Bool) -> Parser ()
 skip p = () <$ satisfy p
+-- skip :: String -> (Char -> Bool) -> Parser ()
+-- skip name p = () <$ satisfy p <?> name
 
 -- | A predicate that matches either a space @\' \'@ or horizontal tab
 -- @\'\\t\'@ character.
@@ -44,8 +47,9 @@ isHorizontalSpace :: Char -> Bool
 isHorizontalSpace c = c == ' ' || c == '\t'
 {-# INLINE isHorizontalSpace #-}
 
-double :: HasCallStack => Parser Double
-double = error "double: not implemented"
+double :: Parser Double
+double = float
+-- double = read <$> many1 digit
 
 -- | Parse a single digit, as recognised by 'isDigit'.
 digit :: Parser Char
@@ -58,11 +62,12 @@ parseOnly p = first errorBundlePretty . parse p ""
 -- | Match either a single newline character @\'\\n\'@, or a carriage
 -- return followed by a newline character @\"\\r\\n\"@.
 endOfLine :: Parser ()
-endOfLine = (() <$ char '\n') <|> (() <$ string "\r\n")
+endOfLine = (() <$ char '\n') <|> (() <$ string "\r\n") <?> "End of line"
 
 endOfInput :: Parser ()
 endOfInput = eof
 
+-- attoparsec calls 'some' 'many1'
 many1 :: Parser a -> Parser [a]
 many1 = some
 
