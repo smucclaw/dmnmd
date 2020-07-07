@@ -37,7 +37,7 @@ jobs:
     - name: Install dependencies
       run: |
         # stack update
-        stack build --only-dependencies
+        stack build --system-ghc --only-dependencies
       working-directory: languages/haskell
 
     - name: Build
