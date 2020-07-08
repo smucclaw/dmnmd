@@ -28,6 +28,7 @@ abstract DMN =
 
     True, False : Bool ; -- All best languages require you to define your own Bool
 
+    VNOne : DMNVal ; -- Special constructor for 1: to prevent "you have 1 messages"
     VS : String -> DMNVal ;
     VN : Float  -> DMNVal ;
     VB : Bool   -> DMNVal ;

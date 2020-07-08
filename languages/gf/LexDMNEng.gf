@@ -5,6 +5,8 @@ oper
   upon_Prep = mkPrep "upon" ;
   at_Prep = mkPrep "at" ;
 
+  np2s np = lin S (mkUtt np) ;
+
   feq = table { -- Omitted in most cases: "X is Y" instead of "X is as much as Y"
       HWeight => "as heavy as" ;
       HHeight => "as tall as" ;

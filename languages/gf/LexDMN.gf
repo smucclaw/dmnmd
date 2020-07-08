@@ -4,6 +4,8 @@ interface LexDMN = open DMNParams, Syntax in {
    upon_Prep : Prep ;
    at_Prep : Prep ;
 
+   np2s : NP -> S ;
+   
    flt,
    flte,
    feq,

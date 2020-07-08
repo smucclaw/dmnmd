@@ -1,4 +1,4 @@
-/usr/bin/bash
+#/usr/bin/bash
 
 winter='Row 1 (Single (TimeSeason (ncn season_2_N) (FNullary (VS "Winter")))) (Single (Attribute (ncn dish_2_N) (FNullary (VS "Kidney bean stew")))) NoComment'
 spring='Row 2 (Single (TimeSeason (ncn season_2_N) (FNullary (VS "Spring")))) (Single (Attribute (ncn dish_2_N) (FNullary (VS "Smoked tofu salad")))) NoComment'

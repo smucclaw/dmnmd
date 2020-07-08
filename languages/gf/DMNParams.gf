@@ -4,7 +4,8 @@ resource DMNParams = open Prelude, Coordination in {
   param
     -- Naming convention: param value prefixed with the first letter of its type
     ExpType = EAnything | EValue ValType | ERange | ESection | EList ;
-    ValType = VTrue | VFalse | VValue ;
+    ValType = VTrue | VFalse | VString | VNum Number ;
+    Number = Singular | Plural ;
     HeaderType = HAttribute -- catch-all case
                | HLocation | HTime | HDuration | HSpeed
                | HAmountCount | HAmountMass
@@ -13,6 +14,7 @@ resource DMNParams = open Prelude, Coordination in {
     Role = Input | Output ;
     Brevity = B1 | B2 | B3 ;
     Order = IfThen | ThenIf ;
+    ConjType = UseConj | NoConj ;
 
   oper
     Val : Type = {
@@ -57,10 +59,18 @@ resource DMNParams = open Prelude, Coordination in {
     conjTable : Order -> Str -> ListRow -> SS = \o,sep,rows ->
       ss ((conjunctTable Order (ss sep) rows).s ! o) ;
 
---------------------------
--- Building expressions --
---------------------------
-
-
+    eqHeaderType : HeaderType -> HeaderType -> Bool = \ht1,ht2 -> case <ht1,ht2> of {
+      <HAttribute,HAttribute>|
+      <HLocation,HLocation>|
+      <HTime,HTime>|
+      <HDuration,HDuration>|
+      <HSpeed,HSpeed>|
+      <HAmountCount,HAmountCount>|
+      <HAmountMass,HAmountMass>|
+      <HSize,HSize>|
+      <HWeight,HWeight>|
+      <HHeight,HHeight>|
+      <HLength,HLength> => True ;
+      _                 => False } ;
 
 }

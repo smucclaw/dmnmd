@@ -5,6 +5,7 @@ incomplete concrete DMNBase of DMN =
   Prelude,
   Coordination,
   Syntax,
+  Grammar,
   Symbolic,
   LexDMN,
   DMNParams in {
@@ -14,8 +15,8 @@ incomplete concrete DMNBase of DMN =
     -- Rest defined in DMNParams
     DTRow = DMNParams.Row ;
     [DTRow] = ListRow ;
-    FCell,
-    FCells  = Cell ;
+    FCell  = Cell ;
+    FCells = Cells ;
     [FCell] = ListCell ;
     [FEELexp] = ListExp ;
     FEELexp = Exp ;
@@ -23,8 +24,16 @@ incomplete concrete DMNBase of DMN =
     DMNVal = Val ;
     FBinOp = BinOp ;
   oper
-   Cell : Type = {s : Brevity => {s : S ; adv : Adv}} ;
-   ListCell : Type = {s : Brevity => {s : [S] ; adv : [Adv]}} ;
+    Cells : Type = {
+      s : Brevity => {s : S ; adv : Adv} ;
+      } ;
+    Cell : Type = Cells ** {
+      h : HeaderType ; -- for coordination
+      } ;
+    ListCell : Type = {
+      s : Brevity => {s : [S] ; adv : [Adv]} ;
+      conjType : ConjType ; -- TODO: more fine-grained later
+      } ;
 
   lin
     -- Binary operations
@@ -38,10 +47,12 @@ incomplete concrete DMNBase of DMN =
     True  = {s = "True" ; t = VTrue} ;
     False = {s = "False" ; t = VFalse} ;
 
+    -- : DMNVal
+    VOne = {s = "1" ; t = VNum Singular} ; -- for linguistic accuracy
     -- : String -> DMNVal ;
-    VS str = str ** {t = VValue} ;
+    VS str = str ** {t = VString} ;
     -- : Float -> DMNVal ;
-    VN flt = flt ** {t = VValue} ;
+    VN flt = flt ** {t = VNum Plural} ;
     -- : Bool -> DMNVal ;
     VB bool = bool ;
 
@@ -68,7 +79,9 @@ incomplete concrete DMNBase of DMN =
       s = \\b,h =>
             let opS : Tuple Str = op ! b ! h
              in opS.p1 ++ val.s ++ opS.p2 ; -- TODO depend on headertype
-      t = ESection ;
+      t = case val.t of {
+        VNum _ => EValue (VNum Plural) ; -- "one or more/fewer things"
+        _ => EValue val.t }
     } ;
 
 oper
@@ -117,7 +130,7 @@ lin
 
     AmountCount hdr1 hdr2 exp =  -- {XCount,=<10} ~ "With 10 or fewer Xs"
       headerCount HAmountCount for_Prep hdr1 hdr2 exp ;
-    
+
     -- Duration,   -- {Weeks,[3..5]} ~ "Between 3 and 5 Weeks"
     -- Weight,     -- {XWeight,3 kg} ~ "X weighs 3 kg"
     -- Length,     -- {XLength,3 m} ~ "X is 3 m long"
@@ -129,33 +142,46 @@ oper
   headerWhen : HeaderType -> Prep -> CN -> FEELexp -> Cell =
     \h,prep,hdr,exp -> let cell : Cell = header h prep hdr exp in
     cell ** {
-      s = \\b => cell.s ! b ** {adv = mkAdv when_Subj ((cell.s ! b).s)} 
+      s = \\b => cell.s ! b ** {adv = mkAdv when_Subj ((cell.s ! b).s)}
     } ;
-    
-  
+
+
   header : HeaderType -> Prep -> CN -> FEELexp -> Cell =
-    \h,prep,hdr,exp -> {
-       s = \\b => case exp.t of {
+    \h,prep,hdr,exp ->
+    let f : CN -> NP = case exp.t of {
+          EList|ERange|EValue (VNum Plural) => thePl ;
+          _ => theSg } ;
+    in {s = \\b => case exp.t of {
               EAnything
                 => any prep hdr ;
-              _ => let s : S = mkS (mkCl (mass hdr) (symbNP b h exp)) ;
-                   in {s = s ; adv = mkAdv prep (symbNP b h exp)}
-           }
-    } ;
+              _ =>
+                let expNP : NP = symbNP b h exp ;
+                    s : S = mkS (mkCl (f hdr) expNP) ;
+                    s' : S = case b of {
+                      B3 => np2s expNP ;
+                      _ => s} ;
+                in {s = s' ; adv = mkAdv prep expNP} } ;
+        h = h
+        } ;
 
   headerCount : HeaderType -> Prep -> (number,apple : CN) -> FEELexp -> Cell =
     \h,prep,nbr,guest,exp ->
     let number_of_guests : CN = partCN nbr guest ;
-        five_to_eight : Brevity=>Det = \\b => a_Det ** {s = exp.s ! b ! h} ; -- Override for different langs
+        five_to_eight : Brevity=>Det = \\b =>
+          case exp.t of {
+            EList|
+            ERange|
+            EValue (VNum Plural) => aPl_Det ; -- Override for different langs
+            _                    => a_Det } ** {s = exp.s ! b ! h} ;
     in {s = \\b => case exp.t of {
               EAnything
                 => any prep number_of_guests ;
               _ => let s : S = mkS (mkCl (mkNP (five_to_eight ! b) guest)) ;
-                   in {s = s ; adv = mkAdv prep (mkNP (five_to_eight ! b) guest) }
-           }
+                   in {s = s ; adv = mkAdv prep (mkNP (five_to_eight ! b) guest) }} ;
+        h = h ;
     } ;
 
-            
+
     any : Prep -> (header : CN) -> {s : S ; adv : Adv} = \upon,hdr ->
       {s = mkS (mkCl (mkNP hdr) anything_NP) ; --nonExist ; -- In standard DMN, wildcard can't be output
        adv = Syntax.mkAdv upon (anyNP hdr)} ;
@@ -177,7 +203,10 @@ lin
         let c1s : {s : S ; adv : Adv} = c1.s ! b ;
             c2s : {s : S ; adv : Adv} = c2.s ! b ;
          in {s = mkListS c1s.s c2s.s ;
-             adv = mkListAdv c1s.adv c2s.adv}
+             adv = mkListAdv c1s.adv c2s.adv} ;
+      conjType = case eqHeaderType c1.h c2.h of {
+        True => UseConj ;
+        False => NoConj } ;
       } ;
 
     ConsFCell c cs = {
@@ -185,14 +214,19 @@ lin
         let c1s : {s : S ; adv : Adv} = c.s ! b ;
             c2s : {s : [S] ; adv : [Adv]} = cs.s ! b ;
          in {s = mkListS c1s.s c2s.s ;
-             adv = mkListAdv c1s.adv c2s.adv}
+             adv = mkListAdv c1s.adv c2s.adv} ;
+      conjType = UseConj ; -- always use conj for longer lists than 2
       } ;
 
     -- : [FCell] -> FCells ;
-    Many cells = {
-      s = \\b => let cs : {s : [S] ; adv : [Adv]} = cells.s ! b in {
-        s = mkS and_Conj cs.s ;
-        adv = mkAdv and_Conj cs.adv}
+    Many cells =
+      let conj : Conj = case cells.conjType of {
+            UseConj => and_Conj ;
+            NoConj => and_Conj ** {s1,s2 = []} } ; -- Override for other langs
+      in {
+        s = \\b => let cs : {s : [S] ; adv : [Adv]} = cells.s ! b in {
+          s = mkS conj cs.s ;
+          adv = mkAdv conj cs.adv}
       } ;
 
     -- : FCell -> FCells ;
@@ -206,7 +240,7 @@ lin
     let num : Str = table {B1 => "#" ++ BIND ++ rownum.s ; _ => []} ! brev ;
         input : Adv = (inputs.s ! brev).adv ;
         output : S = (outputs.s ! brev).s ;
-        inputOutput : S = mkS input output ;
+        inputOutput : S = Grammar.ExtAdvS input output ;
     in {s = table {
             ThenIf => num ++ (mkUtt output).s ++ (mkUtt input).s ++ comments.s ;
             IfThen => num ++ (mkUtt inputOutput).s ++ comments.s }
@@ -215,6 +249,14 @@ lin
     BaseDTRow = twoTable Order ;
     ConsDTRow = consrTable Order tablesep ; -- tablesep defined in each concrete
 
+
+    -- TODO aggregation, e.g.:
+    -- the dish is:
+--     #1 Kidney bean stew in Winter
+--     #2 Smoked tofu salad in Spring
+--     #3 Roasted potatoes and a nice steak in Summer
+--     #4 Instant noodles in Autumn for between 5 and 8 guests
+--     #5 Pea soup in any season for any number of guests ( I give up )
     -- : [DTRow] -> DTable ;
     Table = conjTable order tablesep ;
 
