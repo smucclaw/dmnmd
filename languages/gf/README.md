@@ -24,4 +24,4 @@ To run this, you will need to install [GF](http://www.grammaticalframework.org/)
 ### TODO
 
 * Connect this to a format with more metadata
-* Connect the WordNet lexicon into 
+* Connect the WordNet lexicon into other resources. Try e.g. [this](https://hackage.haskell.org/package/WordNet-1.1.0/docs/NLP-WordNet.html)
