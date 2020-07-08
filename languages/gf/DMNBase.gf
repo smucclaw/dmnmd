@@ -104,7 +104,7 @@ lin
 
     -- : CN -> FEELexp -> FCell ;
     Attribute =  -- Fallback: Header is FEELexp "Dish is Stew"
-      header HAttribute with_Prep ;
+      headerWhen HAttribute with_Prep ;
 
     Event = header HAttribute upon_Prep ;
 
@@ -116,9 +116,8 @@ lin
       header HLocation at_Prep ;
 
     AmountCount hdr1 hdr2 exp =  -- {XCount,=<10} ~ "With 10 or fewer Xs"
-      let number_of_guests : CN = partCN hdr1 hdr2
-       in header HAmountCount for_Prep number_of_guests exp ;
-
+      headerCount HAmountCount for_Prep hdr1 hdr2 exp ;
+    
     -- Duration,   -- {Weeks,[3..5]} ~ "Between 3 and 5 Weeks"
     -- Weight,     -- {XWeight,3 kg} ~ "X weighs 3 kg"
     -- Length,     -- {XLength,3 m} ~ "X is 3 m long"
@@ -127,16 +126,36 @@ lin
 
 oper
 
-    header : HeaderType -> Prep -> CN -> FEELexp -> Cell =
-     \h,pr,hdr,exp -> {
+  headerWhen : HeaderType -> Prep -> CN -> FEELexp -> Cell =
+    \h,prep,hdr,exp -> let cell : Cell = header h prep hdr exp in
+    cell ** {
+      s = \\b => cell.s ! b ** {adv = mkAdv when_Subj ((cell.s ! b).s)} 
+    } ;
+    
+  
+  header : HeaderType -> Prep -> CN -> FEELexp -> Cell =
+    \h,prep,hdr,exp -> {
        s = \\b => case exp.t of {
               EAnything
-                => any pr hdr ;
+                => any prep hdr ;
               _ => let s : S = mkS (mkCl (mass hdr) (symbNP b h exp)) ;
-                   in {s = s ; adv = mkAdv when_Subj s }
+                   in {s = s ; adv = mkAdv prep (symbNP b h exp)}
            }
-     } ;
+    } ;
 
+  headerCount : HeaderType -> Prep -> (number,apple : CN) -> FEELexp -> Cell =
+    \h,prep,nbr,guest,exp ->
+    let number_of_guests : CN = partCN nbr guest ;
+        five_to_eight : Brevity=>Det = \\b => a_Det ** {s = exp.s ! b ! h} ; -- Override for different langs
+    in {s = \\b => case exp.t of {
+              EAnything
+                => any prep number_of_guests ;
+              _ => let s : S = mkS (mkCl (mkNP (five_to_eight ! b) guest)) ;
+                   in {s = s ; adv = mkAdv prep (mkNP (five_to_eight ! b) guest) }
+           }
+    } ;
+
+            
     any : Prep -> (header : CN) -> {s : S ; adv : Adv} = \upon,hdr ->
       {s = mkS (mkCl (mkNP hdr) anything_NP) ; --nonExist ; -- In standard DMN, wildcard can't be output
        adv = Syntax.mkAdv upon (anyNP hdr)} ;
