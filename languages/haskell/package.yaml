@@ -33,6 +33,10 @@ dependencies:
 - raw-strings-qq
 - optparse-applicative
 - MissingH
+- hxt
+# - fadno-xml
+- megaparsec
+- hspec-megaparsec
 
 library:
   source-dirs: src

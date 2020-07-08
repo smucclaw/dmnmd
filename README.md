@@ -2,11 +2,15 @@
 
 > Show me your flowchart and conceal your tables, and I shall continue to be mystified. Show me your tables, and I won't usually need your flowchart; it'll be obvious." -- Fred Brooks, The Mythical Man Month (1975)
 
+# Inspiration
+
+Watch this real quick: https://youtu.be/Pe34U9QuhXA ... Wouldn't it be nice to be able to do this in your text editor?
+
+## DMNMD embeds DMN in plain text source code or Markdown
+
 The semantics are DMN.
 
 The syntax is Markdown.
-
-(Hence the name; apologies to any aibohphobes.)
 
 The input is plain-text.
 
@@ -15,6 +19,8 @@ The output is JS. (And, in future, XML, Python, English, LegalRuleML...)
 The interface is CLI. No mouse needed!
 
 ## Installing from Source
+
+At the moment, `dmnmd` is an executable program written in Haskell. In future it may switch to Python.
 
 OS X:
 
@@ -60,7 +66,7 @@ A plain text version formatted for Markdown looks literally like this:
     | 3 | Spring | Steak                        |               |
     | 4 | Summer | Light Salad and a nice Steak | Hey, why not? |
 
-### Example 2: Who's coming?
+### Example 2: How many guests are coming?
 
 | U | Season               | Guest Count | Dish (out)                   | # Annotation  |
 |---|----------------------|-------------|------------------------------|---------------|
@@ -117,17 +123,33 @@ This implementation only supports vertical layout. Horizontal and crosstab layou
 
 The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.3 spec.
 
-#### Example 3: Routing Rules
+#### Example 3a: Routing Rules
+
+Github's Markdown renderer is slightly broken. This version of the table is for looking at:
+
+| O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
+|---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
+|   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
+| 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
+| 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
+| 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
+| 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
+
+#### Example 3: Routing Rules (actual)
+
+This version of the table is for actually running:
 
 | O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
 |   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
-|---+-----+-------------------+----------------------+------------------------+------------------------+-----------------------------|
+|---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 | 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
 | 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
 | 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
 
 For hit policy "O", the order of results in the output is determined by the order of the column enums.
+
+This example comes from the [DMM 1.3 specification](https://www.omg.org/spec/DMN/1.3/PDF), page 96.
 
 Note that advanced hit policies are not yet implemented for code generation, only for evaluation.
 

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.33.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 199422d57c48f57f5a09de72f7b8add45d754f568535cd64d16ff258c135af1e
+-- hash: 57000b0f8ea53db9123d2e8ed5c680bc1deb8c135096153fb8e103bdf54e6447
 
 name:           dmnmd
 version:        0.1.0.1
@@ -31,6 +31,7 @@ library
       DMN.DecisionTable
       DMN.ParseFEEL
       DMN.ParseTable
+      DMN.ParsingUtils
       DMN.Translate.JS
       DMN.Types
   other-modules:
@@ -45,6 +46,9 @@ library
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-megaparsec
+    , hxt
+    , megaparsec
     , optparse-applicative
     , raw-strings-qq
     , regex-pcre
@@ -69,6 +73,9 @@ executable dmnmd
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-megaparsec
+    , hxt
+    , megaparsec
     , optparse-applicative
     , raw-strings-qq
     , regex-pcre
@@ -81,6 +88,7 @@ test-suite dmnmd-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      DmnXmlSpec
       Paths_dmnmd
   hs-source-dirs:
       test
@@ -94,6 +102,9 @@ test-suite dmnmd-test
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-megaparsec
+    , hxt
+    , megaparsec
     , optparse-applicative
     , raw-strings-qq
     , regex-pcre

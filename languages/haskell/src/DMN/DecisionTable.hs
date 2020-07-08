@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RecordWildCards #-}
+{-# LANGUAGE LambdaCase, RecordWildCards, NoOverloadedStrings #-}
 
 module DMN.DecisionTable where
 
@@ -14,10 +14,13 @@ import Data.Char (toLower)
 import Data.Ord (Ordering(EQ, LT, GT))
 import Debug.Trace
 import DMN.Types
-import Data.Attoparsec.Text
+-- import Data.Attoparsec.Text
+import Text.Megaparsec hiding (label)
+import Text.Megaparsec.Char
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import DMN.ParsingUtils
 
 -- main = do
 --     putStrLn $ show example1_dish
@@ -144,7 +147,7 @@ mkF (Just DMN_Boolean) arg1 = FNullary (mkVB arg1)
       | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = VB False
       | otherwise = error $  "unable to parse an alleged boolean: " ++ arg
 mkF (Just DMN_Number)  arg1
-  | not (null ("+-*/" `intersect` arg2)) = either (error $ "error: parsing suspected function expression " ++ arg2) FFunction (parseOnly parseFNumFunction (T.pack arg2))
+  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> error $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) FFunction (parseOnly parseFNumFunction (T.pack arg2))
   | "<=" `isPrefixOf` arg2 = FSection Flte (mkVN $ trim $ drop 2 arg2)
   | "<"  `isPrefixOf` arg2 = FSection Flt  (mkVN $ trim $ drop 1 arg2)
   | ">=" `isPrefixOf` arg2 = FSection Fgte (mkVN $ trim $ drop 2 arg2)
