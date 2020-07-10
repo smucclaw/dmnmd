@@ -5,13 +5,11 @@ module DMN.DecisionTable where
 import Control.Arrow
 import Prelude hiding (takeWhile)
 import DMN.ParseFEEL
-import Data.List (filter, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, elem, intersect, isPrefixOf, isSuffixOf, find)
+import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
 import Data.List.Split
 import Data.Maybe
-import Data.Either
 import Text.Regex.PCRE
 import Data.Char (toLower)
-import Data.Ord (Ordering(EQ, LT, GT))
 import Debug.Trace
 import DMN.Types
 -- import Data.Attoparsec.Text
