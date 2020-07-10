@@ -153,6 +153,10 @@ This example comes from the [DMM 1.3 specification](https://www.omg.org/spec/DMN
 
 Note that advanced hit policies are not yet implemented for code generation, only for evaluation.
 
+### In the IDE
+
+JetBrains MPS is a language workbench and an IDE from the future. Look how decision tables live right in the IDE: https://www.youtube.com/watch?v=Pe34U9QuhXA
+
 ### from XML
 
 On the roadmap.
