@@ -135,6 +135,8 @@ Github's Markdown renderer is slightly broken. This version of the table is for 
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
 | 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
 
+Our parser should return a parse error on this table because a data row should not start with a continuation row. But the parser should continue on to parse other tables in this file.
+
 #### Example 3: Routing Rules (actual)
 
 This version of the table is for actually running:
@@ -146,6 +148,8 @@ This version of the table is for actually running:
 | 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
 | 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
+
+It won't render nicely in Github Markdown but should be parsed by our parser.
 
 For hit policy "O", the order of results in the output is determined by the order of the column enums.
 
