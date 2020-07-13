@@ -72,7 +72,7 @@ main = do
   mydtchunks <- mapM (fileChunks opts) (zip [1..] infiles)
   mydtables1 <- mapM (\mychunk ->
                            either
-                           (\myPTfail -> do myerr opts $ "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\n" ++ show myPTfail
+                           (\myPTfail -> do myerr opts $ "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\nat " ++ myPTfail
                                             return Nothing)
                            (return . Just)
                            (parseOnly (parseTable (chunkName mychunk) <?> "parseTable") $ T.pack $ unlines $ chunkLines mychunk)
@@ -136,7 +136,7 @@ main = do
       inlines <- if infile == "-" then getContents else readFile infile
       let rawchunksEither = parseOnly (grepMarkdown ("f"++show inum) <?> "grepMarkdown") (T.pack inlines)
       either
-        (\errstr -> myerr opts ("** parser failure in grepMarkdown" ++ errstr) >> return [])
+        (\errstr -> myerr opts ("** parser failure in grepMarkdown: " ++ errstr) >> return [])
         return
         rawchunksEither
     myerr opts = hPutStrLn stderr
@@ -171,13 +171,16 @@ data InputChunk = InputChunk
 -- in future, consider grabbing the tables out of Pandoc -- maybe this would be better off as a JSON filter?
 
 grepMarkdown :: String -> Parser InputChunks
-grepMarkdown defaultName = many (grepTable defaultName <?> "grepTable")
+grepMarkdown defaultName = do
+  mytables <- many1 (try (grepTable defaultName) <?> "grepTable")
+  (many irrelevantLine >> eof >> return Nothing)
+  return $ catMaybes mytables
 
-grepTable :: String -> Parser InputChunk
+grepTable :: String -> Parser (Maybe InputChunk)
 grepTable defaultName = do
   mHeader <- maybeHeaderLines <?> "maybeHeaderLines"
   tablelines <- many1 (getTableLine <?> "getTableLine")
-  return (InputChunk (fromMaybe defaultName mHeader) tablelines)
+  return (Just (InputChunk (fromMaybe defaultName mHeader) tablelines))
 
 getTableLine :: Parser String
 getTableLine = do
@@ -197,7 +200,7 @@ maybeHeaderLines = do
 
 maybeHeaderLine :: Parser (Maybe String)
 maybeHeaderLine = do
-  foundLine <- orgNameLine <|> headerLine <|> irrelevantLine
+  foundLine <- try orgNameLine <|> try (headerLine <?> "header line") <|> (irrelevantLine <?> "irrelevant line")
   return $ Data.List.takeWhile (/=':') <$> foundLine
 
 headerLine :: Parser (Maybe String)
