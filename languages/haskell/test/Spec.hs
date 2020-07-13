@@ -293,7 +293,7 @@ spec3 = do
         ,DTrow (Just 4) [[FAnything], [FAnything], [FNullary (VB True)]]          [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 2", mkFs (Just DMN_String) "Applicant under debt review"]   []
         ])
 
-    it "should parse the Output Order table with a subheader row"
+    it "should parse the Output Order table with a subheader and continuation body rows"
       $ dmn3b
       ~> (parseTable "mytable1") `shouldParse`
       (DTable "mytable1" HP_OutputOrder
@@ -575,13 +575,16 @@ dmn3a = T.pack $ dropWhile (=='\n') [r|
 |]
 
 dmn3b = T.pack $ dropWhile (=='\n') [r|
-| O | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)                |
-|   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
-|---|--------------|-------------------|----------------------|------------------------|------------------------|-----------------------------|
-| 1 |              |                   |                      | ACCEPT                 | NONE                   | Acceptable                  |
-| 2 | <18          |                   |                      | DECLINE                | NONE                   | Applicant too young         |
-| 3 |              | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
-| 4 |              |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
+| O | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)        |
+|   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                     |
+|---+--------------+-------------------+----------------------+------------------------+------------------------+---------------------|
+| 1 |              |                   |                      | ACCEPT                 | NONE                   | Acceptable          |
+| 2 |          <18 |                   |                      | DECLINE                | NONE                   | Applicant too young |
+| 3 |              | HIGH              |                      | REFER                  | LEVEL 1                | High risk           |
+|   |              |                   |                      |                        |                        | application         |
+| 4 |              |                   | True                 | REFER                  | LEVEL                  | Applicant under     |
+|   |              |                   |                      |                        | 2                      | debt review         |
+
 |]
 
 dmn3count = T.pack $ dropWhile (=='\n') [r|
@@ -641,19 +644,19 @@ dmn5a = T.pack $ dropWhile (=='\n') [r|
 |]
 
 dmn5b = T.pack $ dropWhile (=='\n') [r|
-| C> | Age  | SpiritOrbs (out) | KorokSeeds (out) |
-|----+--------------+---------------------+---------------------|
-|  1 | <18          |                   one |                   true |
-|  2 | [18..21]     |                   three |                   false |
-|  3 | >=18         |                   five |                   yes |
-|  4 | >=65         |                   seven |                   no |
+| C> | Age      | SpiritOrbs (out) | KorokSeeds (out) |
+|----+----------+------------------+------------------|
+|  1 | <18      | one              | true             |
+|  2 | [18..21] | three            | false            |
+|  3 | >=18     | five             | yes              |
+|  4 | >=65     | seven            | no               |
 |]
 
 dmn6a = T.pack $ dropWhile (=='\n') [r|
 | F | age : Number | mayBuy : Boolean (out) | limit : Number (out) |
 |---+--------------+------------------------+----------------------|
-| 1 | <18          | False                  | 0                    |
-| 2 | [18..21]     | True                   | 750                  |
-| 3 | [21..25]     | True                   | 1500                 |
-| 4 | >25          | True                   | age * 100            |
+| 1 | <18          | False                  |                    0 |
+| 2 | [18..21]     | True                   |                  750 |
+| 3 | [21..25]     | True                   |                 1500 |
+| 4 | >25          | True                   |            age * 100 |
 |]
