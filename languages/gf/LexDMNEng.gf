@@ -2,6 +2,7 @@ instance LexDMNEng of LexDMN = DMNParams, SyntaxEng ** open ParadigmsEng in {
 
 oper
   anything_NP = mkNP (mkN "anything") ;
+  emptyNP = anything_NP ** {s = \\_ => []} ;
   upon_Prep = mkPrep "upon" ;
   at_Prep = mkPrep "at" ;
 

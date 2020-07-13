@@ -7,7 +7,8 @@ concrete DMNEngBrev3 of DMN =
      (Prelude = Prelude),
      (Syntax = SyntaxEng),
      (Symbolic = SymbolicEng),
-     (Grammar = GrammarEng),
+     (Sentence = SentenceEng),
+     (Extend = ExtendEng),
      (LexDMN = LexDMNEng),
      (Coordination = Coordination) ** open DMNParams in {
 

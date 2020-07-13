@@ -55,7 +55,8 @@ abstract DMN =
     TimeSeason, -- {Month,May} ~ "In May", "In any Month"
     Weight,     -- {XWeight,3 kg} ~ "X weighs 3 kg"
     Length,     -- {XLength,3 m} ~ "X is 3 m long"
-    Height     -- {XHeight,3 m} ~ "X is 3 m tall"
+    Height,     -- {XHeight,3 m} ~ "X is 3 m tall"
+    Boolean     -- {Liquidation,True} ~ "is liquidation"
      : CN -> FEELexp -> FCell ;
 
     AmountMass, -- {Cups,X,5} ~ "With 5 Cups of X". NB. the header needs to contain the unit and the material.
@@ -65,6 +66,11 @@ abstract DMN =
     -- BaseFCell, ConsFCell constructed automatically thanks to [FCell]{2}
     Many : [FCell] -> FCells ;
     Single : FCell -> FCells ;
+
+    -- Booleans in many cells behave like one cell:
+    -- "when X, Y and Z" sounds more natural than
+    -- "when X, when Y and when Z"
+    BoolFCell : [FCell] -> FCell ;
 
     -- Construct a row from input and output cells.
     -- Concrete syntaxes may leave out comment, line number or both.

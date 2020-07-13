@@ -7,10 +7,14 @@ resource DMNParams = open Prelude, Coordination in {
     ValType = VTrue | VFalse | VString | VNum Number ;
     Number = Singular | Plural ;
     HeaderType = HAttribute -- catch-all case
-               | HLocation | HTime | HDuration | HSpeed
-               | HAmountCount | HAmountMass
-               | HSize | HWeight | HHeight | HLength
-               ;
+      | HLocation | HTime | HDuration | HSpeed
+      | HAmountCount | HAmountMass
+      | HSize | HWeight | HHeight | HLength
+      
+      -- not actual headers, but needed in FCell
+      | HFalse | HTrue 
+      | HAnything
+      ;
     Role = Input | Output ;
     Brevity = B1 | B2 | B3 ;
     Order = IfThen | ThenIf ;
@@ -59,18 +63,29 @@ resource DMNParams = open Prelude, Coordination in {
     conjTable : Order -> Str -> ListRow -> SS = \o,sep,rows ->
       ss ((conjunctTable Order (ss sep) rows).s ! o) ;
 
-    eqHeaderType : HeaderType -> HeaderType -> Bool = \ht1,ht2 -> case <ht1,ht2> of {
-      <HAttribute,HAttribute>|
-      <HLocation,HLocation>|
-      <HTime,HTime>|
-      <HDuration,HDuration>|
-      <HSpeed,HSpeed>|
-      <HAmountCount,HAmountCount>|
-      <HAmountMass,HAmountMass>|
-      <HSize,HSize>|
-      <HWeight,HWeight>|
-      <HHeight,HHeight>|
-      <HLength,HLength> => True ;
-      _                 => False } ;
+    headerType : HeaderType -> HeaderType -> HeaderType =
+      \ht1,ht2 -> case <ht1,ht2> of {
+        <HTrue,HTrue> => HTrue ;
+        <HFalse,HFalse> => HFalse ;
+        <HAnything,y> => y ;
+        <x,y> => x } ;
+    
+    eqHeaderType : HeaderType -> HeaderType -> Bool =
+      \ht1,ht2 -> case <ht1,ht2> of {
+        <HAttribute,HAttribute>|
+        <HLocation,HLocation>|
+        <HTime,HTime>|
+        <HDuration,HDuration>|
+        <HSpeed,HSpeed>|
+        <HAmountCount,HAmountCount>|
+        <HAmountMass,HAmountMass>|
+        <HSize,HSize>|
+        <HWeight,HWeight>|
+        <HHeight,HHeight>|
+        <HLength,HLength>|
+        <HTrue,HTrue>|
+        <HFalse,HFalse>|
+        <HAnything,HAnything> => True ;
+        _                     => False } ;
 
 }

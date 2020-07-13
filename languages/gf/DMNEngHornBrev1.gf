@@ -7,7 +7,8 @@ concrete DMNEngHornBrev1 of DMN =
      (Prelude = Prelude),
      (Coordination = Coordination),
      (Syntax = SyntaxEng),
-     (Grammar = GrammarEng),
+     (Sentence = SentenceEng),
+     (Extend = ExtendEng),
      (Symbolic = SymbolicEng),
      (LexDMN = LexDMNEng)
      ** open DMNParams in {

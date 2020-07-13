@@ -3,9 +3,11 @@ incomplete concrete DMNBase of DMN =
 --  , Numeral
    ** open
   Prelude,
+  Predef,
   Coordination,
   Syntax,
-  Grammar,
+  Sentence,
+  Extend,
   Symbolic,
   LexDMN,
   DMNParams in {
@@ -24,14 +26,18 @@ incomplete concrete DMNBase of DMN =
     DMNVal = Val ;
     FBinOp = BinOp ;
   oper
+    HEA : Type = {hdr, exp : NP ; adv : Adv} ;
+    ListHESA : Type = {hdr, exp : [NP] ; s : [S] ; adv : [Adv]} ;
     Cells : Type = {
-      s : Brevity => {s : S ; adv : Adv} ;
+      s : S ;
+      adv : Adv
       } ;
-    Cell : Type = Cells ** {
+    Cell : Type = {
+      s : HEA ;
       h : HeaderType ; -- for coordination
       } ;
     ListCell : Type = {
-      s : Brevity => {s : [S] ; adv : [Adv]} ;
+      s : ListHESA ;
       conjType : ConjType ; -- TODO: more fine-grained later
       } ;
 
@@ -121,6 +127,8 @@ lin
 
     Event = header HAttribute upon_Prep ;
 
+    Boolean = headerBool ;
+
     Location,     -- {City,Paris} ~ "In Paris"
     TimeSeason =  -- {Month,May} ~ "In May"
       header HLocation in_Prep ;
@@ -140,97 +148,122 @@ lin
 oper
 
   headerWhen : HeaderType -> Prep -> CN -> FEELexp -> Cell =
-    \h,prep,hdr,exp -> let cell : Cell = header h prep hdr exp in
-    cell ** {
-      s = \\b => cell.s ! b ** {adv = mkAdv when_Subj ((cell.s ! b).s)}
+    \h,prep,hdrCN,expr ->
+    let cell : Cell = header h prep hdrCN expr in cell ** {
+      s = cell.s ** {
+        adv = mkAdv when_Subj (cell2s cell) }
     } ;
 
 
   header : HeaderType -> Prep -> CN -> FEELexp -> Cell =
-    \h,prep,hdr,exp ->
-    let f : CN -> NP = case exp.t of {
-          EList|ERange|EValue (VNum Plural) => thePl ;
-          _ => theSg } ;
-    in {s = \\b => case exp.t of {
-              EAnything
-                => any prep hdr ;
-              _ =>
-                let expNP : NP = symbNP b h exp ;
-                    s : S = mkS (mkCl (f hdr) expNP) ;
-                    s' : S = case b of {
-                      B3 => np2s expNP ;
-                      _ => s} ;
-                in {s = s' ; adv = mkAdv prep expNP} } ;
-        h = h
-        } ;
+    \h,prep,hdrCN,expr -> {
+      s = case expr.t of {
+        EAnything
+          => any prep hdrCN ;
+        _ => let expNP : NP = symbNP h expr in
+          {hdr = det expr hdrCN ;
+           exp = expNP ;
+           adv = mkAdv prep expNP} } ;
+      h = h
+    } ;
+
+  headerBool : CN -> FEELexp -> Cell = \hdrCN,expr -> {
+    s = let expNP : NP = mass hdrCN in -- hdr is informative, exp is just T/F
+      {hdr = emptyNP ;
+       exp = expNP ;
+       adv = mkAdv when_Subj (mkS (mkCl (mkVP expNP)))} ;
+    h = case expr.t of {
+      EValue VTrue => HTrue ;
+      EValue VFalse => HFalse ;
+      EAnything => HAnything ;
+      _ => HAttribute } ;
+--      _ => Predef.error "headerBool applied to non-boolean FEEL expression"} ;
+    } ;
 
   headerCount : HeaderType -> Prep -> (number,apple : CN) -> FEELexp -> Cell =
-    \h,prep,nbr,guest,exp ->
+    \h,prep,nbr,guest,expr ->
     let number_of_guests : CN = partCN nbr guest ;
-        five_to_eight : Brevity=>Det = \\b =>
-          case exp.t of {
-            EList|
-            ERange|
-            EValue (VNum Plural) => aPl_Det ; -- Override for different langs
-            _                    => a_Det } ** {s = exp.s ! b ! h} ;
-    in {s = \\b => case exp.t of {
+        five_to_eight : Det =
+          case expr.t of {
+            EList|ERange|EValue (VNum Plural)
+              => aPl_Det ; -- Override for different langs
+            _ => a_Det } ** {s = expr.s ! brev ! h} ;
+    in {s = case expr.t of {
               EAnything
                 => any prep number_of_guests ;
-              _ => let s : S = mkS (mkCl (mkNP (five_to_eight ! b) guest)) ;
-                   in {s = s ; adv = mkAdv prep (mkNP (five_to_eight ! b) guest) }} ;
+              _ => let expNP : NP = mkNP five_to_eight guest in
+                   {hdr = emptyNP ; -- will use existential, no hdr
+                    exp = expNP ; -- there are 5-8 guests
+                    adv = mkAdv prep expNP }} ; -- with 5-8 guests
         h = h ;
     } ;
 
+    det : FEELexp -> CN -> NP = \expr ->
+      case expr.t of {
+        EList|ERange|EValue (VNum Plural)
+          => thePl ;
+        _ => theSg } ;
 
-    any : Prep -> (header : CN) -> {s : S ; adv : Adv} = \upon,hdr ->
-      {s = mkS (mkCl (mkNP hdr) anything_NP) ; --nonExist ; -- In standard DMN, wildcard can't be output
-       adv = Syntax.mkAdv upon (anyNP hdr)} ;
+    any : Prep -> (header : CN) -> HEA = \upon,hdrCN ->
+      {hdr = mkNP hdrCN ; --nonExist ; -- In standard DMN, wildcard can't be output
+       exp = anything_NP ;
+       adv = Syntax.mkAdv upon (anyNP hdrCN)} ;
 
     anyNP : CN -> NP = mkNP anySg_1_Det ;
 
-    symbNP : Brevity -> HeaderType -> Exp -> NP = \b,h,exp ->
-      Symbolic.symb (exp.s ! b ! h) ;
+    symbNP : HeaderType -> Exp -> NP = \h,expr ->
+      Symbolic.symb (expr.s ! brev ! h) ;
 
     partCN : CN -> CN -> CN = \number,apple ->
       mkCN number (mkAdv part_Prep (mkNP aPl_Det apple)) ;
 
+    cell2s : Cell -> S = \c ->
+      case brev of {
+        B3 => np2s c.s.exp ;
+        _ => case c.h of {
+          HTrue => mkS (mkCl (mkVP c.s.exp)) ;
+          HFalse => mkS negativePol (mkCl (mkVP c.s.exp)) ;
+          _ => mkS (mkCl c.s.hdr c.s.exp) } -- Hdr is Exp
+      } ;
 -------------------
 -- List of cells --
 -------------------
 lin
     BaseFCell c1 c2 = {
-      s = \\b =>
-        let c1s : {s : S ; adv : Adv} = c1.s ! b ;
-            c2s : {s : S ; adv : Adv} = c2.s ! b ;
-         in {s = mkListS c1s.s c2s.s ;
-             adv = mkListAdv c1s.adv c2s.adv} ;
+      s = {hdr = mkListNP c1.s.hdr c2.s.hdr ;
+           exp = mkListNP c1.s.exp c2.s.exp ;
+           s = mkListS (cell2s c1) (cell2s c2) ;
+           adv = mkListAdv c1.s.adv c2.s.adv} ;
       conjType = case eqHeaderType c1.h c2.h of {
         True => UseConj ;
         False => NoConj } ;
+      h = headerType c1.h c2.h ;
       } ;
 
-    ConsFCell c cs = {
-      s = \\b =>
-        let c1s : {s : S ; adv : Adv} = c.s ! b ;
-            c2s : {s : [S] ; adv : [Adv]} = cs.s ! b ;
-         in {s = mkListS c1s.s c2s.s ;
-             adv = mkListAdv c1s.adv c2s.adv} ;
-      conjType = UseConj ; -- always use conj for longer lists than 2
-      } ;
+    ConsFCell c cs =
+      case c.h of {
+        HAnything => cs ; -- don't add to list items that are Anything
+        _ => {s = {hdr = mkListNP c.s.hdr cs.s.hdr ;
+                   exp = mkListNP c.s.exp cs.s.exp ;
+                   s = mkListS (cell2s c) cs.s.s;
+                   adv = mkListAdv c.s.adv cs.s.adv} ;
+              conjType = UseConj ; -- always use conj for longer lists than 2
+              h = headerType c.h cs.h}
+          } ;
 
     -- : [FCell] -> FCells ;
-    Many cells =
-      let conj : Conj = case cells.conjType of {
+    Many cs =
+      let conj : Conj = case cs.conjType of {
             UseConj => and_Conj ;
             NoConj => and_Conj ** {s1,s2 = []} } ; -- Override for other langs
-      in {
-        s = \\b => let cs : {s : [S] ; adv : [Adv]} = cells.s ! b in {
-          s = mkS conj cs.s ;
-          adv = mkAdv conj cs.adv}
-      } ;
+      in {s = mkS and_Conj cs.s.s ;
+          adv = mkAdv conj cs.s.adv} ;
 
     -- : FCell -> FCells ;
-    Single cell = cell ;
+    Single cell = {
+      s = cell2s cell ;
+      adv = cell.s.adv
+      } ;
 
 ------------------
 -- List of rows --
@@ -238,9 +271,9 @@ lin
    -- : Int -> FCells -> FCells -> Comment -> DTRow ;
    Row rownum inputs outputs comments =
     let num : Str = table {B1 => "#" ++ BIND ++ rownum.s ; _ => []} ! brev ;
-        input : Adv = (inputs.s ! brev).adv ;
-        output : S = (outputs.s ! brev).s ;
-        inputOutput : S = Grammar.ExtAdvS input output ;
+        input : Adv = inputs.adv ;
+        output : S = outputs.s ;
+        inputOutput : S = Sentence.ExtAdvS input output ;
     in {s = table {
             ThenIf => num ++ (mkUtt output).s ++ (mkUtt input).s ++ comments.s ;
             IfThen => num ++ (mkUtt inputOutput).s ++ comments.s }
