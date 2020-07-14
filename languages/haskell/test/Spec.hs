@@ -17,31 +17,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Text.Megaparsec hiding (label)
 import Text.Megaparsec.Char
-import qualified Test.Hspec.Megaparsec as HM
-import Test.Hspec.Megaparsec (shouldParse)
 import DMN.ParsingUtils
-import Data.Void (Void)
 
 import DmnXmlSpec (xmlSpec)
+import ParseFEELSpec (feelSpec)
+import ParserSpecHelpers
 
--- * Helper functions
-
--- shouldParse :: Parser a -> a -> Expectation
--- shouldParse = undefined -- HM.shouldParse . parse ""
-
--- shouldParse = HM.shouldParse
-
-(~>) :: Text -> Parser a -> Either (ParseErrorBundle Text Void) a
-t ~> p = parse (p <* eof) "" t
-
-shouldSucceedOn :: Show a => Parser a -> Text -> Expectation
-shouldSucceedOn p = HM.shouldSucceedOn $ parse p ""
-
-shouldFailOn :: Show a => Parser a -> Text -> Expectation
-shouldFailOn p = HM.shouldFailOn $ parse p ""
-
-throwOnLeft :: HasCallStack => Either String a -> a
-throwOnLeft = either error id
 
 -- * Main content
 
