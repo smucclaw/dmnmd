@@ -6,11 +6,11 @@ name: Haskell CI
 on:
   pull_request:
     paths:
-    - 'languages/haskell'
+    - 'languages/haskell/**'
   push:
     branches: [master]
     paths:
-    - 'languages/haskell'
+    - 'languages/haskell/**'
 
 jobs:
 
