@@ -26,12 +26,12 @@ abstract DMN =
     Flt, Flte, Feq,
     Fgte, Fgt : FBinOp ;
 
-    True, False : Bool ; -- All best languages require you to define your own Bool
+--    True, False : Bool ; -- All best languages require you to define your own Bool
 
     VNOne : DMNVal ; -- Special constructor for 1: to prevent "you have 1 messages"
     VS : String -> DMNVal ;
     VN : Float  -> DMNVal ;
-    VB : Bool   -> DMNVal ;
+--    VB : Bool   -> DMNVal ;
 
     NoComment : Comment ;
     CommentString : String -> Comment ;
@@ -55,13 +55,16 @@ abstract DMN =
     TimeSeason, -- {Month,May} ~ "In May", "In any Month"
     Weight,     -- {XWeight,3 kg} ~ "X weighs 3 kg"
     Length,     -- {XLength,3 m} ~ "X is 3 m long"
-    Height,     -- {XHeight,3 m} ~ "X is 3 m tall"
-    Boolean     -- {Liquidation,True} ~ "is liquidation"
+    Height     -- {XHeight,3 m} ~ "X is 3 m tall"
      : CN -> FEELexp -> FCell ;
 
     AmountMass, -- {Cups,X,5} ~ "With 5 Cups of X". NB. the header needs to contain the unit and the material.
     AmountCount -- {Count, X, =<10} ~ "With 10 or fewer Xs"
       : CN -> CN -> FEELexp -> FCell ;
+
+    IsTrue,
+    IsFalse
+      : CN -> FCell ; -- {Liquidation} ~ "is liquidation"
 
     -- BaseFCell, ConsFCell constructed automatically thanks to [FCell]{2}
     Many : [FCell] -> FCells ;

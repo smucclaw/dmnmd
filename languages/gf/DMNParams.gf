@@ -27,11 +27,11 @@ resource DMNParams = open Prelude, Coordination in {
       } ;
 
     Exp : Type = {
-      s : Brevity => HeaderType => Str ;
+      s : HeaderType => Str ;
       t : ExpType
       } ;
 
-    ListExp = ListTable2 Brevity HeaderType ** {
+    ListExp = ListTable HeaderType ** {
       t : ExpType
       } ;
 

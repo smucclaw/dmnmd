@@ -50,41 +50,41 @@ incomplete concrete DMNBase of DMN =
     Fgte = binop ">=" LexDMN.fgte ;
 
     -- Booleans
-    True  = {s = "True" ; t = VTrue} ;
-    False = {s = "False" ; t = VFalse} ;
+--    True  = {s = "True" ; t = VTrue} ;
+--    False = {s = "False" ; t = VFalse} ;
 
     -- : DMNVal
-    VOne = {s = "1" ; t = VNum Singular} ; -- for linguistic accuracy
+    VNOne = {s = "1" ; t = VNum Singular} ; -- for linguistic accuracy
     -- : String -> DMNVal ;
     VS str = str ** {t = VString} ;
     -- : Float -> DMNVal ;
     VN flt = flt ** {t = VNum Plural} ;
     -- : Bool -> DMNVal ;
-    VB bool = bool ;
+   -- VB bool = bool ;
 
     NoComment = ss "" ;       -- : Comment
     CommentString = parenss ; -- : String -> Comment
 
     -- FEEL expressions
     FAnything = {                -- : FEELexp ;
-      s = \\_,_ => [] ;
+      s = \\_ => [] ;
       t = EAnything
       } ;
     FNullary val = {             -- : DMNVal -> FEELexp ;
-      s = \\_,_ => val.s ;
+      s = \\_ => val.s ;
       t = EValue val.t
       } ;
     FInRange,
     FInRangeInt = \bg,end -> {          -- : Float  -> Float  -> FEELexp ;
-      s = table {
+      s = case brev of {
         B3 => \\_ => bg.s ++ "-" ++ end.s ; -- postprocess or use BIND to remove spaces
         _  => \\_ => between bg end} ; -- TODO: depend on headertype
       t = ERange ;
       } ;
     FSection op val = {  -- : FBinOp -> DNMVal -> FEELexp ;
-      s = \\b,h =>
-            let opS : Tuple Str = op ! b ! h
-             in opS.p1 ++ val.s ++ opS.p2 ; -- TODO depend on headertype
+      s = \\h => -- TODO: depend on headertype
+        let opS : Tuple Str = op ! brev ! h
+        in opS.p1 ++ opS.p2 ++ val.s ; -- do we need discontinuity?
       t = case val.t of {
         VNum _ => EValue (VNum Plural) ; -- "one or more/fewer things"
         _ => EValue val.t }
@@ -105,20 +105,20 @@ lin
      case <e1.t, e2.t> of {
        -- If any subexpression is Anything, the whole expression is Anything.
        <_,EAnything>|<EAnything,_> -- Replaced with just one FAnything later.
-         => twoTable2 Brevity HeaderType e1 e2 ** {t = EAnything};
-       _ => twoTable2 Brevity HeaderType e1 e2 ** {t = EList}
+         => twoTable HeaderType e1 e2 ** {t = EAnything};
+       _ => twoTable HeaderType e1 e2 ** {t = EList}
      } ;
 
     ConsFEELexp e es = lin ListFEELexp (
       case <e.t, es.t> of {
        <_,EAnything>|<EAnything,_>
-          => consTable2 Brevity HeaderType comma es e ** {t = EAnything} ;
-        _ => consTable2 Brevity HeaderType comma es e ** {t = EList}
+          => consTable HeaderType comma es e ** {t = EAnything} ;
+        _ => consTable HeaderType comma es e ** {t = EList}
       }) ;
 
     Disj es = case es.t of {
       EAnything => FAnything ;
-      x => conjunctDistrTable2 Brevity HeaderType or_Conj es ** {t = x}
+      x => conjunctDistrTable HeaderType or_Conj es ** {t = x}
       } ;
 
     -- : CN -> FEELexp -> FCell ;
@@ -127,7 +127,8 @@ lin
 
     Event = header HAttribute upon_Prep ;
 
-    Boolean = headerBool ;
+    IsTrue = headerBool HTrue ;
+    IsFalse = headerBool HFalse ;
 
     Location,     -- {City,Paris} ~ "In Paris"
     TimeSeason =  -- {Month,May} ~ "In May"
@@ -167,17 +168,12 @@ oper
       h = h
     } ;
 
-  headerBool : CN -> FEELexp -> Cell = \hdrCN,expr -> {
+  headerBool : HeaderType -> CN -> Cell = \h,hdrCN -> {
     s = let expNP : NP = mass hdrCN in -- hdr is informative, exp is just T/F
       {hdr = emptyNP ;
        exp = expNP ;
        adv = mkAdv when_Subj (mkS (mkCl (mkVP expNP)))} ;
-    h = case expr.t of {
-      EValue VTrue => HTrue ;
-      EValue VFalse => HFalse ;
-      EAnything => HAnything ;
-      _ => HAttribute } ;
---      _ => Predef.error "headerBool applied to non-boolean FEEL expression"} ;
+    h = h
     } ;
 
   headerCount : HeaderType -> Prep -> (number,apple : CN) -> FEELexp -> Cell =
@@ -187,7 +183,7 @@ oper
           case expr.t of {
             EList|ERange|EValue (VNum Plural)
               => aPl_Det ; -- Override for different langs
-            _ => a_Det } ** {s = expr.s ! brev ! h} ;
+            _ => a_Det } ** {s = expr.s ! h} ;
     in {s = case expr.t of {
               EAnything
                 => any prep number_of_guests ;
@@ -212,19 +208,19 @@ oper
     anyNP : CN -> NP = mkNP anySg_1_Det ;
 
     symbNP : HeaderType -> Exp -> NP = \h,expr ->
-      Symbolic.symb (expr.s ! brev ! h) ;
+      Symbolic.symb (expr.s ! h) ;
 
     partCN : CN -> CN -> CN = \number,apple ->
       mkCN number (mkAdv part_Prep (mkNP aPl_Det apple)) ;
 
     cell2s : Cell -> S = \c ->
-      case brev of {
-        B3 => np2s c.s.exp ;
-        _ => case c.h of {
-          HTrue => mkS (mkCl (mkVP c.s.exp)) ;
-          HFalse => mkS negativePol (mkCl (mkVP c.s.exp)) ;
-          _ => mkS (mkCl c.s.hdr c.s.exp) } -- Hdr is Exp
+      case <c.h,brev> of {
+        <HFalse,_> => mkS negativePol (mkCl (mkVP c.s.exp)) ;
+        <_,    B3> => np2s c.s.exp ;
+        <HTrue, _> => mkS (mkCl (mkVP c.s.exp)) ;
+        _          => mkS (mkCl c.s.hdr c.s.exp) -- Hdr is Exp
       } ;
+
 -------------------
 -- List of cells --
 -------------------
