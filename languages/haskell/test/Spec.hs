@@ -10,8 +10,8 @@ import DMN.ParseTable
 import DMN.ParseFEEL
 import Test.Hspec
 -- import Test.Hspec.Attoparsec
-import Data.Either (fromRight)
-import Control.Applicative hiding (many, some)
+-- import Data.Either (fromRight)
+-- import Control.Applicative hiding (many, some)
 -- import Data.Attoparsec.Text
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -47,7 +47,7 @@ throwOnLeft = either error id
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec] $ hspec
   return ()
 
 parseHelloWorld :: Parser ()
@@ -526,6 +526,7 @@ spec3 = do
 
 
 
+dmn1 :: Text
 dmn1 = T.pack $ dropWhile (=='\n') [r|
 | U | Season | Dish                         | # Annotation  |
 |---+--------+------------------------------+---------------|
@@ -536,6 +537,7 @@ dmn1 = T.pack $ dropWhile (=='\n') [r|
 |]
 
 -- with multivalues in the input
+dmn1b :: Text
 dmn1b = T.pack $ dropWhile (=='\n') [r|
 | U | Season               | Dish                         | # Annotation  |
 |---+----------------------+------------------------------+---------------|
@@ -545,6 +547,7 @@ dmn1b = T.pack $ dropWhile (=='\n') [r|
 |]
 
 -- with type annotations multivalues in the input
+dmn1c :: Text
 dmn1c = T.pack $ dropWhile (=='\n') [r|
 | U | Season : String      | Dish : String                | # Annotation  |
 |---+----------------------+------------------------------+---------------|
@@ -553,6 +556,7 @@ dmn1c = T.pack $ dropWhile (=='\n') [r|
 | 3 | Spring, Summer       | Stew                         | Multivalue    |
 |]
 
+dmn2 :: Text
 dmn2 = T.pack $ dropWhile (=='\n') [r|
 | U | Season : String      | guestCount : Number  | Dish : String                | # Annotation  |
 |---+----------------------+----------------------+------------------------------+---------------|
@@ -564,6 +568,7 @@ dmn2 = T.pack $ dropWhile (=='\n') [r|
 | 6 | Summer               | -                    | Light Salad and a nice Steak | Hey, why not? |
 |]
 
+dmn3a :: Text
 dmn3a = T.pack $ dropWhile (=='\n') [r|
 | C | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)                |
 |   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
@@ -574,6 +579,7 @@ dmn3a = T.pack $ dropWhile (=='\n') [r|
 | 4 |              |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
 |]
 
+dmn3b :: Text
 dmn3b = T.pack $ dropWhile (=='\n') [r|
 | O | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)        |
 |   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                     |
@@ -587,6 +593,7 @@ dmn3b = T.pack $ dropWhile (=='\n') [r|
 
 |]
 
+dmn3count :: Text
 dmn3count = T.pack $ dropWhile (=='\n') [r|
 | C# | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)                |
 |   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
@@ -598,6 +605,7 @@ dmn3count = T.pack $ dropWhile (=='\n') [r|
 |]
 
 
+dmn4sum :: Text
 dmn4sum = T.pack $ dropWhile (=='\n') [r|
 | C+ | Age : Number | SpiritOrbs : Number (out) | KorokSeeds : Number (out) |
 |----+--------------+---------------------+---------------------|
@@ -607,6 +615,7 @@ dmn4sum = T.pack $ dropWhile (=='\n') [r|
 |  4 | >=65         |                   7 |                   8 |
 |]
 
+dmn4count :: Text
 dmn4count = T.pack $ dropWhile (=='\n') [r|
 | C# | Age : Number | SpiritOrbs : Number (out) | KorokSeeds : Number (out) |
 |----+--------------+---------------------+---------------------|
@@ -616,6 +625,7 @@ dmn4count = T.pack $ dropWhile (=='\n') [r|
 |  4 | >=65         |                   7 |                   8 |
 |]
 
+dmn4min :: Text
 dmn4min = T.pack $ dropWhile (=='\n') [r|
 | C< | Age : Number | SpiritOrbs : Number (out) | KorokSeeds : Number (out) |
 |----+--------------+---------------------+---------------------|
@@ -625,6 +635,7 @@ dmn4min = T.pack $ dropWhile (=='\n') [r|
 |  4 | >=65         |                   7 |                   8 |
 |]
 
+dmn4max :: Text
 dmn4max = T.pack $ dropWhile (=='\n') [r|
 | C> | Age : Number | SpiritOrbs : Number (out) | KorokSeeds : Number (out) |
 |----+--------------+---------------------+---------------------|
@@ -634,6 +645,7 @@ dmn4max = T.pack $ dropWhile (=='\n') [r|
 |  4 | >=65         |                   7 |                   8 |
 |]
 
+dmn5a :: Text
 dmn5a = T.pack $ dropWhile (=='\n') [r|
 | C> | Age  | SpiritOrbs (out) | KorokSeeds (out) |
 |----+--------------+---------------------+---------------------|
@@ -643,6 +655,7 @@ dmn5a = T.pack $ dropWhile (=='\n') [r|
 |  4 | >=65         |                   7 |                   no |
 |]
 
+dmn5b :: Text
 dmn5b = T.pack $ dropWhile (=='\n') [r|
 | C> | Age      | SpiritOrbs (out) | KorokSeeds (out) |
 |----+----------+------------------+------------------|
@@ -652,6 +665,7 @@ dmn5b = T.pack $ dropWhile (=='\n') [r|
 |  4 | >=65     | seven            | no               |
 |]
 
+dmn6a :: Text
 dmn6a = T.pack $ dropWhile (=='\n') [r|
 | F | age : Number | mayBuy : Boolean (out) | limit : Number (out) |
 |---+--------------+------------------------+----------------------|
