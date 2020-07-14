@@ -1,5 +1,7 @@
 # `dmnmd`: A Command-Line Interface to DMN Decision Tables In Plain Text
 
+![Haskell](https://github.com/smucclaw/dmnmd/workflows/Haskell%20CI/badge.svg)
+
 > Show me your flowchart and conceal your tables, and I shall continue to be mystified. Show me your tables, and I won't usually need your flowchart; it'll be obvious." -- Fred Brooks, The Mythical Man Month (1975)
 
 # Inspiration
