@@ -571,7 +571,6 @@ dmn3b = T.pack $ dropWhile (=='\n') [r|
 |   |              |                   |                      |                        |                        | application         |
 | 4 |              |                   | True                 | REFER                  | LEVEL                  | Applicant under     |
 |   |              |                   |                      |                        | 2                      | debt review         |
-
 |]
 
 dmn3count :: Text
