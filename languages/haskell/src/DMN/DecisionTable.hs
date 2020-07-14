@@ -13,9 +13,9 @@ import Data.Char (toLower)
 import Debug.Trace
 import DMN.Types
 -- import Data.Attoparsec.Text
-import Text.Megaparsec hiding (label)
-import Text.Megaparsec.Char
-import Data.Text (Text)
+-- import Text.Megaparsec hiding (label)
+-- import Text.Megaparsec.Char
+-- import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import DMN.ParsingUtils
@@ -58,6 +58,7 @@ evalTable table given_input =
         FFunction f -> return $ FNullary (fNEval symtab f)
         x           -> return x
 
+head0 :: DecisionTable -> [p] -> p
 head0 dt mylist = if not (null mylist) then head mylist else
   error $ "dmn error: table " ++ tableName dt ++ " expected at least one row to match, but none did; hit policy " ++ show (hitpolicy dt) ++ " unable to operate."
 

@@ -5,10 +5,8 @@ module DMN.ParseTable where
 import Prelude hiding (takeWhile)
 import DMN.DecisionTable
 import DMN.ParseFEEL
-import Data.Char
-import Data.Either
-import Data.Maybe (fromMaybe, catMaybes)
-import Data.List (filter, dropWhileEnd, transpose)
+import Data.Maybe (catMaybes)
+import Data.List (transpose)
 import Control.Applicative hiding (many, some)
 -- import Data.Attoparsec.Text
 import Data.Text (Text)
@@ -54,7 +52,10 @@ mkHeaderLabel _ (Just "(out)")     = DTCH_Out
 mkHeaderLabel _ (Just "(in)")      = DTCH_In
 mkHeaderLabel _  Nothing           = DTCH_In
 
+parseLabelPre :: Parser (Maybe Text)
 parseLabelPre  = option Nothing (Just <$> ("//"   <|> "#"))
+
+parseLabelPost :: Parser (Maybe Text)
 parseLabelPost = option Nothing (Just <$> ("(in)" <|> "(out)" <|> "(comment)"))
 
 parseHitPolicy :: Parser HitPolicy
