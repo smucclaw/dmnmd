@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.1.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 57000b0f8ea53db9123d2e8ed5c680bc1deb8c135096153fb8e103bdf54e6447
+-- hash: 886500edb4b56269023d7572aa1dbb45519f15cc354f184b0335fa40c5dc3e95
 
 name:           dmnmd
 version:        0.1.0.1
@@ -38,6 +38,7 @@ library
       Paths_dmnmd
   hs-source-dirs:
       src
+  ghc-options: -Wall
   build-depends:
       MissingH
     , attoparsec
@@ -63,7 +64,7 @@ executable dmnmd
       Paths_dmnmd
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
       MissingH
     , attoparsec
@@ -89,10 +90,12 @@ test-suite dmnmd-test
   main-is: Spec.hs
   other-modules:
       DmnXmlSpec
+      ParseFEELSpec
+      ParserSpecHelpers
       Paths_dmnmd
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
       MissingH
     , attoparsec
