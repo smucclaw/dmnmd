@@ -1,0 +1,4 @@
+MDefTerm (TMass LiquidityEvent) (TOr (ConsTerm (TSgIndef ChangeOfControl) (BaseTerm (TSgIndef DirectListing) (TSgIndef InitialPublicOffering))))
+
+MDefTerm (TMass DissolutionEvent) (TOr (ConsTerm (TSgIndef (KProperty Voluntary Termination)) (BaseTerm (TSgIndef (KProperty (Benefit (Creditors Company)) GeneralAssignment)) (TAnyOther (KWhetherOr (BaseProperty Voluntary Involuntary) (KExcluding (TKOr (ConsTK (\_1 -> Liquidation ?16) (BaseTK (\_1 -> Dissolution ?18) (\_1 -> WindingUp ?20))) Company) (TSgIndef LiquidityEvent)))))))
+
