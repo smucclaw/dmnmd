@@ -10,9 +10,12 @@ abstract SAFEQuery = Query ** {
     Fixed,
     PreMoney,
     PostMoney,
-    Voluntary : Property ;
+    Voluntary,
+    Involuntary : Property ;
 
-    -----------
+    Benefit : Term -> Property ; -- for the benefit of the Company's creditors
+
+  -----------
     -- Kinds --
     -----------
     Event,
@@ -31,25 +34,39 @@ abstract SAFEQuery = Query ** {
     PreferredStock,
     Valuation : Kind ;
 
-    -- We'll switch to a more fine-grained grammar later,
-    -- until then these things are also Kinds.
+    -- These take a term
     Liquidation,
     Dissolution,
-    WindingUp : Kind ;
+    WindingUp : Term -> Kind ;
+
+    KWhetherOr  -- dissolution event, whether voluntary or involuntary
+      : [Property] -> Kind -> Kind ;
+
+    KExcluding, -- liquidation of the Company, excluding a Liquidity Event
+    KIncluding  -- fixed valuation, including a pre-money or post-money valuation
+      : Kind -> Term -> Kind ;    -- TODO: is this a good type?
 
     -----------
     -- Terms --
     -----------
     Company : Term ;
+    Creditors : Term -> Term ; -- the Company's creditors
 
-    ---------------
-    -- Functions --
-    ---------------
-    Other : Kind -> Kind ;     -- (any) other liquidation, dissolution or winding up
+    TAnyOther : Kind -> Term ; -- any other liquidation, dissolution or winding up
 
-    Including                  -- fixed valuation, including
-      : Term -> Term -> Term ; -- a pre-money or post-money valuation
+    ------------------------
+    -- Lists of functions --
+    ------------------------
 
-    Benefit : Term -> Property ; -- for the benefit of the Company's creditors
-
+    -- Liquidation, Dissolution and WindingUp are functions. They take arguments.
+    -- This is in order to aggregate them: "liquidation and dissolution of the company"
+    -- instead of "liquidation of the company, dissolution of the company and …"
+  cat
+    ListTerm2Kind ;
+  fun
+    BaseTK : (Term -> Kind) -> (Term -> Kind) -> ListTerm2Kind ;
+    ConsTK : (Term -> Kind) -> ListTerm2Kind -> ListTerm2Kind ;
+    TKAnd,
+    TKOr : ListTerm2Kind -> Term -> Kind ;  -- liquidation, dissolution or winding up of the company
+      
 }

@@ -11,7 +11,7 @@ abstract Query = {
     Term ;
     [Term]{2} ;
   fun
-    MQuery   : Query -> Move ;  -- Coercion function: Query to start category Move
+    MQuery : Query -> Move ;  -- Coercion function: Query to start category Move
 
     -- Queries
     QWhichProp : Kind -> Property -> Query ;  -- which events are voluntary
@@ -39,12 +39,11 @@ abstract Query = {
     PAnd : [Property] -> Property ;
     KOr,
     KAnd : [Kind] -> Kind ;
-    PNot : Property -> Property ;             -- excluding liquidity
+    PNot : Property -> Property ;             -- not fixed
     KProperty : Property -> Kind -> Kind ;    -- voluntary termination
-    KTerm : Term -> Kind -> Kind ; -- the Company's creditors
 
     -----------------------------------------------------------------
-    -- Later: switch to the full YAQL "Yet Another Query Language"
+    -- Later: maybe switch to the full YAQL "Yet Another Query Language"
     -- https://github.com/GrammaticalFramework/gf-contrib/blob/master/YAQL/
 
 }
