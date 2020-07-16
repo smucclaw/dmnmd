@@ -13,9 +13,11 @@ abstract SAFEQuery = Query ** {
     Issue,                             -- issue stock
     Sell                               -- sell stock
       : Term -> Action ;
+
     IssueAt,                           -- issue stock at fixed valuation
     SellAt
       : Term -> Term -> Action ;
+
     MAction : Term -> Action -> Move ; -- the company raises capital
 
     ----------------
@@ -87,10 +89,16 @@ abstract SAFEQuery = Query ** {
     -- instead of "liquidation of the company, dissolution of the company and …"
   cat
     ListTerm2Kind ;
+    ListTerm2Action ;
   fun
     BaseTK : (Term -> Kind) -> (Term -> Kind) -> ListTerm2Kind ;
     ConsTK : (Term -> Kind) -> ListTerm2Kind -> ListTerm2Kind ;
     TKAnd,
     TKOr : ListTerm2Kind -> Term -> Kind ;  -- liquidation, dissolution or winding up of the company
+
+    BaseTA : (Term -> Action) -> (Term -> Action) -> ListTerm2Action ;
+    ConsTA : (Term -> Action) -> ListTerm2Action -> ListTerm2Action ;
+    TAAnd,
+    TAOr : ListTerm2Action -> Term -> Action ; -- issues and sells stock at a fixed valuation
 
 }

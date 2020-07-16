@@ -1,4 +1,15 @@
 MDefTerm (TMass LiquidityEvent) (TOr (ConsTerm (TSgIndef ChangeOfControl) (BaseTerm (TSgIndef DirectListing) (TSgIndef InitialPublicOffering))))
 
-MDefTerm (TMass DissolutionEvent) (TOr (ConsTerm (TSgIndef (KProperty Voluntary Termination)) (BaseTerm (TSgIndef (KProperty (Benefit (Creditors Company)) GeneralAssignment)) (TAnyOther (KWhetherOr (BaseProperty Voluntary Involuntary) (KExcluding (TKOr (ConsTK (\_1 -> Liquidation ?16) (BaseTK (\_1 -> Dissolution ?18) (\_1 -> WindingUp ?20))) Company) (TSgIndef LiquidityEvent)))))))
+MDefTerm (TMass EquityFinancing) (TOr (BaseTerm (TSgIndef (KProperty BonaFide Transaction)) (TSeries (KProperty (WithPurpose (Raise (TMass Capital))) Transaction))))
 
+MAction Company (SellAt (TMass PreferredStock) (TIncluding (\_1 -> TSgIndef ?4) (KProperty Fixed Valuation) (TSgIndef (KProperty (POr (BaseProperty PreMoney PostMoney)) Valuation))))
+
+TIncluding (\_1 -> TSgIndef ?1) Valuation (TSgIndef (KProperty (POr (BaseProperty PreMoney PostMoney)) Valuation))
+
+MAction Company (TAAnd (BaseTA (\_1 -> Sell ?2) (\_1 -> Issue ?4)) (TMass PreferredStock))
+
+MAction Company (TAAnd (BaseTA (\_1 -> Sell ?2) (\_1 -> IssueAt ?4 (TIncluding (\_1 -> TSgIndef ?5) (KProperty Fixed Valuation) (TSgIndef (KProperty (POr (BaseProperty PreMoney PostMoney)) Valuation))))) (TMass PreferredStock))
+
+the Company sells and issues preferred stock at a fixed valuation , including a pre-money or post-money valuation .
+
+dissolution event means a voluntary termination of operations , a general assignment for the benefit of the Company's creditors or any other liquidation , dissolution or winding up of the Company ( excluding a liquidity event ) , whether voluntary or involuntary .
