@@ -1,6 +1,22 @@
 i SAFEQueryEng.gf
 
-p "liquidity event means a change of control , a direct listing or an initial public offering"
-p "dissolution event means a voluntary termination of operations , a general assignment for the benefit of the Company's creditors or any other liquidation , dissolution or winding up of the Company ( excluding a liquidity event ) , whether voluntary or involuntary" 
+-- Short pieces
+p "liquidity event means a change of control , a direct listing or an initial public offering ."
 
+p "equity financing means a bona fide transaction or series of transactions with the principal purpose of raising capital ."
+p "the Company sells preferred stock at a fixed valuation , including but not limited to , a pre-money or post-money valuation ."
+-- variation of "including"
+p -cat=Term "a valuation , including a pre-money or post-money valuation"
 
+p "dissolution event means a voluntary termination of operations or a general assignment for the benefit of the Company's creditors ."
+
+p -cat=Term "any other liquidation , dissolution or winding up of the Company , whether voluntary or involuntary"
+
+-- Linearization
+
+l MDefTerm (TMass DissolutionEvent) (TOr (ConsTerm (TSgIndef (KProperty Voluntary Termination)) (BaseTerm (TSgIndef (KProperty (ForBenefit (Creditors Company)) GeneralAssignment)) (TExcluding TAnyOther (KWhetherOr (BaseProperty Voluntary Involuntary) (TKOr (ConsTK Liquidation (BaseTK Dissolution WindingUp)) Company)) (TSgIndef LiquidityEvent)))))
+
+-- TODO: longer pieces
+-- p "dissolution event means a voluntary termination of operations , a general assignment for the benefit of the Company's creditors or any other liquidation , dissolution or winding up of the Company ( excluding a liquidity event ) , whether voluntary or involuntary ."
+
+-- p "equity financing means a bona fide transaction or series of transactions with the principal purpose of raising capital , pursuant to which the Company issues and sells Preferred Stock at a fixed valuation , including but not limited to, a pre-money or post-money valuation ."
