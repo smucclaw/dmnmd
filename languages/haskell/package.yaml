@@ -42,6 +42,8 @@ library:
   source-dirs: src
   ghc-options:
   - -Wall
+  - -fwrite-ide-info # Used by stan, the static analyser
+  - -hiedir=.hie     # Ditto
 
 executables:
   dmnmd:
