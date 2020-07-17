@@ -20,6 +20,8 @@ concrete QueryEng of Query = open
     Property = AP ;  -- Simplification: later use https://github.com/GrammaticalFramework/gf-contrib/blob/master/YAQL/YAQLFunctor.gf#L19
     [Property] = ListAP ;
 
+    Determiner = Det ;
+
   linref
     -- To make discontinuous categories show properly in the shell
     Kind = \x -> (mkUtt (merge x)).s ;
@@ -50,17 +52,17 @@ concrete QueryEng of Query = open
     -- : Term -> Term -> Move ;         -- liquidity event means A, B or C
     MDefTerm term1 term2 = mkText (mkUtt (mkCl (np term1) (mkV2 (mkV "mean")) (np term2))) fullStopPunct ;
 
+    -- Determiners
+    ASg = aSg_Det ;
+    APl = aPl_Det ;
+    TheSg = theSg_Det ;
+    ThePl = thePl_Det ;
+    Any = any_Det ;
+    All = all_Det ;
+
+    TDet = term ; -- using our oper 'term', defined at the end of file
 
     -- Kinds, Terms and Properties
-    TSgIndef = term aSg_Det ; -- using our oper 'term', defined at the end of file
-    TPlIndef = term aPl_Det ;
-    TSgDef = term theSg_Det ;
-    TPlDef = term thePl_Det ;
-    TAny = term any_Det ;
-    TAll = term all_Det ;
-    TMass = term emptyDet ;
-
-
     -- See the two instances of ListNP https://www.grammaticalframework.org/lib/doc/synopsis/index.html#ListNP
     BaseTerm t1 t2 = mkListNP (np t1) (np t2) ; -- : NP -> NP -> ListNP
     ConsTerm t1 ts = mkListNP (np t1) ts;     -- : NP -> ListNP -> ListNP

@@ -1,24 +1,58 @@
 abstract SAFEQuery = Query ** {
+  flags startcat=Move ;
+
   cat
     Action ;
-    Determiner ; -- Works together with Including and Excluding
-    -- Event ; -- TODO: figure out semantics
-  flags startcat=Move ;
-  fun
+    'Action/Dir' ;
+    'Action/Indir' ;
+    'Action/Dir/Indir' ;
+    [Action]{2} ;              -- sells stock to Acme and raises capital
+    ['Action/Dir']{2} ;        -- sells today and issues at fixed valuation (stock)
+    ['Action/Indir']{2} ;      -- sells widgets and issues stock (at fixed valuation)
+    ['Action/Dir/Indir']{2} ;  -- sells and issues (stock) (at fixed valuation)
 
+  fun
     -------------
     -- Actions --
     -------------
-    Raise,                             -- raising capital
+    -- Direct object
+    Raise,                             -- raise capital
     Issue,                             -- issue stock
     Sell                               -- sell stock
-      : Term -> Action ;
+      : 'Action/Dir' ;
 
+    -- Indirect object
     IssueAt,                           -- issue stock at fixed valuation
     SellAt
-      : Term -> Term -> Action ;
+      : 'Action/Dir/Indir' ;
+
+    -- Complements
+    AComplDir   : 'Action/Dir' -> Term -> Action ;
+    AComplIndir : 'Action/Indir' -> Term -> Action ;
+    ASlashDir   : 'Action/Dir/Indir' -> Term -> 'Action/Indir' ; -- sell stock (at fixed valuation)
+    ASlashIndir : 'Action/Dir/Indir' -> Term -> 'Action/Dir' ;   -- sell (stock) at fixed valuation
+
+    -- Conjunctions
+
+    ConjAction : Conjunction -> [Action] -> Action ;
+    ConjSlashDir : Conjunction -> ['Action/Dir'] -> 'Action/Dir' ;
+    ConjSlashIndir : Conjunction -> ['Action/Indir'] -> 'Action/Indir' ;
+    ConjSlashDirIndir : Conjunction -> ['Action/Dir/Indir'] -> 'Action/Dir/Indir' ;
 
     MAction : Term -> Action -> Move ; -- the company raises capital
+
+  cat
+    -- Event ; -- TODO: figure out semantics
+    Temporality ;
+    Polarity ;
+
+  fun
+    -- TODO: use these
+    TPresent  : Temporality ;
+    TPast     : Temporality ;
+
+    PPositive : Polarity ;
+    PNegative : Polarity ;
 
     ----------------
     -- Properties --
@@ -75,8 +109,7 @@ abstract SAFEQuery = Query ** {
 
     TExcluding, -- liquidation of the Company, excluding a Liquidity Event
     TIncluding  -- fixed valuation, including a pre-money or post-money valuation
-      :-- Determiner ->
-        (Kind -> Term) ->
+      : Determiner ->
         Kind -> Term ->
         Term ;
     AnyOther : Determiner ;
@@ -89,16 +122,16 @@ abstract SAFEQuery = Query ** {
     -- instead of "liquidation of the company, dissolution of the company and …"
   cat
     ListTerm2Kind ;
-    ListTerm2Action ;
+--    ListTerm2Action ;
   fun
     BaseTK : (Term -> Kind) -> (Term -> Kind) -> ListTerm2Kind ;
     ConsTK : (Term -> Kind) -> ListTerm2Kind -> ListTerm2Kind ;
     TKAnd,
     TKOr : ListTerm2Kind -> Term -> Kind ;  -- liquidation, dissolution or winding up of the company
 
-    BaseTA : (Term -> Action) -> (Term -> Action) -> ListTerm2Action ;
-    ConsTA : (Term -> Action) -> ListTerm2Action -> ListTerm2Action ;
-    TAAnd,
-    TAOr : ListTerm2Action -> Term -> Action ; -- issues and sells stock at a fixed valuation
+    -- BaseTA : (Term -> Action) -> (Term -> Action) -> ListTerm2Action ;
+    -- ConsTA : (Term -> Action) -> ListTerm2Action -> ListTerm2Action ;
+    -- TAAnd,
+    -- TAOr : ListTerm2Action -> Term -> Action ; -- issues and sells stock at a fixed valuation
 
 }

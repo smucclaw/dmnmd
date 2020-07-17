@@ -10,6 +10,10 @@ abstract Query = {
     [Property]{2} ;
     Term ;
     [Term]{2} ;
+
+    Determiner ;
+    Conjunction ;
+
   fun
     MQuery : Query -> Move ;  -- Coercion function: Query to start category Move
 
@@ -24,23 +28,30 @@ abstract Query = {
     MDefProp : Term -> Property -> Move ;     -- liquidity event is voluntary
     MDefTerm : Term -> Term -> Move ;         -- liquidity event means A, B or C
 
-    -- Kinds, Terms and Properties
-    TSgIndef,                                 -- post-money valuation
-    TPlIndef,                                 -- creditors
-    TSgDef,
-    TPlDef,
-    TMass : Kind -> Term ;
-    TAll,                                     -- all dissolution events
-    TAny : Kind -> Term ;                     -- any liquidation event
+    -- Determiners
+    ASg,                                     -- a post-money valuation
+    APl,                                     -- creditors
+    TheSg,                                   -- the company
+    ThePl,                                   -- the companies
+    All,                                     -- all dissolution events
+    Any : Determiner ;                       -- any liquidation event
 
-    TOr,                                      -- change of control or direct listing
-    TAnd : [Term] -> Term ;
-    POr,                                      -- pre-money or post-money
-    PAnd : [Property] -> Property ;
-    KOr,
-    KAnd : [Kind] -> Kind ;
+    TDet : Determiner -> Kind -> Term ;
+
+    -- Kinds, Terms and Properties
     PNot : Property -> Property ;             -- not fixed
     KProperty : Property -> Kind -> Kind ;    -- voluntary termination
+
+    -- Conjunctions
+    Or,
+    And : Conjunction ;
+
+    ConjTerm                                  -- change of control or direct listing
+      : Conjunction -> [Term] -> Term ;
+    ConjProp                                  -- pre-money or post-money
+      : [Property] -> Property ;
+    -- ConjKind
+    --   : Conjunction -> [Kind] -> Kind ;
 
     -----------------------------------------------------------------
     -- Later: maybe switch to the full YAQL "Yet Another Query Language"

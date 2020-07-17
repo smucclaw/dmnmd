@@ -109,7 +109,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
           valuation_excl : Kind = valuation ** {
             cn = AdvCN valuation.cn exclAdv  -- first layer: "valuation excluding post-money"
             } ; -- Potential postmodifier is in valuation's adv field
-      in term the.det valuation_excl ;
+      in term the valuation_excl ;
 
     -- : Determiner -> Kind -> Term -> Term ;
     TIncluding the valuation t = -- fixed valuation, including a pre-money or post-money valuation
@@ -117,7 +117,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
           valuation_incl : Kind = valuation ** {
             cn = ExtAdvCN valuation.cn inclAdv  -- first layer: "valuation including pre-money"
             } ; -- Potential postmodifier is in valuation's adv field
-      in term the.det valuation_incl ;
+      in term the valuation_incl ;
 
     AnyOther = any_other_Det ;
 
