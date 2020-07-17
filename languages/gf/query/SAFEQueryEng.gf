@@ -1,35 +1,219 @@
 concrete SAFEQueryEng of SAFEQuery = QueryEng **
   open
   Prelude,
+  (R=ResEng),
+  (E=ExtendEng),
+  (C=ConjunctionEng),
   SyntaxEng,
   ParadigmsEng,
   NounEng,
   VerbEng,
-  AdjectiveEng,
-  ConjunctionEng,
-  ExtendEng in {
+  AdjectiveEng in {
 
   lincat
-    Action = LinAction ;
-    Determiner = Det ;
+    Action = LinAction ; -- Negations affect more than standard RGL negation does
+    'Action/Dir' = SlashDir ;
+    'Action/Indir' = SlashIndir ;
+    'Action/Dir/Indir' = SlashDirIndir ;
+    [Action] = ListLinAction ;
+    ['Action/Dir'] = ListSlashDir ;
+    ['Action/Indir'] = ListSlashIndir ;
+    ['Action/Dir/Indir'] = ListSlashDirIndir ;
+
+    Temporality = Tense ;
+    Polarity = Pol ;
 
   linref
     Action = linAction ;
 
   lin
-
     -------------
     -- Actions --
     -------------
-    -- : Term -> Action ; -- raising capital
-    Raise = action2 raise_V2 ;
-    Sell = action2 sell_V2 ;
-    Issue = action2 issue_V2 ;
-    SellAt t s = action3 sell_at_V3 s t ;
-    IssueAt t s = action3 issue_at_V3 s t ;
+    -- Direct object
+    Raise = mkDir raise_V2 ;
+    Issue = mkDir issue_V2 ;
+    Sell  = mkDir sell_V2 ;
+
+    -- Indirect object
+    IssueAt = mkDirIndir issue_at_V3 ;
+    SellAt = mkDirIndir sell_at_V3 ;
+
+    -- Complements
+    -- : 'Action/Dir' -> Term -> Action ;
+    AComplDir = complDir ;
+    -- : 'Action/Indir' -> Term -> Action ;
+    AComplIndir = complIndir ;
+    -- : 'Action/Dir/Indir' -> Term -> 'Action/Indir' ; -- sell stock (at fixed valuation)
+    ASlashDir = slashDir ;
+    -- : 'Action/Dir/Indir' -> Term -> 'Action/Dir' ;   -- sell (stock) at fixed valuation
+    ASlashIndir = slashIndir ;
+
+    -- Conjunctions
+{-    BaseAction a1 a2 =
+    ConsAction a as =
+    ConjAction co as =
+
+    'BaseAction/Dir' a1 a2 =
+    'ConsAction/Dir' a as =
+    ConjSlashDir co as =
+
+    'BaseAction/Indir' a1 a2 =
+    'ConsAction/Indir' a as =
+    ConjSlashIndir co as =
+
+    'BaseAction/Dir/Indir' a1 a2 =
+    'ConsAction/Dir/Indir' a as =
+    ConjSlashDirIndir co as =
+-}
 
     -- : Term -> Action -> Move ; -- the company raises capital
-    MAction t a = mkText (mkUtt (cl t a)) fullStopPunct ;
+    MAction temp pol t a = mkText (mkUtt (cl temp pol t a)) fullStopPunct ;
+
+    TPresent = presentTense ;
+    TPast = pastTense ;
+    PPositive = positivePol ;
+    PNegative = negativePol ;
+
+  oper
+    LinAction : Type = {
+      s : R.Tense => R.CPolarity => E.VPS ;
+      gerund : R.CPolarity => Adv ;
+      } ;
+
+    ListLinAction : Type = {
+      s : R.Tense => R.CPolarity => E.ListVPS ;
+      gerund : R.CPolarity => [Adv] ;
+      } ;
+
+    linAction : LinAction -> Str = \l ->
+      (mkUtt (cl presentTense positivePol emptyNP l)).s ;
+
+    mkVPS : R.Tense -> R.CPolarity -> VP -> E.VPS = \t,p ->
+      let tense : Tense = lin Tense {s=[] ; t=t} ;
+          pol : Pol = lin Pol {s=[] ; p=p} ;
+       in E.MkVPS (mkTemp tense simultaneousAnt) pol ;
+
+    ----------------------
+    -- Slash categories --
+    ----------------------
+
+    mkGerS : V2 -> LinAction = \v2 -> {
+      s = \\t,p => mkVPS t p (mkVP <v2:V2> emptyNP) ;
+      gerund = \\p => E.GerundAdv (mkVP <v2:V2> emptyNP) ; -- TODO proper treatment of polarity
+      } ;
+
+    -- /Dir
+    SlashDir : Type = LinAction ** {
+      indir : R.CPolarity => Adv ; -- at fixed valuation / whether at fv nor without fv
+      dir : PrepPol
+      } ;
+    mkDir : V2 -> SlashDir = \v2 -> mkGerS v2 ** {
+      dir = prepPol (mkPrep v2.c2) ;
+      indir = \\_ => emptyAdv ;
+      } ;
+    slashDir : SlashDirIndir -> LinTerm -> SlashIndir = \vps,do -> vps ** {
+      dir = applyPrepPol vps.dir (np do)
+      } ;
+    complDir : SlashDir -> LinTerm -> LinAction = \vps,do -> vps ** {
+      s = \\t,p => complS (vps.s ! t ! p)
+                          (applyPrepPol vps.dir (np do) ! p)
+                          (vps.indir ! p) ;
+      gerund = \\p => complGer (vps.gerund ! p)
+                            (applyPrepPol vps.dir (np do) ! p)
+                            (vps.indir ! p) ;
+      } ;
+
+    -- /Indir
+    SlashIndir : Type = LinAction ** {
+      dir : R.CPolarity => Adv ; -- (Acme will/won't sell) some/any stock
+      indir : PrepPol ;
+      } ;
+    mkIndir : V2 -> SlashIndir = \v2 -> mkGerS v2 ** {
+      dir = \\_ => emptyAdv ;
+      indir = prepPol (mkPrep v2.c2) ;
+      } ;
+    slashIndir : SlashDirIndir -> LinTerm -> SlashDir = \vps,io -> vps ** {
+      indir = applyPrepPol vps.indir (np io)
+      } ;
+    complIndir : SlashIndir -> LinTerm -> LinAction = \vps,io -> vps ** {
+      s = \\t,p => complS (vps.s ! t ! p)
+                          (vps.dir ! p)
+                          (applyPrepPol vps.indir (np io) ! p) ;
+      gerund = \\p => complGer (vps.gerund ! p)
+                            (vps.dir ! p)
+                            (applyPrepPol vps.indir (np io) ! p)
+      } ;
+
+
+    -- /Dir/Indir
+    SlashDirIndir : Type = LinAction ** {
+      dir,
+      indir : PrepPol ;
+      } ;
+    mkDirIndir : V3 -> SlashDirIndir = \v3 -> mkGerS v3 ** {
+      dir = prepPol (mkPrep v3.c2) ;
+      indir = prepPol (mkPrep v3.c3)
+      } ;
+
+    -- PrepPol is more powerful than Prep: prepared for multilayer negations
+    PrepPol : Type = R.CPolarity => PrepPlus ;
+    PrepPlus : Type = {  -- Positive version  / Negative version
+      s : Str ;      -- at (fixed valuation) / whether at (fixed valuation)
+      post : Str ;   -- ∅                    / or without
+      redupl : Bool  -- False                / True       (fixed valuation)
+      } ;
+
+    prepPol : Prep -> PrepPol = \p -> \\pol => {
+      s = p.s ;
+      post = [] ;
+      redupl = False
+      } ;
+
+    applyPrepPol : PrepPol -> NP -> (R.CPolarity=>Adv) = \pp,np -> \\pol =>
+      let npacc : Str = np.s ! R.NPAcc ;
+          prep : PrepPlus = pp ! pol
+      in lin Adv {
+        s = prep.s ++ npacc ++ prep.post ++ case prep.redupl of {
+                                                True => npacc ;
+                                                False => [] }
+      } ;
+
+    -- helpers for complDir and complIndir
+    complS : E.VPS -> Adv -> Adv -> E.VPS = \vps,dir,indir -> lin VPS {
+      s = \\a => vps.s ! a ++ dir.s ++ indir.s
+      } ;
+    complGer : (a,b,c : Adv) -> Adv = \ger,indir,dir -> lin Adv {
+      s = ger.s ++ dir.s ++ indir.s
+      } ;
+
+    -------------------
+    -- List versions --
+    -------------------
+    ListSlashDir : Type = ListLinAction ** {
+      adv : R.CPolarity => Adv ; -- at fixed valuation / whether at fv nor without fv
+      dir : PrepPol ;
+      } ;
+
+    ListSlashIndir : Type = ListLinAction ** {
+      obj : R.CPolarity => NP ; -- (Acme will/won't sell) some/any stock
+      indir : PrepPol ;
+      } ;
+
+    ListSlashDirIndir : Type = ListLinAction ** {
+      dir,
+      indir : PrepPol ;
+      } ;
+
+    cl : Tense -> Polarity -> LinTerm -> LinAction -> S = \t,p,subj,pred ->
+      E.PredVPS (np subj) (pred.s ! t.t ! p.p) ;
+
+   -- vp : LinAction -> E.VPS = \pred -> E.ComplVPS2 pred.vps pred.obj ;
+
+    gerund : LinAction -> NP = \pred ->
+      let s : Str = (pred.gerund ! R.CPos).s in mkNP (mkN s s s s) ;
+
+  lin
 
     ----------------
     -- Properties --
@@ -88,20 +272,15 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     -- Terms --
     -----------
     -- : Term
-    Company = {
-      cn = mkCN (mkN "Company") ;
-      det = theSg_Det
-      } ;
+    Company = mkNP theSg_Det (mkN "Company") ;
 
     -- : Term -> Term ;
-    Creditors t = t ** {         -- the company's creditors
-      det = mkDet (ExtendEng.GenNP (np t)) pluralNum ;
-      cn = mkCN creditor_N
-      } ;
+    Creditors t =          -- the company's creditors
+      mkNP (mkDet (ExtendEng.GenNP (np t)) pluralNum) creditor_N ;
 
     -- : Kind -> Term ;
     TAnyOther = term any_other_Det ;
-    TSeries kind = TPlIndef (kind ** {cn = mkCN series_N2 (mkNP aPl_Det kind.cn)}) ;
+    TSeries kind = TDet APl (kind ** {cn = mkCN series_N2 (mkNP aPl_Det kind.cn)}) ;
 
     -- : Determiner -> Kind -> Term -> Term ;
     TExcluding the valuation t =
@@ -122,32 +301,17 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     AnyOther = any_other_Det ;
 
   lincat
-    ListTerm2Kind = ListCN ;
-    ListTerm2Action = {
-      vps : ListVPS2 ; -- from ExtendEng
-      gers : ListNP
-      } ;
+    ListTerm2Kind = C.ListCN ;
   lin
     -- Kind is discontinuous in order to aggregate Term->Kind functions.
     -- Linearization of one Term->Kind is a record like {cn = dissolution ; adv = of the company}
     -- We put the cn parts in a list, and the adv part is only added once.
     -- For linearizing higher-order abstract syntax, see
     -- https://www.grammaticalframework.org/doc/tutorial/gf-tutorial.html#toc122
-    BaseTK f g = BaseCN f.cn g.cn ;
-    ConsTK f fs = ConsCN f.cn fs ;
+    BaseTK f g = C.BaseCN f.cn g.cn ;
+    ConsTK f fs = C.ConsCN f.cn fs ;
     TKOr = composeTK or_Conj ;
     TKAnd = composeTK and_Conj ;
-
-    BaseTA f g = {
-      vps = BaseVPS2 f.vps g.vps ;
-      gers = mkListNP f.ger g.ger
-      } ;
-    ConsTA f fs = {
-      vps = ConsVPS2 f.vps fs.vps ;
-      gers = mkListNP f.ger fs.gers
-      } ;
-    TAOr = composeTA or_Conj ;
-    TAAnd = composeTA and_Conj ;
 
 
   oper
@@ -160,8 +324,8 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     raise_V2 : V2 = mkV2 (mkV "raise") ;
     sell_V2 : V2 = mkV2 (mkV "sell") ;
     issue_V2 : V2 = mkV2 (mkV "issue") ;
-    sell_at_V3 : V3 = mkV3 (mkV "sell") at_Prep noPrep ;
-    issue_at_V3 : V3 = mkV3 (mkV "issue") at_Prep noPrep ;
+    sell_at_V3 : V3 = mkV3 (mkV "sell") noPrep at_Prep ;
+    issue_at_V3 : V3 = mkV3 (mkV "issue") noPrep at_Prep ;
 
     benefit_N2 : N2 = mkN2 (mkN "benefit") ;
     purpose_N2 : N2 = mkN2 (mkN ("purpose"|"principal purpose")) ;
@@ -179,39 +343,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     ----------
     -- Misc --
     ----------
-
-    mkVPS2 : VPSlash -> VPS2 = MkVPS2 (mkTemp presentTense simultaneousAnt) positivePol ;
-
-    LinAction : Type = {
-      vps : VPS2 ;
-      obj : NP ;
-      ger : NP
-      } ;
-
-    linAction : LinAction -> Str = \l -> (PredVPS emptyNP (vp l)).s ;
-
-    action2 : V2 -> LinTerm -> LinAction = \v2,t -> {
-      vps = mkVPS2 (mkVPSlash v2) ;
-      obj = np t ;
-      ger = GerundNP (mkVP v2 emptyNP) ;
-      } ;
-    action3 : V3 -> LinTerm -> LinTerm -> LinAction = \v3,indir,dir -> {
-      vps = mkVPS2 (Slash2V3 v3 (np indir)) ;
-      obj = np dir ;
-      ger = GerundNP (mkVP v3 emptyNP (np indir)) ;
-      } ;
-
-    cl : LinTerm -> LinAction -> S = \subj,pred -> PredVPS (np subj) (vp pred) ;
-    vp : LinAction -> VPS = \pred -> ComplVPS2 pred.vps pred.obj ;
-    gerund : LinAction -> NP = \pred -> pred.ger ** {
-      s = \\c => pred.ger.s ! c ++ pred.obj.s ! c
-      } ;
-
-
-    LinKind : Type = {cn : CN ; adv : Adv} ;
-    LinTerm : Type = {cn : CN ; det : Det} ;
-
-    linkind : CN -> LinKind = \cn -> {cn = cn ; adv = emptyAdv} ;
+    linkind : CN -> LinKind = \cn -> {cn = cn ; adv = emptyAdv  ;
 
     adv : Prep -> NP -> Adv = SyntaxEng.mkAdv ; -- shorthand: mkAdv is imported from two modules, so it has to be qualified
     prop : Str -> AP = \a -> mkAP (mkA a) ;
@@ -232,15 +364,15 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     -- We kept the CN and Adv parts of Kind separate until now,
     -- but at this point we can put them back together, both into the cn field.
     -- This necessary for adding postmod APs. -- TODO check if still true
-    composeTK : Conj -> ListCN -> LinTerm -> LinKind = \co,fs,x ->
-      let cns : CN = ConjCN co fs ;
+    composeTK : Conj -> C.ListCN -> LinTerm -> LinKind = \co,fs,x ->
+      let cns : CN = C.ConjCN co fs ;
        in linkind (mkCN cns (adv part_Prep (np x))) ;
       --{cn = cns ; adv = adv part_Prep x} ; -- alternative: keep separate
 
-    composeTA : Conj -> {vps : ListVPS2 ; gers : ListNP} -> LinTerm -> LinAction = \co,fs,x -> {
-      vps = ConjVPS2 co fs.vps ;
-      obj = np x ;
-      ger = mkNP co fs.gers ;
-      } ;
+    -- composeTA : Conj -> {vps : E.ListVPS2 ; gers : ListNP} -> LinTerm -> LinAction = \co,fs,x -> {
+    --   vps = E.ConjVPS2 co fs.vps ;
+    --   obj = np x ;
+    --   gerund = mkNP co fs.gers ;
+    --   } ;
 
  }

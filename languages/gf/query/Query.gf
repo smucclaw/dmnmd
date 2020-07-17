@@ -48,8 +48,8 @@ abstract Query = {
 
     ConjTerm                                  -- change of control or direct listing
       : Conjunction -> [Term] -> Term ;
-    ConjProp                                  -- pre-money or post-money
-      : [Property] -> Property ;
+    ConjProperty                              -- pre-money or post-money
+      : Conjunction -> [Property] -> Property ;
     -- ConjKind
     --   : Conjunction -> [Kind] -> Kind ;
 

@@ -7,7 +7,7 @@ abstract SAFEQuery = Query ** {
     'Action/Indir' ;
     'Action/Dir/Indir' ;
     [Action]{2} ;              -- sells stock to Acme and raises capital
-    ['Action/Dir']{2} ;        -- sells today and issues at fixed valuation (stock)
+    ['Action/Dir']{2} ;        -- sells today and issues (stock) at fixed valuation
     ['Action/Indir']{2} ;      -- sells widgets and issues stock (at fixed valuation)
     ['Action/Dir/Indir']{2} ;  -- sells and issues (stock) (at fixed valuation)
 
@@ -39,22 +39,22 @@ abstract SAFEQuery = Query ** {
     ConjSlashIndir : Conjunction -> ['Action/Indir'] -> 'Action/Indir' ;
     ConjSlashDirIndir : Conjunction -> ['Action/Dir/Indir'] -> 'Action/Dir/Indir' ;
 
-    MAction : Term -> Action -> Move ; -- the company raises capital
-
   cat
     -- Event ; -- TODO: figure out semantics
     Temporality ;
     Polarity ;
 
   fun
-    -- TODO: use these
     TPresent  : Temporality ;
     TPast     : Temporality ;
 
     PPositive : Polarity ;
     PNegative : Polarity ;
 
-    ----------------
+    MAction : Temporality -> Polarity ->
+      Term -> Action -> Move ; -- the company raises/raised/doesn't raise capital
+
+  ----------------
     -- Properties --
     ----------------
     Fixed,
