@@ -311,16 +311,27 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     PreferredStock = adjkind "preferred" "stock" ;
     Valuation = kind "valuation" ;
 
-    Liquidation t = kind "liquidation" ** {adv = adv part_Prep (np t)} ;
-    Dissolution t = kind "dissolution" **  {adv = adv part_Prep (np t)} ;
-    WindingUp t = linkind (mkCN (mkN "winding up" "windings up")) ** {adv = adv part_Prep (np t)} ;
+  lincat
+    'Kind/Term' = CN ;
+    'ListKind/Term' = C.ListCN ;
+
+  lin
+    Liquidation = mkCN (mkN "liquidation") ;
+    Dissolution = mkCN (mkN "dissolution") ;
+    WindingUp = mkCN (mkN "winding up" "windings up") ;
+
+    -- Complement goes to cn field, not to adv field.
+    ComplKind cn t = linkind (mkCN cn (adv part_Prep (np t))) ;
 
     -- : [Property] -> Kind -> Kind
     KWhetherOr props kind =
       let prop : Adv = ap2adv (mkAP whether_or_Conj props) ;
       in kind ** {
         adv = cc2 kind.adv prop } ;
-    --cn = mkCN prop kind.cn} ;
+
+    'BaseKind/Term' = C.BaseCN ;
+    'ConsKind/Term' = C.ConsCN ;
+    ConjSlashTerm = C.ConjCN ;
 
     -----------
     -- Terms --
@@ -331,10 +342,6 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     -- : Term -> Term ;
     Creditors t =          -- the company's creditors
       mkNP (mkDet (ExtendEng.GenNP (np t)) pluralNum) creditor_N ;
-
-    -- : Kind -> Term ;
-    TAnyOther = term any_other_Det ;
-    TSeries kind = TDet APl (kind ** {cn = mkCN series_N2 (mkNP aPl_Det kind.cn)}) ;
 
     -- : Determiner -> Kind -> Term -> Term ;
     TExcluding the valuation t =
@@ -353,26 +360,14 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       in term the valuation_incl ;
 
     AnyOther = any_other_Det ;
-
-  lincat
-    ListTerm2Kind = C.ListCN ;
-  lin
-    -- Kind is discontinuous in order to aggregate Term->Kind functions.
-    -- Linearization of one Term->Kind is a record like {cn = dissolution ; adv = of the company}
-    -- We put the cn parts in a list, and the adv part is only added once.
-    -- For linearizing higher-order abstract syntax, see
-    -- https://www.grammaticalframework.org/doc/tutorial/gf-tutorial.html#toc122
-    BaseTK f g = C.BaseCN f.cn g.cn ;
-    ConsTK f fs = C.ConsCN f.cn fs ;
-    TKOr = composeTK or_Conj ;
-    TKAnd = composeTK and_Conj ;
+    Series = series_Det ;
 
   oper
     -------------
     -- Lexicon --
-
-  -------------
+    -------------
     any_other_Det : Det = a_Det ** {s = "any other"} ;
+    series_Det : Det = aPl_Det ** {s = "a series of"} ;
 
     raise_V2 : V2 = mkV2 (mkV "raise") ;
     sell_V2 : V2 = mkV2 (mkV "sell") ;
@@ -410,23 +405,4 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       s = \\n,c => cn.s ! n ! c ++ "," ++ ad.s
       } ;
 
-    ---------------------------
-    -- Function compositions --
-    ---------------------------
-
-    -- We kept the CN and Adv parts of Kind separate until now,
-    -- but at this point we can put them back together, both into the cn field.
-    -- This necessary for adding postmod APs. -- TODO check if still true
-
-    composeTK : Conj -> C.ListCN -> LinTerm -> LinKind = \co,fs,x ->
-      let cns : CN = C.ConjCN co fs ;
-       in linkind (mkCN cns (adv part_Prep (np x))) ;
-      --{cn = cns ; adv = adv part_Prep x} ; -- alternative: keep separate
-
-    -- composeTA : Conj -> {vps : E.ListVPS2 ; gers : ListNP} -> LinTerm -> LinAction = \co,fs,x -> {
-    --   vps = E.ConjVPS2 co fs.vps ;
-    --   obj = np x ;
-    --   gerund = mkNP co fs.gers ;
-    --   } ;
---}
  }

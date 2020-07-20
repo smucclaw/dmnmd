@@ -25,8 +25,8 @@ abstract Query = {
 
     -- Answers to queries
     MYes,MNo : Move ;
-    MDefProp : Term -> Property -> Move ;     -- liquidity event is voluntary
-    MDefTerm : Term -> Term -> Move ;         -- liquidity event means A, B or C
+    MDefProp : Kind -> Property -> Move ;     -- liquidity event is voluntary
+    MDefTerm : Kind -> Term -> Move ;         -- liquidity event means A, B or C
 
     -- Determiners
     ASg,                                     -- a post-money valuation

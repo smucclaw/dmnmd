@@ -43,11 +43,11 @@ concrete QueryEng of Query = open
     MYes = yes_Utt ;
     MNo = no_Utt ;
 
-    -- : Term -> Property -> Move ;     -- liquidity event is voluntary
-    MDefProp term prop = mkText (mkUtt (mkCl (np term) prop)) fullStopPunct ;
+    -- : Kind -> Property -> Move ;     -- liquidity event is voluntary
+    MDefProp kind prop = mkText (mkUtt (mkCl (defTerm kind) prop)) fullStopPunct ;
 
-    -- : Term -> Term -> Move ;         -- liquidity event means A, B or C
-    MDefTerm term1 term2 = mkText (mkUtt (mkCl (np term1) (mkV2 (mkV "mean")) (np term2))) fullStopPunct ;
+    -- : Kind -> Term -> Move ;         -- liquidity event means A, B or C
+    MDefTerm kind term = mkText (mkUtt (mkCl (defTerm kind) (mkV2 (mkV "mean")) (np term))) fullStopPunct ;
 
     -- Determiners
     ASg = aSg_Det ;
@@ -61,11 +61,14 @@ concrete QueryEng of Query = open
     -- : Determiner -> Kind -> Term
     TDet = term ; -- using our oper 'term', defined at the end of file
 
-
-    -- : Property -> Kind -> Kind ;    -- voluntary termination
+    -- : Property -> Kind -> Kind ;
     KProperty prop kind = case prop.isPre of {
-      True => kind ** {cn = mkCN prop kind.cn} ;
-      False => kind ** {adv = cc2 kind.adv (ap2adv prop) }
+      True => kind ** { -- voluntary termination
+        cn = mkCN prop kind.cn
+        } ;
+      False => kind ** { -- termination for the benefit of the Company
+        adv = cc2 kind.adv (ap2adv prop)
+        }
       } ;
 
     --PNot : Property -> Property ;
@@ -118,6 +121,8 @@ concrete QueryEng of Query = open
 
     -- Combine Determiner (RGL Det) and Kind (our custom record) into a Term (RGL NP)
     term : Det -> LinKind -> LinTerm = \det,kind -> mkNP det (merge kind) ;
+
+    defTerm : LinKind -> LinTerm = term emptyDet ;
 
     -- Merge the discontinuous Kind into a single CN
     merge : LinKind -> CN = \kind -> mkCN kind.cn kind.adv ;
