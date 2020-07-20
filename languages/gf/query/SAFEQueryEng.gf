@@ -36,8 +36,8 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     Sell  = mkDir sell_V2 ;
 
     -- Indirect object
-    IssueAt = mkDirIndir issue_at_V3 ;
-    SellAt = mkDirIndir sell_at_V3 ;
+    IssueAt = mkDirIndir issue_at_V3 whether_at_Prep ;
+    SellAt = mkDirIndir sell_at_V3 whether_at_Prep ;
 
     -- Complements
     -- : 'Action/Dir' -> Term -> Action ;
@@ -51,16 +51,17 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
 
     -- Conjunctions
     BaseAction a1 a2 = {
-      s = \\t,p => E.BaseVPS (a1.s ! t ! p) (a2.s ! t ! p) ;
-      gerund = \\p => mkListAdv (a1.gerund ! p) (a2.gerund ! p)
+      s = \\t,p => E.BaseVPS (a1.s ! t ! R.CPos) (a2.s ! t ! R.CPos) ; -- "doesn't sell and issue"
+      gerund = \\p => mkListAdv (a1.gerund ! R.CPos) (a2.gerund ! R.CPos)
       } ;
     ConsAction a as = {
-      s = \\t,p => E.ConsVPS (a.s ! t ! p) (as.s ! t ! p) ;
-      gerund = \\p => mkListAdv (a.gerund ! p) (as.gerund ! p)
+      s = \\t,p => E.ConsVPS (a.s ! t ! R.CPos) (as.s ! t ! R.CPos) ;
+      gerund = \\p => mkListAdv (a.gerund ! R.CPos) (as.gerund ! R.CPos)
       } ;
     ConjAction co as = {
-      s = \\t,p => E.ConjVPS co (as.s ! t ! p) ;
-      gerund = \\p => SyntaxEng.mkAdv co (as.gerund ! p)
+      s = \\t,p =>  let conj : Conj = co ! cpol2pol p in E.ConjVPS conj (as.s ! t ! p) ;
+      gerund = \\p => let conj : Conj = co ! cpol2pol p in
+        SyntaxEng.mkAdv conj (as.gerund ! p)
       } ;
 
     'BaseAction/Dir' a1 a2 =
@@ -86,7 +87,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
           a2' : LinAction = complIndir a2 emptyNP ;
       in BaseAction a1' a2' ** {
         indir = a1.indir ; -- : PrepPol
-        dir = \\p => emptyAdv ; -- the existing dir has been incorporated in a1' and a2'
+       dir = \\p => emptyAdv ; -- the existing dir has been incorporated in a1' and a2'
       } ;
     'ConsAction/Indir' a as =
       let a' : LinAction = complIndir a emptyNP ;
@@ -155,7 +156,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       dir : PrepPol
       } ;
     mkDir : V2 -> SlashDir = \v2 -> mkGerS v2 ** {
-      dir = prepPol (mkPrep v2.c2) ;
+      dir = prepPol v2.c2 ;
       indir = \\_ => emptyAdv ;
       } ;
     slashDir : SlashDirIndir -> LinTerm -> SlashIndir = \vps,do -> vps ** {
@@ -177,7 +178,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       } ;
     mkIndir : V2 -> SlashIndir = \v2 -> mkGerS v2 ** {
       dir = \\_ => emptyAdv ;
-      indir = prepPol (mkPrep v2.c2) ;
+      indir = prepPol v2.c2 ;
       } ;
     slashIndir : SlashDirIndir -> LinTerm -> SlashDir = \vps,io -> vps ** {
       indir = applyPrepPol vps.indir (np io)
@@ -197,11 +198,16 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       dir,
       indir : PrepPol ;
       } ;
-    mkDirIndir : V3 -> SlashDirIndir = \v3 -> mkGerS v3 ** {
-      dir = prepPol (mkPrep v3.c2) ;
-      indir = prepPol (mkPrep v3.c3)
+    mkDirIndir = overload {
+      mkDirIndir : V3 -> SlashDirIndir = \v3 -> mkGerS v3 ** {
+        dir = prepPol v3.c2 ;
+        indir = prepPol v3.c3
+        } ;
+      mkDirIndir : V3 -> PrepPol -> SlashDirIndir = \v3,indir -> mkGerS v3 ** {
+        indir = indir ;
+        dir = prepPol v3.c2
+        }
       } ;
-
     -- PrepPol is more powerful than Prep: prepared for multilayer negations
     PrepPol : Type = R.CPolarity => PrepPlus ;
     PrepPlus : Type = {  -- Positive version  / Negative version
@@ -210,10 +216,22 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       redupl : Bool  -- False                / True       (fixed valuation)
       } ;
 
-    prepPol : Prep -> PrepPol = \p -> \\pol => {
-      s = p.s ;
-      post = [] ;
-      redupl = False
+    prepPol = overload {
+      prepPol : Str -> PrepPol = \p -> \\pol => {
+        s = p ;
+        post = [] ;
+        redupl = False
+        } ;
+      prepPol : (p,n : PrepPlus) -> PrepPol = \pos,neg -> table {
+        R.CPos   => pos ;
+        R.CNeg _ => neg
+        }
+      } ;
+
+    prepPlus : (s,post : Str) -> (redupl : Bool) -> PrepPlus = \s,post,r -> {
+      s = s ;
+      post = post ;
+      redupl = r
       } ;
 
     applyPrepPol : PrepPol -> NP -> (R.CPolarity=>Adv) = \pp,np -> \\pol =>
@@ -266,6 +284,11 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
 
     gerund : LinAction -> NP = \pred ->
       let s : Str = (pred.gerund ! R.CPos).s in mkNP (mkN s s s s) ;
+
+    cpol2pol : R.CPolarity -> R.Polarity = \p -> case p of {
+      R.CPos => R.Pos ;
+      R.CNeg _ => R.Neg
+      } ;
 
   lin
 
@@ -331,7 +354,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
 
     'BaseKind/Term' = C.BaseCN ;
     'ConsKind/Term' = C.ConsCN ;
-    ConjSlashTerm = C.ConjCN ;
+    ConjSlashTerm co = C.ConjCN (co ! R.Pos) ;
 
     -----------
     -- Terms --
@@ -381,6 +404,11 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     creditor_N : N = mkN "creditor" ;
 
     whether_or_Conj : Conj = or_Conj ** {s1 = ", whether"} ;
+
+    whether_at_Prep : PrepPol =
+     prepPol
+      {s = "at" ; post = [] ; redupl = False}
+      {s = ", whether at" ; post = "or without" ; redupl = True} ;
 
     at_Prep : Prep = mkPrep "at" ;
     excluding_Prep : Prep = mkPrep "excluding" ;

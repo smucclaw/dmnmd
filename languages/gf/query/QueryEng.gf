@@ -2,6 +2,7 @@ concrete QueryEng of Query = open
   Prelude,
   AdjectiveEng,
   SyntaxEng,
+  ParamX,
   ParadigmsEng in {
 
   lincat
@@ -14,7 +15,7 @@ concrete QueryEng of Query = open
     Query = QS ;
     Property = AP ;  -- Simplification: later use https://github.com/GrammaticalFramework/gf-contrib/blob/master/YAQL/YAQLFunctor.gf#L19
     Determiner = Det ;
-    Conjunction = Conj ;
+    Conjunction = ParamX.Polarity => Conj ;
     [Property] = ListAP ;
     [Term] = ListNP ;
 
@@ -74,14 +75,20 @@ concrete QueryEng of Query = open
     --PNot : Property -> Property ;
 
     -- Conjunctions
-    And = and_Conj ;
-    Or = or_Conj ;
+    And = table {
+      Pos => and_Conj ;
+      Neg => neither7nor_DConj
+      } ;
+    Or = table {
+      Pos => or_Conj ;
+      Neg => neither7nor_DConj
+      } ;
 
     -- Lists
     -- See the two instances of mkListAP https://www.grammaticalframework.org/lib/doc/synopsis/index.html#ListAP
     BaseProperty = mkListAP ; -- : AP -> AP -> ListAP
     ConsProperty = mkListAP ; -- : AP -> ListAP -> ListAP
-    ConjProperty = mkAP ;     -- : Conj -> ListAP -> AP
+    ConjProperty co = mkAP (co ! Pos) ;     -- : Conj -> ListAP -> AP
 
     -- See the two instances of mkListNP https://www.grammaticalframework.org/lib/doc/synopsis/index.html#ListNP
     -- Unlike in {Base,Cons}Property, now we transform t1 and t2 into NPs.
@@ -89,7 +96,7 @@ concrete QueryEng of Query = open
     -- we need to change only the definition of 'np', only in one place.)
     BaseTerm t1 t2 = mkListNP (np t1) (np t2) ; -- : NP -> NP -> ListNP
     ConsTerm t1 ts = mkListNP (np t1) ts;       -- : NP -> ListNP -> ListNP
-    ConjTerm = mkNP ;                           -- : Conj -> ListNP -> NP ;
+    ConjTerm co = mkNP (co ! Pos) ;                           -- : Conj -> ListNP -> NP ;
 
   -----------------------------------------------------------------
 
@@ -97,6 +104,8 @@ concrete QueryEng of Query = open
 
     LinKind : Type = {cn : CN ; adv : Adv} ;
     LinTerm : Type = NP ; -- For now just a NP, but may change to more complex
+
+    neither7nor_DConj : Conj = mkConj "neither" "nor" singular ;
 
     -- Resource Grammar Library doesn't have any_Det, so we make it ourselves.
     -- Determiners are supposed to be closed class, so the constructor isn't
@@ -132,5 +141,4 @@ concrete QueryEng of Query = open
     np : LinTerm -> NP = id NP ;
 
     -- np2cn : NP -> CN = \np -> let s : Str = (mkUtt np).s in mkCN (mkN s s s s) ;
-
 }
