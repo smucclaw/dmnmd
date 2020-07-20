@@ -1,23 +1,27 @@
 i SAFEQueryEng.gf
 
 -- Short pieces
-p "liquidity event means a change of control , a direct listing or an initial public offering ."
+p -cat=Term "a change of control , a direct listing or an initial public offering " | l -treebank
 
-p "equity financing means a bona fide transaction or series of transactions with the principal purpose of raising capital ."
-p "the Company sells at a fixed valuation , including but not limited to , a pre-money or post-money valuation preferred stock ."
+p "an equity financing means a bona fide transaction or series of transactions with the principal purpose of raising a capital ." | l -treebank
+
+p "the Company sells at a fixed valuation , including but not limited to , a pre-money or post-money valuation preferred stock ." | l -treebank
+
 -- variation of "including"
-p -cat=Term "a valuation , including a pre-money or post-money valuation"
--- aggregation of verbs
-p "the Company sells and issues preferred stock ."
-p "the Company sells and issues at a fixed valuation , including but not limited to , a pre-money or post-money valuation preferred stock ."
+p -cat=Term "a valuation , including a pre-money or post-money valuation" | l -treebank
 
--- Linearization
+-- aggregation of verb phrases
+p "the Company sells a preferred stock and issues the capital ." | l -treebank
+p "the Company sells and issues a preferred stock ." | l -treebank
+p "the Company sells and issues a preferred stock at a fixed valuation" | l -treebank
 
-l MAction Company (TAAnd (BaseTA Sell (\x -> IssueAt x (TIncluding TSgIndef (KProperty Fixed Valuation) (TSgIndef (KProperty (POr (BaseProperty PreMoney PostMoney)) Valuation))))) (TMass PreferredStock))
+-- longer direct object
+p "the Company sells and issues a preferred stock at a fixed valuation , including but not limited to , a pre-money or post-money valuation ."
 
-l MDefTerm (TMass DissolutionEvent) (TOr (ConsTerm (TSgIndef (KProperty Voluntary Termination)) (BaseTerm (TSgIndef (KProperty (ForBenefit (Creditors Company)) GeneralAssignment)) (TExcluding TAnyOther (KWhetherOr (BaseProperty Voluntary Involuntary) (TKOr (ConsTK Liquidation (BaseTK Dissolution WindingUp)) Company)) (TSgIndef LiquidityEvent)))))
 
 -- TODO: longer pieces
--- p "dissolution event means a voluntary termination of operations , a general assignment for the benefit of the Company's creditors or any other liquidation , dissolution or winding up of the Company ( excluding a liquidity event ) , whether voluntary or involuntary ."
+p "a liquidity event means a change of control , a direct listing or an initial public offering ." | l -treebank
+
+p "dissolution event means a voluntary termination of operations , a general assignment for the benefit of the Company's creditors or any other liquidation , dissolution or winding up of the Company ( excluding a liquidity event ) , whether voluntary or involuntary ."
 
 -- p "equity financing means a bona fide transaction or series of transactions with the principal purpose of raising capital , pursuant to which the Company issues and sells preferred stock at a fixed valuation , including but not limited to, a pre-money or post-money valuation ."

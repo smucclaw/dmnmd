@@ -50,22 +50,68 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     ASlashIndir = slashIndir ;
 
     -- Conjunctions
-{-    BaseAction a1 a2 =
-    ConsAction a as =
-    ConjAction co as =
+    BaseAction a1 a2 = {
+      s = \\t,p => E.BaseVPS (a1.s ! t ! p) (a2.s ! t ! p) ;
+      gerund = \\p => mkListAdv (a1.gerund ! p) (a2.gerund ! p)
+      } ;
+    ConsAction a as = {
+      s = \\t,p => E.ConsVPS (a.s ! t ! p) (as.s ! t ! p) ;
+      gerund = \\p => mkListAdv (a.gerund ! p) (as.gerund ! p)
+      } ;
+    ConjAction co as = {
+      s = \\t,p => E.ConjVPS co (as.s ! t ! p) ;
+      gerund = \\p => SyntaxEng.mkAdv co (as.gerund ! p)
+      } ;
 
     'BaseAction/Dir' a1 a2 =
+      let a1' : LinAction = complDir a1 emptyNP ;
+          a2' : LinAction = complDir a2 emptyNP ;
+      in BaseAction a1' a2' ** {
+        dir = a1.dir ; -- : PrepPol
+        indir = \\p => emptyAdv ; -- the existing indir has been incorporated in a1' and a2'
+      } ;
     'ConsAction/Dir' a as =
-    ConjSlashDir co as =
+      let a' : LinAction = complDir a emptyNP ;
+      in ConsAction a' <as:ListLinAction> ** {
+        dir = as.dir ; -- : PrepPol
+        indir = \\p => emptyAdv
+        } ;
+    ConjSlashDir co as = ConjAction co as ** {
+      dir = as.dir ;
+      indir = as.indir
+      } ;
 
     'BaseAction/Indir' a1 a2 =
+      let a1' : LinAction = complIndir a1 emptyNP ;
+          a2' : LinAction = complIndir a2 emptyNP ;
+      in BaseAction a1' a2' ** {
+        indir = a1.indir ; -- : PrepPol
+        dir = \\p => emptyAdv ; -- the existing dir has been incorporated in a1' and a2'
+      } ;
     'ConsAction/Indir' a as =
-    ConjSlashIndir co as =
+      let a' : LinAction = complIndir a emptyNP ;
+      in ConsAction a' <as:ListLinAction> ** {
+        indir = as.indir ; -- : PrepPol
+        dir = \\p => emptyAdv
+        } ;
 
-    'BaseAction/Dir/Indir' a1 a2 =
-    'ConsAction/Dir/Indir' a as =
-    ConjSlashDirIndir co as =
--}
+    ConjSlashIndir co as = ConjAction co as ** {
+      dir = as.dir ;
+      indir = as.indir
+      } ;
+
+    'BaseAction/Dir/Indir' a1 a2 = BaseAction a1 a2 ** {
+      dir = a2.dir ;
+      indir = a2.indir
+      } ;
+    'ConsAction/Dir/Indir' a as = ConsAction a as ** {
+      dir = as.dir ;
+      indir = as.indir
+      } ;
+    ConjSlashDirIndir co as = ConjAction co as ** {
+      dir = as.dir ;
+      indir = as.indir
+      } ;
 
     -- : Term -> Action -> Move ; -- the company raises capital
     MAction temp pol t a = mkText (mkUtt (cl temp pol t a)) fullStopPunct ;
@@ -191,12 +237,12 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     -- List versions --
     -------------------
     ListSlashDir : Type = ListLinAction ** {
-      adv : R.CPolarity => Adv ; -- at fixed valuation / whether at fv nor without fv
+      indir : R.CPolarity => Adv ; -- at fixed valuation / whether at fv nor without fv
       dir : PrepPol ;
       } ;
 
     ListSlashIndir : Type = ListLinAction ** {
-      obj : R.CPolarity => NP ; -- (Acme will/won't sell) some/any stock
+      dir : R.CPolarity => Adv ; -- (Acme will/won't sell) some/any stock
       indir : PrepPol ;
       } ;
 
@@ -205,10 +251,18 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
       indir : PrepPol ;
       } ;
 
+    ---------------------
+    -- Generic helpers --
+    ---------------------
     cl : Tense -> Polarity -> LinTerm -> LinAction -> S = \t,p,subj,pred ->
-      E.PredVPS (np subj) (pred.s ! t.t ! p.p) ;
-
-   -- vp : LinAction -> E.VPS = \pred -> E.ComplVPS2 pred.vps pred.obj ;
+      let s : S = E.PredVPS (np subj) (pred.s ! t.t ! p.p)
+       in s ** {s = s.s ++ t.s ++ p.s} ;
+    -- This is silly, but I need to do it this way, because instead of VP, which is variable in
+    -- tense and polarity, I'm storing /fully formed VPS/s in a table with R.Tense and R.CPolarity as LHS.
+    -- (Why do I store VPS instead of VP? To be able to coordinate them.)
+    -- When an abstract syntax value like TPresent or PPositive is used to choose the correct VPS,
+    -- I need to use the s fields of those values, so that every argument contributes to the linearization.
+    -- See https://inariksit.github.io/gf/2018/08/28/gf-gotchas.html#metavariables-or-those-question-marks-that-appear-when-parsing
 
     gerund : LinAction -> NP = \pred ->
       let s : Str = (pred.gerund ! R.CPos).s in mkNP (mkN s s s s) ;
@@ -313,7 +367,6 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     TKOr = composeTK or_Conj ;
     TKAnd = composeTK and_Conj ;
 
-
   oper
     -------------
     -- Lexicon --
@@ -343,7 +396,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     ----------
     -- Misc --
     ----------
-    linkind : CN -> LinKind = \cn -> {cn = cn ; adv = emptyAdv  ;
+    linkind : CN -> LinKind = \cn -> {cn = cn ; adv = emptyAdv} ;
 
     adv : Prep -> NP -> Adv = SyntaxEng.mkAdv ; -- shorthand: mkAdv is imported from two modules, so it has to be qualified
     prop : Str -> AP = \a -> mkAP (mkA a) ;
@@ -364,6 +417,7 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     -- We kept the CN and Adv parts of Kind separate until now,
     -- but at this point we can put them back together, both into the cn field.
     -- This necessary for adding postmod APs. -- TODO check if still true
+
     composeTK : Conj -> C.ListCN -> LinTerm -> LinKind = \co,fs,x ->
       let cns : CN = C.ConjCN co fs ;
        in linkind (mkCN cns (adv part_Prep (np x))) ;
@@ -374,5 +428,5 @@ concrete SAFEQueryEng of SAFEQuery = QueryEng **
     --   obj = np x ;
     --   gerund = mkNP co fs.gers ;
     --   } ;
-
+--}
  }
