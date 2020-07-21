@@ -48,7 +48,25 @@ getEx2 = do
 newtype XDMN = XDMN {unDMN :: DMNInner}
   deriving (Show)
 
-type DMNInner = (DMNDI)
+type DMNInner = (String, String, DMNDI)
+
+-- TODO: Use this
+{-
+import Control.Lens
+import Control.Lens.TH
+
+-- | A contrived and poorly-constrained type for phone numbers
+--
+data PhoneNumber = PhoneNumber
+  { phoneAreaCode :: String
+  , phoneNumber :: String
+  } 
+-- makeIso ''PhoneNumber
+makePrisms ''PhoneNumber
+-- _PhoneNumber :: Iso' PhoneNumber (String, String)
+
+
+-}
 
 unwDMN :: (DMNInner -> XDMN, XDMN -> DMNInner)
 unwDMN = (XDMN, unDMN)
@@ -77,14 +95,20 @@ withNS =
     . xpAddNSDecl "qw2" xmlns_dc
     . xpAddNSDecl "qw3" xmlns_di
     . xpAddNSDecl "qw4" xmlns_camunda
-    . xpAddNSDecl "qw4" "nope"
+    -- . xpAddNSDecl "qw4" "nope"
 
 dmnPickler :: PU XDMN
 dmnPickler =
   xpWrap unwDMN
     . xpElemNS xmlns_dmn "" "definitions"
     . withNS
-    $ pdmndi
+    -- . xpFilterAttr (getAttrValue _ _)
+    -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
+    . xpAddFixedAttr "namespace" xmlns_camunda  -- Ignore the namespace (I want to do the above though, and make it optional)
+    $ xpTriple
+     (xpAttr "id" xpText)
+     (xpAttr "name" xpText)
+     pdmndi
 
 -- dmnPickler = xpElemNS xmlns_dmn "" "definitions" $ xpLift XDMN
 
@@ -94,8 +118,9 @@ data DMNDI = DMNDI
 pdmndi :: PU DMNDI
 pdmndi = xpElemNS xmlns_dmndi "dmndi" "DMNDI" $ xpLift DMNDI
 
-runEx2 :: IO [XDMN]
-runEx2 =
+-- $> runEx2 yes
+runEx2 :: Bool -> IO [XDMN]
+runEx2 _b =
   runX
     ( xunpickleDocument
         dmnPickler
@@ -104,11 +129,17 @@ runEx2 =
     )
 
 ex3 :: XDMN
-ex3 = XDMN DMNDI
+ex3 = XDMN ("hi", "there", DMNDI)
 
+-- $> showEx3
 showEx3 :: IO ()
 showEx3 =
   putStrLn $
     showPickled
-      [withValidate no, withCheckNamespaces yes, withRemoveWS yes]
+      [withValidate no, withCheckNamespaces yes, withRemoveWS yes, withIndent yes]
       ex3
+
+{- $>
+runEx2
+showEx3
+<$ -}
