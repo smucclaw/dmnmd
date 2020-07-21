@@ -1,4 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
+-- Ignore these for now
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module DMN.Translate.JS where
 
@@ -67,6 +69,7 @@ mkArguments jsopts chs = ["(", intercalate ", " (mkArgument jsopts <$> input_hea
 mkArgument :: JSOpts -> ColHeader -> String
 mkArgument jsopts ch = var_name ch ++ maybe "" (if typescript jsopts then (" : " ++) . type2js else const "") (vartype ch)
 
+type2js :: DMNType -> String
 type2js DMN_String    = "string"
 type2js DMN_Number    = "number"
 type2js DMN_Boolean   = "boolean"
@@ -116,15 +119,21 @@ showVarname jsopts ch
   | propstyle jsopts = "props[\"" ++ varname ch ++ "\"]"
   | otherwise        = var_name ch
                
+wrapParen :: String -> [String] -> String
 wrapParen myop xs
   | length xs  > 1 = "(" ++ intercalate myop xs ++ ")"
   | length xs == 1 = head xs
   | otherwise      = "null"
+wrapArray :: String -> [String] -> String
 wrapArray myop xs = "[" ++ intercalate myop xs ++ "]"
 
+nonBlankCols :: a -> [FEELexp] -> Maybe (a, [FEELexp])
 nonBlankCols chs dtrows = if dtrows /= [FAnything] then Just (chs, dtrows) else Nothing
 
+input_headers :: [ColHeader] -> [ColHeader]
 input_headers   = filter ((DTCH_In==).label)
+
+comment_headers :: [ColHeader] -> [ColHeader]
 comment_headers = filter ((DTCH_Comment==).label)
 
 feel2jsIn :: String -> FEELexp -> String
