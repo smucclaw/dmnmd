@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 066f6c5c12a6526cee361efb161f4b36a6dd47501947f9c4adb46237193aba68
+-- hash: 41e95a891bc5c986695bda4f931be81765544168264eb09060bdde5be70b6e12
 
 name:           dmnmd
 version:        0.1.0.1
@@ -35,6 +35,7 @@ library
       DMN.Translate.JS
       DMN.Types
       DMN.XML.ParseDMN
+      DMN.XML.PickleHelpers
   other-modules:
       Paths_dmnmd
   hs-source-dirs:
