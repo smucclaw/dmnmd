@@ -51,24 +51,25 @@ data DmnCommon = DmnCommon
   { dmnId :: String,
     dmnName :: String
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 makePrisms ''DmnCommon
 
 instance XmlPickler DmnCommon where
   xpickle =
-    wrapIso _DmnCommon
-      $ xpPair
+    wrapIso _DmnCommon $
+      xpPair
         (xpAttr "id" xpText)
         (xpAttr "name" xpText)
 
 data DMNDI = DMNDI
-  deriving (Show)
+  deriving (Show, Eq)
 
 makePrisms ''DMNDI
 
 pdmndi :: PU DMNDI
 pdmndi = xpDMNDIElem "DMNDI" _DMNDI $ xpLift ()
+
 instance XmlPickler DMNDI where
   xpickle =
     xpDMNDIElem "DMNDI" _DMNDI
@@ -76,17 +77,16 @@ instance XmlPickler DMNDI where
       . xpFilterCont none -- TODO
       $ xpickle
 
-
 data Decision = Decision
   { decLabel :: DmnCommon
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 makePrisms ''Decision
 
 instance XmlPickler Decision where
   xpickle =
-    xpDMNElem "decision" _Decision 
+    xpDMNElem "decision" _Decision
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       . xpFilterCont none -- TODO
       $ xpickle
@@ -94,7 +94,7 @@ instance XmlPickler Decision where
 data InputData = InputData
   { inpLabel :: DmnCommon
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 makePrisms ''InputData
 
@@ -108,7 +108,7 @@ instance XmlPickler InputData where
 data KnowledgeSource = KnowledgeSource
   { knsLabel :: DmnCommon
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 makePrisms ''KnowledgeSource
 
@@ -126,7 +126,7 @@ data Definitions = Definitions
     defDrgElems :: [KnowledgeSource],
     defDMNDI :: Maybe DMNDI
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 makePrisms ''Definitions
 
@@ -136,7 +136,7 @@ ex3 :: XDMN
 ex3 =
   Definitions
     { defLabel = DmnCommon "hi" "there",
-      descisionsDiagrams = [Decision $ DmnCommon "a" "b"],
+      descisionsDiagrams = [Decision $ DmnCommon "a" "b"],
       defInputData = [],
       defDrgElems = [],
       defDMNDI = Just DMNDI
