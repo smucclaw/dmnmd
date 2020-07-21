@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1f7aa8c1480c33b4098451add06a079c87048f985ec203209515e456e49a5766
+-- hash: 066f6c5c12a6526cee361efb161f4b36a6dd47501947f9c4adb46237193aba68
 
 name:           dmnmd
 version:        0.1.0.1
@@ -50,6 +50,7 @@ library
     , hspec-attoparsec
     , hspec-megaparsec
     , hxt
+    , lens
     , megaparsec
     , optparse-applicative
     , raw-strings-qq
@@ -77,6 +78,7 @@ executable dmnmd
     , hspec-attoparsec
     , hspec-megaparsec
     , hxt
+    , lens
     , megaparsec
     , optparse-applicative
     , raw-strings-qq
@@ -108,6 +110,7 @@ test-suite dmnmd-test
     , hspec-attoparsec
     , hspec-megaparsec
     , hxt
+    , lens
     , megaparsec
     , optparse-applicative
     , raw-strings-qq

@@ -37,6 +37,9 @@ dependencies:
 # - fadno-xml
 - megaparsec
 - hspec-megaparsec
+# Should this be avoided?
+# Used for more convenient Iso for xml parsing
+- lens
 
 library:
   source-dirs: src
