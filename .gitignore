@@ -10,3 +10,5 @@ local
 .vscode
 .idea
 languages/haskell/dmnmd.iml
+languages/haskell/stan.html
+languages/haskell/TESTREPORT
