@@ -39,6 +39,13 @@ xpDMNElem name iso = xpElemNS xmlns_dmn "" name . wrapIso iso
 xpDMNDIElem :: String -> AnIso' a b -> PU b -> PU a
 xpDMNDIElem name iso = xpElemNS xmlns_dmndi "dmndi" name . wrapIso iso
 
+withNS :: PU a -> PU a
+withNS =
+  xpAddNSDecl "" xmlns_dmn
+    . xpAddNSDecl "dmndi" xmlns_dmndi
+    . xpAddNSDecl "dc" xmlns_dc
+    . xpAddNSDecl "di" xmlns_di
+    . xpAddNSDecl "camunda" xmlns_camunda
 
 data DmnCommon = DmnCommon
   { dmnId :: String,
@@ -64,7 +71,7 @@ pdmndi :: PU DMNDI
 pdmndi = xpDMNDIElem "DMNDI" _DMNDI $ xpLift ()
 instance XmlPickler DMNDI where
   xpickle =
-    xpDMNElem "DMNDI" _DMNDI
+    xpDMNDIElem "DMNDI" _DMNDI
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       . xpFilterCont none -- TODO
       $ xpickle
@@ -79,7 +86,7 @@ makePrisms ''Decision
 
 instance XmlPickler Decision where
   xpickle =
-    xpDMNElem "decision" _Decision
+    xpDMNElem "decision" _Decision 
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       . xpFilterCont none -- TODO
       $ xpickle
@@ -98,11 +105,26 @@ instance XmlPickler InputData where
       . xpFilterCont none -- TODO
       $ xpickle
 
+data KnowledgeSource = KnowledgeSource
+  { knsLabel :: DmnCommon
+  }
+  deriving (Show)
+
+makePrisms ''KnowledgeSource
+
+instance XmlPickler KnowledgeSource where
+  xpickle =
+    xpDMNElem "knowledgeSource" _KnowledgeSource
+      -- . xpFilterAttr (hasName "id" <+> hasName "name")
+      . xpFilterCont none -- TODO
+      $ xpickle
+
 data Definitions = Definitions
   { defLabel :: DmnCommon,
     descisionsDiagrams :: [Decision],
     defInputData :: [InputData],
-    defDMNDI :: DMNDI
+    defDrgElems :: [KnowledgeSource],
+    defDMNDI :: Maybe DMNDI
   }
   deriving (Show)
 
@@ -116,7 +138,8 @@ ex3 =
     { defLabel = DmnCommon "hi" "there",
       descisionsDiagrams = [Decision $ DmnCommon "a" "b"],
       defInputData = [],
-      defDMNDI = DMNDI
+      defDrgElems = [],
+      defDMNDI = Just DMNDI
     }
 
 dmnPickler :: PU XDMN
@@ -136,14 +159,6 @@ instance XmlPickler Definitions where
 
 --   xpickle :: PU XDMN
 --   xpickle = xpElemNS xmlns_dmn "dmn" "definitions" $ xpLift XDMN
-
-withNS :: PU a -> PU a
-withNS =
-  xpAddNSDecl "" xmlns_dmn
-    . xpAddNSDecl "dmndi" xmlns_dmndi
-    . xpAddNSDecl "dc" xmlns_dc
-    . xpAddNSDecl "di" xmlns_di
-    . xpAddNSDecl "camunda" xmlns_camunda
 
 -- . xpAddNSDecl "qw4" "nope"
 
