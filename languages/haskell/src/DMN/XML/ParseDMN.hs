@@ -10,6 +10,10 @@ module DMN.XML.ParseDMN where
 import Data.Tree.NTree.TypeDefs
 import Text.XML.HXT.Core
 
+
+{-
+-- Example
+
 data Guest = Guest {firstName, lastName :: String}
   deriving (Show, Eq)
 
@@ -36,6 +40,8 @@ main = do
           >>> getGuest2
       )
   print guests
+
+-}
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -90,11 +96,11 @@ instance XmlPickler XDMN where
 
 withNS :: PU a -> PU a
 withNS =
-  xpAddNSDecl "asd" xmlns_dmn
-    . xpAddNSDecl "qw1" xmlns_dmndi
-    . xpAddNSDecl "qw2" xmlns_dc
-    . xpAddNSDecl "qw3" xmlns_di
-    . xpAddNSDecl "qw4" xmlns_camunda
+  xpAddNSDecl "" xmlns_dmn
+    . xpAddNSDecl "dmndi" xmlns_dmndi
+    . xpAddNSDecl "dc" xmlns_dc
+    . xpAddNSDecl "di" xmlns_di
+    . xpAddNSDecl "camunda" xmlns_camunda
     -- . xpAddNSDecl "qw4" "nope"
 
 dmnPickler :: PU XDMN
@@ -118,15 +124,19 @@ data DMNDI = DMNDI
 pdmndi :: PU DMNDI
 pdmndi = xpElemNS xmlns_dmndi "dmndi" "DMNDI" $ xpLift DMNDI
 
--- $> runEx2 yes
-runEx2 :: Bool -> IO [XDMN]
-runEx2 _b =
-  runX
-    ( xunpickleDocument
-        dmnPickler
-        [withValidate no, withCheckNamespaces yes, withRemoveWS yes]
-        "test/simple.dmn"
-    )
+pickleConfig :: [SysConfig]
+pickleConfig = [withValidate no, withCheckNamespaces yes, withRemoveWS yes, withIndent yes]
+
+parseDMN :: FilePath -> IO [XDMN]
+parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
+
+-- $> runEx1
+runEx1 :: IO [XDMN]
+runEx1 = parseDMN "test/simulation.dmn"
+
+-- $> runEx2
+runEx2 :: IO [XDMN]
+runEx2 = parseDMN "test/simple.dmn"
 
 ex3 :: XDMN
 ex3 = XDMN ("hi", "there", DMNDI)
