@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 41e95a891bc5c986695bda4f931be81765544168264eb09060bdde5be70b6e12
+-- hash: f1ca66d85ead4efd4f634b74fee884567fbc36d475053e9c886935f0d548e29f
 
 name:           dmnmd
 version:        0.1.0.1
@@ -49,6 +49,7 @@ library
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-golden
     , hspec-megaparsec
     , hxt
     , lens
@@ -77,6 +78,7 @@ executable dmnmd
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-golden
     , hspec-megaparsec
     , hxt
     , lens
@@ -109,6 +111,7 @@ test-suite dmnmd-test
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-golden
     , hspec-megaparsec
     , hxt
     , lens

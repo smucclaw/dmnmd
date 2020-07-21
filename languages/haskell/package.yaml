@@ -40,6 +40,7 @@ dependencies:
 # Should this be avoided?
 # Used for more convenient Iso for xml parsing
 - lens
+- hspec-golden
 
 library:
   source-dirs: src
