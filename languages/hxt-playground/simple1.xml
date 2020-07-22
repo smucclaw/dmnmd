@@ -1,0 +1,30 @@
+<guestbook>
+  <guest>
+    <fname>John</fname>
+    <lname>Steinbeck</lname>
+  </guest>
+  <guest>
+    <fname>Henry</fname>
+    <lname>Ford</lname>
+  </guest>
+  <guest>
+    <fname>Andrew</fname>
+    <lname>Carnegie</lname>
+  </guest>
+  <guest>
+    <fname>Anton</fname>
+    <lname>Chekhov</lname>
+  </guest>
+  <guest>
+    <fname>George</fname>
+    <lname>Washington</lname>
+  </guest>
+  <guest>
+    <fname>William</fname>
+    <lname>Shakespeare</lname>
+  </guest>
+  <guest>
+    <fname>Nathaniel</fname>
+    <lname>Hawthorne</lname>
+  </guest>
+</guestbook>

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 08b34315b0bfd24ce424df911d36284fc71b7174ee0a9dead68778a3bee6bb67
+-- hash: 676cd3f6eb2f29f96e7a20e2fe61dee9a59b918037ae1ba6259a6ec4648239f5
 
 name:           hxt-playground
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Guestbook
       Lib
   other-modules:
       Paths_hxt_playground
@@ -34,6 +35,24 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , hxt
+    , split
+    , text
+  default-language: Haskell2010
+
+executable guestbook
+  main-is: Main.hs
+  other-modules:
+      Paths_hxt_playground
+  hs-source-dirs:
+      app-guestbook
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , hxt
+    , hxt-playground
+    , split
+    , text
   default-language: Haskell2010
 
 executable hxt-playground-exe
@@ -45,7 +64,10 @@ executable hxt-playground-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , hxt
     , hxt-playground
+    , split
+    , text
   default-language: Haskell2010
 
 test-suite hxt-playground-test
@@ -58,5 +80,8 @@ test-suite hxt-playground-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , hxt
     , hxt-playground
+    , split
+    , text
   default-language: Haskell2010
