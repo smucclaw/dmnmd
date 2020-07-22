@@ -34,7 +34,7 @@ application cfg src dst
     = configSysVars (withTrace 1 : cfg)                                           -- (0)
       >>> readDocument [withRemoveWS yes] src
       >>> processChildren (processDocumentRootElement `when` isElem)
---      >>> processChildren (excludeSomething `when` isElem)
+      >>> processChildren (excludeSomething "lname" `when` isElem)
       >>> withTraceLevel 4 (traceDoc "resulting document")
 --      >>> writeDocument [] dst                                        -- (3)
       >>> getErrStatus
@@ -48,8 +48,9 @@ processDocumentRootElement      :: IOSArrow XmlTree XmlTree
 processDocumentRootElement = nickname "Shakespeare" "Bill" >>>
                              nickname "Hawthorne" "Nate"
 
--- excludeSomething :: String -> IOSArrow XmlTree XmlTree
-
+excludeSomething :: String -> IOSArrow XmlTree XmlTree
+excludeSomething str = processTopDown $ none `when` hasName str
+  
 -- guest > fname > William
 -- guest > lname > Shakespeare
 -- when we find a guest with a matching lname
