@@ -21,7 +21,7 @@ xmlSpec = do
       output <- parseDMN "test/simple.dmn"
       output
         `shouldBe` [ Definitions
-                       { defLabel = DmnCommon {dmnId = "dinnerDecisions", dmnName = "Dinner Decisions"},
+                       { defLabel = dmnNamed "dinnerDecisions" "Dinner Decisions",
                          descisionsDiagrams = [],
                          defInputData = [],
                          defDrgElems = [],
@@ -40,30 +40,32 @@ xmlSpec = do
 simulationDmn :: [Definitions]
 simulationDmn = [
   Definitions
-    { defLabel = DmnCommon "dinnerDecisions" "Dinner Decisions"
+    { defLabel = dmnNamed "dinnerDecisions" "Dinner Decisions"
     , descisionsDiagrams =
         [ Decision
-            { decLabel = DmnCommon "beverages" "Beverages"
+            { decLabel = dmnNamed "beverages" "Beverages"
+            , decInfoReq = []
             }
         , Decision
-            { decLabel = DmnCommon "dish" "Dish"
+            { decLabel = dmnNamed "dish" "Dish"
+            , decInfoReq = []
             }
         ]
     , defInputData =
         [ InputData
-            { inpLabel = DmnCommon "InputData_0rin549" "Season"
+            { inpLabel = dmnNamed "InputData_0rin549" "Season"
             }
         , InputData
-            { inpLabel = DmnCommon "InputData_1axnom3" "Number of Guests"
+            { inpLabel = dmnNamed "InputData_1axnom3" "Number of Guests"
             }
         , InputData
-            { inpLabel = DmnCommon "InputData_0pgvdj9" "Guests with children?"
+            { inpLabel = dmnNamed "InputData_0pgvdj9" "Guests with children?"
             }
         ]
     , defDrgElems 
       =
         [ KnowledgeSource
-            { knsLabel = DmnCommon "KnowledgeSource_0b8hnqo" "Men's Cookbook"
+            { knsLabel = dmnNamed "KnowledgeSource_0b8hnqo" "Men's Cookbook"
             }
         ]
     , defDMNDI = Just DMNDI

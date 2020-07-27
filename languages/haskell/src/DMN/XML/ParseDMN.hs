@@ -48,27 +48,26 @@ withNS =
     . xpAddNSDecl "camunda" xmlns_camunda
 
 data DmnCommon = DmnCommon
-  { dmnId :: String,
-    dmnName :: String
+  { dmnId :: Maybe String,
+    dmnName :: Maybe String
   }
   deriving (Show, Eq)
 
 makePrisms ''DmnCommon
 
+dmnNamed eid name = DmnCommon (Just eid) (Just name)
+
 instance XmlPickler DmnCommon where
   xpickle =
     wrapIso _DmnCommon $
       xpPair
-        (xpAttr "id" xpText)
-        (xpAttr "name" xpText)
+        (xpOption $ xpAttr "id" xpText)
+        (xpOption $ xpAttr "name" xpText)
 
 data DMNDI = DMNDI
   deriving (Show, Eq)
 
 makePrisms ''DMNDI
-
-pdmndi :: PU DMNDI
-pdmndi = xpDMNDIElem "DMNDI" _DMNDI $ xpLift ()
 
 instance XmlPickler DMNDI where
   xpickle =
@@ -77,8 +76,58 @@ instance XmlPickler DMNDI where
       . xpFilterCont none -- TODO
       $ xpickle
 
+data RequiredInput = RequiredInput | RequiredDecision
+  deriving (Show, Eq, Enum)
+
+makePrisms ''RequiredInput
+
+instance XmlPickler RequiredInput where
+  xpickle =
+    xpAlt
+      fromEnum
+      [ xpElemNS xmlns_dmn "" "requiredInput" $ xpLift RequiredInput,
+        xpElemNS xmlns_dmn "" "requiredDecision" $ xpLift RequiredDecision
+      ]
+
+-- xpDMNElem "requiredInput" _RequiredInput
+--   $ xpickle
+
+pcklReqInput :: PU a -> PU (RequiredInput, a)
+pcklReqInput p =
+  xpAlt
+    (fromEnum . fst)
+    [ xpElemNS xmlns_dmn "" "requiredInput" $ xpPair (xpLift RequiredInput) p,
+      xpElemNS xmlns_dmn "" "requiredDecision" $ xpPair (xpLift RequiredDecision) p
+    ]
+
+newtype Href = Href String
+  deriving (Show, Eq)
+
+makePrisms ''Href
+
+instance XmlPickler Href where
+  xpickle = wrapIso _Href $ xpAttr "href" xpText
+
+data InformationRequirement = InformationRequirement
+  { infrLabel :: DmnCommon,
+    infrReq :: RequiredInput,
+    infoHref :: Href
+  }
+  deriving (Show, Eq)
+
+makePrisms ''InformationRequirement
+
+instance XmlPickler InformationRequirement where
+  xpickle =
+    xpDMNElem "informationRequirement" (_InformationRequirement . pairsIso)
+    -- . xpFilterAttr (hasName "id" <+> hasName "name")
+    -- . xpFilterCont none -- TODO
+    $
+      xpPair xpickle (pcklReqInput xpickle)
+
 data Decision = Decision
-  { decLabel :: DmnCommon
+  { decLabel :: DmnCommon,
+    decInfoReq :: [InformationRequirement]
   }
   deriving (Show, Eq)
 
@@ -87,9 +136,10 @@ makePrisms ''Decision
 instance XmlPickler Decision where
   xpickle =
     xpDMNElem "decision" _Decision
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      . xpFilterCont none -- TODO
-      $ xpickle
+    -- . xpFilterAttr (hasName "id" <+> hasName "name")
+    -- . xpFilterCont none -- TODO
+    $
+      xpickle
 
 data InputData = InputData
   { inpLabel :: DmnCommon
@@ -99,11 +149,7 @@ data InputData = InputData
 makePrisms ''InputData
 
 instance XmlPickler InputData where
-  xpickle =
-    xpDMNElem "inputData" _InputData
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      . xpFilterCont none -- TODO
-      $ xpickle
+  xpickle = xpDMNElem "inputData" _InputData $ xpickle
 
 data KnowledgeSource = KnowledgeSource
   { knsLabel :: DmnCommon
@@ -135,8 +181,8 @@ type XDMN = Definitions
 ex3 :: XDMN
 ex3 =
   Definitions
-    { defLabel = DmnCommon "hi" "there",
-      descisionsDiagrams = [Decision $ DmnCommon "a" "b"],
+    { defLabel = dmnNamed "hi" "there",
+      descisionsDiagrams = [Decision (dmnNamed "a" "b") [InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")]],
       defInputData = [],
       defDrgElems = [],
       defDMNDI = Just DMNDI
