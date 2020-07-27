@@ -9,7 +9,7 @@ other='Row 5 (Many (BaseFCell (TimeSeason (ncn season_2_N) FAnything) (AmountCou
 
 table="l -bind -treebank Table (ConsDTRow ($winter) (ConsDTRow ($spring) (ConsDTRow ($summer) (BaseDTRow ($autumn) ($other)))))"
 
-echo "gr -cat=DTRow -number=10 | l -treebank -bind" | gf --run DMN.pgf | sed -E 's/ \\ /\\/g ; s/: /\\---\\/g ; s/DMN/\\DMN/g' | tr '\' '\n'
+echo "gr -number=10 Table ? | l -treebank -bind" | gf --run DMN.pgf | sed -E 's/ \\ /\\/g ; s/: /\\---\\/g ; s/DMN/\\DMN/g' | tr '\' '\n'
 
 echo $table | gf --run DMN.pgf | sed -E 's/ \\ /\\/g ; s/: /\\---\\/g ; s/DMN/\\DMN/g' | tr '\' '\n'
 
