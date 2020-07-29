@@ -3,6 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wincomplete-patterns #-}
 
 module DMN.XML.ParseDMN where
 
@@ -15,6 +16,7 @@ import qualified Control.Lens as L
 import Control.Lens.Iso (AnIso')
 import Control.Lens.TH (makePrisms)
 import qualified Control.Lens.TH as L_TH
+import qualified DMN.Types as DT
 import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
 
@@ -56,6 +58,8 @@ data DmnCommon = DmnCommon
 makePrisms ''DmnCommon
 
 dmnNamed eid name = DmnCommon (Just eid) (Just name)
+
+unnamed = DmnCommon Nothing Nothing
 
 instance XmlPickler DmnCommon where
   xpickle =
@@ -125,9 +129,102 @@ instance XmlPickler InformationRequirement where
     $
       xpPair xpickle (pcklReqInput xpickle)
 
+{-
+	<xsd:simpleType name="tBuiltinAggregator">
+		<xsd:restriction base="xsd:string">
+			<xsd:enumeration value="SUM"/>
+			<xsd:enumeration value="COUNT"/>
+			<xsd:enumeration value="MIN"/>
+			<xsd:enumeration value="MAX"/>
+-}
+
+{-
+<decisionTable id="DecisionTable_07q05jb" hitPolicy="COLLECT" aggregation="SUM">
+ -}
+
+showHitPolicy :: DT.HitPolicy -> String
+showHitPolicy DT.HP_Unique = "UNIQUE"
+showHitPolicy DT.HP_First = "FIRST"
+showHitPolicy DT.HP_Priority = "PRIORITY"
+showHitPolicy DT.HP_Any = "ANY"
+showHitPolicy DT.HP_RuleOrder = "RULE ORDER"
+showHitPolicy DT.HP_OutputOrder = "OUTPUT ORDER"
+-- showHitPolicy DT.HP_Aggregate = "AGGREGATE" -- Not in the enum?
+showHitPolicy (DT.HP_Collect _) = "COLLECT" -- TODO: Handle the other half
+showHitPolicy DT.HP_Aggregate = error "HP_Aggregate is not supported for xml" -- What is this even?
+
+-- TODO: Write tests for this
+
+xparseHitPolicy :: String -> Either String DT.HitPolicy
+xparseHitPolicy "UNIQUE" = Right DT.HP_Unique
+xparseHitPolicy "FIRST" = Right DT.HP_First
+xparseHitPolicy "PRIORITY" = Right DT.HP_Priority
+xparseHitPolicy "ANY" = Right DT.HP_Any
+xparseHitPolicy "OUTPUT ORDER" = Right DT.HP_OutputOrder
+xparseHitPolicy "RULE ORDER" = Right DT.HP_RuleOrder
+-- xparseHitPolicy "AGGREGATE" = Right DT.HP_Aggregate
+xparseHitPolicy "COLLECT" = Right $ DT.HP_Collect DT.Collect_All
+xparseHitPolicy x = Left $ "Unkown hit policy: " ++ x
+
+-- $> xparseHitPolicy "UNIQUE"
+
+groupHp :: (DT.HitPolicy, DT.CollectOperator) -> DT.HitPolicy
+groupHp (DT.HP_Collect _, oper) = DT.HP_Collect oper
+-- groupHp (hitPolicy, _) = hitPolicy
+groupHp (hitPolicy, DT.Collect_All) = hitPolicy
+groupHp (hitPolicy, oper) = error $ "Invalid aggregation " ++ show oper ++ " with hit policy " ++ show hitPolicy
+                                  ++ ". Only COLLECT supports aggregation"
+
+ungroupHp :: DT.HitPolicy -> (DT.HitPolicy, DT.CollectOperator)
+ungroupHp (DT.HP_Collect oper) = (DT.HP_Collect oper, oper)
+ungroupHp hp = (hp, DT.Collect_All)
+
+xpHitPolicy :: PU DT.HitPolicy
+xpHitPolicy =
+  xpWrap (groupHp, ungroupHp) $
+    xpPair
+      (xpDefault DT.HP_Unique . xpAttr "hitPolicy" $ xpWrapEither (xparseHitPolicy, showHitPolicy) xpText)
+      (xpDefault DT.Collect_All . xpAttr "aggregation" $ xpWrapEither (xparseAggregation, xshowAggregation) xpText)
+
+xparseAggregation :: String -> Either String DT.CollectOperator
+xparseAggregation "SUM" = Right DT.Collect_Sum
+xparseAggregation "COUNT" = Right DT.Collect_Cnt
+xparseAggregation "MIN" = Right DT.Collect_Min
+xparseAggregation "MAX" = Right DT.Collect_Max
+xparseAggregation x = Left $ "Unknown aggregation type: " ++ x
+
+xshowAggregation :: DT.CollectOperator -> String
+xshowAggregation DT.Collect_All = ""
+xshowAggregation DT.Collect_Sum = "SUM"
+xshowAggregation DT.Collect_Min = "MIN"
+xshowAggregation DT.Collect_Max = "MAX"
+xshowAggregation DT.Collect_Cnt = "COUNT"
+
+-- DONE: Optional: default UNIQUE
+-- Note: xpDefault doesn't write the default case, maybe we want to keep it still for HP_Unique?
+
+data DecisionTable = DecisionTable
+  { dtLabel :: DmnCommon,
+    dtHitPolicy :: DT.HitPolicy
+  }
+  deriving (Show, Eq)
+
+makePrisms ''DecisionTable
+
+instance XmlPickler DecisionTable where
+  xpickle =
+    xpDMNElem "decisionTable" _DecisionTable
+      -- . xpFilterAttr (hasName "id" <+> hasName "name") -- TODO
+      -- . xpFilterAttr (none `when` hasName "hitPolicy") -- TODO
+      . xpFilterCont none -- TODO
+      $ xpPair
+        xpickle
+        xpHitPolicy
+
 data Decision = Decision
   { decLabel :: DmnCommon,
-    decInfoReq :: [InformationRequirement]
+    decInfoReq :: [InformationRequirement],
+    decDTable :: Maybe DecisionTable
   }
   deriving (Show, Eq)
 
@@ -136,10 +233,10 @@ makePrisms ''Decision
 instance XmlPickler Decision where
   xpickle =
     xpDMNElem "decision" _Decision
-    -- . xpFilterAttr (hasName "id" <+> hasName "name")
-    -- . xpFilterCont none -- TODO
-    $
-      xpickle
+      -- . xpFilterAttr (hasName "id" <+> hasName "name")
+      -- . xpFilterCont none -- TODO
+      . xpFilterCont (none `when` hasName "authorityRequirement")
+      $ xpickle
 
 data InputData = InputData
   { inpLabel :: DmnCommon
@@ -182,7 +279,7 @@ ex3 :: XDMN
 ex3 =
   Definitions
     { defLabel = dmnNamed "hi" "there",
-      descisionsDiagrams = [Decision (dmnNamed "a" "b") [InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")]],
+      descisionsDiagrams = [Decision (dmnNamed "a" "b") [InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")] Nothing],
       defInputData = [],
       defDrgElems = [],
       defDMNDI = Just DMNDI
@@ -219,7 +316,8 @@ parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
 -- $> runEx1
 
 runEx1 :: IO [XDMN]
-runEx1 = parseDMN "test/simulation.dmn"
+-- runEx1 = parseDMN "test/simulation.dmn"
+runEx1 = parseDMN "test/simulation-collect-hit-policy.dmn"
 
 -- $> runEx2
 
