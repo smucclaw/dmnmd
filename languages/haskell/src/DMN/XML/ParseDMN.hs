@@ -53,9 +53,14 @@ data DmnCommon = DmnCommon
   { dmnId :: Maybe String,
     dmnName :: Maybe String
   }
-  deriving (Show, Eq)
+  deriving (Eq)
 
 makePrisms ''DmnCommon
+
+instance Show DmnCommon where
+  show (DmnCommon Nothing Nothing) = "unnamed"
+  show (DmnCommon (Just a) (Just b)) = "dmnNamed " ++ show a ++ " " ++ show b
+  show (DmnCommon a b) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ")"
 
 dmnNamed eid name = DmnCommon (Just eid) (Just name)
 
@@ -150,7 +155,7 @@ showHitPolicy DT.HP_Any = "ANY"
 showHitPolicy DT.HP_RuleOrder = "RULE ORDER"
 showHitPolicy DT.HP_OutputOrder = "OUTPUT ORDER"
 -- showHitPolicy DT.HP_Aggregate = "AGGREGATE" -- Not in the enum?
-showHitPolicy (DT.HP_Collect _) = "COLLECT" -- TODO: Handle the other half
+showHitPolicy (DT.HP_Collect _) = "COLLECT"
 showHitPolicy DT.HP_Aggregate = error "HP_Aggregate is not supported for xml" -- What is this even?
 
 -- TODO: Write tests for this
@@ -166,8 +171,9 @@ xparseHitPolicy "RULE ORDER" = Right DT.HP_RuleOrder
 xparseHitPolicy "COLLECT" = Right $ DT.HP_Collect DT.Collect_All
 xparseHitPolicy x = Left $ "Unkown hit policy: " ++ x
 
--- $> xparseHitPolicy "UNIQUE"
+--- $> xparseHitPolicy "UNIQUE"
 
+-- This is a hack to handle merging the pair of HitPolicy and CollectOperator into a single value
 groupHp :: (DT.HitPolicy, DT.CollectOperator) -> DT.HitPolicy
 groupHp (DT.HP_Collect _, oper) = DT.HP_Collect oper
 -- groupHp (hitPolicy, _) = hitPolicy
@@ -203,9 +209,65 @@ xshowAggregation DT.Collect_Cnt = "COUNT"
 -- DONE: Optional: default UNIQUE
 -- Note: xpDefault doesn't write the default case, maybe we want to keep it still for HP_Unique?
 
+data ColumnLabel = ColumnLabel
+  { columnLabel :: String
+  }
+  deriving (Show, Eq)
+
+makePrisms ''ColumnLabel
+
+instance XmlPickler ColumnLabel where
+  xpickle = wrapIso _ColumnLabel $ xpAttr "label" xpText
+
+data TableInput = TableInput
+  { tinpName :: DmnCommon
+  , tinpLabel :: ColumnLabel
+  }
+  deriving (Show, Eq)
+
+makePrisms ''TableInput
+
+instance XmlPickler TableInput where
+  xpickle =
+    xpDMNElem "input" _TableInput
+      . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label") -- TOOD
+      . xpFilterCont none -- TODO
+      $ xpickle
+
+data TableOutput = TableOutput
+  { toutName :: DmnCommon
+  , toutLabel :: ColumnLabel
+  }
+  deriving (Show, Eq)
+
+makePrisms ''TableOutput
+
+instance XmlPickler TableOutput where
+  xpickle =
+    xpDMNElem "output" _TableOutput
+      . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label") -- TOOD
+      . xpFilterCont none -- TODO
+      $ xpickle
+
+data Rule = Rule
+  { ruleLabel :: DmnCommon
+  }
+  deriving (Show, Eq)
+
+makePrisms ''Rule
+
+instance XmlPickler Rule where
+  xpickle =
+    xpDMNElem "rule" _Rule
+      . xpFilterCont none -- TODO
+      $ xpickle
+
 data DecisionTable = DecisionTable
   { dtLabel :: DmnCommon,
-    dtHitPolicy :: DT.HitPolicy
+    dtHitPolicy :: DT.HitPolicy,
+    dtInput :: [TableInput],
+    dtOutput :: [TableOutput], -- TODO: Should be NonEmpty
+    dtRules :: [Rule]
   }
   deriving (Show, Eq)
 
@@ -215,11 +277,14 @@ instance XmlPickler DecisionTable where
   xpickle =
     xpDMNElem "decisionTable" _DecisionTable
       -- . xpFilterAttr (hasName "id" <+> hasName "name") -- TODO
-      -- . xpFilterAttr (none `when` hasName "hitPolicy") -- TODO
-      . xpFilterCont none -- TODO
-      $ xpPair
+      -- . xpFilterAttr (none `when` hasName "hitPolicy")
+      -- . xpFilterCont none -- TODO
+      $ xp5Tuple
         xpickle
         xpHitPolicy
+        xpickle
+        xpickle
+        xpickle
 
 data Decision = Decision
   { decLabel :: DmnCommon,
@@ -316,8 +381,8 @@ parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
 -- $> runEx1
 
 runEx1 :: IO [XDMN]
--- runEx1 = parseDMN "test/simulation.dmn"
-runEx1 = parseDMN "test/simulation-collect-hit-policy.dmn"
+runEx1 = parseDMN "test/simulation.dmn"
+-- runEx1 = parseDMN "test/simulation-collect-hit-policy.dmn"
 
 -- $> runEx2
 

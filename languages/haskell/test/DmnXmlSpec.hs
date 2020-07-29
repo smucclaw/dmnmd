@@ -45,10 +45,12 @@ simulationDmn = [
         [ Decision
             { decLabel = dmnNamed "beverages" "Beverages"
             , decInfoReq = []
+            , decDTable = Nothing
             }
         , Decision
             { decLabel = dmnNamed "dish" "Dish"
             , decInfoReq = []
+            , decDTable = Nothing
             }
         ]
     , defInputData =
