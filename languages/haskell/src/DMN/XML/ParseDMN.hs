@@ -1,3 +1,4 @@
+-- {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
@@ -85,6 +86,8 @@ instance XmlPickler DMNDI where
       . xpFilterCont none -- TODO
       $ xpickle
 
+-- These can point to some input node (which is kind of useless) or to another table,
+-- in which case it shows their dependency on each other.
 data RequiredInput = RequiredInput | RequiredDecision
   deriving (Show, Eq, Enum)
 
@@ -114,6 +117,7 @@ newtype Href = Href String
 
 makePrisms ''Href
 
+-- TODO: Parse the "#" prefix of a href
 instance XmlPickler Href where
   xpickle = wrapIso _Href $ xpAttr "href" xpText
 
@@ -209,6 +213,16 @@ xshowAggregation DT.Collect_Cnt = "COUNT"
 -- DONE: Optional: default UNIQUE
 -- Note: xpDefault doesn't write the default case, maybe we want to keep it still for HP_Unique?
 
+data TypeRef = TypeRef
+  { typeRef :: String
+  }
+  deriving (Show, Eq)
+
+makePrisms ''TypeRef
+
+instance XmlPickler TypeRef where
+  xpickle = wrapIso _TypeRef $ xpAttr "typeRef" $ xpText
+
 data ColumnLabel = ColumnLabel
   { columnLabel :: String
   }
@@ -219,9 +233,35 @@ makePrisms ''ColumnLabel
 instance XmlPickler ColumnLabel where
   xpickle = wrapIso _ColumnLabel $ xpAttr "label" xpText
 
+-- TODO: This is only one of the possible options for tLiteralExpression
+data TextElement = TextElement
+  { innerText :: String
+  }
+  deriving (Show, Eq)
+
+makePrisms ''TextElement
+
+instance XmlPickler TextElement where
+  xpickle =
+    xpDMNElem "text" _TextElement
+      $ xpText
+
+data InputExpression = InputExpression
+  { inputExprLabel :: DmnCommon
+  , inputExprTypeRef :: TypeRef
+  , inputExprText :: TextElement
+  }
+  deriving (Show, Eq)
+
+makePrisms ''InputExpression
+
+instance XmlPickler InputExpression where
+  xpickle = xpDMNElem "inputExpression" _InputExpression xpickle
+
 data TableInput = TableInput
   { tinpName :: DmnCommon
   , tinpLabel :: ColumnLabel
+  , tinpExpr :: InputExpression
   }
   deriving (Show, Eq)
 
@@ -230,13 +270,16 @@ makePrisms ''TableInput
 instance XmlPickler TableInput where
   xpickle =
     xpDMNElem "input" _TableInput
-      . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label") -- TOOD
-      . xpFilterCont none -- TODO
+      -- . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label") -- TOOD
+      -- . xpFilterAttr (none `when` hasQName (mkQName xmlns_camunda "camunda" "inputVariable")) -- TOOD
+      . xpFilterAttr (none `when` hasName "camunda:inputVariable") -- TOOD
+      -- . xpFilterCont none -- TODO
       $ xpickle
 
 data TableOutput = TableOutput
   { toutName :: DmnCommon
   , toutLabel :: ColumnLabel
+  , toutTypeRef :: TypeRef
   }
   deriving (Show, Eq)
 
@@ -245,9 +288,14 @@ makePrisms ''TableOutput
 instance XmlPickler TableOutput where
   xpickle =
     xpDMNElem "output" _TableOutput
-      . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label") -- TOOD
       . xpFilterCont none -- TODO
       $ xpickle
+
+--- $> import Text.XML.HXT.Core
+
+--- $> :i PU
+
+--- $> theSchema (xpickle :: PU Decision)
 
 data Rule = Rule
   { ruleLabel :: DmnCommon
@@ -283,7 +331,7 @@ instance XmlPickler DecisionTable where
         xpickle
         xpHitPolicy
         xpickle
-        xpickle
+        (xpList1 xpickle)
         xpickle
 
 data Decision = Decision
@@ -300,7 +348,7 @@ instance XmlPickler Decision where
     xpDMNElem "decision" _Decision
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
-      . xpFilterCont (none `when` hasName "authorityRequirement")
+      . xpFilterCont (none `when` hasName "authorityRequirement") -- We don't care about "Authority" which express where rules come from
       $ xpickle
 
 data InputData = InputData
@@ -377,6 +425,9 @@ pickleConfig = [withValidate no, withCheckNamespaces yes, withRemoveWS yes, with
 
 parseDMN :: FilePath -> IO [XDMN]
 parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
+
+-- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision)
+-- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision) >>> writeDocumentToString []
 
 -- $> runEx1
 
