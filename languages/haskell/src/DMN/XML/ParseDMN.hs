@@ -270,10 +270,9 @@ makePrisms ''TableInput
 instance XmlPickler TableInput where
   xpickle =
     xpDMNElem "input" _TableInput
-      -- . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label") -- TOOD
-      -- . xpFilterAttr (none `when` hasQName (mkQName xmlns_camunda "camunda" "inputVariable")) -- TOOD
-      . xpFilterAttr (none `when` hasName "camunda:inputVariable") -- TOOD
-      -- . xpFilterCont none -- TODO
+      -- . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label")
+      -- . xpFilterAttr (none `when` hasQName (mkQName xmlns_camunda "camunda" "inputVariable"))
+      . xpFilterAttr (none `when` hasName "camunda:inputVariable")
       $ xpickle
 
 data TableOutput = TableOutput
@@ -288,7 +287,7 @@ makePrisms ''TableOutput
 instance XmlPickler TableOutput where
   xpickle =
     xpDMNElem "output" _TableOutput
-      . xpFilterCont none -- TODO
+      . xpFilterCont none -- TODO: Need a test case
       $ xpickle
 
 --- $> import Text.XML.HXT.Core
@@ -375,8 +374,17 @@ instance XmlPickler KnowledgeSource where
       . xpFilterCont none -- TODO
       $ xpickle
 
+data Namespace = Namespace { namespace :: String }
+  deriving (Show, Eq)
+
+makePrisms ''Namespace
+
+instance XmlPickler Namespace where
+  xpickle = wrapIso _Namespace $ xpAttr "namespace" xpText
+
 data Definitions = Definitions
   { defLabel :: DmnCommon,
+    defsNamespace :: Namespace,
     descisionsDiagrams :: [Decision],
     defInputData :: [InputData],
     defDrgElems :: [KnowledgeSource],
@@ -392,6 +400,7 @@ ex3 :: XDMN
 ex3 =
   Definitions
     { defLabel = dmnNamed "hi" "there",
+      defsNamespace = Namespace xmlns_camunda,
       descisionsDiagrams = [Decision (dmnNamed "a" "b") [InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")] Nothing],
       defInputData = [],
       defDrgElems = [],
@@ -404,8 +413,12 @@ dmnPickler =
     . withNS
     -- . xpFilterAttr (getAttrValue _ _)
     -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
-    . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
+    -- . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
     $ xpickle
+
+-- $> :m + Text.Pretty.Simple
+
+-- $> :set -interactive-print pPrint
 
 --- $> :i _Definitions
 -- _Definitions :: L.Iso' Definitions (String, String, DMNDI)
@@ -428,6 +441,7 @@ parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
 
 -- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision)
 -- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision) >>> writeDocumentToString []
+--- ^ Doesn't work when the data is filtered with xpFilterAttr/Cont. Fails with Prelude.foldr1.
 
 -- $> runEx1
 

@@ -19,7 +19,6 @@ import Text.Megaparsec
 feelSpec :: Spec
 feelSpec = do
   describe "parseFEEL" $ do
-      it "should parse a trivial xml file" $ pending
       it "should parse correct simple expressions" $ 
         "age * 100" ~> parseFNumFunction `shouldParse` FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0))
       it "should fail to parse incorrect expressions" $ 
