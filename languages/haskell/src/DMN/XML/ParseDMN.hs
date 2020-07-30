@@ -266,7 +266,7 @@ makePrisms ''TextElement
 instance XmlPickler TextElement where
   xpickle =
     xpDMNElem "text" _TextElement
-      $ xpText
+      $ xpText0
 
 data InputExpression = InputExpression
   { inputExprLabel :: DmnCommon
@@ -318,9 +318,25 @@ instance XmlPickler TableOutput where
 
 --- $> theSchema (xpickle :: PU Decision)
 
+data InputEntry = InputEntry
+  { ieLabel :: DmnCommon
+  , ieText :: TextElement
+  }
+  deriving (Show, Eq)
+
+makePrisms ''InputEntry
+
+instance XmlPickler InputEntry where
+  xpickle =
+    xpDMNElem "inputEntry" _InputEntry
+      -- . xpFilterAttr (hasName "id" <+> hasName "name")
+      -- . xpFilterCont none -- TODO
+      $ xpickle
+
 data Rule = Rule
   { ruleLabel :: DmnCommon
   , ruleDescription :: Maybe Description
+  , ruleInputEntry :: [InputEntry]
   }
   deriving (Show, Eq)
 
@@ -331,7 +347,7 @@ instance XmlPickler Rule where
     xpDMNElem "rule" _Rule
       -- . xpFilterCont none -- TODO
       -- . xpFilterCont (none `when` hasName "hitPolicy")
-      . xpFilterCont (hasName "description")
+      . xpFilterCont (hasName "description" <+> hasName "inputEntry")
       $ xpickle
 
 data DecisionTable = DecisionTable

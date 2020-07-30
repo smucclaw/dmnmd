@@ -96,26 +96,86 @@ simulationDmn =
                             { ruleLabel = dmnWithId "row-506282952-7"
                             , ruleDescription = Just
                                 ( Description { description = "Tough Stuff" } )
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_03g3ci0"
+                                    , ieText = TextElement { innerText = "\"Spareribs\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0jb8hau"
+                                    , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-8"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1ckv0bb"
+                                    , ieText = TextElement { innerText = "\"Stew\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1joyits"
+                                    , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-9"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_05rspiy"
+                                    , ieText = TextElement { innerText = "\"Roastbeef\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_15yl6ki"
+                                    , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-10"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0mk75lc"
+                                    , ieText = TextElement { innerText = "\"Steak\",\"Dry Aged Gourmet Steak\",\"Light Salad and a nice Steak\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_18uxmko"
+                                    , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-11"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_11o8pqj"
+                                    , ieText = TextElement { innerText = "" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1298ow3"
+                                    , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-12"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0shocr0"
+                                    , ieText = TextElement { innerText = "" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0nblyrk"
+                                    , ieText = TextElement { innerText = "false" }
+                                    }
+                                ]
                             }
                         ]
                     }
@@ -136,7 +196,7 @@ simulationDmn =
                     }
                 ]
             , decDTable = Just
-                ( DecisionTable
+                 DecisionTable
                     { dtLabel = dmnWithId "DecisionTable_040j91i"
                     , dtHitPolicy = HP_Unique
                     , dtInput =
@@ -171,37 +231,107 @@ simulationDmn =
                             { ruleLabel = dmnWithId "row-884555325-1"
                             , ruleDescription = Just
                                 ( Description { description = "Default value" } )
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0cy7usy"
+                                    , ieText = TextElement { innerText = "not(\"Fall\", \"Winter\", \"Spring\", \"Summer\")" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0ww352f"
+                                    , ieText = TextElement { innerText = ">= 0" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-1"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_06z2ju4"
+                                    , ieText = TextElement { innerText = "\"Fall\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0ph5qbt"
+                                    , ieText = TextElement { innerText = "<= 8" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-2"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0o5o0mm"
+                                    , ieText = TextElement { innerText = "\"Winter\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0rtyr8x"
+                                    , ieText = TextElement { innerText = "<= 8" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-3"
                             , ruleDescription = Nothing
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1f00omt"
+                                    , ieText = TextElement { innerText = "\"Spring\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_03yxt5d"
+                                    , ieText = TextElement { innerText = "<= 4" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-4"
                             , ruleDescription = Just
                                 ( Description { description = "Save money" } )
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_18csep1"
+                                    , ieText = TextElement { innerText = "\"Spring\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1lt4o3q"
+                                    , ieText = TextElement { innerText = "[5..8]" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-5"
                             , ruleDescription = Just
                                 ( Description { description = "Less effort" } )
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0cp9scy"
+                                    , ieText = TextElement { innerText = "\"Fall\",\"Winter\",\"Spring\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1to1xxg"
+                                    , ieText = TextElement { innerText = "> 8" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-6"
                             , ruleDescription = Just
                                 ( Description { description = "Hey, why not?" } )
+                            , ruleInputEntry =
+                                [ InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_0s5azk4"
+                                    , ieText = TextElement { innerText = "\"Summer\"" }
+                                    }
+                                , InputEntry
+                                    { ieLabel = dmnWithId "UnaryTests_1nuzyri"
+                                    , ieText = TextElement { innerText = "" }
+                                    }
+                                ]
                             }
                         ]
                     }
-                )
+                
             }
         ]
     , defInputData =
