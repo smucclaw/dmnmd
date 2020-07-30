@@ -50,35 +50,35 @@ simulationDmn =
             { decLabel = dmnNamed "beverages" "Beverages"
             , decInfoReq =
                 [ InformationRequirement
-                    { infrLabel = DmnCommon ( Just "InformationRequirement_1xvojck" ) Nothing
+                    { infrLabel = dmnWithId "InformationRequirement_1xvojck"
                     , infrReq = RequiredInput
                     , infoHref = Href "#InputData_0pgvdj9"
                     }
                 , InformationRequirement
-                    { infrLabel = DmnCommon ( Just "InformationRequirement_083jsex" ) Nothing
+                    { infrLabel = dmnWithId "InformationRequirement_083jsex"
                     , infrReq = RequiredDecision
                     , infoHref = Href "#dish"
                     }
                 ]
             , decDTable = Just
                 ( DecisionTable
-                    { dtLabel = DmnCommon ( Just "DecisionTable_07q05jb" ) Nothing
+                    { dtLabel = dmnWithId "DecisionTable_07q05jb"
                     , dtHitPolicy = HP_Collect Collect_All
                     , dtInput =
                         [ TableInput
-                            { tinpName = DmnCommon ( Just "InputClause_1acmlkd" ) Nothing
+                            { tinpName = dmnWithId "InputClause_1acmlkd"
                             , tinpLabel = ColumnLabel { columnLabel = "Dish" }
                             , tinpExpr = InputExpression
-                                { inputExprLabel = DmnCommon ( Just "LiteralExpression_0bqgrlg" ) Nothing
+                                { inputExprLabel = dmnWithId "LiteralExpression_0bqgrlg"
                                 , inputExprTypeRef = TypeRef { typeRef = "string" }
                                 , inputExprText = TextElement { innerText = "desiredDish" }
                                 }
                             }
                         , TableInput
-                            { tinpName = DmnCommon ( Just "InputClause_0bo3uen" ) Nothing
+                            { tinpName = dmnWithId "InputClause_0bo3uen"
                             , tinpLabel = ColumnLabel { columnLabel = "Guests with children" }
                             , tinpExpr = InputExpression
-                                { inputExprLabel = DmnCommon ( Just "LiteralExpression_0d6l79o" ) Nothing
+                                { inputExprLabel = dmnWithId "LiteralExpression_0d6l79o"
                                 , inputExprTypeRef = TypeRef { typeRef = "boolean" }
                                 , inputExprText = TextElement { innerText = "guestsWithChildren" }
                                 }
@@ -93,17 +93,30 @@ simulationDmn =
                         ]
                     , dtRules =
                         [ Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-7" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-7"
+                            , ruleDescription = Just
+                                ( Description { description = "Tough Stuff" } )
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-8" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-8"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-9" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-9"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-10" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-10"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-11" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-11"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-12" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-12"
+                            , ruleDescription = Nothing
+                            }
                         ]
                     }
                 )
@@ -112,35 +125,35 @@ simulationDmn =
             { decLabel = dmnNamed "dish" "Dish"
             , decInfoReq =
                 [ InformationRequirement
-                    { infrLabel = DmnCommon ( Just "InformationRequirement_0xbr982" ) Nothing
+                    { infrLabel = dmnWithId "InformationRequirement_0xbr982"
                     , infrReq = RequiredInput
                     , infoHref = Href "#InputData_0rin549"
                     }
                 , InformationRequirement
-                    { infrLabel = DmnCommon ( Just "InformationRequirement_0s36klr" ) Nothing
+                    { infrLabel = dmnWithId "InformationRequirement_0s36klr"
                     , infrReq = RequiredInput
                     , infoHref = Href "#InputData_1axnom3"
                     }
                 ]
             , decDTable = Just
                 ( DecisionTable
-                    { dtLabel = DmnCommon ( Just "DecisionTable_040j91i" ) Nothing
+                    { dtLabel = dmnWithId "DecisionTable_040j91i"
                     , dtHitPolicy = HP_Unique
                     , dtInput =
                         [ TableInput
-                            { tinpName = DmnCommon ( Just "InputClause_0bbq1z8" ) Nothing
+                            { tinpName = dmnWithId "InputClause_0bbq1z8"
                             , tinpLabel = ColumnLabel { columnLabel = "Season" }
                             , tinpExpr = InputExpression
-                                { inputExprLabel = DmnCommon ( Just "LiteralExpression_1iwaqcz" ) Nothing
+                                { inputExprLabel = dmnWithId "LiteralExpression_1iwaqcz"
                                 , inputExprTypeRef = TypeRef { typeRef = "string" }
                                 , inputExprText = TextElement { innerText = "season" }
                                 }
                             }
                         , TableInput
-                            { tinpName = DmnCommon ( Just "InputClause_0pcbpc9" ) Nothing
+                            { tinpName = dmnWithId "InputClause_0pcbpc9"
                             , tinpLabel = ColumnLabel { columnLabel = "How many guests" }
                             , tinpExpr = InputExpression
-                                { inputExprLabel = DmnCommon ( Just "LiteralExpression_1uu3xe6" ) Nothing
+                                { inputExprLabel = dmnWithId "LiteralExpression_1uu3xe6"
                                 , inputExprTypeRef = TypeRef { typeRef = "integer" }
                                 , inputExprText = TextElement { innerText = "guestCount" }
                                 }
@@ -155,19 +168,37 @@ simulationDmn =
                         ]
                     , dtRules =
                         [ Rule
-                            { ruleLabel = DmnCommon ( Just "row-884555325-1" ) Nothing }
+                            { ruleLabel = dmnWithId "row-884555325-1"
+                            , ruleDescription = Just
+                                ( Description { description = "Default value" } )
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-1" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-1"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-2" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-2"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-3" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-3"
+                            , ruleDescription = Nothing
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-4" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-4"
+                            , ruleDescription = Just
+                                ( Description { description = "Save money" } )
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-5" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-5"
+                            , ruleDescription = Just
+                                ( Description { description = "Less effort" } )
+                            }
                         , Rule
-                            { ruleLabel = DmnCommon ( Just "row-506282952-6" ) Nothing }
+                            { ruleLabel = dmnWithId "row-506282952-6"
+                            , ruleDescription = Just
+                                ( Description { description = "Hey, why not?" } )
+                            }
                         ]
                     }
                 )

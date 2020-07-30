@@ -41,6 +41,7 @@ dependencies:
 # Used for more convenient Iso for xml parsing
 - lens
 - hspec-golden
+- pretty-simple
 
 library:
   source-dirs: src

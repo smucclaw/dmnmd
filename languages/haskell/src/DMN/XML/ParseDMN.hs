@@ -50,22 +50,45 @@ withNS =
     . xpAddNSDecl "di" xmlns_di
     . xpAddNSDecl "camunda" xmlns_camunda
 
+data Description = Description
+  { description :: String
+  }
+  deriving (Show, Eq)
+
+makePrisms ''Description
+
+instance XmlPickler Description where
+  xpickle = xpDMNElem "description" _Description xpText
+
 data DmnCommon = DmnCommon
-  { dmnId :: Maybe String,
-    dmnName :: Maybe String
+  { dmnId :: Maybe String
+  , dmnName :: Maybe String
+  -- The spec says that description should be here, but it's only relevant for rules, so I place it there instead
+  -- , dmnDescription :: Maybe String
   }
   deriving (Eq)
 
 makePrisms ''DmnCommon
 
 instance Show DmnCommon where
-  show (DmnCommon Nothing Nothing) = "unnamed"
-  show (DmnCommon (Just a) (Just b)) = "dmnNamed " ++ show a ++ " " ++ show b
+  show (DmnCommon Nothing  Nothing  ) = "unnamed"
+  show (DmnCommon (Just a) Nothing  ) = "dmnWithId " ++ show a
+  show (DmnCommon (Just a) (Just b) ) = "dmnNamed " ++ show a ++ " " ++ show b
   show (DmnCommon a b) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ")"
+  -- show (DmnCommon Nothing  Nothing  Nothing) = "unnamed"
+  -- show (DmnCommon (Just a) Nothing  Nothing) = "dmnWithId " ++ show a
+  -- show (DmnCommon (Just a) (Just b) Nothing) = "dmnNamed " ++ show a ++ " " ++ show b
+  -- show (DmnCommon a b c) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ") (" ++ show c ++ ")"
 
-dmnNamed eid name = DmnCommon (Just eid) (Just name)
+dmnNamed :: String -> String -> DmnCommon
+dmnNamed eid name = (dmnWithId eid) {dmnName = Just name }
 
+dmnWithId :: String -> DmnCommon
+dmnWithId eid = unnamed {dmnId = (Just eid)}
+
+unnamed :: DmnCommon
 unnamed = DmnCommon Nothing Nothing
+-- unnamed = DmnCommon Nothing Nothing Nothing
 
 instance XmlPickler DmnCommon where
   xpickle =
@@ -73,6 +96,7 @@ instance XmlPickler DmnCommon where
       xpPair
         (xpOption $ xpAttr "id" xpText)
         (xpOption $ xpAttr "name" xpText)
+        -- (xpOption $ xpElemNS xmlns_dmn "" "description" xpText)
 
 data DMNDI = DMNDI
   deriving (Show, Eq)
@@ -133,8 +157,6 @@ makePrisms ''InformationRequirement
 instance XmlPickler InformationRequirement where
   xpickle =
     xpDMNElem "informationRequirement" (_InformationRequirement . pairsIso)
-    -- . xpFilterAttr (hasName "id" <+> hasName "name")
-    -- . xpFilterCont none -- TODO
     $
       xpPair xpickle (pcklReqInput xpickle)
 
@@ -287,7 +309,7 @@ makePrisms ''TableOutput
 instance XmlPickler TableOutput where
   xpickle =
     xpDMNElem "output" _TableOutput
-      . xpFilterCont none -- TODO: Need a test case
+      -- . xpFilterCont none -- TODO: Need a test case
       $ xpickle
 
 --- $> import Text.XML.HXT.Core
@@ -298,6 +320,7 @@ instance XmlPickler TableOutput where
 
 data Rule = Rule
   { ruleLabel :: DmnCommon
+  , ruleDescription :: Maybe Description
   }
   deriving (Show, Eq)
 
@@ -306,7 +329,9 @@ makePrisms ''Rule
 instance XmlPickler Rule where
   xpickle =
     xpDMNElem "rule" _Rule
-      . xpFilterCont none -- TODO
+      -- . xpFilterCont none -- TODO
+      -- . xpFilterCont (none `when` hasName "hitPolicy")
+      . xpFilterCont (hasName "description")
       $ xpickle
 
 data DecisionTable = DecisionTable
