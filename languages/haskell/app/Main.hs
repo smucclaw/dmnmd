@@ -5,16 +5,12 @@ where
 
 import System.IO
 import Control.Monad
-import System.Environment
-import Data.Char (toLower, isAlphaNum)
 import Data.List.Split (splitOn)
-import Data.List (takeWhile, isSuffixOf, isPrefixOf, isInfixOf, intercalate, nub)
-import Data.List.Utils (replace)
+import Data.List (takeWhile, isSuffixOf, intercalate, nub)
 import Data.Maybe
-import Text.RawString.QQ
 
 import System.Console.Haskeline
-import Debug.Trace
+-- import Debug.Trace
 
 import DMN.Types
 import DMN.ParseTable
@@ -22,17 +18,12 @@ import DMN.DecisionTable
 import DMN.Translate.JS
 import DMN.ParseFEEL
 
-import Test.Hspec
--- import Data.Attoparsec.Text
 import Text.Megaparsec hiding (label)
 import Text.Megaparsec.Char
 import DMN.ParsingUtils
 import qualified Data.Text as T
-import Data.Either
 import qualified Options.Applicative as OA
 import Options.Applicative (long, short, help, helper, fullDesc, progDesc, strOption, switch, value, info, metavar, str, argument)
-import Data.Semigroup ((<>))
-import Control.Applicative hiding (many, some)
 import System.Posix.Terminal (queryTerminal)
 import System.Posix.IO (stdOutput)
 

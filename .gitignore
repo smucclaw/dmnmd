@@ -5,4 +5,7 @@ dist-newstyle/
 .DS_Store
 # A place to put stuff you don't want in git
 local
+# IDE config
 .vscode
+.idea
+languages/haskell/dmnmd.iml

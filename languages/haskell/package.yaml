@@ -40,6 +40,8 @@ dependencies:
 
 library:
   source-dirs: src
+  ghc-options:
+  - -Wall
 
 executables:
   dmnmd:
@@ -49,6 +51,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wall
     dependencies:
     - dmnmd
 
@@ -60,5 +63,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wall
     dependencies:
     - dmnmd

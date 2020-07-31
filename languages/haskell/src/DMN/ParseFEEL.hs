@@ -3,10 +3,6 @@
 module DMN.ParseFEEL where
 
 import Prelude hiding (takeWhile)
-import Data.Char
-import Data.Either
-import Data.Maybe (fromMaybe, catMaybes)
-import Data.List (filter, dropWhileEnd, transpose)
 import Control.Applicative hiding (many, some) 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -54,15 +50,16 @@ parseFNF3 = do
 parseFNF0 :: Parser FNumFunction -- double-quoted string literal
 parseFNF0 =
   let inner = fmap return (try nonEscape) <|> escape
-  in ( do char '"'
+  in ( do _ <- char '"'
           strings <- many inner
-          char '"'
+          _ <- char '"'
           return $ FNF0 $ VS $ concat strings )
      <|> (FNF0 . VN . realToFrac <$> double)
      <|> (("yes" <|> "true"  <|> "True"  <|> "t" <|> "y") >> return ( FNF0 $ VB True))
      <|> (("no"  <|> "false" <|> "False" <|> "f" <|> "n") >> return ( FNF0 $ VB False))
       
       
+parseFNOp2 :: Parser FNOp2
 parseFNOp2 =
   choice [ "**" >> return FNExp
          , "*"  >> return FNMul
