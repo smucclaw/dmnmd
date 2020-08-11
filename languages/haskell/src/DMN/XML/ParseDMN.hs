@@ -64,7 +64,7 @@ data DmnNamed = DmnNamed
   { dmnnId :: Maybe String
   , dmnnName :: String
  }
-  deriving (Show, Eq)
+  deriving Eq
 
 makePrisms ''DmnNamed
 
@@ -77,6 +77,10 @@ instance XmlPickler DmnNamed where
 
 dmnNamed' :: String -> String -> DmnNamed
 dmnNamed' = DmnNamed . Just
+
+instance Show DmnNamed where
+  show (DmnNamed (Just a) b ) = "dmnNamed' " ++ show a ++ " " ++ show b
+  show (DmnNamed Nothing b) = "DmnNamed Nothing " ++ show b
 
 data DmnCommon = DmnCommon
   { dmnId :: Maybe String
