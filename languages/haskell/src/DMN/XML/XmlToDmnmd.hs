@@ -36,7 +36,7 @@ convTable (X.DecisionTable
     X.dtOutput ,
     X.dtRules
   }) =
-     T.DTable { T.tableName = maybe "Unknown" id $ X.dmnName dtLabel
+     T.DTable { T.tableName = maybe "Unknown" id $ X.dmnName dtLabel -- TODO: We can do better than this!
                              , T.hitpolicy = dtHitPolicy
                              , T.header    = convHeader dtInput dtOutput
                              , T.allrows   = zipWith convRule [1..] dtRules

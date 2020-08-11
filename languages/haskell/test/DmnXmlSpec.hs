@@ -46,7 +46,7 @@ xmlSpec = do
 convertedSimulation :: [DT.DecisionTable]
 convertedSimulation =
   [ DTable
-      { tableName = "Unknown",
+      { tableName = "Unknown", -- TODO: We should have a real value here
         hitpolicy = HP_Collect Collect_All,
         header =
           [ DTCH
