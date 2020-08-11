@@ -12,7 +12,7 @@ import Test.Hspec
 import Test.Hspec.Golden
 import Text.RawString.QQ
 -- import qualified DMN.Types as DT
-import DMN.Types (CollectOperator(..), HitPolicy(..))
+import DMN.Types (CollectOperator (..), HitPolicy (..))
 
 -- import Text.XML.HXT.Core
 
@@ -25,7 +25,7 @@ xmlSpec = do
         `shouldBe` [ Definitions
                        { defLabel = dmnNamed "dinnerDecisions" "Dinner Decisions",
                          defsNamespace = Namespace { namespace = "http://camunda.org/schema/1.0/dmn" },
-                         descisionsDiagrams = [],
+                         defsDescisions = [],
                          defInputData = [],
                          defDrgElems = [],
                          defDMNDI = Just DMNDI
@@ -39,15 +39,14 @@ xmlSpec = do
     --   defaultGolden "myFunc" output
     pure ()
 
-
 simulationDmn :: [Definitions]
 simulationDmn =
   [ Definitions
     { defLabel = dmnNamed "dinnerDecisions" "Dinner Decisions"
     , defsNamespace = Namespace { namespace = "http://camunda.org/schema/1.0/dmn" }
-    , descisionsDiagrams =
+    , defsDescisions =
         [ Decision
-            { decLabel = dmnNamed "beverages" "Beverages"
+            { decLabel = dmnNamed' "beverages" "Beverages"
             , decInfoReq =
                 [ InformationRequirement
                     { infrLabel = dmnWithId "InformationRequirement_1xvojck"
@@ -94,8 +93,7 @@ simulationDmn =
                     , dtRules =
                         [ Rule
                             { ruleLabel = dmnWithId "row-506282952-7"
-                            , ruleDescription = Just
-                                ( Description { description = "Tough Stuff" } )
+                            , ruleDescription = Just (Description { description = "Tough Stuff" })
                             , ruleInputEntry =
                                 [ InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_03g3ci0"
@@ -104,6 +102,12 @@ simulationDmn =
                                 , InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_0jb8hau"
                                     , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_1kr45vj"
+                                    , outputEntryText = TextElement { innerText = "\"Aecht Schlenkerla Rauchbier\"" }
                                     }
                                 ]
                             }
@@ -120,6 +124,12 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "true" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_139n7gl"
+                                    , outputEntryText = TextElement { innerText = "\"Guiness\"" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-9"
@@ -132,6 +142,12 @@ simulationDmn =
                                 , InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_15yl6ki"
                                     , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_0bzfo47"
+                                    , outputEntryText = TextElement { innerText = "\"Bordeaux\"" }
                                     }
                                 ]
                             }
@@ -148,6 +164,12 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "true" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_00nwn3e"
+                                    , outputEntryText = TextElement { innerText = "\"Pinot Noir\"" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-11"
@@ -160,6 +182,12 @@ simulationDmn =
                                 , InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_1298ow3"
                                     , ieText = TextElement { innerText = "true" }
+                                    }
+                                ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_0z18erz"
+                                    , outputEntryText = TextElement { innerText = "\"Apple Juice\"" }
                                     }
                                 ]
                             }
@@ -176,13 +204,19 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "false" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_0s2fq8r"
+                                    , outputEntryText = TextElement { innerText = "\"Water\"" }
+                                    }
+                                ]
                             }
                         ]
                     }
                 )
             }
         , Decision
-            { decLabel = dmnNamed "dish" "Dish"
+            { decLabel = dmnNamed' "dish" "Dish"
             , decInfoReq =
                 [ InformationRequirement
                     { infrLabel = dmnWithId "InformationRequirement_0xbr982"
@@ -196,7 +230,7 @@ simulationDmn =
                     }
                 ]
             , decDTable = Just
-                 DecisionTable
+                ( DecisionTable
                     { dtLabel = dmnWithId "DecisionTable_040j91i"
                     , dtHitPolicy = HP_Unique
                     , dtInput =
@@ -229,8 +263,7 @@ simulationDmn =
                     , dtRules =
                         [ Rule
                             { ruleLabel = dmnWithId "row-884555325-1"
-                            , ruleDescription = Just
-                                ( Description { description = "Default value" } )
+                            , ruleDescription = Just (Description { description = "Default value" })
                             , ruleInputEntry =
                                 [ InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_0cy7usy"
@@ -239,6 +272,12 @@ simulationDmn =
                                 , InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_0ww352f"
                                     , ieText = TextElement { innerText = ">= 0" }
+                                    }
+                                ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_07xyqqp"
+                                    , outputEntryText = TextElement { innerText = "\"Instant Soup\"" }
                                     }
                                 ]
                             }
@@ -255,6 +294,12 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "<= 8" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_0sntjhd"
+                                    , outputEntryText = TextElement { innerText = "\"Spareribs\"" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-2"
@@ -267,6 +312,12 @@ simulationDmn =
                                 , InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_0rtyr8x"
                                     , ieText = TextElement { innerText = "<= 8" }
+                                    }
+                                ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_15nybba"
+                                    , outputEntryText = TextElement { innerText = "\"Roastbeef\"" }
                                     }
                                 ]
                             }
@@ -283,11 +334,16 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "<= 4" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_1ki86jo"
+                                    , outputEntryText = TextElement { innerText = "\"Dry Aged Gourmet Steak\"" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-4"
-                            , ruleDescription = Just
-                                ( Description { description = "Save money" } )
+                            , ruleDescription = Just (Description { description = "Save money" })
                             , ruleInputEntry =
                                 [ InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_18csep1"
@@ -298,11 +354,16 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "[5..8]" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_1h969t1"
+                                    , outputEntryText = TextElement { innerText = "\"Steak\"" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-5"
-                            , ruleDescription = Just
-                                ( Description { description = "Less effort" } )
+                            , ruleDescription = Just (Description { description = "Less effort" })
                             , ruleInputEntry =
                                 [ InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_0cp9scy"
@@ -313,11 +374,16 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "> 8" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_0fjt4uo"
+                                    , outputEntryText = TextElement { innerText = "\"Stew\"" }
+                                    }
+                                ]
                             }
                         , Rule
                             { ruleLabel = dmnWithId "row-506282952-6"
-                            , ruleDescription = Just
-                                ( Description { description = "Hey, why not?" } )
+                            , ruleDescription = Just (Description { description = "Hey, why not?" })
                             , ruleInputEntry =
                                 [ InputEntry
                                     { ieLabel = dmnWithId "UnaryTests_0s5azk4"
@@ -328,23 +394,28 @@ simulationDmn =
                                     , ieText = TextElement { innerText = "" }
                                     }
                                 ]
+                            , ruleOutputEntry =
+                                [ OutputEntry
+                                    { outputEntryLabel = dmnWithId "LiteralExpression_0nspzk1"
+                                    , outputEntryText = TextElement { innerText = "\"Light Salad and a nice Steak\"" }
+                                    }
+                                ]
                             }
                         ]
                     }
-                
+                )
             }
         ]
     , defInputData =
-        [ InputData { inpLabel = dmnNamed "InputData_0rin549" "Season" }
-        , InputData { inpLabel = dmnNamed "InputData_1axnom3" "Number of Guests" }
-        , InputData { inpLabel = dmnNamed "InputData_0pgvdj9" "Guests with children?" }
+        [ InputData { inpLabel = dmnNamed' "InputData_0rin549" "Season" }
+        , InputData { inpLabel = dmnNamed' "InputData_1axnom3" "Number of Guests" }
+        , InputData { inpLabel = dmnNamed' "InputData_0pgvdj9" "Guests with children?" }
         ]
     , defDrgElems =
-        [ KnowledgeSource { knsLabel = dmnNamed "KnowledgeSource_0b8hnqo" "Men's Cookbook" } ]
+        [ KnowledgeSource { knsLabel = dmnNamed' "KnowledgeSource_0b8hnqo" "Men's Cookbook" } ]
     , defDMNDI = Just DMNDI
     }
   ]
-
 
 -- spec1 :: Spec
 -- spec1 = do
