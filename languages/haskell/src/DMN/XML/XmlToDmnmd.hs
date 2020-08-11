@@ -14,6 +14,9 @@ import DMN.DecisionTable (mkFs)
 
 -- $> convertIt =<< dmnThings
 
+convertAll :: [XDMN] -> [T.DecisionTable]
+convertAll x = x >>= convertIt
+
 convertIt :: X.XDMN -> [T.DecisionTable]
 convertIt d = do
     desicions <- X.defsDescisions d

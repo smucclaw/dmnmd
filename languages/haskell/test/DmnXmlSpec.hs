@@ -6,13 +6,14 @@ module DmnXmlSpec where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DMN.XML.ParseDMN
+import DMN.XML.XmlToDmnmd (convertAll)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
 import Test.Hspec.Golden
 import Text.RawString.QQ
 -- import qualified DMN.Types as DT
-import DMN.Types (CollectOperator (..), HitPolicy (..))
+import DMN.Types as DT
 
 -- import Text.XML.HXT.Core
 
@@ -38,6 +39,193 @@ xmlSpec = do
     --   output <- liftIO $ show <$> parseDMN "test/simple.dmn"
     --   defaultGolden "myFunc" output
     pure ()
+  describe "convertIt" $ do
+    it "should convert the standard example properly" $
+      convertAll simulationDmn `shouldBe` convertedSimulation
+
+convertedSimulation :: [DT.DecisionTable]
+convertedSimulation =
+  [ DTable
+      { tableName = "Unknown",
+        hitpolicy = HP_Collect Collect_All,
+        header =
+          [ DTCH
+              { label = DTCH_In,
+                varname = "desiredDish",
+                vartype = Just DMN_String,
+                enums = Nothing
+              },
+            DTCH
+              { label = DTCH_In,
+                varname = "guestsWithChildren",
+                vartype = Just DMN_Boolean,
+                enums = Nothing
+              },
+            DTCH
+              { label = DTCH_Out,
+                varname = "Beverages",
+                vartype = Just DMN_String,
+                enums = Nothing
+              }
+          ],
+        allrows =
+          [ DTrow
+              { row_number = Just 1,
+                row_inputs =
+                  [ [FNullary (VS "\"Spareribs\"")],
+                    [FNullary (VS "true")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Aecht Schlenkerla Rauchbier\"")]],
+                row_comments = [Just "Tough Stuff"]
+              },
+            DTrow
+              { row_number = Just 2,
+                row_inputs =
+                  [ [FNullary (VS "\"Stew\"")],
+                    [FNullary (VS "true")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Guiness\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 3,
+                row_inputs =
+                  [ [FNullary (VS "\"Roastbeef\"")],
+                    [FNullary (VS "true")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Bordeaux\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 4,
+                row_inputs =
+                  [ [ FNullary (VS "\"Steak\""),
+                      FNullary (VS "\"Dry Aged Gourmet Steak\""),
+                      FNullary (VS "\"Light Salad and a nice Steak\"")
+                    ],
+                    [FNullary (VS "true")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Pinot Noir\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 5,
+                row_inputs =
+                  [ [FAnything],
+                    [FNullary (VS "true")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Apple Juice\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 6,
+                row_inputs =
+                  [ [FAnything],
+                    [FNullary (VS "false")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Water\"")]],
+                row_comments = [Nothing]
+              }
+          ]
+      },
+    DTable
+      { tableName = "Unknown",
+        hitpolicy = HP_Unique,
+        header =
+          [ DTCH
+              { label = DTCH_In,
+                varname = "season",
+                vartype = Just DMN_String,
+                enums = Nothing
+              },
+            DTCH
+              { label = DTCH_In,
+                varname = "guestCount",
+                vartype = Just DMN_Number,
+                enums = Nothing
+              },
+            DTCH
+              { label = DTCH_Out,
+                varname = "Dish",
+                vartype = Just DMN_String,
+                enums = Nothing
+              }
+          ],
+        allrows =
+          [ DTrow
+              { row_number = Just 1,
+                row_inputs =
+                  [ [ FNullary (VS "not(\"Fall\""),
+                      FNullary (VS "\"Winter\""),
+                      FNullary (VS "\"Spring\""),
+                      FNullary (VS "\"Summer\")")
+                    ],
+                    [FNullary (VS ">= 0")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Instant Soup\"")]],
+                row_comments = [Just "Default value"]
+              },
+            DTrow
+              { row_number = Just 2,
+                row_inputs =
+                  [ [FNullary (VS "\"Fall\"")],
+                    [FNullary (VS "<= 8")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Spareribs\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 3,
+                row_inputs =
+                  [ [FNullary (VS "\"Winter\"")],
+                    [FNullary (VS "<= 8")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Roastbeef\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 4,
+                row_inputs =
+                  [ [FNullary (VS "\"Spring\"")],
+                    [FNullary (VS "<= 4")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Dry Aged Gourmet Steak\"")]],
+                row_comments = [Nothing]
+              },
+            DTrow
+              { row_number = Just 5,
+                row_inputs =
+                  [ [FNullary (VS "\"Spring\"")],
+                    [FNullary (VS "[5..8]")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Steak\"")]],
+                row_comments = [Just "Save money"]
+              },
+            DTrow
+              { row_number = Just 6,
+                row_inputs =
+                  [ [ FNullary (VS "\"Fall\""),
+                      FNullary (VS "\"Winter\""),
+                      FNullary (VS "\"Spring\"")
+                    ],
+                    [FNullary (VS "> 8")]
+                  ],
+                row_outputs = [[FNullary (VS "\"Stew\"")]],
+                row_comments = [Just "Less effort"]
+              },
+            DTrow
+              { row_number = Just 7,
+                row_inputs =
+                  [ [FNullary (VS "\"Summer\"")],
+                    [FAnything]
+                  ],
+                row_outputs = [[FNullary (VS "\"Light Salad and a nice Steak\"")]],
+                row_comments = [Just "Hey, why not?"]
+              }
+          ]
+      }
+  ]
+
 
 simulationDmn :: [Definitions]
 simulationDmn =
