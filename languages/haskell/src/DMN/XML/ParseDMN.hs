@@ -60,8 +60,23 @@ makePrisms ''Description
 instance XmlPickler Description where
   xpickle = xpDMNElem "description" _Description xpText
 
--- TODO: This should be like DmnCommon but with dmnName required
-type DmnNamed = DmnCommon
+data DmnNamed = DmnNamed 
+  { dmnnId :: Maybe String
+  , dmnnName :: String
+ }
+  deriving (Show, Eq)
+
+makePrisms ''DmnNamed
+
+instance XmlPickler DmnNamed where
+  xpickle =
+    wrapIso _DmnNamed $
+      xpPair
+        (xpOption $ xpAttr "id" xpText)
+        (xpAttr "name" xpText)
+
+dmnNamed' :: String -> String -> DmnNamed
+dmnNamed' = DmnNamed . Just
 
 data DmnCommon = DmnCommon
   { dmnId :: Maybe String
@@ -397,7 +412,7 @@ instance XmlPickler DecisionTable where
 data Decision = Decision
   { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
     decInfoReq :: [InformationRequirement],
-    decDTable :: Maybe DecisionTable -- Schema says this is "expression", not just table
+    decDTable :: Maybe DecisionTable -- Schema says this could be any "expression", not just table
   }
   deriving (Show, Eq)
 
@@ -446,7 +461,7 @@ instance XmlPickler Namespace where
 data Definitions = Definitions
   { defLabel :: DmnCommon,
     defsNamespace :: Namespace,
-    descisionsDiagrams :: [Decision],
+    defsDescisions :: [Decision],
     defInputData :: [InputData],
     defDrgElems :: [KnowledgeSource],
     defDMNDI :: Maybe DMNDI
@@ -462,8 +477,8 @@ ex3 =
   Definitions
     { defLabel = dmnNamed "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
-      descisionsDiagrams = [
-        Decision (dmnNamed "a" "b") [
+      defsDescisions = [
+        Decision (dmnNamed' "a" "b") [
           InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")
           ]
           Nothing],
