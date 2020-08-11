@@ -60,6 +60,9 @@ makePrisms ''Description
 instance XmlPickler Description where
   xpickle = xpDMNElem "description" _Description xpText
 
+-- TODO: This should be like DmnCommon but with dmnName required
+type DmnNamed = DmnCommon
+
 data DmnCommon = DmnCommon
   { dmnId :: Maybe String
   , dmnName :: Maybe String
@@ -333,10 +336,26 @@ instance XmlPickler InputEntry where
       -- . xpFilterCont none -- TODO
       $ xpickle
 
+data OutputEntry = OutputEntry
+  { outputEntryLabel :: DmnCommon
+  , outputEntryText :: TextElement
+  }
+  deriving (Show, Eq)
+
+makePrisms ''OutputEntry
+
+instance XmlPickler OutputEntry where
+  xpickle =
+    xpDMNElem "outputEntry" _OutputEntry
+      -- . xpFilterAttr (hasName "id" <+> hasName "name")
+      -- . xpFilterCont none -- TODO
+      $ xpickle
+
 data Rule = Rule
   { ruleLabel :: DmnCommon
   , ruleDescription :: Maybe Description
   , ruleInputEntry :: [InputEntry]
+  , ruleOutputEntry :: [OutputEntry] -- TODO: Should be NonEmpty
   }
   deriving (Show, Eq)
 
@@ -347,7 +366,8 @@ instance XmlPickler Rule where
     xpDMNElem "rule" _Rule
       -- . xpFilterCont none -- TODO
       -- . xpFilterCont (none `when` hasName "hitPolicy")
-      . xpFilterCont (hasName "description" <+> hasName "inputEntry")
+      -- . xpFilterCont (hasName "description" <+> hasName "inputEntry")
+      -- . xpFilterCont (none `when` hasName "outputEntry")
       $ xpickle
 
 data DecisionTable = DecisionTable
@@ -375,9 +395,9 @@ instance XmlPickler DecisionTable where
         xpickle
 
 data Decision = Decision
-  { decLabel :: DmnCommon,
+  { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
     decInfoReq :: [InformationRequirement],
-    decDTable :: Maybe DecisionTable
+    decDTable :: Maybe DecisionTable -- Schema says this is "expression", not just table
   }
   deriving (Show, Eq)
 
@@ -392,7 +412,7 @@ instance XmlPickler Decision where
       $ xpickle
 
 data InputData = InputData
-  { inpLabel :: DmnCommon
+  { inpLabel :: DmnNamed
   }
   deriving (Show, Eq)
 
@@ -402,7 +422,7 @@ instance XmlPickler InputData where
   xpickle = xpDMNElem "inputData" _InputData $ xpickle
 
 data KnowledgeSource = KnowledgeSource
-  { knsLabel :: DmnCommon
+  { knsLabel :: DmnNamed
   }
   deriving (Show, Eq)
 
@@ -442,7 +462,11 @@ ex3 =
   Definitions
     { defLabel = dmnNamed "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
-      descisionsDiagrams = [Decision (dmnNamed "a" "b") [InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")] Nothing],
+      descisionsDiagrams = [
+        Decision (dmnNamed "a" "b") [
+          InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")
+          ]
+          Nothing],
       defInputData = [],
       defDrgElems = [],
       defDMNDI = Just DMNDI
@@ -455,6 +479,7 @@ dmnPickler =
     -- . xpFilterAttr (getAttrValue _ _)
     -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
     -- . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
+    . xpFilterCont (none `when` hasName "dmndi") -- We're not interested in diagrams
     $ xpickle
 
 -- $> :m + Text.Pretty.Simple
