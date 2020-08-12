@@ -1,0 +1,1133 @@
+<rng:grammar xmlns:rng="http://relaxng.org/ns/structure/1.0" xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" ns="https://www.omg.org/spec/DMN/20191111/MODEL/" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+	<rng:include href="DMNDI13.rng" ns="https://www.omg.org/spec/DMN/20191111/DMNDI/">
+		<a:documentation>
+			
+				Include the DMN Diagram Interchange (DI) schema
+			
+		</a:documentation>
+	</rng:include>
+
+	<rng:start combine="choice">
+		<rng:ref name="DMNElement" />
+	</rng:start>
+	<rng:define name="DMNElement">
+		<rng:element name="DMNElement">
+			<rng:ref name="tDMNElement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tDMNElement">
+
+		<rng:optional>
+			<rng:element name="description">
+				<rng:data type="string" />
+			</rng:element>
+		</rng:optional>
+		<rng:optional>
+			<rng:element name="extensionElements">
+
+
+				<rng:zeroOrMore>
+					<rng:element>
+						<rng:anyName />
+						<rng:text />
+					</rng:element>
+				</rng:zeroOrMore>
+
+
+			</rng:element>
+		</rng:optional>
+
+		<rng:optional>
+			<rng:attribute name="id">
+				<rng:data type="ID" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute name="label">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:attribute>
+			<rng:anyName />
+			<rng:text />
+		</rng:attribute>
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="namedElement" />
+	</rng:start>
+	<rng:define name="namedElement">
+		<rng:element name="namedElement">
+			<rng:ref name="tNamedElement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tNamedElement">
+
+		<rng:ref name="tDMNElement" />
+		<rng:attribute name="name">
+			<rng:data type="string" />
+		</rng:attribute>
+
+
+	</rng:define>
+	<rng:define name="tDMNElementReference">
+		<rng:attribute name="href">
+			<rng:data type="anyURI" />
+		</rng:attribute>
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="definitions" />
+	</rng:start>
+	<rng:define name="definitions">
+		<rng:element name="definitions">
+			<rng:ref name="tDefinitions" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tDefinitions">
+
+		<rng:ref name="tNamedElement" />
+
+		<rng:zeroOrMore>
+			<rng:ref name="import" />
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="itemDefinition">
+				<rng:ref name="tItemDefinition" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:ref name="drgElement" />
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:ref name="artifact" />
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="elementCollection">
+				<rng:ref name="tElementCollection" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:ref name="businessContextElement" />
+		</rng:zeroOrMore>
+		<rng:optional>
+			<rng:ref name="DMNDI" />
+		</rng:optional>
+
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="expressionLanguage" ns_1:defaultValue="https://www.omg.org/spec/DMN/20191111/FEEL/">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="typeLanguage" ns_1:defaultValue="https://www.omg.org/spec/DMN/20191111/FEEL/">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:attribute name="namespace">
+			<rng:data type="anyURI" />
+		</rng:attribute>
+		<rng:optional>
+			<rng:attribute name="exporter">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute name="exporterVersion">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="import" />
+	</rng:start>
+	<rng:define name="import">
+		<rng:element name="import">
+			<rng:ref name="tImport" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tImport">
+
+		<rng:ref name="tNamedElement" />
+		<rng:attribute name="namespace">
+			<rng:data type="anyURI" />
+		</rng:attribute>
+		<rng:optional>
+			<rng:attribute name="locationURI">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:attribute name="importType">
+			<rng:data type="anyURI" />
+		</rng:attribute>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="elementCollection" />
+	</rng:start>
+	<rng:define name="elementCollection">
+		<rng:element name="elementCollection">
+			<rng:ref name="tElementCollection" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tElementCollection">
+
+		<rng:ref name="tNamedElement" />
+
+		<rng:zeroOrMore>
+			<rng:element name="drgElement">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="drgElement" />
+	</rng:start>
+	<rng:define name="drgElement">
+		<rng:element name="drgElement">
+			<rng:ref name="tDRGElement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tDRGElement">
+
+		<rng:ref name="tNamedElement" />
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="decision" />
+	</rng:start>
+	<rng:define name="decision">
+		<rng:element name="decision">
+			<rng:ref name="tDecision" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tDecision">
+
+		<rng:ref name="tDRGElement" />
+
+		<rng:optional>
+			<rng:element name="question">
+				<rng:data type="string" />
+			</rng:element>
+		</rng:optional>
+		<rng:optional>
+			<rng:element name="allowedAnswers">
+				<rng:data type="string" />
+			</rng:element>
+		</rng:optional>
+		<rng:optional>
+			<rng:element name="variable">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:optional>
+		<rng:zeroOrMore>
+			<rng:element name="informationRequirement">
+				<rng:ref name="tInformationRequirement" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="knowledgeRequirement">
+				<rng:ref name="tKnowledgeRequirement" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="authorityRequirement">
+				<rng:ref name="tAuthorityRequirement" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="supportedObjective">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="impactedPerformanceIndicator">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="decisionMaker">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="decisionOwner">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="usingProcess">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="usingTask">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<!-- decisionLogic -->
+		<rng:optional>
+			<rng:ref name="expression" />
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="businessContextElement" />
+	</rng:start>
+	<rng:define name="businessContextElement">
+		<rng:element name="businessContextElement">
+			<rng:ref name="tBusinessContextElement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tBusinessContextElement">
+
+		<rng:ref name="tNamedElement" />
+		<rng:optional>
+			<rng:attribute name="URI">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="performanceIndicator" />
+	</rng:start>
+	<rng:define name="performanceIndicator">
+		<rng:element name="performanceIndicator">
+			<rng:ref name="tPerformanceIndicator" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tPerformanceIndicator">
+
+		<rng:ref name="tBusinessContextElement" />
+
+		<rng:zeroOrMore>
+			<rng:element name="impactingDecision">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="organizationUnit" />
+	</rng:start>
+	<rng:define name="organizationUnit">
+		<rng:element name="organizationUnit">
+			<rng:ref name="tOrganizationUnit" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tOrganizationUnit">
+
+		<rng:ref name="tBusinessContextElement" />
+
+		<rng:zeroOrMore>
+			<rng:element name="decisionMade">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="decisionOwned">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="invocable" />
+	</rng:start>
+	<rng:define name="invocable">
+		<rng:element name="invocable">
+			<rng:ref name="tInvocable" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tInvocable">
+
+		<rng:ref name="tDRGElement" />
+
+		<rng:optional>
+			<rng:element name="variable">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="businessKnowledgeModel" />
+	</rng:start>
+	<rng:define name="businessKnowledgeModel">
+		<rng:element name="businessKnowledgeModel">
+			<rng:ref name="tBusinessKnowledgeModel" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tBusinessKnowledgeModel">
+
+		<rng:ref name="tInvocable" />
+
+		<rng:optional>
+			<rng:element name="encapsulatedLogic">
+				<rng:ref name="tFunctionDefinition" />
+			</rng:element>
+		</rng:optional>
+		<rng:zeroOrMore>
+			<rng:element name="knowledgeRequirement">
+				<rng:ref name="tKnowledgeRequirement" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="authorityRequirement">
+				<rng:ref name="tAuthorityRequirement" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="inputData" />
+	</rng:start>
+	<rng:define name="inputData">
+		<rng:element name="inputData">
+			<rng:ref name="tInputData" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tInputData">
+
+		<rng:ref name="tDRGElement" />
+
+		<rng:optional>
+			<rng:element name="variable">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="knowledgeSource" />
+	</rng:start>
+	<rng:define name="knowledgeSource">
+		<rng:element name="knowledgeSource">
+			<rng:ref name="tKnowledgeSource" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tKnowledgeSource">
+
+		<rng:ref name="tDRGElement" />
+
+		<rng:zeroOrMore>
+			<rng:element name="authorityRequirement">
+				<rng:ref name="tAuthorityRequirement" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:optional>
+			<rng:element name="type">
+				<rng:data type="string" />
+			</rng:element>
+		</rng:optional>
+		<rng:optional>
+			<rng:element name="owner">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:optional>
+
+		<rng:optional>
+			<rng:attribute name="locationURI">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="informationRequirement" />
+	</rng:start>
+	<rng:define name="informationRequirement">
+		<rng:element name="informationRequirement">
+			<rng:ref name="tInformationRequirement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tInformationRequirement">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:choice>
+			<rng:element name="requiredDecision">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+			<rng:element name="requiredInput">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:choice>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="knowledgeRequirement" />
+	</rng:start>
+	<rng:define name="knowledgeRequirement">
+		<rng:element name="knowledgeRequirement">
+			<rng:ref name="tKnowledgeRequirement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tKnowledgeRequirement">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:element name="requiredKnowledge">
+			<rng:ref name="tDMNElementReference" />
+		</rng:element>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="authorityRequirement" />
+	</rng:start>
+	<rng:define name="authorityRequirement">
+		<rng:element name="authorityRequirement">
+			<rng:ref name="tAuthorityRequirement" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tAuthorityRequirement">
+
+		<rng:ref name="tDMNElement" />
+		<rng:choice>
+			<rng:element name="requiredDecision">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+			<rng:element name="requiredInput">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+			<rng:element name="requiredAuthority">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:choice>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="expression" />
+	</rng:start>
+	<rng:define name="expression">
+		<rng:element name="expression">
+			<rng:ref name="tExpression" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tExpression">
+
+		<rng:ref name="tDMNElement" />
+		<rng:optional>
+			<rng:attribute name="typeRef">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="itemDefinition" />
+	</rng:start>
+	<rng:define name="itemDefinition">
+		<rng:element name="itemDefinition">
+			<rng:ref name="tItemDefinition" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tItemDefinition">
+
+		<rng:ref name="tNamedElement" />
+		<rng:choice>
+
+			<rng:element name="typeRef">
+				<rng:data type="string" />
+			</rng:element>
+			<rng:optional>
+				<rng:element name="allowedValues">
+					<rng:ref name="tUnaryTests" />
+				</rng:element>
+			</rng:optional>
+
+			<rng:zeroOrMore>
+				<rng:element name="itemComponent">
+					<rng:ref name="tItemDefinition" />
+				</rng:element>
+			</rng:zeroOrMore>
+			<rng:optional>
+				<rng:element name="functionItem">
+					<rng:ref name="tFunctionItem" />
+				</rng:element>
+			</rng:optional>
+		</rng:choice>
+		<rng:optional>
+			<rng:attribute name="typeLanguage">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="isCollection" ns_1:defaultValue="false">
+				<rng:data type="boolean" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="functionItem" />
+	</rng:start>
+	<rng:define name="functionItem">
+		<rng:element name="functionItem">
+			<rng:ref name="tFunctionItem" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tFunctionItem">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:zeroOrMore>
+			<rng:element name="parameters">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+		<rng:optional>
+			<rng:attribute name="outputTypeRef">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="literalExpression" />
+	</rng:start>
+	<rng:define name="literalExpression">
+		<rng:element name="literalExpression">
+			<rng:ref name="tLiteralExpression" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tLiteralExpression">
+
+		<rng:ref name="tExpression" />
+		<rng:optional>
+			<rng:choice>
+				<rng:element name="text">
+					<rng:data type="string" />
+				</rng:element>
+				<rng:element name="importedValues">
+					<rng:ref name="tImportedValues" />
+				</rng:element>
+			</rng:choice>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute name="expressionLanguage">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="invocation" />
+	</rng:start>
+	<rng:define name="invocation">
+		<rng:element name="invocation">
+			<rng:ref name="tInvocation" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tInvocation">
+
+		<rng:ref name="tExpression" />
+
+		<!-- calledFunction -->
+		<rng:optional>
+			<rng:ref name="expression" />
+		</rng:optional>
+		<rng:zeroOrMore>
+			<rng:element name="binding">
+				<rng:ref name="tBinding" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:define name="tBinding">
+
+		<rng:element name="parameter">
+			<rng:ref name="tInformationItem" />
+		</rng:element>
+		<!-- bindingFormula -->
+		<rng:optional>
+			<rng:ref name="expression" />
+		</rng:optional>
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="informationItem" />
+	</rng:start>
+	<rng:define name="informationItem">
+		<rng:element name="informationItem">
+			<rng:ref name="tInformationItem" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tInformationItem">
+
+		<rng:ref name="tNamedElement" />
+		<rng:optional>
+			<rng:attribute name="typeRef">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="decisionTable" />
+	</rng:start>
+	<rng:define name="decisionTable">
+		<rng:element name="decisionTable">
+			<rng:ref name="tDecisionTable" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tDecisionTable">
+
+		<rng:ref name="tExpression" />
+
+		<rng:zeroOrMore>
+			<rng:element name="input">
+				<rng:ref name="tInputClause" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:oneOrMore>
+			<rng:element name="output">
+				<rng:ref name="tOutputClause" />
+			</rng:element>
+		</rng:oneOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="annotation">
+				<rng:ref name="tRuleAnnotationClause" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<!-- NB: when the hit policy is FIRST or RULE ORDER, the ordering of the rules is significant and MUST be preserved -->
+		<rng:zeroOrMore>
+			<rng:element name="rule">
+				<rng:ref name="tDecisionRule" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="hitPolicy" ns_1:defaultValue="UNIQUE">
+				<rng:ref name="tHitPolicy" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute name="aggregation">
+				<rng:ref name="tBuiltinAggregator" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="preferredOrientation" ns_1:defaultValue="Rule-as-Row">
+				<rng:ref name="tDecisionTableOrientation" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute name="outputLabel">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:define name="tInputClause">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:element name="inputExpression">
+			<rng:ref name="tLiteralExpression" />
+		</rng:element>
+		<rng:optional>
+			<rng:element name="inputValues">
+				<rng:ref name="tUnaryTests" />
+			</rng:element>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:define name="tOutputClause">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:optional>
+			<rng:element name="outputValues">
+				<rng:ref name="tUnaryTests" />
+			</rng:element>
+		</rng:optional>
+		<rng:optional>
+			<rng:element name="defaultOutputEntry">
+				<rng:ref name="tLiteralExpression" />
+			</rng:element>
+		</rng:optional>
+
+		<rng:optional>
+			<rng:attribute name="name">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+		<rng:optional>
+			<rng:attribute name="typeRef">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:define name="tRuleAnnotationClause">
+		<rng:optional>
+			<rng:attribute name="name">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+	</rng:define>
+	<rng:define name="tDecisionRule">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:zeroOrMore>
+			<rng:element name="inputEntry">
+				<rng:ref name="tUnaryTests" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:oneOrMore>
+			<rng:element name="outputEntry">
+				<rng:ref name="tLiteralExpression" />
+			</rng:element>
+		</rng:oneOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="annotationEntry">
+				<rng:ref name="tRuleAnnotation" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:define name="tRuleAnnotation">
+
+		<rng:optional>
+			<rng:element name="text">
+				<rng:data type="string" />
+			</rng:element>
+		</rng:optional>
+
+	</rng:define>
+	<rng:define name="tHitPolicy">
+		<rng:choice>
+			<rng:value>UNIQUE</rng:value>
+			<rng:value>FIRST</rng:value>
+			<rng:value>PRIORITY</rng:value>
+			<rng:value>ANY</rng:value>
+			<rng:value>COLLECT</rng:value>
+			<rng:value>RULE ORDER</rng:value>
+			<rng:value>OUTPUT ORDER</rng:value>
+		</rng:choice>
+	</rng:define>
+	<rng:define name="tBuiltinAggregator">
+		<rng:choice>
+			<rng:value>SUM</rng:value>
+			<rng:value>COUNT</rng:value>
+			<rng:value>MIN</rng:value>
+			<rng:value>MAX</rng:value>
+		</rng:choice>
+	</rng:define>
+	<rng:define name="tDecisionTableOrientation">
+		<rng:choice>
+			<rng:value>Rule-as-Row</rng:value>
+			<rng:value>Rule-as-Column</rng:value>
+			<rng:value>CrossTable</rng:value>
+		</rng:choice>
+	</rng:define>
+	<rng:define name="tImportedValues">
+
+		<rng:ref name="tImport" />
+
+		<rng:element name="importedElement">
+			<rng:data type="string" />
+		</rng:element>
+
+		<rng:optional>
+			<rng:attribute name="expressionLanguage">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="artifact" />
+	</rng:start>
+	<rng:define name="artifact">
+		<rng:element name="artifact">
+			<rng:ref name="tArtifact" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tArtifact">
+
+		<rng:ref name="tDMNElement" />
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="group" />
+	</rng:start>
+	<rng:define name="group">
+		<rng:element name="group">
+			<rng:ref name="tGroup" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tGroup">
+
+		<rng:ref name="tArtifact" />
+		<rng:optional>
+			<rng:attribute name="name">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="textAnnotation" />
+	</rng:start>
+	<rng:define name="textAnnotation">
+		<rng:element name="textAnnotation">
+			<rng:ref name="tTextAnnotation" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tTextAnnotation">
+
+		<rng:ref name="tArtifact" />
+
+		<rng:optional>
+			<rng:element name="text">
+				<rng:data type="string" />
+			</rng:element>
+		</rng:optional>
+
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="textFormat" ns_1:defaultValue="text/plain">
+				<rng:data type="string" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="association" />
+	</rng:start>
+	<rng:define name="association">
+		<rng:element name="association">
+			<rng:ref name="tAssociation" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tAssociation">
+
+		<rng:ref name="tArtifact" />
+
+		<rng:element name="sourceRef">
+			<rng:ref name="tDMNElementReference" />
+		</rng:element>
+		<rng:element name="targetRef">
+			<rng:ref name="tDMNElementReference" />
+		</rng:element>
+
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="associationDirection" ns_1:defaultValue="None">
+				<rng:ref name="tAssociationDirection" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:define name="tAssociationDirection">
+		<rng:choice>
+			<rng:value>None</rng:value>
+			<rng:value>One</rng:value>
+			<rng:value>Both</rng:value>
+		</rng:choice>
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="context" />
+	</rng:start>
+	<rng:define name="context">
+		<rng:element name="context">
+			<rng:ref name="tContext" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tContext">
+
+		<rng:ref name="tExpression" />
+
+		<rng:zeroOrMore>
+			<rng:ref name="contextEntry" />
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="contextEntry" />
+	</rng:start>
+	<rng:define name="contextEntry">
+		<rng:element name="contextEntry">
+			<rng:ref name="tContextEntry" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tContextEntry">
+
+		<rng:ref name="tDMNElement" />
+
+		<rng:optional>
+			<rng:element name="variable">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:optional>
+		<!-- value -->
+		<rng:ref name="expression" />
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="functionDefinition" />
+	</rng:start>
+	<rng:define name="functionDefinition">
+		<rng:element name="functionDefinition">
+			<rng:ref name="tFunctionDefinition" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tFunctionDefinition">
+
+		<rng:ref name="tExpression" />
+
+		<rng:zeroOrMore>
+			<rng:element name="formalParameter">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<!-- body -->
+		<rng:optional>
+			<rng:ref name="expression" />
+		</rng:optional>
+
+		<rng:optional>
+			<rng:attribute xmlns:ns_1="http://relaxng.org/ns/compatibility/annotations/1.0" name="kind" ns_1:defaultValue="FEEL">
+				<rng:ref name="tFunctionKind" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:define name="tFunctionKind">
+		<rng:choice>
+			<rng:value>FEEL</rng:value>
+			<rng:value>Java</rng:value>
+			<rng:value>PMML</rng:value>
+		</rng:choice>
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="relation" />
+	</rng:start>
+	<rng:define name="relation">
+		<rng:element name="relation">
+			<rng:ref name="tRelation" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tRelation">
+
+		<rng:ref name="tExpression" />
+
+		<rng:zeroOrMore>
+			<rng:element name="column">
+				<rng:ref name="tInformationItem" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="row">
+				<rng:ref name="tList" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="list" />
+	</rng:start>
+	<rng:define name="list">
+		<rng:element name="list">
+			<rng:ref name="tList" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tList">
+
+		<rng:ref name="tExpression" />
+
+		<!-- element -->
+		<rng:zeroOrMore>
+			<rng:ref name="expression" />
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+	<rng:define name="tUnaryTests">
+
+		<rng:ref name="tExpression" />
+
+		<rng:element name="text">
+			<rng:data type="string" />
+		</rng:element>
+
+		<rng:optional>
+			<rng:attribute name="expressionLanguage">
+				<rng:data type="anyURI" />
+			</rng:attribute>
+		</rng:optional>
+
+
+	</rng:define>
+	<rng:start combine="choice">
+		<rng:ref name="decisionService" />
+	</rng:start>
+	<rng:define name="decisionService">
+		<rng:element name="decisionService">
+			<rng:ref name="tDecisionService" />
+		</rng:element>
+	</rng:define>
+	<rng:define name="tDecisionService">
+
+		<rng:ref name="tInvocable" />
+
+		<rng:zeroOrMore>
+			<rng:element name="outputDecision">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="encapsulatedDecision">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="inputDecision">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+		<rng:zeroOrMore>
+			<rng:element name="inputData">
+				<rng:ref name="tDMNElementReference" />
+			</rng:element>
+		</rng:zeroOrMore>
+
+
+	</rng:define>
+</rng:grammar>

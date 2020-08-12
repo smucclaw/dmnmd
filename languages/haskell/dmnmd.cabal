@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 886500edb4b56269023d7572aa1dbb45519f15cc354f184b0335fa40c5dc3e95
+-- hash: 756a4a0addc59e5d14a3e51e2ec80492f8c0d5daca6d601475901dab025c8cb6
 
 name:           dmnmd
 version:        0.1.0.1
@@ -34,11 +34,15 @@ library
       DMN.ParsingUtils
       DMN.Translate.JS
       DMN.Types
+      DMN.XML.ParseDMN
+      DMN.XML.PickleHelpers
+      DMN.XML.XmlToDmnmd
+      Text.XML.HXT.Pickle.TupleInstances
   other-modules:
       Paths_dmnmd
   hs-source-dirs:
       src
-  ghc-options: -Wall
+  ghc-options: -Wno-unused-matches -fwrite-ide-info -hiedir=.hie
   build-depends:
       MissingH
     , attoparsec
@@ -47,10 +51,13 @@ library
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-golden
     , hspec-megaparsec
     , hxt
+    , lens
     , megaparsec
     , optparse-applicative
+    , pretty-simple
     , raw-strings-qq
     , regex-pcre
     , split
@@ -74,10 +81,13 @@ executable dmnmd
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-golden
     , hspec-megaparsec
     , hxt
+    , lens
     , megaparsec
     , optparse-applicative
+    , pretty-simple
     , raw-strings-qq
     , regex-pcre
     , split
@@ -105,10 +115,13 @@ test-suite dmnmd-test
     , haskeline
     , hspec
     , hspec-attoparsec
+    , hspec-golden
     , hspec-megaparsec
     , hxt
+    , lens
     , megaparsec
     , optparse-applicative
+    , pretty-simple
     , raw-strings-qq
     , regex-pcre
     , split

@@ -37,11 +37,19 @@ dependencies:
 # - fadno-xml
 - megaparsec
 - hspec-megaparsec
+# Should this be avoided?
+# Used for more convenient Iso for xml parsing
+- lens
+- hspec-golden
+- pretty-simple
 
 library:
   source-dirs: src
   ghc-options:
-  - -Wall
+  # - -Wall
+  - -Wno-unused-matches
+  - -fwrite-ide-info # Used by stan, the static analyser
+  - -hiedir=.hie     # Ditto
 
 executables:
   dmnmd:
@@ -51,7 +59,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -Wall
+    # - -Wall
     dependencies:
     - dmnmd
 
@@ -63,6 +71,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -Wall
+    # - -Wall
     dependencies:
     - dmnmd

@@ -1,0 +1,161 @@
+<rng:grammar xmlns:rng="http://relaxng.org/ns/structure/1.0" xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0" xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ns="http://www.omg.org/spec/DMN/20180521/DI/" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+    <rng:include href="DC.rng" ns="http://www.omg.org/spec/DMN/20180521/DC/" />
+
+    <a:documentation>
+		The Diagram Interchange (DI) package enables interchange of graphical information that language users have control over, such as position of nodes and line routing points. Language specifications specialize elements of DI to define diagram interchange elements for a language.
+	</a:documentation>
+
+    <rng:start combine="choice">
+        <rng:ref name="Style" />
+    </rng:start>
+    <rng:define name="Style">
+        <rng:element name="Style">
+            <rng:ref name="Style" />
+            <a:documentation>
+			This element should never be instantiated directly, but rather concrete implementation should. It is placed there only to be referred in the sequence
+		</a:documentation>
+        </rng:element>
+    </rng:define>
+
+    <rng:define name="DiagramElement">
+        <a:documentation>
+			DiagramElement is the abstract super type of all elements in diagrams, including diagrams themselves. When contained in a diagram, diagram elements are laid out relative to the diagram's origin.
+		</a:documentation>
+
+        <rng:optional>
+            <rng:element name="extension">
+
+
+                <rng:zeroOrMore>
+                    <rng:element>
+                        <rng:anyName />
+                        <rng:text />
+                    </rng:element>
+                </rng:zeroOrMore>
+
+
+            </rng:element>
+        </rng:optional>
+        <rng:optional>
+            <rng:ref name="Style" />
+            <a:documentation>
+					an optional locally-owned style for this diagram element.
+				</a:documentation>
+        </rng:optional>
+
+        <rng:optional>
+            <rng:attribute name="sharedStyle">
+                <rng:data type="IDREF">
+                    <a:documentation>
+				a reference to an optional shared style element for this diagram element.
+			</a:documentation>
+                </rng:data>
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="id">
+                <rng:data type="ID" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:attribute>
+            <rng:anyName />
+            <rng:text />
+        </rng:attribute>
+    </rng:define>
+
+    <rng:define name="Diagram">
+
+        <rng:ref name="DiagramElement" />
+        <rng:optional>
+            <rng:attribute name="name">
+                <rng:data type="string">
+                    <a:documentation>
+						the name of the diagram.
+					</a:documentation>
+                </rng:data>
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="documentation">
+                <rng:data type="string">
+                    <a:documentation>
+						the documentation of the diagram.
+					</a:documentation>
+                </rng:data>
+            </rng:attribute>
+        </rng:optional>
+        <rng:optional>
+            <rng:attribute name="resolution">
+                <rng:data type="double">
+                    <a:documentation>
+						the resolution of the diagram expressed in user units per inch.
+					</a:documentation>
+                </rng:data>
+            </rng:attribute>
+        </rng:optional>
+
+
+    </rng:define>
+
+    <rng:define name="Shape">
+
+        <rng:ref name="DiagramElement" />
+
+        <rng:optional>
+            <rng:ref name="Bounds" />
+            <a:documentation>
+							the optional bounds of the shape relative to the origin of its nesting plane.
+						</a:documentation>
+        </rng:optional>
+
+
+    </rng:define>
+
+    <rng:define name="Edge">
+
+        <rng:ref name="DiagramElement" />
+
+        <rng:zeroOrMore>
+            <rng:element name="waypoint">
+                <rng:ref name="Point" />
+                <a:documentation>
+							an optional list of points relative to the origin of the nesting diagram that specifies the connected line segments of the edge
+						</a:documentation>
+            </rng:element>
+        </rng:zeroOrMore>
+
+
+    </rng:define>
+
+    <rng:define name="Style">
+        <a:documentation>
+			Style contains formatting properties that affect the appearance or style of diagram elements, including diagram themselves.
+		</a:documentation>
+
+        <rng:optional>
+            <rng:element name="extension">
+
+
+                <rng:zeroOrMore>
+                    <rng:element>
+                        <rng:anyName />
+                        <rng:text />
+                    </rng:element>
+                </rng:zeroOrMore>
+
+
+            </rng:element>
+        </rng:optional>
+
+        <rng:optional>
+            <rng:attribute name="id">
+                <rng:data type="ID" />
+            </rng:attribute>
+        </rng:optional>
+        <rng:attribute>
+            <rng:anyName />
+            <rng:text />
+        </rng:attribute>
+    </rng:define>
+
+</rng:grammar>
