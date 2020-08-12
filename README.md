@@ -26,11 +26,11 @@ At the moment, `dmnmd` is an executable program written in Haskell. In future it
 
 OS X:
 
-    brew install haskell-stack pkg-config pcre
+    brew install haskell-stack pkg-config pcre; stack upgrade
     
 Linux:
 
-    { yum, apt-get, ... } install haskell-stack pkg-config libpcre3-dev
+    { yum, apt-get, ... } install haskell-stack pkg-config libpcre3-dev; stack upgrade
 
 Both:
 

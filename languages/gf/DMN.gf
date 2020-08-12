@@ -1,4 +1,7 @@
-abstract DMN = {
+abstract DMN =
+  WordnetNPs
+  --, Numeral
+  ** {
 
   flags startcat = DTable ;
 
@@ -23,11 +26,12 @@ abstract DMN = {
     Flt, Flte, Feq,
     Fgte, Fgt : FBinOp ;
 
-    True, False : Bool ; -- All best languages require you to define your own Bool
+--    True, False : Bool ; -- All best languages require you to define your own Bool
 
+    VNOne : DMNVal ; -- Special constructor for 1: to prevent "you have 1 messages"
     VS : String -> DMNVal ;
     VN : Float  -> DMNVal ;
-    VB : Bool   -> DMNVal ;
+--    VB : Bool   -> DMNVal ;
 
     NoComment : Comment ;
     CommentString : String -> Comment ;
@@ -52,15 +56,24 @@ abstract DMN = {
     Weight,     -- {XWeight,3 kg} ~ "X weighs 3 kg"
     Length,     -- {XLength,3 m} ~ "X is 3 m long"
     Height     -- {XHeight,3 m} ~ "X is 3 m tall"
-      : String -> FEELexp -> FCell ;
+     : CN -> FEELexp -> FCell ;
 
     AmountMass, -- {Cups,X,5} ~ "With 5 Cups of X". NB. the header needs to contain the unit and the material.
     AmountCount -- {Count, X, =<10} ~ "With 10 or fewer Xs"
-      : String -> String -> FEELexp -> FCell ;
+      : CN -> CN -> FEELexp -> FCell ;
+
+    IsTrue,
+    IsFalse
+      : CN -> FCell ; -- {Liquidation} ~ "is liquidation"
 
     -- BaseFCell, ConsFCell constructed automatically thanks to [FCell]{2}
     Many : [FCell] -> FCells ;
     Single : FCell -> FCells ;
+
+    -- Booleans in many cells behave like one cell:
+    -- "when X, Y and Z" sounds more natural than
+    -- "when X, when Y and when Z"
+    BoolFCell : [FCell] -> FCell ;
 
     -- Construct a row from input and output cells.
     -- Concrete syntaxes may leave out comment, line number or both.
@@ -74,4 +87,5 @@ abstract DMN = {
     Table : [DTRow] -> DTable ;
 
     Consequence : [DTRow] -> DTable ;
+
 }
