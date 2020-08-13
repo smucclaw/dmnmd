@@ -20,31 +20,30 @@ import DMN.ParsingUtils
 import qualified Data.Text as T
 
 import Options
+import Data.Foldable (Foldable(toList))
 
 -- TODO: Use ListT or this thing
--- concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
--- concatMapM f xs = fmap concat $ mapM f xs
+concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
+concatMapM f xs = fmap concat $ mapM f xs
 
-parseMarkdown :: Options.ArgOptions -> IO [DecisionTable]
+parseMarkdown :: ArgOptions -> IO [DecisionTable]
 parseMarkdown opts1 = do
   let opts = opts1
   let infiles = if null (input opts) then ["-"] else input opts
-  mydtchunks <- mapM (fileChunks opts) (zip [1..] infiles)
-  mydtables1 <- mapM (parseChunk opts) (concat mydtchunks)
-  let mydtables = catMaybes mydtables1 -- all this really wants to be an ArrowList
-
+  mydtchunks <- concatMapM (fileChunks opts) (zip [1..] infiles)
+  mydtables <- concatMapM (parseChunk opts) mydtchunks
   return mydtables
 
   where
-    fileChunks :: Options.ArgOptions -> (Int, FilePath) -> IO InputChunks
+    fileChunks :: ArgOptions -> (Int, FilePath) -> IO InputChunks
     fileChunks opts (inum,infile) = do
       mylog opts $ "* opening file: " ++ infile
       inlines <- if infile == "-" then getContents else readFile infile
       let rawchunksEither = parseOnly (grepMarkdown ("f"++show inum) <?> "grepMarkdown") (T.pack inlines)
-      either
-        (\errstr -> myerr opts ("** parser failure in grepMarkdown: " ++ errstr) >> return [])
-        return
-        rawchunksEither
+
+      whenLeft rawchunksEither 
+        (\errstr -> myerr opts $ "** parser failure in grepMarkdown: " ++ errstr)
+      return $ either (const []) id rawchunksEither
 
     myerr :: ArgOptions -> String -> IO ()
     myerr _ = hPutStrLn stderr
@@ -52,7 +51,7 @@ parseMarkdown opts1 = do
     mylog :: ArgOptions -> String -> IO ()
     mylog opts msg = when (verbose opts) $ myerr opts msg
 
-    parseChunk :: ArgOptions -> InputChunk -> IO (Maybe DecisionTable)
+    parseChunk :: ArgOptions -> InputChunk -> IO [DecisionTable]
     parseChunk opts mychunk = do
       let parseResult = parseOnly (parseTable (chunkName mychunk) <?> "parseTable")
             $ T.pack $ unlines $ chunkLines mychunk
@@ -60,15 +59,14 @@ parseMarkdown opts1 = do
             myerr opts $
               "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\nat " ++ myPTfail
 
-      consumeLeft parseResult printParseError
-      -- whenLeft parseResult printParseError
-      -- pure $ eitherToMaybe parseResult
+      whenLeft parseResult printParseError
+      pure $ toList parseResult
 
--- | Convert an Either to a Maybe and run an action if it was left.
-consumeLeft :: Monad m => Either a b -> (a -> m ()) -> m (Maybe b)
-consumeLeft val onLeft = do
-  whenLeft val onLeft
-  pure $ eitherToMaybe val
+-- -- | Convert an Either to a Maybe and run an action if it was left.
+-- consumeLeft :: Monad m => Either a b -> (a -> m ()) -> m (Maybe b)
+-- consumeLeft val onLeft = do
+--   whenLeft val onLeft
+--   pure $ eitherToMaybe val
 
 whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
 whenLeft val onLeft =
@@ -76,12 +74,12 @@ whenLeft val onLeft =
         Left e -> onLeft e
         Right _ -> return ()
 
-eitherToMaybe :: Either a b -> Maybe b
-eitherToMaybe = either (const Nothing) Just
--- eitherToMaybe val =
---       case val of
---         Left _ -> Nothing
---         Right x -> Just x
+-- eitherToMaybe :: Either a b -> Maybe b
+-- eitherToMaybe = either (const Nothing) Just
+-- -- eitherToMaybe val =
+-- --       case val of
+-- --         Left _ -> Nothing
+-- --         Right x -> Just x
 
 {-
 parseChunk :: ArgOptions -> InputChunk -> IO (Maybe DecisionTable)
