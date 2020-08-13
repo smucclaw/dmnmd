@@ -66,43 +66,14 @@ fileExtensionMappings =
 extensionToFileFormat :: String -> Maybe FileFormat
 extensionToFileFormat ext = lookup ext fileExtensionMappings
 
--- detectFormat :: [FilePath] -> FileFormat -> FileFormat
--- detectFormat files origFormat
---   | null origFormat
---   , exts <- map takeExtension files
---   , Just ext <- getSame exts
---   , Just format <- extensionToFileFormat ext = format
---   | otherwise = origFormat
-
--- detectFormat :: [FilePath] -> FileFormat -> FileFormat
--- detectFormat files ""
---   | exts <- map takeExtension files
---   , Just ext <- getSame exts
---   , Just format <- extensionToFileFormat ext
---   = format
--- detectFormat _ origFormat = origFormat
-
--- detectFormat :: [FilePath] -> FileFormat -> FileFormat
--- detectFormat files "" = fromMaybe "" $ do
---     let exts = map takeExtension files
---     ext <- getSame exts
---     format <- extensionToFileFormat ext
---     pure format
--- detectFormat _ origFormat = origFormat
-
 detectFormat :: [FilePath] -> FileFormat -> FileFormat
 detectFormat files "" = fromMaybe "" $ detectFormat' files
 detectFormat _ origFormat = origFormat
 
--- detectFormat' :: [FilePath] -> Maybe FileFormat
--- detectFormat' = extensionToFileFormat <=< getSame . map takeExtension
-
--- detectFormat' :: [FilePath] -> Maybe FileFormat
--- detectFormat' files = extensionToFileFormat =<< getSame (map takeExtension files)
-
 detectFormat' :: [FilePath] -> Maybe FileFormat
 detectFormat' files = do
-  ext <- getSame $ map takeExtension files
+  let exts = map takeExtension files
+  ext <- getSame exts
   extensionToFileFormat ext
 
 -- | Checks if all elements in a list are equal, and if so, returns that element.
@@ -119,9 +90,6 @@ detectInformat opts = opts { informat = detectFormat (input opts) (informat opts
 main :: IO ()
 main = do
   opts1 <- OA.execParser $ info (argOptions OA.<**> helper) (fullDesc <> progDesc "DMN CLI interpreter and converter" <> OA.header "dmnmd")
-  -- let opts = if | null (outformat opts1) && "ts" `isSuffixOf` out opts1 -> opts1 { outformat = "ts" }
-  --               | null (outformat opts1) && "js" `isSuffixOf` out opts1 -> opts1 { outformat = "js" }
-  --               | otherwise -> opts1
   let opts = detectOutformat . detectInformat $ opts1
   myouthandle <- myOutHandle $ out opts
   let infiles = if null (input opts) then ["-"] else input opts
