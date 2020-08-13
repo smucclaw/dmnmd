@@ -4,6 +4,7 @@ module Main
 where
 
 import System.IO
+import System.FilePath
 import Control.Monad
 import Data.List.Split (splitOn)
 import Data.List (takeWhile, isSuffixOf, intercalate, nub)
@@ -33,8 +34,8 @@ data ArgOptions = ArgOptions
   { verbose  :: Bool
   , query    :: Bool
   , propstyle :: Bool
-  , informat  :: String
-  , outformat :: String
+  , informat  :: FileFormat
+  , outformat :: FileFormat
   , out      :: String
   , pick     :: String
   , input    :: [String]
@@ -46,18 +47,57 @@ argOptions = ArgOptions
   <$> switch    (long "verbose"    <> short 'v'                                          <> help "more verbosity" )
   <*> switch    (long "query"      <> short 'q'                                          <> help "evaluate interactively" )
   <*> switch    (long "props"      <> short 'r'                                          <> help "JS functions use props style" )
-  <*> strOption (long "from"       <> short 'f' <> metavar "InputFormat"  <> value "md"  <> help "input format" )
+  <*> strOption (long "from"       <> short 'f' <> metavar "InputFormat"  <> value ""    <> help "input format" )
   <*> strOption (long "to"         <> short 't' <> metavar "OutputFormat" <> value ""    <> help "output format" )
   <*> strOption (long "out"        <> short 'o' <> metavar "FILE"         <> value "-"   <> help "output file" )
   <*> strOption (long "pick"       <> short 'p' <> metavar "TABLE,..."    <> value ""    <> help "name of desired decision table" )
   <*> OA.many ( argument str (metavar "FILES..."))
 
+type FileFormat = String
+
+fileExtensionMappings :: [(String, FileFormat)]
+fileExtensionMappings =
+  [ ("ts", "ts")
+  , ("js", "js")
+  , ("dmn", "xml")
+  , ("md", "md")
+  ]
+
+extensionToFileFormat :: String -> Maybe FileFormat
+extensionToFileFormat ext = lookup ext fileExtensionMappings
+
+-- detectFormat :: [FilePath] -> FileFormat -> FileFormat
+-- detectFormat files origFormat
+--   | null origFormat
+--   , exts <- map takeExtension files
+--   , Just ext <- getSame exts
+--   , Just format <- extensionToFileFormat ext = format
+--   | otherwise = origFormat
+--   where
+--     extensionToFileFormat ext = lookup ext fileExtensionMappings
+
+detectFormat :: [FilePath] -> FileFormat -> FileFormat
+detectFormat files ""
+  | exts <- map takeExtension files
+  , Just ext <- getSame exts
+  , Just format <- extensionToFileFormat ext
+  = format
+detectFormat _ origFormat = origFormat
+
+getSame :: Eq a => [a] -> Maybe a
+getSame (x : xs) | all (== x) xs = Just x
+getSame _ = Nothing
+
+detectOutformat :: ArgOptions -> ArgOptions
+detectOutformat opts = opts { outformat = detectFormat [out opts] (outformat opts)}
+
+detectInformat :: ArgOptions -> ArgOptions
+detectInformat opts = opts { informat = detectFormat (input opts) (informat opts)}
+
 main :: IO ()
 main = do
   opts1 <- OA.execParser $ info (argOptions OA.<**> helper) (fullDesc <> progDesc "DMN CLI interpreter and converter" <> OA.header "dmnmd")
-  let opts = if | null (outformat opts1) && "ts" `isSuffixOf` out opts1 -> opts1 { outformat = "ts" }
-                | null (outformat opts1) && "js" `isSuffixOf` out opts1 -> opts1 { outformat = "js" }
-                | otherwise -> opts1
+  let opts = detectOutformat . detectInformat $ opts1
   myouthandle <- myOutHandle $ out opts
   let infiles = if null (input opts) then ["-"] else input opts
   mydtchunks <- mapM (fileChunks opts) (zip [1..] infiles)

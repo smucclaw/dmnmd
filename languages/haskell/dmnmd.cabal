@@ -76,6 +76,7 @@ executable dmnmd
     , base >=4.7 && <5
     , containers
     , dmnmd
+    , filepath
     , haskeline
     , hspec
     , hspec-attoparsec
