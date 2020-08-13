@@ -66,6 +66,7 @@ library
 executable dmnmd
   main-is: Main.hs
   other-modules:
+      Options
       Paths_dmnmd
   hs-source-dirs:
       app

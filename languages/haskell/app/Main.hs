@@ -28,69 +28,12 @@ import Options.Applicative (long, short, help, helper, fullDesc, progDesc, strOp
 import System.Posix.Terminal (queryTerminal)
 import System.Posix.IO (stdOutput)
 
--- let's do getopt properly
+import Options
 
-data ArgOptions = ArgOptions
-  { verbose  :: Bool
-  , query    :: Bool
-  , propstyle :: Bool
-  , informat  :: FileFormat
-  , outformat :: FileFormat
-  , out      :: String
-  , pick     :: String
-  , input    :: [String]
-  }
-  deriving (Show, Eq)
-
-argOptions :: OA.Parser ArgOptions
-argOptions = ArgOptions
-  <$> switch    (long "verbose"    <> short 'v'                                          <> help "more verbosity" )
-  <*> switch    (long "query"      <> short 'q'                                          <> help "evaluate interactively" )
-  <*> switch    (long "props"      <> short 'r'                                          <> help "JS functions use props style" )
-  <*> strOption (long "from"       <> short 'f' <> metavar "InputFormat"  <> value ""    <> help "input format" )
-  <*> strOption (long "to"         <> short 't' <> metavar "OutputFormat" <> value ""    <> help "output format" )
-  <*> strOption (long "out"        <> short 'o' <> metavar "FILE"         <> value "-"   <> help "output file" )
-  <*> strOption (long "pick"       <> short 'p' <> metavar "TABLE,..."    <> value ""    <> help "name of desired decision table" )
-  <*> OA.many ( argument str (metavar "FILES..."))
-
-type FileFormat = String
-
-fileExtensionMappings :: [(String, FileFormat)]
-fileExtensionMappings =
-  [ ("ts", "ts")
-  , ("js", "js")
-  , ("dmn", "xml")
-  , ("md", "md")
-  ]
-
-extensionToFileFormat :: String -> Maybe FileFormat
-extensionToFileFormat ext = lookup ext fileExtensionMappings
-
-detectFormat :: [FilePath] -> FileFormat -> FileFormat
-detectFormat files "" = fromMaybe "" $ detectFormat' files
-detectFormat _ origFormat = origFormat
-
-detectFormat' :: [FilePath] -> Maybe FileFormat
-detectFormat' files = do
-  let exts = map takeExtension files
-  ext <- getSame exts
-  extensionToFileFormat ext
-
--- | Checks if all elements in a list are equal, and if so, returns that element.
-getSame :: Eq a => [a] -> Maybe a
-getSame (x : xs) | all (== x) xs = Just x
-getSame _ = Nothing
-
-detectOutformat :: ArgOptions -> ArgOptions
-detectOutformat opts = opts { outformat = detectFormat [out opts] (outformat opts)}
-
-detectInformat :: ArgOptions -> ArgOptions
-detectInformat opts = opts { informat = detectFormat (input opts) (informat opts)}
 
 main :: IO ()
 main = do
-  opts1 <- OA.execParser $ info (argOptions OA.<**> helper) (fullDesc <> progDesc "DMN CLI interpreter and converter" <> OA.header "dmnmd")
-  let opts = detectOutformat . detectInformat $ opts1
+  opts <- parseOptions
   myouthandle <- myOutHandle $ out opts
   let infiles = if null (input opts) then ["-"] else input opts
   mydtchunks <- mapM (fileChunks opts) (zip [1..] infiles)
@@ -177,8 +120,8 @@ showToJSON :: DecisionTable -> [[FEELexp]] -> [String]
 showToJSON dtable cols = if not (null cols) then zipWith showFeels ((getOutputHeaders . header) dtable) cols else []
 
 outputTo :: Handle -> String -> ArgOptions -> DecisionTable -> IO ()
-outputTo h "js" opts dtable = hPutStrLn h $ toJS (JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
-outputTo h "ts" opts dtable = hPutStrLn h $ toJS (JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
+outputTo h "js" opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == "ts")) dtable
+outputTo h "ts" opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == "ts")) dtable
 
 myOutHandle :: FilePath -> IO Handle
 myOutHandle h = if h == "-" then return stdout else openFile h WriteMode
