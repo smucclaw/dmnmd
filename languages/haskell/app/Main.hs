@@ -47,6 +47,7 @@ main = do
      | differentlyTyped pickedTables -> fail $ "tables " ++ show (tableName <$> pickedTables) ++ " have different types; can't query. use --pick to choose one"
      | query opts && istty           -> runInputT defaultSettings (loop opts pickedTables)
      | query opts && not istty       -> mylog opts "expecting eval term input on STDIN."
+     | otherwise                     -> error "This should be impossible" -- Haskell can't figure out that the cases above are exhaustive
   hClose myouthandle
 
   where
@@ -57,17 +58,17 @@ main = do
       case minput of
         Nothing -> return ()
         Just "quit" -> return ()
-        Just input -> do
-          let splitInput = trim <$> splitOn "," input
+        Just inputCmd -> do
+          let splitInput = trim <$> splitOn "," inputCmd
           if length splitInput /= length expecting
             then outputStrLn ("error: expected " ++ show (length expecting) ++ " arguments, got " ++ show (length splitInput) ++
                               "; arguments should be " ++ show expecting)
             else
             mapM_ (
                 \dtable -> do
-                  when (verbose opts) $ outputStrLn $ "** evaluating " ++ input ++ " against table " ++ tableName dtable
+                  when (verbose opts) $ outputStrLn $ "** evaluating " ++ inputCmd ++ " against table " ++ tableName dtable
                   either
-                    (\errstr -> outputStrLn $ "problem running " ++ input ++ " against table " ++ tableName dtable ++ ": " ++ errstr)
+                    (\errstr -> outputStrLn $ "problem running " ++ inputCmd ++ " against table " ++ tableName dtable ++ ": " ++ errstr)
                     (outputStr . unlines . map (\resultrow ->
                                                    tableName dtable ++ ": " ++ intercalate ", " (showToJSON dtable resultrow)))
                     (evalTable dtable (zipWith mkF expecting splitInput))
@@ -82,7 +83,7 @@ main = do
 
     -- TODO: validation via incompleteness and conflict detection, under different hit policies
 
-    myerr _ = hPutStrLn stderr
+    myerr _opts = hPutStrLn stderr
     mylog opts msg = when (verbose opts) $ myerr opts msg
 
     differentlyTyped :: [DecisionTable] -> Bool
@@ -94,10 +95,13 @@ main = do
 -- not quite finished; in future refactor this over to JS.hs
 showToJSON :: DecisionTable -> [[FEELexp]] -> [String]
 showToJSON dtable cols' = if not (null cols') then zipWith showFeels ((getOutputHeaders . header) dtable) cols' else []
+-- NOTE: Probably equivalent to:
+-- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
 outputTo :: Handle -> String -> ArgOptions -> DecisionTable -> IO ()
 outputTo h "js" opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == "ts")) dtable
 outputTo h "ts" opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == "ts")) dtable
+outputTo _ filetype _ _     = error $ "outputTo: Unsupported file type: " ++ show filetype
 
 myOutHandle :: FilePath -> IO Handle
 myOutHandle h = if h == "-" then return stdout else openFile h WriteMode
