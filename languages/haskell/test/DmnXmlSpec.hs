@@ -46,7 +46,7 @@ xmlSpec = do
 convertedSimulation :: [DT.DecisionTable]
 convertedSimulation =
   [ DTable
-      { tableName = "Unknown", -- TODO: We should have a real value here
+      { tableName = "Beverages",
         hitpolicy = HP_Collect Collect_All,
         header =
           [ DTCH
@@ -129,7 +129,7 @@ convertedSimulation =
           ]
       },
     DTable
-      { tableName = "Unknown",
+      { tableName = "Dish",
         hitpolicy = HP_Unique,
         header =
           [ DTCH
