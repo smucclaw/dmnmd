@@ -27,7 +27,6 @@ main :: IO ()
 main = do
   opts <- parseOptions
   myouthandle <- myOutHandle $ out opts
-  -- let infiles = if null (input opts) then ["-"] else input opts
 
   mydtables <- parseMarkdown opts -- TODO: Don't hardcode markdown here
   mylog opts $ "* imported " ++ show (length mydtables) ++ " tables."

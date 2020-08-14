@@ -28,16 +28,17 @@ concatMapM f xs = fmap concat $ mapM f xs
 
 parseMarkdown :: ArgOptions -> IO [DecisionTable]
 parseMarkdown opts1 = do
-  let opts = opts1
-  let infiles = if null (input opts) then ["-"] else input opts
-  mydtchunks <- concatMapM (fileChunks opts) (zip [1..] infiles)
-  mydtables <- concatMapM (parseChunk opts) mydtchunks
+  let infiles = input opts1
+  mydtchunks <- concatMapM (fileChunks opts1) (zip [1..] infiles)
+  mydtables <- concatMapM (parseChunk opts1) mydtchunks
   return mydtables
 
   where
     fileChunks :: ArgOptions -> (Int, FilePath) -> IO InputChunks
     fileChunks opts (inum,infile) = do
       mylog opts $ "* opening file: " ++ infile
+      -- NOTE: Lazy IO
+      -- TODO: Extract this logic to a common function
       inlines <- if infile == "-" then getContents else readFile infile
       let rawchunksEither = parseOnly (grepMarkdown ("f"++show inum) <?> "grepMarkdown") (T.pack inlines)
 

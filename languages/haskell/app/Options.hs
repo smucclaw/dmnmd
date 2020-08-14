@@ -40,8 +40,8 @@ parseOptions :: IO ArgOptions
 parseOptions = do
   opts1 <- OA.execParser $ info (argOptions OA.<**> helper) (fullDesc <> progDesc "DMN CLI interpreter and converter" <> OA.header "dmnmd")
   let opts = detectOutformat . detectInformat $ opts1
---   let infiles = if null (input opts) then ["-"] else input opts
-  return opts
+  let infiles = if null (input opts) then ["-"] else input opts
+  return $ opts { input = infiles }
 
 -- * File format detection
 
