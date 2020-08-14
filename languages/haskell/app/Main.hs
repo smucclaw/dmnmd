@@ -97,10 +97,11 @@ showToJSON dtable cols' = if not (null cols') then zipWith showFeels ((getOutput
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
-outputTo :: Handle -> String -> ArgOptions -> DecisionTable -> IO ()
-outputTo h "js" opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == "ts")) dtable
-outputTo h "ts" opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == "ts")) dtable
-outputTo _ filetype _ _     = error $ "outputTo: Unsupported file type: " ++ show filetype
+outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
+outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
+outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
+outputTo _ filetype _ _     = error $ "outputTo: Unsupported file type: " ++ show filetype 
+                                   ++ ".\nSupported output formats are 'ts' and 'js'"
 
 myOutHandle :: FilePath -> IO Handle
 myOutHandle h = if h == "-" then return stdout else openFile h WriteMode
