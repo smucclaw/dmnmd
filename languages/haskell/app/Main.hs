@@ -28,7 +28,7 @@ import ParseMarkdown (parseMarkdown)
 main :: IO ()
 main = do
   opts <- parseOptions
-  print opts
+  mylog opts $ "Options: " ++ show opts
   myouthandle <- myOutHandle $ out opts
 
   mydtables <- parseTables opts -- TODO: Don't hardcode markdown here

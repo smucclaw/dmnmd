@@ -24,23 +24,24 @@ convertIt d = do
 
 convdec :: X.Decision -> [T.DecisionTable]
 convdec dec = do
+    let decisionName = dmnnName $ decLabel dec
     tabl <- maybeToList $ X.decDTable dec
-    pure $ convTable tabl
+    pure $ convTable decisionName tabl
 
-convTable :: X.DecisionTable -> T.DecisionTable
+convTable :: String -> X.DecisionTable -> T.DecisionTable
 -- convTable = undefined
-convTable (X.DecisionTable
+convTable name (X.DecisionTable
   { X.dtLabel,
     X.dtHitPolicy ,
     X.dtInput ,
     X.dtOutput ,
     X.dtRules
-  }) =
-     T.DTable { T.tableName = maybe "Unknown" id $ X.dmnName dtLabel -- TODO: We can do better than this!
-                             , T.hitpolicy = dtHitPolicy
-                             , T.header    = convHeader dtInput dtOutput
-                             , T.allrows   = zipWith convRule [1..] dtRules
-                             }
+  }) = T.DTable 
+    { T.tableName = name
+    , T.hitpolicy = dtHitPolicy
+    , T.header    = convHeader dtInput dtOutput
+    , T.allrows   = zipWith convRule [1..] dtRules
+    }
 
 data InOrOut = TIn X.TableInput | TOut X.TableOutput
 
