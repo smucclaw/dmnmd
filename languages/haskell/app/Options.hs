@@ -34,14 +34,12 @@ argOptions = ArgOptions
   <*> strOption (long "to"         <> short 't' <> metavar "OutputFormat" <> value ""    <> help "output format" )
   <*> strOption (long "out"        <> short 'o' <> metavar "FILE"         <> value "-"   <> help "output file" )
   <*> strOption (long "pick"       <> short 'p' <> metavar "TABLE,..."    <> value ""    <> help "name of desired decision table" )
-  <*> OA.many ( argument str (metavar "FILES..."))
+  <*> (OA.some ( argument str (metavar "FILES...")) OA.<|> pure ["-"])
 
 parseOptions :: IO ArgOptions
 parseOptions = do
   opts1 <- OA.execParser $ info (argOptions OA.<**> helper) (fullDesc <> progDesc "DMN CLI interpreter and converter" <> OA.header "dmnmd")
-  let opts = detectOutformat . detectInformat $ opts1
-  let infiles = if null (input opts) then ["-"] else input opts
-  return $ opts { input = infiles }
+  return $ detectOutformat . detectInformat $ opts1
 
 -- * File format detection
 
