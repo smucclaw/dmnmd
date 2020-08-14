@@ -15,6 +15,8 @@ import System.Console.Haskeline
 import DMN.Types
 import DMN.DecisionTable
 import DMN.Translate.JS
+import DMN.XML.ParseDMN (parseDMN)
+import DMN.XML.XmlToDmnmd (convertAll)
 
 import System.Posix.Terminal (queryTerminal)
 import System.Posix.IO (stdOutput)
@@ -26,9 +28,10 @@ import ParseMarkdown (parseMarkdown)
 main :: IO ()
 main = do
   opts <- parseOptions
+  print opts
   myouthandle <- myOutHandle $ out opts
 
-  mydtables <- parseMarkdown opts -- TODO: Don't hardcode markdown here
+  mydtables <- parseTables opts -- TODO: Don't hardcode markdown here
   mylog opts $ "* imported " ++ show (length mydtables) ++ " tables."
   mylog opts $ "pick = " ++ pick opts
   let pickedTables = if not (null (pick opts)) then filter (\dt -> tableName dt `elem` (trim <$> splitOn "," (pick opts))) mydtables else mydtables
@@ -91,6 +94,25 @@ main = do
     getVarTypes :: [DecisionTable] -> [[Maybe DMNType]]
     getVarTypes dts = nub (((vartype <$>) . getInputHeaders) . header <$> dts)
 
+-- | Abort the program with an error message
+crash :: String -> a
+crash = errorWithoutStackTrace
+
+parseTables :: ArgOptions -> IO [DecisionTable]
+parseTables opts = case informat opts of
+  Md -> parseMarkdown opts
+  Xml -> parseDmnXml opts
+  x -> crash $ "Unsupported input format: " ++ show x
+             ++ ".\nSupported formats are: 'md' and 'xml'"
+
+parseDmnXml :: ArgOptions -> IO [DecisionTable]
+parseDmnXml opts = do
+  fileName <- case input opts of
+    [fn] -> pure fn
+    _ -> crash "Xml currently only supports a single file"
+
+  convertAll <$> parseDMN fileName
+
 -- not quite finished; in future refactor this over to JS.hs
 showToJSON :: DecisionTable -> [[FEELexp]] -> [String]
 showToJSON dtable cols' = if not (null cols') then zipWith showFeels ((getOutputHeaders . header) dtable) cols' else []
@@ -100,7 +122,7 @@ showToJSON dtable cols' = if not (null cols') then zipWith showFeels ((getOutput
 outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
 outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
-outputTo _ filetype _ _     = error $ "outputTo: Unsupported file type: " ++ show filetype 
+outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype 
                                    ++ ".\nSupported output formats are 'ts' and 'js'"
 
 myOutHandle :: FilePath -> IO Handle

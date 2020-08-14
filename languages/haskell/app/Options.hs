@@ -2,7 +2,9 @@
 {-# LANGUAGE NoMonomorphismRestriction, MultiWayIf, OverloadedStrings, DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Options ( parseOptions, ArgOptions(..), FileFormat(..)) where
+module Options 
+--    ( parseOptions, ArgOptions(..), FileFormat(..))
+   where
 
 import System.FilePath
 import Data.Maybe
@@ -66,13 +68,15 @@ parseFileFormat = OA.eitherReader $ \case
     "xml" -> return Xml
     _    -> Left "Accepted file types are 'ts', 'js', 'xml', and 'md'."
 
+testExtThing :: String
+testExtThing = takeExtension "test/simulation.dmn"
 
 fileExtensionMappings :: [(String, FileFormat)]
 fileExtensionMappings =
-  [ ("ts", Ts)
-  , ("js", Js)
-  , ("dmn", Xml)
-  , ("md", Md)
+  [ (".ts", Ts)
+  , (".js", Js)
+  , (".dmn", Xml)
+  , (".md", Md)
   ]
 
 extensionToFileFormat :: String -> Maybe FileFormat
@@ -82,6 +86,8 @@ detectFormat :: [FilePath] -> FileFormat -> FileFormat
 detectFormat files Unknown = fromMaybe Unknown $ detectFormat' files
 detectFormat _ origFormat = origFormat
 
+-- >>> detectFormat' ["test/simulation.dmn"]
+-- Just Xml
 detectFormat' :: [FilePath] -> Maybe FileFormat
 detectFormat' files = do
   let exts = map takeExtension files
