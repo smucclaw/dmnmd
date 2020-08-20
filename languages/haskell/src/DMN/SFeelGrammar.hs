@@ -112,48 +112,44 @@ simpleExpressions = sepBy simpleExpression ","
 -- 5.a [ "<" | "<=" | ">" | ">=" ] , endpoint |
 -- 5.b interval ;
 
+data UTComparison = Lt | Le | Gt | Ge
+
 -- TODO
-type UnaryTest = ()
+data UnaryTest = UnaryTest UTComparison Endpoint | Interval IsOpen Endpoint Endpoint IsOpen
+
 
 simplePositiveUnaryTest :: Parser UnaryTest
 simplePositiveUnaryTest = do
-    op <- ( "<" <|> "<=" <|> ">" <|> ">=" ) 
+    op <-  Lt <$ "<" <|> Le <$ "<=" <|> Gt <$ ">" <|> Ge <$ ">="  
     endpt <- endpoint
-    pure $ () -- UnaryTest op endpt
+    pure $ UnaryTest op endpt
   <|> interval
 
 -- 6 interval = ( open interval start | closed interval start ) 
 --            , endpoint , ".." , endpoint 
 --            , ( open interval end | closed interval end ) ;
 
+data IsOpen = Open | Closed
+    deriving (Eq, Show)
+
 interval :: Parser UnaryTest
 interval = do
-    (openIntervalStart <|> closedIntervalStart)
-    endpoint 
+    leftOpen <- (openIntervalStart <|> closedIntervalStart)
+    leftEndpoint <- endpoint 
     ".."
-    endpoint 
-    (openIntervalEnd <|> closedIntervalEnd)
-    pure ()
-
+    rightEndpoint <- endpoint 
+    rightOpen <- (openIntervalEnd <|> closedIntervalEnd)
+    pure $ Interval leftOpen leftEndpoint rightEndpoint rightOpen
 
 -- 7 open interval start = "(" | "]" ;
-openIntervalStart :: Parser Text
-openIntervalStart = "(" <|> "]"
-
 -- 8 closed interval start = "[" ;
-
-closedIntervalStart :: Parser Text
-closedIntervalStart = "]"
-
 -- 9 open interval end = ")" | "[" ;
-
-openIntervalEnd :: Parser Text
-openIntervalEnd = ")" <|> "["
-
 -- 10 closed interval end = "]" ;
-
-closedIntervalEnd :: Parser Text
-closedIntervalEnd = "]"
+openIntervalStart, closedIntervalStart, openIntervalEnd, closedIntervalEnd :: Parser IsOpen
+openIntervalStart   = Open   <$ ("(" <|> "]")
+closedIntervalStart = Closed <$ "]"
+openIntervalEnd     = Open   <$ (")" <|> "[")
+closedIntervalEnd   = Closed <$ "]"
 
 -- 11 simple positive unary tests = simple positive unary test , { "," , simple positive unary test } ;
 
@@ -172,7 +168,9 @@ simpleUnaryTests = simplePositiveUnaryTests
 
 -- 13 endpoint = simple value ;
 
-endpoint :: Parser SimpleValue
+type Endpoint = SimpleValue
+
+endpoint :: Parser Endpoint
 endpoint = simpleValue
 
 -- 14 simple value = qualified name | simple literal ;
@@ -206,13 +204,14 @@ data ArithmeticExpression expr
 -- 20 exponentiation = expression, "**", expression ;
 
 addition, subtraction, multiplication, division, exponentiation :: Parser (BinOp Expression)
-addition       = wrapExpr Add <$ symbol "+"
-subtraction    = wrapExpr Sub <$ symbol "-"
-multiplication = wrapExpr Mul <$ symbol "*"
-division       = wrapExpr Div <$ symbol "/"
-exponentiation = wrapExpr Exp <$ symbol "**"
+addition       = wrapExpr Add "+"
+subtraction    = wrapExpr Sub "-"
+multiplication = wrapExpr Mul "*"
+division       = wrapExpr Div "/"
+exponentiation = wrapExpr Exp "**"
 
-wrapExpr = (fmap.fmap) Expr 
+wrapExpr :: (a1 -> a2 -> ArithmeticExpression Expression) -> Text -> Parser (a1 -> a2 -> SimpleExpression)
+wrapExpr op str = (Expr .) . op <$ symbol str
 
 -- 21 arithmetic negation = "-" , expression ;
 
@@ -273,6 +272,9 @@ simpleLiteral = numericLiteral <|> StringLiteral <$> stringLiteral <|> booleanLi
 
 -- 29 string literal = """, { character – (""" | vertical space) | string escape sequence}, """ ;
 
+-- Shouldn't it be?
+-- 29 string literal = """, { character – (""" | vertical space | "\") | string escape sequence}, """ ;
+
 stringLiteral :: Parser Text
 stringLiteral =  do
     "\""
@@ -280,8 +282,10 @@ stringLiteral =  do
     "\""
     pure x
 
+-- TODO: This could be faster, by parsing a long sequence at a time
 nonEscapeChar :: Parser Text
-nonEscapeChar = charToText <$> satisfy (\c -> c /= '\"' && not (isVerticalSpace c)) <?> "stringChar" 
+-- nonEscapeChar = charToText <$> satisfy (\c -> c /= '\"' && not (isVerticalSpace c)) <?> "stringChar" 
+nonEscapeChar = charToText <$> noneOf ('"' : '\\' : ['\n' .. '\r'])
 
 charToText :: Char -> Text
 charToText = T.singleton
@@ -334,8 +338,11 @@ comparison = undefined
 -- 36 white space = vertical space | \u0009 | \u0020 | \u0085 | \u00A0 | \u1680 | \u180E | [\u2000-\u200B] | \u2028 | \u2029
 -- | \u202F | \u205F | \u3000 | \uFEFF ;
 
--- whiteSpace = verticalSpace <|> \u0009 | \u0020 | \u0085 | \u00A0 | \u1680 | \u180E | [\u2000-\u200B] | \u2028 | \u2029
---    | \u202F | \u205F | \u3000 | \uFEFF ;
+whiteSpace :: Char -> Bool
+whiteSpace x = isVerticalSpace x || horizontalSpace x
+
+horizontalSpace :: Char -> Bool
+horizontalSpace = inClass "\x0009\x0020\x0085\x00A0\x1680\x180E\x2000-\x200B\x2028\x2029\x202F\x205F\x3000\xFEFF"
 
 -- whitespace = undefined
 

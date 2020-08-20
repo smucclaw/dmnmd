@@ -22,6 +22,8 @@ sfeelSpec = do
       it "parse an escaped carriage return" $ "\\r"     ~> stringEscapeSequence `shouldParse` "\\r"
       it "parse an escaped UNICODE"         $ "\\uAAAA" ~> stringEscapeSequence `shouldParse` "\\uAAAA"
       it "fail to parse a bad hex-string"   $              stringEscapeSequence `shouldFailOn` "\\uaaza"
+      it "fail to parse a bad hex-string"   $              stringLiteral        `shouldFailOn` "\"\\uaaza\""
+      it "fail to parse newline"            $              stringLiteral        `shouldFailOn` "\"\\uaaza\""
       it "parse something containing a couple of escape sequences" $
          "\"foo \\\\ bar \\t baz\""    ~> stringLiteral `shouldParse` "foo \\\\ bar \\t baz"
 --      it "should fail to parse incorrect expressions" $ 
