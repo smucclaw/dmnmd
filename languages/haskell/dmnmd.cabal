@@ -108,6 +108,7 @@ test-suite dmnmd-test
       DmnXmlSpec
       ParseFEELSpec
       ParserSpecHelpers
+      SFeelGrammar
       Paths_dmnmd
   hs-source-dirs:
       test

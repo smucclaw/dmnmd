@@ -22,13 +22,13 @@ import DMN.ParsingUtils
 import DmnXmlSpec (xmlSpec)
 import ParseFEELSpec (feelSpec)
 import ParserSpecHelpers
-
+import SFeelGrammar
 
 -- * Main content
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, sfeelSpec] $ hspec
   return ()
 
 parseHelloWorld :: Parser ()
