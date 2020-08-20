@@ -300,8 +300,8 @@ numericLiteral :: Parser SimpleLiteral
 numericLiteral = NumericLiteral <$> do
     sign <- negate <$ "-" <|> pure id
     (intPart, fracPart) <-
-            (,) <$> some digit <*> option "0" ("," *> some digit)
-        <|> (,) "0" <$> some digit
+            (,) <$> some digit <*> option "0" ("." *> some digit)
+        <|> (,) "0" <$ "." <*> some digit
 
     spaceConsumer
     pure . sign $ read $ intPart ++ "." ++ fracPart

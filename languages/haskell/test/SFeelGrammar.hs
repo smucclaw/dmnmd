@@ -32,11 +32,19 @@ sfeelSpec = do
 
   describe "SFeelGrammar's arithExpr parser should..." $ do
      it "parse a simple addition" $
-        "1+2" ~> arithmeticExpression `shouldParse` Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
-                                                              (SimpleValue . SimpleLiteral $ NumericLiteral 2))
+        "1+2" ~> arithmeticExpression `shouldParse` onePlusTwo
      it "parse a simple addition with spaces" $
-        "1 + 2" ~> arithmeticExpression `shouldParse` Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
-                                                                (SimpleValue . SimpleLiteral $ NumericLiteral 2))
+        "1 + 2" ~> arithmeticExpression `shouldParse` onePlusTwo
      it "parse a simple addition with multiple spaces" $
-        "1  +  2" ~> arithmeticExpression `shouldParse` Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
-                                                                  (SimpleValue . SimpleLiteral $ NumericLiteral 2))
+        "1 \t +  2" ~> arithmeticExpression `shouldParse` onePlusTwo
+     it "parse a simple addition with funky whitespace" $
+        "1\160+\160\&2" ~> arithmeticExpression `shouldParse` onePlusTwo
+
+  describe "SFeelGrammar's number parser should..." $ do
+     it "Allow '.5' as an alias for 0.5" $
+        ".5" ~> numericLiteral `shouldParse` NumericLiteral 0.5
+
+onePlusTwo = Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
+                       (SimpleValue . SimpleLiteral $ NumericLiteral 2))
+
+
