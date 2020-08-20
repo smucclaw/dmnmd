@@ -21,7 +21,6 @@ description:         Decision Model & Notation format conversion and code genera
 
 dependencies:
 - base >= 4.7 && < 5
-- unix
 - haskeline
 - containers
 - split
@@ -42,6 +41,9 @@ dependencies:
 - lens
 - hspec-golden
 - pretty-simple
+# For number parsing
+- scientific
+- parser-combinators
 
 library:
   source-dirs: src
@@ -62,6 +64,7 @@ executables:
     # - -Wall
     dependencies:
     - dmnmd
+    - filepath
 
 tests:
   dmnmd-test:

@@ -46,7 +46,7 @@ xmlSpec = do
 convertedSimulation :: [DT.DecisionTable]
 convertedSimulation =
   [ DTable
-      { tableName = "Unknown", -- TODO: We should have a real value here
+      { tableName = "Beverages",
         hitpolicy = HP_Collect Collect_All,
         header =
           [ DTCH
@@ -73,7 +73,7 @@ convertedSimulation =
               { row_number = Just 1,
                 row_inputs =
                   [ [FNullary (VS "\"Spareribs\"")],
-                    [FNullary (VS "true")]
+                    [FNullary (VB True)]
                   ],
                 row_outputs = [[FNullary (VS "\"Aecht Schlenkerla Rauchbier\"")]],
                 row_comments = [Just "Tough Stuff"]
@@ -82,7 +82,7 @@ convertedSimulation =
               { row_number = Just 2,
                 row_inputs =
                   [ [FNullary (VS "\"Stew\"")],
-                    [FNullary (VS "true")]
+                    [FNullary (VB True)]
                   ],
                 row_outputs = [[FNullary (VS "\"Guiness\"")]],
                 row_comments = [Nothing]
@@ -91,7 +91,7 @@ convertedSimulation =
               { row_number = Just 3,
                 row_inputs =
                   [ [FNullary (VS "\"Roastbeef\"")],
-                    [FNullary (VS "true")]
+                    [FNullary (VB True)]
                   ],
                 row_outputs = [[FNullary (VS "\"Bordeaux\"")]],
                 row_comments = [Nothing]
@@ -103,7 +103,7 @@ convertedSimulation =
                       FNullary (VS "\"Dry Aged Gourmet Steak\""),
                       FNullary (VS "\"Light Salad and a nice Steak\"")
                     ],
-                    [FNullary (VS "true")]
+                    [FNullary (VB True)]
                   ],
                 row_outputs = [[FNullary (VS "\"Pinot Noir\"")]],
                 row_comments = [Nothing]
@@ -112,7 +112,7 @@ convertedSimulation =
               { row_number = Just 5,
                 row_inputs =
                   [ [FAnything],
-                    [FNullary (VS "true")]
+                    [FNullary (VB True)]
                   ],
                 row_outputs = [[FNullary (VS "\"Apple Juice\"")]],
                 row_comments = [Nothing]
@@ -121,7 +121,7 @@ convertedSimulation =
               { row_number = Just 6,
                 row_inputs =
                   [ [FAnything],
-                    [FNullary (VS "false")]
+                    [FNullary (VB False)]
                   ],
                 row_outputs = [[FNullary (VS "\"Water\"")]],
                 row_comments = [Nothing]
@@ -129,7 +129,7 @@ convertedSimulation =
           ]
       },
     DTable
-      { tableName = "Unknown",
+      { tableName = "Dish",
         hitpolicy = HP_Unique,
         header =
           [ DTCH
@@ -160,7 +160,7 @@ convertedSimulation =
                       FNullary (VS "\"Spring\""),
                       FNullary (VS "\"Summer\")")
                     ],
-                    [FNullary (VS ">= 0")]
+                    [FSection Fgte (VN 0.0)]
                   ],
                 row_outputs = [[FNullary (VS "\"Instant Soup\"")]],
                 row_comments = [Just "Default value"]
@@ -169,7 +169,7 @@ convertedSimulation =
               { row_number = Just 2,
                 row_inputs =
                   [ [FNullary (VS "\"Fall\"")],
-                    [FNullary (VS "<= 8")]
+                    [FSection Flte (VN 8.0)]
                   ],
                 row_outputs = [[FNullary (VS "\"Spareribs\"")]],
                 row_comments = [Nothing]
@@ -178,7 +178,7 @@ convertedSimulation =
               { row_number = Just 3,
                 row_inputs =
                   [ [FNullary (VS "\"Winter\"")],
-                    [FNullary (VS "<= 8")]
+                    [FSection Flte (VN 8.0)]
                   ],
                 row_outputs = [[FNullary (VS "\"Roastbeef\"")]],
                 row_comments = [Nothing]
@@ -187,7 +187,7 @@ convertedSimulation =
               { row_number = Just 4,
                 row_inputs =
                   [ [FNullary (VS "\"Spring\"")],
-                    [FNullary (VS "<= 4")]
+                    [FSection Flte (VN 4.0)]
                   ],
                 row_outputs = [[FNullary (VS "\"Dry Aged Gourmet Steak\"")]],
                 row_comments = [Nothing]
@@ -196,7 +196,7 @@ convertedSimulation =
               { row_number = Just 5,
                 row_inputs =
                   [ [FNullary (VS "\"Spring\"")],
-                    [FNullary (VS "[5..8]")]
+                    [FInRange 5.0 8.0]
                   ],
                 row_outputs = [[FNullary (VS "\"Steak\"")]],
                 row_comments = [Just "Save money"]
@@ -208,7 +208,7 @@ convertedSimulation =
                       FNullary (VS "\"Winter\""),
                       FNullary (VS "\"Spring\"")
                     ],
-                    [FNullary (VS "> 8")]
+                    [FSection Fgt (VN 8.0)]
                   ],
                 row_outputs = [[FNullary (VS "\"Stew\"")]],
                 row_comments = [Just "Less effort"]

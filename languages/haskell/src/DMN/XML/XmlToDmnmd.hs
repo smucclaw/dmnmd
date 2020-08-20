@@ -24,35 +24,42 @@ convertIt d = do
 
 convdec :: X.Decision -> [T.DecisionTable]
 convdec dec = do
+    let decisionName = dmnnName $ decLabel dec
     tabl <- maybeToList $ X.decDTable dec
-    pure $ convTable tabl
+    pure $ convTable decisionName tabl
 
-convTable :: X.DecisionTable -> T.DecisionTable
+convTable :: String -> X.DecisionTable -> T.DecisionTable
 -- convTable = undefined
-convTable (X.DecisionTable
+convTable name (X.DecisionTable
   { X.dtLabel,
     X.dtHitPolicy ,
     X.dtInput ,
     X.dtOutput ,
     X.dtRules
-  }) =
-     T.DTable { T.tableName = maybe "Unknown" id $ X.dmnName dtLabel -- TODO: We can do better than this!
-                             , T.hitpolicy = dtHitPolicy
-                             , T.header    = convHeader dtInput dtOutput
-                             , T.allrows   = zipWith convRule [1..] dtRules
-                             }
+  }) = T.DTable 
+    { T.tableName = name
+    , T.hitpolicy = dtHitPolicy
+    , T.header    = inputHeaders ++ outputHeaders
+    , T.allrows   = zipWith (convRule inputTypes outputTypes) [1..] dtRules
+    }
+    where
+        inputHeaders = map convInputHeader dtInput
+        outputHeaders = map convOutputHeader dtOutput
+        inputTypes = map T.vartype inputHeaders
+        outputTypes = map T.vartype outputHeaders
 
-data InOrOut = TIn X.TableInput | TOut X.TableOutput
 
-inAndOut :: [X.TableInput] -> [X.TableOutput] -> [InOrOut]
-inAndOut ins outs = map TIn ins ++ map TOut outs
+-- data InOrOut = TIn X.TableInput | TOut X.TableOutput
 
-convHeader :: [X.TableInput] -> [X.TableOutput] -> [T.ColHeader]
--- convHeader ins outs = error $ "convHeader:\nIns: " ++ show ins ++ "\nouts: " ++ show outs
-convHeader ins outs = map convHeader' $ inAndOut ins outs
+-- inAndOut :: [X.TableInput] -> [X.TableOutput] -> [InOrOut]
+-- inAndOut ins outs = map TIn ins ++ map TOut outs
 
-convHeader' :: InOrOut -> T.ColHeader
-convHeader' (TIn (tin@TableInput { tinpName , tinpLabel , tinpExpr })) 
+-- convHeader :: [X.TableInput] -> [X.TableOutput] -> [T.ColHeader]
+-- -- convHeader ins outs = error $ "convHeader:\nIns: " ++ show ins ++ "\nouts: " ++ show outs
+-- convHeader ins outs = map convHeader' $ inAndOut ins outs
+
+convInputHeader :: TableInput -> T.ColHeader
+convInputHeader (tin@TableInput { tinpName , tinpLabel , tinpExpr }) 
     -- = error $ show tin
     = T.DTCH 
         { T.label   = T.DTCH_In
@@ -60,15 +67,16 @@ convHeader' (TIn (tin@TableInput { tinpName , tinpLabel , tinpExpr }))
         , T.vartype = Just $ convertType $ inputExprTypeRef tinpExpr
         , T.enums   = Nothing -- TODO: This is definitely wrong
         }
-convHeader' (TOut ( tout@TableOutput { toutName , toutLabel , toutTypeRef }))
-    -- = error $ show tout
+    -- = error "not implemented"
+
+convOutputHeader :: TableOutput -> T.ColHeader
+convOutputHeader ( tout@TableOutput { toutName , toutLabel , toutTypeRef })
     = T.DTCH 
         { T.label   = T.DTCH_Out
         , T.varname = columnLabel $ toutLabel -- TODO: Is this what we want?
         , T.vartype = Just $ convertType $ toutTypeRef
         , T.enums   = Nothing
         }
-    -- = error "not implemented"
 
 convertType :: TypeRef -> T.DMNType
 convertType (TypeRef "string") = T.DMN_String
@@ -97,8 +105,8 @@ thing =
           }
     }
 
-convRule :: Int -> Rule -> T.DTrow
-convRule rowNumber ( Rule
+convRule :: [Maybe T.DMNType] -> [Maybe T.DMNType] -> Int -> Rule -> T.DTrow
+convRule intypes outtypes rowNumber ( Rule
     { ruleLabel
     , ruleDescription
     , ruleInputEntry
@@ -106,20 +114,18 @@ convRule rowNumber ( Rule
     })
     = T.DTrow
         { T.row_number   = Just rowNumber
-        , T.row_inputs   = convInputEntry <$> ruleInputEntry
-        , T.row_outputs  = fmap convOutputEntry ruleOutputEntry
+        , T.row_inputs   = zipWith convInputEntry intypes ruleInputEntry
+        , T.row_outputs  = zipWith convOutputEntry outtypes ruleOutputEntry
         , T.row_comments = pure $ fmap description ruleDescription -- TODO: This may be bogus
         }
 
-convInputEntry :: InputEntry -> [T.FEELexp]
-convInputEntry ( InputEntry { ieLabel , ieText = TextElement str }) 
-    -- = error $ show ie
-    = mkFs Nothing str -- TODO: First arg shouldn't be Nothing
+convInputEntry :: Maybe T.DMNType -> InputEntry -> [T.FEELexp]
+convInputEntry intype (InputEntry { ieLabel , ieText = TextElement str }) 
+    = mkFs intype str
 
-convOutputEntry :: OutputEntry -> [T.FEELexp]
-convOutputEntry ( OutputEntry { outputEntryLabel , outputEntryText = TextElement str }) 
-    = mkFs Nothing str -- TODO: First arg shouldn't be Nothing
--- convOutputEntry = error . show
+convOutputEntry :: Maybe T.DMNType -> OutputEntry -> [T.FEELexp]
+convOutputEntry outtype (OutputEntry { outputEntryLabel , outputEntryText = TextElement str }) 
+    = mkFs outtype str
 
 oeExample :: OutputEntry
 oeExample =

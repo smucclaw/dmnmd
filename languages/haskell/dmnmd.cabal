@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 756a4a0addc59e5d14a3e51e2ec80492f8c0d5daca6d601475901dab025c8cb6
 
 name:           dmnmd
 version:        0.1.0.1
@@ -32,6 +30,7 @@ library
       DMN.ParseFEEL
       DMN.ParseTable
       DMN.ParsingUtils
+      DMN.SFeelGrammar
       DMN.Translate.JS
       DMN.Types
       DMN.XML.ParseDMN
@@ -57,27 +56,31 @@ library
     , lens
     , megaparsec
     , optparse-applicative
+    , parser-combinators
     , pretty-simple
     , raw-strings-qq
     , regex-pcre
+    , scientific
     , split
     , text
-    , unix
   default-language: Haskell2010
 
 executable dmnmd
   main-is: Main.hs
   other-modules:
+      Options
+      ParseMarkdown
       Paths_dmnmd
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       MissingH
     , attoparsec
     , base >=4.7 && <5
     , containers
     , dmnmd
+    , filepath
     , haskeline
     , hspec
     , hspec-attoparsec
@@ -87,12 +90,13 @@ executable dmnmd
     , lens
     , megaparsec
     , optparse-applicative
+    , parser-combinators
     , pretty-simple
     , raw-strings-qq
     , regex-pcre
+    , scientific
     , split
     , text
-    , unix
   default-language: Haskell2010
 
 test-suite dmnmd-test
@@ -102,10 +106,11 @@ test-suite dmnmd-test
       DmnXmlSpec
       ParseFEELSpec
       ParserSpecHelpers
+      SFeelGrammar
       Paths_dmnmd
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       MissingH
     , attoparsec
@@ -121,10 +126,11 @@ test-suite dmnmd-test
     , lens
     , megaparsec
     , optparse-applicative
+    , parser-combinators
     , pretty-simple
     , raw-strings-qq
     , regex-pcre
+    , scientific
     , split
     , text
-    , unix
   default-language: Haskell2010
