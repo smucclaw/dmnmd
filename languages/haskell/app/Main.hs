@@ -24,8 +24,6 @@ import DMN.ParsingUtils
 import qualified Data.Text as T
 import qualified Options.Applicative as OA
 import Options.Applicative (long, short, help, helper, fullDesc, progDesc, strOption, switch, value, info, metavar, str, argument)
-import System.Posix.Terminal (queryTerminal)
-import System.Posix.IO (stdOutput)
 
 -- let's do getopt properly
 
@@ -81,11 +79,9 @@ main = do
     -- which tables shall we run eval against? maybe the user gave a --pick. Maybe they didn't. if they didn't, run against all tables.
     -- if the tables have different input types, die. because our plan is to run the same input against all the different tables.
 
-  istty <- queryTerminal stdOutput
   if | not $ query opts              -> mapM_ (outputTo myouthandle (outformat opts) opts) pickedTables
      | differentlyTyped pickedTables -> fail $ "tables " ++ show (tableName <$> pickedTables) ++ " have different types; can't query. use --pick to choose one"
-     | query opts && istty           -> runInputT defaultSettings (loop opts pickedTables)
-     | query opts && not istty       -> mylog opts "expecting eval term input on STDIN."
+     | query opts                    -> runInputT defaultSettings (loop opts pickedTables)
   hClose myouthandle
 
   where
