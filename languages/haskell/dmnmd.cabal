@@ -30,6 +30,7 @@ library
       DMN.ParseFEEL
       DMN.ParseTable
       DMN.ParsingUtils
+      DMN.SFeelGrammar
       DMN.Translate.JS
       DMN.Types
       DMN.XML.ParseDMN
@@ -55,9 +56,11 @@ library
     , lens
     , megaparsec
     , optparse-applicative
+    , parser-combinators
     , pretty-simple
     , raw-strings-qq
     , regex-pcre
+    , scientific
     , split
     , text
     , unix
@@ -88,9 +91,11 @@ executable dmnmd
     , lens
     , megaparsec
     , optparse-applicative
+    , parser-combinators
     , pretty-simple
     , raw-strings-qq
     , regex-pcre
+    , scientific
     , split
     , text
     , unix
@@ -122,9 +127,11 @@ test-suite dmnmd-test
     , lens
     , megaparsec
     , optparse-applicative
+    , parser-combinators
     , pretty-simple
     , raw-strings-qq
     , regex-pcre
+    , scientific
     , split
     , text
     , unix
