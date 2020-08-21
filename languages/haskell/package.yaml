@@ -21,6 +21,7 @@ description:         Decision Model & Notation format conversion and code genera
 
 dependencies:
 - base >= 4.7 && < 5
+- unix
 - haskeline
 - containers
 - split

@@ -63,6 +63,7 @@ library
     , scientific
     , split
     , text
+    , unix
   default-language: Haskell2010
 
 executable dmnmd
@@ -97,6 +98,7 @@ executable dmnmd
     , scientific
     , split
     , text
+    , unix
   default-language: Haskell2010
 
 test-suite dmnmd-test
@@ -133,4 +135,5 @@ test-suite dmnmd-test
     , scientific
     , split
     , text
+    , unix
   default-language: Haskell2010
