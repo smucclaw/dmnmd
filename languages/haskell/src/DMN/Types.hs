@@ -25,10 +25,27 @@ data CollectOperator = Collect_Sum -- +
                      | Collect_All --
                deriving (Show, Eq)
 
+-- INSIGHT
+-- input columns always evaluate to a boolean somehow
+--   usually this is something like ">= 21"
+--   but it could be be something like "age.isAdult" which has a boolean value
+-- output columns can evaluate to any value type, typically "lentil soup" but sometimes a function [2..10]
 
+-- proposal1 add a new type DMN_Enum
+--         2 add a new type DMN_FEEL, which can be one of
+                                      -- a feel expression like       age * 2
+                                      -- a double quoted string like  "potato"
+                                      -- a feel expression like       2
+-- by default if the user doesn't explicitly type the column in the header,
+     -- then the type is string
+     -- but if they type it as   :FEEL    then it becomes a DMN_FEEL
+     -- and then literal strings need to be double-quoted
+     -- and any unquoted strings are interpreted as feel expressions
+     -- and substrings like   Number Of Guests   get interpreted as variables.
+     -- so you can do      Number Of Guests * Cost Per Head + 100
 -- DMN's types are slightly different from ours
-data DMNType = DMN_String
-             | DMN_Number
+data DMNType = DMN_String         -- no need to double quote; we use this for enums too.
+             | DMN_Number         -- a numeric type or a numeric comparison section
              | DMN_Boolean
              | DMN_List DMNType
              deriving (Show, Eq)
@@ -39,16 +56,17 @@ baseType (Just x) = Just x
 
 type DTvar = String
 
-data FBinOp = Flt | Flte
-            | Fgt | Fgte
-            | Feq
+-- binary operators returning bool
+data FBinOp = Flt | Flte               -- binary operators < <=
+            | Fgt | Fgte               -- binary operators > >=
+            | Feq                      -- binary operator  ==
              deriving (Show, Eq)
 
-data FEELexp = FSection FBinOp DMNVal
-             | FInRange Float Float
-             | FAnything
-             | FNullary DMNVal
-             | FFunction FNumFunction
+data FEELexp = FSection FBinOp DMNVal  --    > 2               FSection Fgt (VN Float)
+             | FInRange Float Float    --    [2..4]            FInRange 2.0 4.0
+             | FAnything               --    -                 FAnything
+             | FNullary DMNVal         --    plain string      FNullary (VS "plain string")
+             | FFunction FNumFunction  --    FEEL expression   age * 2
              deriving (Show, Eq)
 type SymbolTable = Map.Map String FEELexp
 
@@ -104,11 +122,20 @@ data ColBody = DTCBFeels [FEELexp] -- inputs and outputs are both FEELexps. list
              | DTComment (Maybe CommentString)
                  deriving (Show, Eq)
 
-data FNumFunction = FNF0 DMNVal
-                  | FNF1 String
-                  | FNF3 FNumFunction FNOp2 FNumFunction
+
+-- in a decision table, a cell might contain something like
+-- age      which becomes FFunction (       FNF1 "age"                            )
+-- age * 2  which becomes FFunction ( FNF3 (FNF1 "age")    FNMul (FNF0 (FN 2.0))  )
+-- 2 * 4    which becomes FFunction ( FNF3 (FNF0 (FN 2.0)) FNMul (FNF0 (FN 4.0))  )
+-- < 2      which becomes FSection FBinOp DMNVal
+-- 2        which becomes FNullary (FN 2.0)
+
+data FNumFunction = FNF0 DMNVal  -- terminal value
+                  | FNF1 String  -- variable name
+                  | FNF3 FNumFunction FNOp2 FNumFunction -- binary operator function
              deriving (Show, Eq)
 
+-- binary operators returning num
 data FNOp2 = FNMul
            | FNDiv
            | FNPlus
