@@ -138,6 +138,10 @@ mkF _ "-" = FAnything
 mkF t@(Just (DMN_List _)) x  = mkF (baseType t) x
 mkF Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type inference should have found some type for this column. coercing to string: " ++ arg1)
   FNullary (VS (trim arg1))
+
+-- strings are tricky because they could be FEEL expression variable names like "Dish Name"
+-- or just literal strings like "Lentil Soup"
+
 mkF (Just DMN_String)  arg1 = FNullary (VS (trim arg1))
 mkF (Just DMN_Boolean) arg1 = FNullary (mkVB arg1)
   where
