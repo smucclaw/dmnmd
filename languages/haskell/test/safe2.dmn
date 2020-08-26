@@ -54,7 +54,7 @@
           <text></text>
         </inputExpression>
       </input>
-      <input id="InputClause_0nacx99">
+      <input id="InputClause_0nacx99" label="Why is this nonsense?">
         <inputExpression id="LiteralExpression_09m1ux4" typeRef="string">
           <text></text>
         </inputExpression>

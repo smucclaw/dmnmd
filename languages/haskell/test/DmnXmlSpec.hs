@@ -24,7 +24,7 @@ xmlSpec = do
       output <- parseDMN "test/simple.dmn"
       output
         `shouldBe` [ Definitions
-                       { defLabel = dmnNamed "dinnerDecisions" "Dinner Decisions",
+                       { defLabel = dmnLabeled "dinnerDecisions" "Dinner Decisions",
                          defsNamespace = Namespace { namespace = "http://camunda.org/schema/1.0/dmn" },
                          defsDescisions = [],
                          defInputData = [],
@@ -230,7 +230,7 @@ convertedSimulation =
 simulationDmn :: [Definitions]
 simulationDmn =
   [ Definitions
-    { defLabel = dmnNamed "dinnerDecisions" "Dinner Decisions"
+    { defLabel = dmnLabeled "dinnerDecisions" "Dinner Decisions"
     , defsNamespace = Namespace { namespace = "http://camunda.org/schema/1.0/dmn" }
     , defsDescisions =
         [ Decision
@@ -273,7 +273,7 @@ simulationDmn =
                         ]
                     , dtOutput =
                         [ TableOutput
-                            { toutName = dmnNamed "OuputClause_99999" "beverages"
+                            { toutName = dmnLabeled "OuputClause_99999" "beverages"
                             , toutLabel = ColumnLabel { columnLabel = "Beverages" }
                             , toutTypeRef = TypeRef { typeRef = "string" }
                             }
@@ -443,7 +443,7 @@ simulationDmn =
                         ]
                     , dtOutput =
                         [ TableOutput
-                            { toutName = dmnNamed "OutputClause_0lfar1z" "desiredDish"
+                            { toutName = dmnLabeled "OutputClause_0lfar1z" "desiredDish"
                             , toutLabel = ColumnLabel { columnLabel = "Dish" }
                             , toutTypeRef = TypeRef { typeRef = "string" }
                             }

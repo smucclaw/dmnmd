@@ -82,9 +82,10 @@ instance Show DmnNamed where
   show (DmnNamed (Just a) b ) = "dmnNamed' " ++ show a ++ " " ++ show b
   show (DmnNamed Nothing b) = "DmnNamed Nothing " ++ show b
 
+-- Corresponds to tDMNElement
 data DmnCommon = DmnCommon
   { dmnId :: Maybe String
-  , dmnName :: Maybe String
+  , dmnLabel :: Maybe String
   -- The spec says that description should be here, but it's only relevant for rules, so I place it there instead
   -- , dmnDescription :: Maybe String
   }
@@ -95,15 +96,19 @@ makePrisms ''DmnCommon
 instance Show DmnCommon where
   show (DmnCommon Nothing  Nothing  ) = "unnamed"
   show (DmnCommon (Just a) Nothing  ) = "dmnWithId " ++ show a
-  show (DmnCommon (Just a) (Just b) ) = "dmnNamed " ++ show a ++ " " ++ show b
+  show (DmnCommon (Just a) (Just b) ) = "dmnLabeled" ++ show a ++ " " ++ show b
   show (DmnCommon a b) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ")"
   -- show (DmnCommon Nothing  Nothing  Nothing) = "unnamed"
   -- show (DmnCommon (Just a) Nothing  Nothing) = "dmnWithId " ++ show a
   -- show (DmnCommon (Just a) (Just b) Nothing) = "dmnNamed " ++ show a ++ " " ++ show b
   -- show (DmnCommon a b c) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ") (" ++ show c ++ ")"
 
+{-# DEPRECATED dmnNamed "use dmnLabeled instead" #-}
 dmnNamed :: String -> String -> DmnCommon
-dmnNamed eid name = (dmnWithId eid) {dmnName = Just name }
+dmnNamed = dmnLabeled
+
+dmnLabeled :: String -> String -> DmnCommon
+dmnLabeled eid name = (dmnWithId eid) {dmnLabel = Just name }
 
 dmnWithId :: String -> DmnCommon
 dmnWithId eid = unnamed {dmnId = (Just eid)}
@@ -117,7 +122,7 @@ instance XmlPickler DmnCommon where
     wrapIso _DmnCommon $
       xpPair
         (xpOption $ xpAttr "id" xpText)
-        (xpOption $ xpAttr "name" xpText)
+        (xpOption $ xpAttr "nameDummy" xpText) -- NB: This should be "label" and not "name"
         -- (xpOption $ xpElemNS xmlns_dmn "" "description" xpText)
 
 data DMNDI = DMNDI
@@ -319,9 +324,10 @@ instance XmlPickler TableInput where
       . xpFilterAttr (none `when` hasName "camunda:inputVariable")
       $ xpickle
 
+-- tOutputClause in schema
 data TableOutput = TableOutput
   { toutName :: DmnCommon
-  , toutLabel :: ColumnLabel
+  , toutLabel :: ColumnLabel -- Note: This is optional according to the schema, but that doesn't make much sense
   , toutTypeRef :: TypeRef
   }
   deriving (Show, Eq)
@@ -479,7 +485,7 @@ type XDMN = Definitions
 ex3 :: XDMN
 ex3 =
   Definitions
-    { defLabel = dmnNamed "hi" "there",
+    { defLabel = dmnLabeled "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
       defsDescisions = [
         Decision (dmnNamed' "a" "b") [
@@ -499,6 +505,7 @@ dmnPickler =
     -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
     -- . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
     . xpFilterCont (none `when` hasName "dmndi") -- We're not interested in diagrams
+    . xpFilterAttr (none `when` (hasName "exporter" <+> hasName "exporterVersion") ) -- Used by Camunda Modeler
     $ xpickle
 
 -- $> :m + Text.Pretty.Simple

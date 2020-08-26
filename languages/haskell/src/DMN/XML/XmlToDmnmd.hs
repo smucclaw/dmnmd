@@ -87,7 +87,7 @@ convertType (TypeRef tname) = error $ "Unknown type: " ++ show tname
 outThing :: TableOutput
 outThing =
   TableOutput
-    { toutName = dmnNamed "OuputClause_99999" "beverages",
+    { toutName = dmnLabeled "OuputClause_99999" "beverages",
       toutLabel = ColumnLabel {columnLabel = "Beverages"},
       toutTypeRef = TypeRef {typeRef = "string"}
     }
