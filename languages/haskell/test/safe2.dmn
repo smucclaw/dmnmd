@@ -1,0 +1,1368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/" id="Definitions_1k2galy" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="4.0.0">
+  <decision id="Decision_1jytt3u" name="Results of Termination">
+    <informationRequirement id="InformationRequirement_1q9lkke">
+      <requiredDecision href="#Decision_0r3rq3w" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_01gnwkt">
+      <requiredInput href="#InputData_1xe6rah" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0663eio">
+      <requiredDecision href="#Decision_0oeu7qv" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1npwh5h">
+      <requiredInput href="#InputData_0cpx875" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_01nn3xd">
+      <requiredDecision href="#Decision_14ugn04" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0zqih5u">
+      <requiredDecision href="#Decision_07xxvea" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_02uxb0k">
+      <requiredDecision href="#Decision_0ajxpre" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1eao8p6">
+      <requiredDecision href="#Decision_1yjxewa" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0tkinee">
+      <requiredInput href="#InputData_112i44n" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_0ohkbm7">
+      <input id="Input_1" label="there is an equity financing before the termination of this SAFE?">
+        <inputExpression id="InputExpression_1" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0lu3utq" label="there is a liquidity event before the termination of this SAFE?">
+        <inputExpression id="LiteralExpression_16vtvu4" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0edicli" label="security holders given choice of form and amount?">
+        <inputExpression id="LiteralExpression_0r75f0d" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0fq4d33" label="change of control intended to qualify as tax-free?">
+        <inputExpression id="LiteralExpression_0f6dec4" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_1btru40" label="there is a dissolution event prior to the termination of this SAFE?">
+        <inputExpression id="LiteralExpression_1ocers4" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0nacx99">
+        <inputExpression id="LiteralExpression_09m1ux4" typeRef="string">
+          <text></text>
+        </inputExpression>
+      </input>
+      <output id="Output_1" label="safe preferred stock due" typeRef="integer" />
+      <output id="OutputClause_15yfp1l" label="investor provides documents" typeRef="boolean" />
+      <output id="OutputClause_0vaz3v2" label="cash amount due" typeRef="integer" />
+      <output id="OutputClause_1thevh1" label="investor gets choice of form and amount" typeRef="boolean" />
+      <output id="OutputClause_12gv9j4" label="Board May Reduce Cash portion of proceeds payable" typeRef="boolean" />
+      <output id="OutputClause_0cl3nbj" label="safe operates like standard non-participating preferred stock" typeRef="boolean" />
+      <output id="OutputClause_0smtj0u" label="SAFE terminates on" typeRef="string" />
+      <rule id="DecisionRule_0a29zmg">
+        <inputEntry id="UnaryTests_1o7rbyd">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1nh58ni">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1gim9fg">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0ym2d4k">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0koydec">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1va1ah0">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0rcphq1">
+          <text>purchase amount / conversion price</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0wrovqd">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1hey3q9">
+          <text>0</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0py9anv">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1qh2cqb">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0i4nfot">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0w046d7">
+          <text>issuance of Capital Stock</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0e63fgb">
+        <inputEntry id="UnaryTests_05g8gjj">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1xec4n6">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1lx0kjq">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1v8pzw6">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_01lpkfh">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_082wkig">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0va34wh">
+          <text>0</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1j2whys">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0c2d2gd">
+          <text>=max(cash out amount,conversion amount)</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0xmlmhq">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1jp3tyh">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0c3hw8u">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1rj10hm">
+          <text>payment or setting aside for payment of amounts due</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0ghuynk">
+        <inputEntry id="UnaryTests_0sdhpij">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_04wf5fm">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_16sy55p">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0xvk467">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1llsdcj">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1lbtfcr">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1qwjrw6">
+          <text>0</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1i1m2lz">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1l9vnwu">
+          <text>=max(cash out amount,conversion amount)</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0pss786">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1p4tvi6">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0j78po4">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_08g1yo0">
+          <text>payment or setting aside for payment of amounts due</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_05wp6mw">
+        <inputEntry id="UnaryTests_0n4prkm">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1i17itq">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0skrktt">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0em8w8l">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0knj6j3">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0gz3g1s">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0mnna0g">
+          <text>0</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0lthl70">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1d5rg92">
+          <text>=max(cash out amount,conversion amount)</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1jfw6bi">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0vq216q">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_12zttn8">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_085nb8x">
+          <text>payment or setting aside for payment of amounts due</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0rholkg">
+        <inputEntry id="UnaryTests_14bg8c8">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0o3hobl">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1sg0eze">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0kyfhhf">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0v343fj">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1qd1p4m">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0vchsap">
+          <text>0</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1lgix92">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0b7s6c8">
+          <text>=max(cash out amount,conversion amount)</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_04r9fpd">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0967qzg">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0i0k250">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1j48ay5">
+          <text>payment or setting aside for payment of amounts due</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_17ix8j7">
+        <inputEntry id="UnaryTests_003tmt1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0ra6c3o">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0j10z8x">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0izhnmc">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1cdtwx7">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1l3bff2">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_11nhucm">
+          <text>0</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_12w0csq">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_165p0vt">
+          <text>=cash out amount</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1t6k4qp">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0wq6swq">
+          <text>No</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_19g48ki">
+          <text>Yes</text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_005i2na">
+          <text>payment or setting aside for payment of amounts due</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1opdhup">
+        <inputEntry id="UnaryTests_0x2241k">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0m9lxbp">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1a2c5rk">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_15tlkqi">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0xbp8gd">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0pumix9">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1te1kse">
+          <text></text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0f278y7">
+          <text></text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0qsyi8w">
+          <text></text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_001vbn1">
+          <text></text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_1gfczd8">
+          <text></text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0f7jga1">
+          <text></text>
+        </outputEntry>
+        <outputEntry id="LiteralExpression_0vx46la">
+          <text></text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <inputData id="InputData_1xe6rah" name="security holders given choice of form and amount" />
+  <inputData id="InputData_0cpx875" name="change of control intended to qualify as tax-free?" />
+  <inputData id="InputData_1r1rtns" name="SAFE is terminated?" />
+  <inputData id="InputData_1agqo1r" name="date of SAFE termination" />
+  <decision id="Decision_1yjxewa" name="conversion price">
+    <variable id="InformationItem_14ex991" name="conversion price" typeRef="long" />
+    <informationRequirement id="InformationRequirement_0por1b0">
+      <requiredDecision href="#Decision_1p7zvmi" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0w21pam">
+      <requiredDecision href="#Decision_01xn4i6" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_0xemoml" expressionLanguage="python">
+      <text>min(safe price, discount price)</text>
+    </literalExpression>
+  </decision>
+  <inputData id="InputData_0ndp1cp" name="post-money valuation cap" />
+  <inputData id="InputData_0nmzffo" name="company capitalization" />
+  <decision id="Decision_1p7zvmi" name="safe price">
+    <variable id="InformationItem_1mjp1b5" name="safe price" typeRef="double" />
+    <informationRequirement id="InformationRequirement_0kb93w6">
+      <requiredInput href="#InputData_0ndp1cp" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0f3mckm">
+      <requiredInput href="#InputData_0nmzffo" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_1c4tm7l" expressionLanguage="python">
+      <text>post money valuation cap / company capitalization</text>
+    </literalExpression>
+  </decision>
+  <inputData id="InputData_075oufr" name="preferred share price" />
+  <inputData id="InputData_1s90zbw" name="discount rate" />
+  <decision id="Decision_01xn4i6" name="discount price">
+    <variable id="InformationItem_1vpylz4" name="discount price" typeRef="double" />
+    <informationRequirement id="InformationRequirement_049420j">
+      <requiredInput href="#InputData_075oufr" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_055b3h1">
+      <requiredInput href="#InputData_1s90zbw" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_1yr0bo5" expressionLanguage="python">
+      <text>preferred share price * discount rate</text>
+    </literalExpression>
+  </decision>
+  <inputData id="InputData_112i44n" name="purchase amount" />
+  <decision id="Decision_0ajxpre" name="cash out amount">
+    <variable id="InformationItem_037pe9t" name="cash out amount" typeRef="double" />
+    <informationRequirement id="InformationRequirement_0kibz4n">
+      <requiredInput href="#InputData_112i44n" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_0w5lx09" expressionLanguage="python">
+      <text>purchase amount</text>
+    </literalExpression>
+  </decision>
+  <decision id="Decision_07xxvea" name="conversion amount">
+    <variable id="InformationItem_07im86b" name="converstion amount" typeRef="double" />
+    <informationRequirement id="InformationRequirement_02cpcy8">
+      <requiredInput href="#InputData_112i44n" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_19reyss">
+      <requiredDecision href="#Decision_1cg5svv" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_034s0ik" expressionLanguage="python">
+      <text>purchase amount / liquidity price</text>
+    </literalExpression>
+  </decision>
+  <decision id="Decision_1cg5svv" name="liquidity price">
+    <variable id="InformationItem_10cfbzg" name="liquidity price" typeRef="double" />
+    <informationRequirement id="InformationRequirement_0lou3iq">
+      <requiredInput href="#InputData_0ndp1cp" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0t63es7">
+      <requiredDecision href="#Decision_00oavtq" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_0uvrub8" expressionLanguage="python">
+      <text>post money valuation cap / liquidity capitalization</text>
+    </literalExpression>
+  </decision>
+  <decision id="Decision_00oavtq" name="liquidity capitalization">
+    <variable id="InformationItem_0upalqy" name="liquidity capitalization" typeRef="double" />
+    <informationRequirement id="InformationRequirement_1f4mjpa">
+      <requiredInput href="#InputData_0hc878h" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_06ukqjj">
+      <requiredInput href="#InputData_1xbk1jl" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1cnymj7">
+      <requiredInput href="#InputData_0vqz3uq" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1pat6cf">
+      <requiredInput href="#InputData_0nxd0gj" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0fj86ag">
+      <requiredInput href="#InputData_18ejrwm" />
+    </informationRequirement>
+    <literalExpression id="LiteralExpression_1k6oeig" expressionLanguage="python">
+      <text>capital stock issued and outstanding + \
+issued and outstanding options + \
+promised options receiving proceeds + \
+converting securities other than SAFEs and other convertible securities receiving similar "as converted" payments
+</text>
+    </literalExpression>
+  </decision>
+  <inputData id="InputData_0hc878h" name="shares of Capital Stock issued and Outstanding" />
+  <inputData id="InputData_1xbk1jl" name="issued and outstanding options" />
+  <inputData id="InputData_0vqz3uq" name="promised options receiving proceeds" />
+  <inputData id="InputData_0nxd0gj" name="converting securites other than SAFEs receiving as-converted payments" />
+  <inputData id="InputData_18ejrwm" name="unissued option pool" />
+  <inputData id="InputData_1srgff3" name="date of event" />
+  <decision id="Decision_1ou6uou" name="type of event">
+    <informationRequirement id="InformationRequirement_0o1m9oe">
+      <requiredDecision href="#Decision_1qhfv8r" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1eorlmk">
+      <requiredDecision href="#Decision_1e44uyf" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1qpourf">
+      <requiredInput href="#InputData_1lu41ar" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_03nzokd">
+      <input id="InputClause_04s4l4q" label="is liquidity event">
+        <inputExpression id="LiteralExpression_1qu53lg" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0vfw4da" label="is dissolution event">
+        <inputExpression id="LiteralExpression_0nhzfyh" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_066oka5" label="bona fide transactions">
+        <inputExpression id="LiteralExpression_0ukz34z" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_1suflm7" label="type of event" typeRef="string" />
+      <rule id="DecisionRule_0uk971x">
+        <inputEntry id="UnaryTests_07z4e1x">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1gfa770">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_04ydkay">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1tk0tfx">
+          <text>liquidity event</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0ihsph1">
+        <inputEntry id="UnaryTests_0y620hs">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0dbgv2a">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1myctwy">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1fg77pj">
+          <text>dissolution event</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0su7r1r">
+        <inputEntry id="UnaryTests_171g3oq">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0padwz5">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_10bk0oq">
+          <text>Yes</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_051yujf">
+          <text>equity financing</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_09c3o47">
+        <inputEntry id="UnaryTests_15znjtn">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1pyoswp">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0x52g1q">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0ncupp6">
+          <text>none</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <inputData id="InputData_19476yt" name="change of control?" />
+  <inputData id="InputData_0uizjn1" name="direct listing?" />
+  <inputData id="InputData_04mlr8i" name="initial public offering?" />
+  <inputData id="InputData_00ndbf4" name="voluntary termination of operations?" />
+  <inputData id="InputData_16v9t7d" name="general assignment for the benefit of creditors?" />
+  <inputData id="InputData_0k5h6aq" name="other liquidation, dissolution, or winding up" />
+  <decision id="Decision_1qhfv8r" name="is liquidity event">
+    <informationRequirement id="InformationRequirement_15najsk">
+      <requiredInput href="#InputData_19476yt" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0mr3ehv">
+      <requiredInput href="#InputData_0uizjn1" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0jl319n">
+      <requiredInput href="#InputData_04mlr8i" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_1hpi46n">
+      <input id="InputClause_07ewt3v" label="change of control?">
+        <inputExpression id="LiteralExpression_0tq1lq7" typeRef="boolean" />
+      </input>
+      <input id="InputClause_0dgtdwd" label="direct listing?">
+        <inputExpression id="LiteralExpression_05cfx2q" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_03whc3i" label="initial public offering?">
+        <inputExpression id="LiteralExpression_1r93b1e" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_1nm1p4u" label="is liquidity event" typeRef="string" />
+      <rule id="DecisionRule_03m10u1">
+        <inputEntry id="UnaryTests_1lodapy">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1qz8alf">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1w1c1l1">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_01y4bav">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0zwout4">
+        <inputEntry id="UnaryTests_05y0pau">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1rzidcs">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0v0jv3w">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1jd6a0g">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_10am1rx">
+        <inputEntry id="UnaryTests_1mc0j3e">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_18uu43p">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0hchgvf">
+          <text>Yes</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1m8af70">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_08pomzl">
+        <inputEntry id="UnaryTests_0xkmvqq">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0zsdlwm">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_115la7m">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0v305k9">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="Decision_1e44uyf" name="is dissolution event">
+    <informationRequirement id="InformationRequirement_1fkt23x">
+      <requiredInput href="#InputData_00ndbf4" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0qkbnm7">
+      <requiredInput href="#InputData_16v9t7d" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_11bcooy">
+      <requiredInput href="#InputData_0k5h6aq" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0m61gi3">
+      <requiredDecision href="#Decision_1qhfv8r" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_17eqokk">
+      <input id="InputClause_0ziesyz" label="voluntary termination of operations?">
+        <inputExpression id="LiteralExpression_17vnkqc" typeRef="boolean" />
+      </input>
+      <input id="InputClause_15o546g" label="general assignment for the benefit of creditors?">
+        <inputExpression id="LiteralExpression_1k5660d" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_03cx8lx" label="other liquidation, dissolution, or winding up?">
+        <inputExpression id="LiteralExpression_0d3gi9j" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0lmzhsm" label="is liquidation event?">
+        <inputExpression id="LiteralExpression_0e246eb" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_0i6rr2s" label="is dissolution event" typeRef="string" />
+      <rule id="DecisionRule_1ko6it2">
+        <inputEntry id="UnaryTests_1s308n7">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0y1ufz0">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0nosank">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0rllgbs">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0aanqnt">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0kkr8ep">
+        <inputEntry id="UnaryTests_0cf26cr">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0zon1ef">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0po1cd4">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0gi4fff">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_12hj8hd">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0i170q0">
+        <inputEntry id="UnaryTests_0a8dcys">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0j2co7i">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0ztw2av">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0h3mayy">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1hlkxgk">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_00wbcib">
+        <inputEntry id="UnaryTests_1m31at6">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_08yd2yl">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1aeq4km">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0n4rzmw">
+          <text>Yes</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1p0n4jo">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_12b7sw7">
+        <inputEntry id="UnaryTests_0rsupyv">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_08cn4td">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0k8bl3n">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1r57buq">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1ab5znf">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <inputData id="InputData_1lu41ar" name="bona fide transactions" />
+  <decision id="Decision_0r3rq3w" name="there is an equity financing before termination of this SAFE?">
+    <informationRequirement id="InformationRequirement_00f10zl">
+      <requiredInput href="#InputData_1r1rtns" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0w46ior">
+      <requiredInput href="#InputData_1agqo1r" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0rmjw6p">
+      <requiredDecision href="#Decision_1ou6uou" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1nm1w3f">
+      <requiredInput href="#InputData_1srgff3" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_0sizolu" hitPolicy="FIRST">
+      <input id="InputClause_1pdc6bm" label="safe terminated?">
+        <inputExpression id="LiteralExpression_1px9s6m" typeRef="boolean" />
+      </input>
+      <input id="InputClause_1edhb8l" label="event type">
+        <inputExpression id="LiteralExpression_0b26wel" typeRef="string">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_07vpwno" label="date of event before date of termination?">
+        <inputExpression id="LiteralExpression_0ax91ax" typeRef="boolean">
+          <text>date of event &lt; date of SAFE termination</text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_17fx9m5" label="equity financing before termination" typeRef="string" />
+      <rule id="DecisionRule_18zh3js">
+        <inputEntry id="UnaryTests_16i3y5h">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1aiofkk">
+          <text>equity financing</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1t6k8lj">
+          <text>Yes</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0lu8igd">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_087kz6j">
+        <inputEntry id="UnaryTests_0bobbew">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_016vn5c">
+          <text>equity financing</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0wpi36p">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0vztp20">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_15rcytt">
+        <inputEntry id="UnaryTests_0dq1kzs">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0sjixn1">
+          <text>equity financing</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1jg7kiq">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0hqcisa">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1sfvweb">
+        <inputEntry id="UnaryTests_0rlspz6">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0j240m8">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_18f0nqg">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1hzbllf">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="Decision_0oeu7qv" name="there is a liquidity event before termination of this SAFE?">
+    <informationRequirement id="InformationRequirement_05fdch1">
+      <requiredInput href="#InputData_1r1rtns" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0qdkgzx">
+      <requiredInput href="#InputData_1agqo1r" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_08rjtwj">
+      <requiredDecision href="#Decision_1ou6uou" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_0w4ppv5">
+      <requiredInput href="#InputData_1srgff3" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_1ot00mg" hitPolicy="FIRST">
+      <input id="InputClause_1ai5f7r" label="safe terminated?">
+        <inputExpression id="LiteralExpression_1ptnnra" typeRef="boolean" />
+      </input>
+      <input id="InputClause_09rnieb" label="event type">
+        <inputExpression id="LiteralExpression_12jj8xn" typeRef="string">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_0gclbst" label="date of event before date of termination?">
+        <inputExpression id="LiteralExpression_1aicha8" typeRef="boolean">
+          <text>date of event &lt; date of SAFE termination</text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_17l1vje" label="liquidity event before termination" typeRef="string" />
+      <rule id="DecisionRule_0g135j6">
+        <inputEntry id="UnaryTests_1g023h9">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1qxrhw9">
+          <text>liquidity event</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1i2vu7u">
+          <text>Yes</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0g2yrl9">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1e5dhh3">
+        <inputEntry id="UnaryTests_15vd0tg">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_16eeppk">
+          <text>liquidity event</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0kar2r5">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1h7b1uk">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0318wr5">
+        <inputEntry id="UnaryTests_0i9j9ks">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_014fm1l">
+          <text>liquidity event</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_19ao5pp">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0tqfowu">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1nm7olp">
+        <inputEntry id="UnaryTests_0u2tgay">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0gvfa1r">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0k9f3x6">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_02e707a">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="Decision_14ugn04" name="there is a dissolution event before termination of this SAFE?">
+    <informationRequirement id="InformationRequirement_0viku33">
+      <requiredInput href="#InputData_1r1rtns" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1xkae8p">
+      <requiredInput href="#InputData_1agqo1r" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1e0ub73">
+      <requiredDecision href="#Decision_1ou6uou" />
+    </informationRequirement>
+    <informationRequirement id="InformationRequirement_1ck0dfj">
+      <requiredInput href="#InputData_1srgff3" />
+    </informationRequirement>
+    <decisionTable id="DecisionTable_0k719fv" hitPolicy="FIRST">
+      <input id="InputClause_0csvg4n" label="safe terminated?">
+        <inputExpression id="LiteralExpression_0805ogy" typeRef="boolean" />
+      </input>
+      <input id="InputClause_09phbmr" label="event type">
+        <inputExpression id="LiteralExpression_16x9n6a" typeRef="string">
+          <text></text>
+        </inputExpression>
+      </input>
+      <input id="InputClause_1ihre6z" label="date of event before date of termination?">
+        <inputExpression id="LiteralExpression_0bcc27z" typeRef="boolean">
+          <text></text>
+        </inputExpression>
+      </input>
+      <output id="OutputClause_0xrqdjc" label="dissolution event before termination of this SAFE" typeRef="boolean" />
+      <rule id="DecisionRule_13y17sq">
+        <description>Y</description>
+        <inputEntry id="UnaryTests_02es1rq">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0bsfg8l">
+          <text>dissolution event</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0m2tpo5">
+          <text>Yes</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_06wfc3z">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_00lhqde">
+        <inputEntry id="UnaryTests_0z5mnrb">
+          <text>Yes</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0rtyz6a">
+          <text>dissolution event</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1m5bxby">
+          <text>No</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0yrg6zx">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_0k2pauq">
+        <inputEntry id="UnaryTests_1pt5pbr">
+          <text>No</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1jyr3fx">
+          <text>dissolution event</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1jvirwj">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1spkjvk">
+          <text>Yes</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1tjq637">
+        <inputEntry id="UnaryTests_0vsxsm3">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0it2p6n">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1n1pbel">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1sv2vgv">
+          <text>No</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="Decision_1jytt3u">
+        <dc:Bounds height="80" width="180" x="1200" y="80" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_079s6qo" dmnElementRef="InformationRequirement_1q9lkke">
+        <di:waypoint x="600" y="350" />
+        <di:waypoint x="1218" y="180" />
+        <di:waypoint x="1218" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_187sudq" dmnElementRef="InputData_1xe6rah">
+        <dc:Bounds height="45" width="125" x="1017" y="1007" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1ncs47o" dmnElementRef="InformationRequirement_01gnwkt">
+        <di:waypoint x="1080" y="1007" />
+        <di:waypoint x="1290" y="180" />
+        <di:waypoint x="1290" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0tfpk00" dmnElementRef="InformationRequirement_0663eio">
+        <di:waypoint x="820" y="350" />
+        <di:waypoint x="1236" y="180" />
+        <di:waypoint x="1236" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0099aa8" dmnElementRef="InputData_0cpx875">
+        <dc:Bounds height="45" width="125" x="1005" y="887" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1c6s70q" dmnElementRef="InformationRequirement_1npwh5h">
+        <di:waypoint x="1068" y="887" />
+        <di:waypoint x="1272" y="180" />
+        <di:waypoint x="1272" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_1a8b1mr" dmnElementRef="InformationRequirement_01nn3xd">
+        <di:waypoint x="1050" y="350" />
+        <di:waypoint x="1254" y="180" />
+        <di:waypoint x="1254" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_1f1aubc" dmnElementRef="InformationRequirement_0zqih5u">
+        <di:waypoint x="1610" y="450" />
+        <di:waypoint x="1344" y="180" />
+        <di:waypoint x="1344" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_1amgfrr" dmnElementRef="InformationRequirement_02uxb0k">
+        <di:waypoint x="1410" y="550" />
+        <di:waypoint x="1326" y="180" />
+        <di:waypoint x="1326" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0l4yoc3" dmnElementRef="InformationRequirement_1eao8p6">
+        <di:waypoint x="1820" y="280" />
+        <di:waypoint x="1362" y="180" />
+        <di:waypoint x="1362" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0cb0cdd" dmnElementRef="InputData_1r1rtns">
+        <dc:Bounds height="45" width="125" x="757" y="637" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_1ggj1fh" dmnElementRef="InputData_1agqo1r">
+        <dc:Bounds height="45" width="125" x="947" y="637" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1wwvvng" dmnElementRef="InformationRequirement_00f10zl">
+        <di:waypoint x="820" y="637" />
+        <di:waypoint x="618" y="450" />
+        <di:waypoint x="618" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_04ujn47" dmnElementRef="InformationRequirement_05fdch1">
+        <di:waypoint x="820" y="637" />
+        <di:waypoint x="838" y="450" />
+        <di:waypoint x="838" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0k4d9vb" dmnElementRef="InformationRequirement_0viku33">
+        <di:waypoint x="820" y="637" />
+        <di:waypoint x="1068" y="450" />
+        <di:waypoint x="1068" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0znupss" dmnElementRef="InformationRequirement_0w46ior">
+        <di:waypoint x="1010" y="637" />
+        <di:waypoint x="654" y="450" />
+        <di:waypoint x="654" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0ei9tl7" dmnElementRef="InformationRequirement_0qdkgzx">
+        <di:waypoint x="1010" y="637" />
+        <di:waypoint x="874" y="450" />
+        <di:waypoint x="874" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_1sywt0v" dmnElementRef="InformationRequirement_1xkae8p">
+        <di:waypoint x="1010" y="637" />
+        <di:waypoint x="1104" y="450" />
+        <di:waypoint x="1104" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0em3mcr" dmnElementRef="Decision_1yjxewa">
+        <dc:Bounds height="80" width="180" x="1730" y="280" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1gz1a7u" dmnElementRef="InformationRequirement_0por1b0">
+        <di:waypoint x="1580" y="960" />
+        <di:waypoint x="1790" y="380" />
+        <di:waypoint x="1790" y="360" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_027akp2" dmnElementRef="InputData_0ndp1cp">
+        <dc:Bounds height="45" width="125" x="1617" y="1187" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_1upwk9d" dmnElementRef="InputData_0nmzffo">
+        <dc:Bounds height="45" width="125" x="1457" y="1187" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0usxxyq" dmnElementRef="InformationRequirement_0kb93w6">
+        <di:waypoint x="1680" y="1187" />
+        <di:waypoint x="1610" y="1060" />
+        <di:waypoint x="1610" y="1040" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0r0qmam" dmnElementRef="InformationRequirement_0f3mckm">
+        <di:waypoint x="1520" y="1187" />
+        <di:waypoint x="1550" y="1060" />
+        <di:waypoint x="1550" y="1040" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0ygkza5" dmnElementRef="Decision_1p7zvmi">
+        <dc:Bounds height="80" width="180" x="1490" y="960" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_09m56iz" dmnElementRef="InputData_075oufr">
+        <dc:Bounds height="45" width="125" x="2027" y="697" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0tmp76n" dmnElementRef="InformationRequirement_049420j">
+        <di:waypoint x="2090" y="697" />
+        <di:waypoint x="2090" y="590" />
+        <di:waypoint x="2090" y="570" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0lzsfs8" dmnElementRef="InputData_1s90zbw">
+        <dc:Bounds height="45" width="125" x="2187" y="697" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0ysrmoe" dmnElementRef="InformationRequirement_055b3h1">
+        <di:waypoint x="2250" y="697" />
+        <di:waypoint x="2150" y="590" />
+        <di:waypoint x="2150" y="570" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0q7f5go" dmnElementRef="Decision_01xn4i6">
+        <dc:Bounds height="80" width="180" x="2030" y="490" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0f4frbq" dmnElementRef="InformationRequirement_0w21pam">
+        <di:waypoint x="2120" y="490" />
+        <di:waypoint x="1850" y="380" />
+        <di:waypoint x="1850" y="360" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0iekqiu" dmnElementRef="InputData_112i44n">
+        <dc:Bounds height="45" width="125" x="1191" y="1057" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1l4tqs8" dmnElementRef="InformationRequirement_0tkinee">
+        <di:waypoint x="1254" y="1057" />
+        <di:waypoint x="1308" y="180" />
+        <di:waypoint x="1308" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0y3722a" dmnElementRef="InformationRequirement_0kibz4n">
+        <di:waypoint x="1254" y="1057" />
+        <di:waypoint x="1410" y="650" />
+        <di:waypoint x="1410" y="630" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0yongj0" dmnElementRef="Decision_0ajxpre">
+        <dc:Bounds height="80" width="180" x="1320" y="550" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_05ynz3j" dmnElementRef="InformationRequirement_02cpcy8">
+        <di:waypoint x="1254" y="1057" />
+        <di:waypoint x="1580" y="550" />
+        <di:waypoint x="1580" y="530" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0thhfo7" dmnElementRef="Decision_07xxvea">
+        <dc:Bounds height="80" width="180" x="1520" y="450" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_15pgutf" dmnElementRef="Decision_1cg5svv">
+        <dc:Bounds height="80" width="180" x="1750" y="760" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0bukogz" dmnElementRef="InformationRequirement_19reyss">
+        <di:waypoint x="1840" y="760" />
+        <di:waypoint x="1640" y="550" />
+        <di:waypoint x="1640" y="530" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0yl7bdu" dmnElementRef="InformationRequirement_0lou3iq">
+        <di:waypoint x="1680" y="1187" />
+        <di:waypoint x="1810" y="860" />
+        <di:waypoint x="1810" y="840" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_044sqlv" dmnElementRef="InformationRequirement_0t63es7">
+        <di:waypoint x="2250" y="900" />
+        <di:waypoint x="1870" y="860" />
+        <di:waypoint x="1870" y="840" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_17dzttw" dmnElementRef="Decision_00oavtq">
+        <dc:Bounds height="80" width="180" x="2160" y="900" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_0ft07s4" dmnElementRef="InputData_0hc878h">
+        <dc:Bounds height="45" width="125" x="2077" y="1136" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0e0pmxt" dmnElementRef="InformationRequirement_1f4mjpa">
+        <di:waypoint x="2140" y="1136" />
+        <di:waypoint x="2220" y="1000" />
+        <di:waypoint x="2220" y="980" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_003x6fv" dmnElementRef="InputData_1xbk1jl">
+        <dc:Bounds height="45" width="125" x="2219" y="1137" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0f4637h" dmnElementRef="InformationRequirement_06ukqjj">
+        <di:waypoint x="2282" y="1137" />
+        <di:waypoint x="2250" y="1000" />
+        <di:waypoint x="2250" y="980" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0m6ipiz" dmnElementRef="InputData_0vqz3uq">
+        <dc:Bounds height="45" width="125" x="2357" y="1137" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_036bc4e" dmnElementRef="InformationRequirement_1cnymj7">
+        <di:waypoint x="2420" y="1137" />
+        <di:waypoint x="2280" y="1000" />
+        <di:waypoint x="2280" y="980" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0cn7p04" dmnElementRef="InputData_0nxd0gj">
+        <dc:Bounds height="45" width="125" x="2497" y="1137" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0mrm3z1" dmnElementRef="InformationRequirement_1pat6cf">
+        <di:waypoint x="2560" y="1137" />
+        <di:waypoint x="2310" y="1000" />
+        <di:waypoint x="2310" y="980" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0i7nnlu" dmnElementRef="InputData_18ejrwm">
+        <dc:Bounds height="45" width="125" x="1937" y="1137" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_17ktjnj" dmnElementRef="InformationRequirement_0fj86ag">
+        <di:waypoint x="2000" y="1137" />
+        <di:waypoint x="2190" y="1000" />
+        <di:waypoint x="2190" y="980" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0tjejlk" dmnElementRef="InputData_1srgff3">
+        <dc:Bounds height="45" width="125" x="337" y="637" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_08usgp5" dmnElementRef="Decision_1ou6uou">
+        <dc:Bounds height="80" width="180" x="510" y="620" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1krcpz0" dmnElementRef="InformationRequirement_1e0ub73">
+        <di:waypoint x="600" y="620" />
+        <di:waypoint x="1032" y="450" />
+        <di:waypoint x="1032" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0jyoru1" dmnElementRef="InformationRequirement_08rjtwj">
+        <di:waypoint x="600" y="620" />
+        <di:waypoint x="802" y="450" />
+        <di:waypoint x="802" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0xwgcz3" dmnElementRef="InformationRequirement_0rmjw6p">
+        <di:waypoint x="600" y="620" />
+        <di:waypoint x="582" y="450" />
+        <di:waypoint x="582" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_16wfw1l" dmnElementRef="InformationRequirement_1ck0dfj">
+        <di:waypoint x="400" y="637" />
+        <di:waypoint x="996" y="450" />
+        <di:waypoint x="996" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_1bo5sjj" dmnElementRef="InformationRequirement_0w4ppv5">
+        <di:waypoint x="400" y="637" />
+        <di:waypoint x="766" y="450" />
+        <di:waypoint x="766" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0qn6zd6" dmnElementRef="InformationRequirement_1nm1w3f">
+        <di:waypoint x="400" y="637" />
+        <di:waypoint x="546" y="450" />
+        <di:waypoint x="546" y="430" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0cuq392" dmnElementRef="InputData_19476yt">
+        <dc:Bounds height="45" width="125" x="537" y="1208" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0y49sm2" dmnElementRef="InformationRequirement_15najsk">
+        <di:waypoint x="600" y="1208" />
+        <di:waypoint x="475" y="1060" />
+        <di:waypoint x="475" y="1040" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_01z6v1r" dmnElementRef="InputData_0uizjn1">
+        <dc:Bounds height="45" width="125" x="367" y="1208" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1l9eejr" dmnElementRef="InformationRequirement_0mr3ehv">
+        <di:waypoint x="430" y="1208" />
+        <di:waypoint x="430" y="1060" />
+        <di:waypoint x="430" y="1040" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_0i75kvc" dmnElementRef="InputData_04mlr8i">
+        <dc:Bounds height="45" width="125" x="157" y="1208" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_1p2hyks" dmnElementRef="InformationRequirement_0jl319n">
+        <di:waypoint x="220" y="1208" />
+        <di:waypoint x="385" y="1060" />
+        <di:waypoint x="385" y="1040" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_1tf1y3z" dmnElementRef="InputData_00ndbf4">
+        <dc:Bounds height="45" width="125" x="564" y="1047" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_1x0jypw" dmnElementRef="InputData_16v9t7d">
+        <dc:Bounds height="45" width="125" x="767" y="1047" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_14a3hkl" dmnElementRef="InputData_0k5h6aq">
+        <dc:Bounds height="45" width="125" x="647" y="987" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_0g75ob5" dmnElementRef="Decision_1qhfv8r">
+        <dc:Bounds height="80" width="180" x="340" y="960" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0uhobjw" dmnElementRef="InformationRequirement_0o1m9oe">
+        <di:waypoint x="430" y="960" />
+        <di:waypoint x="555" y="720" />
+        <di:waypoint x="555" y="700" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_06oy6j2" dmnElementRef="InformationRequirement_1fkt23x">
+        <di:waypoint x="627" y="1047" />
+        <di:waypoint x="627" y="910" />
+        <di:waypoint x="627" y="890" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0fo2dmk" dmnElementRef="InformationRequirement_0qkbnm7">
+        <di:waypoint x="830" y="1047" />
+        <di:waypoint x="699" y="910" />
+        <di:waypoint x="699" y="890" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_01ikhbf" dmnElementRef="InformationRequirement_11bcooy">
+        <di:waypoint x="710" y="987" />
+        <di:waypoint x="663" y="910" />
+        <di:waypoint x="663" y="890" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="DMNEdge_0gyzdpm" dmnElementRef="InformationRequirement_0m61gi3">
+        <di:waypoint x="430" y="960" />
+        <di:waypoint x="591" y="910" />
+        <di:waypoint x="591" y="890" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_10jpprn" dmnElementRef="Decision_1e44uyf">
+        <dc:Bounds height="80" width="180" x="555" y="810" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_05v0nyu" dmnElementRef="InformationRequirement_1eorlmk">
+        <di:waypoint x="645" y="810" />
+        <di:waypoint x="600" y="720" />
+        <di:waypoint x="600" y="700" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_1l0zlrj" dmnElementRef="InputData_1lu41ar">
+        <dc:Bounds height="45" width="125" x="857" y="817" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="DMNEdge_0e06cm4" dmnElementRef="InformationRequirement_1qpourf">
+        <di:waypoint x="920" y="817" />
+        <di:waypoint x="645" y="720" />
+        <di:waypoint x="645" y="700" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNShape id="DMNShape_14y4dz0" dmnElementRef="Decision_0r3rq3w">
+        <dc:Bounds height="80" width="180" x="510" y="350" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_1d7awdr" dmnElementRef="Decision_0oeu7qv">
+        <dc:Bounds height="80" width="180" x="730" y="350" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="DMNShape_0bovjk8" dmnElementRef="Decision_14ugn04">
+        <dc:Bounds height="80" width="180" x="960" y="350" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

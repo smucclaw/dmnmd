@@ -48,7 +48,7 @@ withNS =
     . xpAddNSDecl "dmndi" xmlns_dmndi
     . xpAddNSDecl "dc" xmlns_dc
     . xpAddNSDecl "di" xmlns_di
-    . xpAddNSDecl "camunda" xmlns_camunda
+    . xpFilterAttr (none `when` hasName "xmlns:camunda")
 
 data Description = Description
   { description :: String
@@ -528,6 +528,8 @@ parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
 -- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision) >>> writeDocumentToString []
 --- ^ Doesn't work when the data is filtered with xpFilterAttr/Cont. Fails with Prelude.foldr1.
 
+-- $> parseDMN "test/safe2.dmn"
+
 -- $> runEx1
 
 runEx1 :: IO [XDMN]
@@ -538,6 +540,7 @@ runEx1 = parseDMN "test/simulation.dmn"
 
 runEx2 :: IO [XDMN]
 runEx2 = parseDMN "test/simple.dmn"
+
 
 -- id="dinnerDecisions"
 -- name="Dinner Decisions"
