@@ -20,6 +20,7 @@ import qualified Control.Lens.TH as L_TH
 import qualified DMN.Types as DT
 import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
+import Data.Void (Void)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -122,7 +123,7 @@ instance XmlPickler DmnCommon where
     wrapIso _DmnCommon $
       xpPair
         (xpOption $ xpAttr "id" xpText)
-        (xpOption $ xpAttr "nameDummy" xpText) -- NB: This should be "label" and not "name"
+        (xpOption $ xpAttr "name" xpText) -- NB: This should be "label" and not "name"
         -- (xpOption $ xpElemNS xmlns_dmn "" "description" xpText)
 
 data DMNDI = DMNDI
@@ -468,12 +469,31 @@ makePrisms ''Namespace
 instance XmlPickler Namespace where
   xpickle = wrapIso _Namespace $ xpAttr "namespace" xpText
 
+data DrgElems = DrgDec Decision | DrgInpData InputData | DrgKS KnowledgeSource
+  deriving (Show, Eq)
+
+drgNr :: DrgElems -> Int
+drgNr (DrgDec _) = 0
+drgNr (DrgInpData _) = 1
+drgNr (DrgKS _) = 2
+
+instance XmlPickler DrgElems where
+  xpickle = 
+    xpAlt
+      drgNr
+      [ xpWrap (DrgDec, \(DrgDec x) -> x) xpickle
+      , xpWrap (DrgInpData, \(DrgInpData x) -> x) xpickle
+      , xpWrap (DrgKS, \(DrgKS x) -> x) xpickle
+      ]
+
+
+
 data Definitions = Definitions
-  { defLabel :: DmnCommon,
+  { defLabel :: DmnNamed,
     defsNamespace :: Namespace,
-    defsDescisions :: [Decision],
     defInputData :: [InputData],
-    defDrgElems :: [KnowledgeSource],
+    defsDescisions :: [Decision],
+    defDrgElems :: [DrgElems],
     defDMNDI :: Maybe DMNDI
   }
   deriving (Show, Eq)
@@ -485,7 +505,7 @@ type XDMN = Definitions
 ex3 :: XDMN
 ex3 =
   Definitions
-    { defLabel = dmnLabeled "hi" "there",
+    { defLabel = dmnNamed' "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
       defsDescisions = [
         Decision (dmnNamed' "a" "b") [
