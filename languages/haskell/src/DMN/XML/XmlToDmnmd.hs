@@ -25,7 +25,7 @@ convertIt d = do
 convdec :: X.Decision -> [T.DecisionTable]
 convdec dec = do
     let decisionName = dmnnName $ decLabel dec
-    tabl <- maybeToList $ X.decDTable dec
+    ExprDTable tabl <- maybeToList $ X.decDTable dec -- TODO: Partial!
     pure $ convTable decisionName tabl
 
 convTable :: String -> X.DecisionTable -> T.DecisionTable
@@ -59,12 +59,12 @@ convTable name (X.DecisionTable
 -- convHeader ins outs = map convHeader' $ inAndOut ins outs
 
 convInputHeader :: TableInput -> T.ColHeader
-convInputHeader (tin@TableInput { tinpName , tinpLabel , tinpExpr }) 
+convInputHeader (tin@TableInput { tinpName , tinpLabel , tinpExpr = InputExpression inpexpr }) 
     -- = error $ show tin
     = T.DTCH 
         { T.label   = T.DTCH_In
-        , T.varname = innerText $ inputExprText tinpExpr -- TODO: I think this is correct, but I'm not sure
-        , T.vartype = Just $ convertType $ inputExprTypeRef tinpExpr
+        , T.varname = maybe "I don't know?" id . fmap innerText $ tleContent inpexpr -- TODO: I think this is correct, but I'm not sure
+        , T.vartype = fmap convertType . exprTypeRef $ tleExpr inpexpr
         , T.enums   = Nothing -- TODO: This is definitely wrong
         }
     -- = error "not implemented"
@@ -93,6 +93,7 @@ outThing =
     }
 
 
+{-
 thing :: TableInput
 thing =
   TableInput
@@ -104,6 +105,7 @@ thing =
           , inputExprText = TextElement {innerText = "desiredDish"}
           }
     }
+-}
 
 convRule :: [Maybe T.DMNType] -> [Maybe T.DMNType] -> Int -> Rule -> T.DTrow
 convRule intypes outtypes rowNumber ( Rule

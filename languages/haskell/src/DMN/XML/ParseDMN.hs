@@ -30,6 +30,9 @@ getEx2 = do
   [ans] <- runX $ removeAllWhiteSpace <<< readDocument [withCheckNamespaces True] "test/simple.dmn"
   pure ans
 
+ignoreContent :: [String] -> PU a -> PU a
+ignoreContent name = xpFilterCont (none `when` foldl1 (<+>) (hasName <$> name))
+
 xmlns_dmn, xmlns_dmndi, xmlns_dc, xmlns_di, xmlns_camunda :: String
 xmlns_dmn = "https://www.omg.org/spec/DMN/20191111/MODEL/"
 xmlns_dmndi = "https://www.omg.org/spec/DMN/20191111/DMNDI/"
@@ -61,7 +64,7 @@ makePrisms ''Description
 instance XmlPickler Description where
   xpickle = xpDMNElem "description" _Description xpText
 
-data DmnNamed = DmnNamed 
+data DmnNamed = DmnNamed
   { dmnnId :: Maybe String
   , dmnnName :: String
  }
@@ -296,11 +299,50 @@ instance XmlPickler TextElement where
     xpDMNElem "text" _TextElement
       $ xpText0
 
-data InputExpression = InputExpression
-  { inputExprLabel :: DmnCommon
-  , inputExprTypeRef :: TypeRef
-  , inputExprText :: TextElement
+data TExpr = TExpr
+  { exprLabel :: DmnCommon
+  , exprTypeRef :: Maybe TypeRef
   }
+  deriving (Show, Eq)
+
+makePrisms ''TExpr
+
+instance XmlPickler TExpr where
+  xpickle = wrapIso _TExpr xpickle
+
+data ExpressionLanguage = ExpressionLanguage String -- xsd:anyURI
+  deriving (Show, Eq)
+
+makePrisms ''ExpressionLanguage
+instance XmlPickler ExpressionLanguage where
+  xpickle = xpAttr "expressionLanguage" $ wrapIso _ExpressionLanguage xpText
+
+data TLiteralExpression = TLiteralExpression
+  { tleExpr :: TExpr
+  , tleExpressionLanguage :: Maybe ExpressionLanguage
+  , tleContent :: Maybe TextElement -- NB: Either this or importedValues
+  }
+  deriving (Show, Eq)
+
+makePrisms ''TLiteralExpression
+
+instance XmlPickler TLiteralExpression where
+  xpickle = wrapIso _TLiteralExpression xpickle
+
+data LiteralExpression = LiteralExpression TLiteralExpression
+  deriving (Show, Eq)
+
+makePrisms ''LiteralExpression
+
+instance XmlPickler LiteralExpression where
+  xpickle =
+    xpDMNElem "literalExpression" _LiteralExpression
+      -- . xpFilterAttr (hasName "id" <+> hasName "name")
+      -- . xpFilterCont none -- TODO
+      $ xpickle
+
+
+data InputExpression = InputExpression TLiteralExpression
   deriving (Show, Eq)
 
 makePrisms ''InputExpression
@@ -420,10 +462,25 @@ instance XmlPickler DecisionTable where
         (xpList1 xpickle)
         xpickle
 
+data Expression = ExprDTable DecisionTable | ExprLiteral LiteralExpression
+  deriving (Show, Eq)
+
+exprNr :: Expression -> Int
+exprNr (ExprDTable _) = 0
+exprNr (ExprLiteral _) = 0
+
+instance XmlPickler Expression where
+  xpickle =
+    xpAlt
+      exprNr
+      [ xpWrap (ExprDTable, \(ExprDTable x) -> x) xpickle
+      , xpWrap (ExprLiteral, \(ExprLiteral x) -> x) xpickle
+      ]
+
 data Decision = Decision
   { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
     decInfoReq :: [InformationRequirement],
-    decDTable :: Maybe DecisionTable -- Schema says this could be any "expression", not just table
+    decDTable :: Maybe Expression -- Schema says this could be any "expression", not just table
   }
   deriving (Show, Eq)
 
@@ -434,7 +491,8 @@ instance XmlPickler Decision where
     xpDMNElem "decision" _Decision
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
-      . xpFilterCont (none `when` hasName "authorityRequirement") -- We don't care about "Authority" which express where rules come from
+      . ignoreContent ["authorityRequirement"] -- We don't care about "Authority" which express where rules come from
+      . ignoreContent ["variable"] -- I don't know what this is
       $ xpickle
 
 data InputData = InputData
@@ -478,7 +536,7 @@ drgNr (DrgInpData _) = 1
 drgNr (DrgKS _) = 2
 
 instance XmlPickler DrgElems where
-  xpickle = 
+  xpickle =
     xpAlt
       drgNr
       [ xpWrap (DrgDec, \(DrgDec x) -> x) xpickle
@@ -524,9 +582,12 @@ dmnPickler =
     -- . xpFilterAttr (getAttrValue _ _)
     -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
     -- . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
-    . xpFilterCont (none `when` hasName "dmndi") -- We're not interested in diagrams
+    . ignoreContent ["dmndi"] -- We're not interested in diagrams
+    . ignoreContent ["variable"] -- I don't know what this is
     . xpFilterAttr (none `when` (hasName "exporter" <+> hasName "exporterVersion") ) -- Used by Camunda Modeler
     $ xpickle
+
+--     <variable id="InformationItem_1mjp1b5" name="safe price" typeRef="double" />
 
 -- $> :m + Text.Pretty.Simple
 
