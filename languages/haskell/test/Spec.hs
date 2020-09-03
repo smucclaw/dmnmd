@@ -95,9 +95,11 @@ spec3 = do
       parseContinuationRows `shouldParse` (["LOW, MEDIUM, HIGH", "", "DECLINE, REFER, ACCEPT", "LEVEL 2, LEVEL 1, NONE", ""])
 
   describe "parse header and subhead together" $ do
-    it "should parse an entire header up to the ---- line" $
+    it "should parse an entire header ignoring dashed lines" $
       (("| O | Age | RiskCategory (out) | DebtReview : Boolean (out)|\n" :: Text) <>
+       ("|----------------------------------------------------------|\n" :: Text) <>
        ("|   |     | LOW, MEDIUM,       | true                      |\n" :: Text) <>
+       ("|----------------------------------------------------------|\n" :: Text) <>
        ("|   |     | HIGH               |                           |\n" :: Text))
       ~> (do
         hr <- parseHeaderRow
@@ -119,16 +121,14 @@ spec3 = do
        ("| 2 | >= 21        | LOW                | yes                       |\n" :: Text))
       ~> (do
         hr <- parseHeaderRow
-        sh <- parseContinuationRows
+        sh <- parseContinuationRows <?> "parseContinuationRows"
         let columnSignatures = columnSigs hr
-        hrule <- parseDThr
         dr <- parseDataRows columnSignatures <?> "parseDataRows"
-        return (hr, sh, hrule, dr)
+        return (hr, sh, dr)
       ) `shouldParse` ( (DTHR HP_OutputOrder [ DTCH DTCH_In "Age"           (Just DMN_Number) Nothing
                                              , DTCH DTCH_Out "RiskCategory"  Nothing Nothing
                                              , DTCH DTCH_Out "DebtReview"   (Just DMN_Boolean) Nothing])
                       , [ "", "LOW, MEDIUM, HIGH", "true" ]
-                      , DThr
                       , [ DTrow (Just 1) [ mkFs (Just DMN_Number) "<18"  ] [ [ FNullary $ VS "HIGH" ] , [ FNullary $ VB False ] ] []
                         , DTrow (Just 2) [ mkFs (Just DMN_Number) ">=21" ] [ [ FNullary $ VS "LOW" ]  , [ FNullary $ VB True  ] ] [] 
                         ])
@@ -213,8 +213,7 @@ spec3 = do
       ~> (parseTable "mytable1") `shouldParse`
       (DTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
-        [DThr
-        ,DTrow (Just 1) [mkFs Nothing "Fall"]   [mkFs Nothing "Spareribs"] [Nothing]
+        [DTrow (Just 1) [mkFs Nothing "Fall"]   [mkFs Nothing "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs Nothing "Winter"] [mkFs Nothing "Roastbeef"] [Nothing]
         ,DTrow (Just 3) [mkFs Nothing "Spring"] [mkFs Nothing "Steak"    ] [Nothing]
         ,DTrow (Just 4) [mkFs Nothing "Summer"] [mkFs Nothing "Light Salad and a nice Steak"] [Just "Hey, why not?"]
@@ -225,8 +224,7 @@ spec3 = do
       ~> (parseTable "mytable1") `shouldParse`
       (DTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
-        [DThr
-        ,DTrow (Just 1) [mkFs Nothing "Fall"]   [mkFs Nothing "Spareribs"] [Nothing]
+        [DTrow (Just 1) [mkFs Nothing "Fall"]   [mkFs Nothing "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs Nothing "Winter"] [mkFs Nothing "Roastbeef"] [Nothing]
         ,DTrow (Just 3) [[FNullary $ VS "Spring", FNullary $ VS "Summer"]] [mkFs (Just DMN_String) "Stew"    ] [Just "Multivalue"]
         ])
@@ -236,8 +234,7 @@ spec3 = do
       ~> (parseTable "mytable1") `shouldParse`
       (DTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_String) "Fall"]   [mkFs (Just DMN_String) "Spareribs"] [Nothing]
+        [DTrow (Just 1) [mkFs (Just DMN_String) "Fall"]   [mkFs (Just DMN_String) "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs (Just DMN_String) "Winter"] [[FNullary $ VS "Roastbeef", FNullary $ VS "Strawberries"]] [Nothing]
         ,DTrow (Just 3) [[FNullary $ VS "Spring", FNullary $ VS "Summer"]] [[FNullary $ VS "Stew"    ]] [Just "Multivalue"]
         ])
@@ -247,8 +244,7 @@ spec3 = do
       ~> (parseTable "mytable1") `shouldParse`
       (DTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_In "guestCount" (Just DMN_Number) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_String) "Fall",   mkFs (Just DMN_Number) "<= 8"]    [mkFs (Just DMN_String) "Spareribs"] [Nothing]
+        [DTrow (Just 1) [mkFs (Just DMN_String) "Fall",   mkFs (Just DMN_Number) "<= 8"]    [mkFs (Just DMN_String) "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs (Just DMN_String) "Winter", mkFs (Just DMN_Number) "<= 8"]   [[FNullary $ VS "Roastbeef"]] [Nothing]
         ,DTrow (Just 3) [mkFs (Just DMN_String) "Spring", mkFs (Just DMN_Number) "<= 4"]   [[FNullary $ VS "Dry Aged Gourmet Steak"]] [Nothing]
         ,DTrow (Just 4) [mkFs (Just DMN_String) "Spring", mkFs (Just DMN_Number) "[5..8]"] [[FNullary $ VS "Steak"]] [Nothing]
@@ -267,8 +263,7 @@ spec3 = do
         , DTCH DTCH_Out "Review_level"  (Just DMN_String) (Just $ FNullary . VS <$> ["LEVEL 2", "LEVEL 1", "NONE"])
         , DTCH DTCH_Out "Reason"        (Just DMN_String) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [[FAnything], [FAnything], [FAnything]]                   [mkFs (Just DMN_String) "ACCEPT",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Acceptable"]              []
+        [DTrow (Just 1) [[FAnything], [FAnything], [FAnything]]                   [mkFs (Just DMN_String) "ACCEPT",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Acceptable"]              []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "<18", [FAnything], [FAnything]]  [mkFs (Just DMN_String) "DECLINE",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Applicant too young"]    []
         ,DTrow (Just 3) [[FAnything], mkFs (Just DMN_String) "HIGH", [FAnything]] [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 1", mkFs (Just DMN_String) "High risk application"] []
         ,DTrow (Just 4) [[FAnything], [FAnything], [FNullary (VB True)]]          [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 2", mkFs (Just DMN_String) "Applicant under debt review"]   []
@@ -285,8 +280,7 @@ spec3 = do
         , DTCH DTCH_Out "Review_level"  (Just DMN_String) (Just $ FNullary . VS <$> ["LEVEL 2", "LEVEL 1", "NONE"])
         , DTCH DTCH_Out "Reason"        (Just DMN_String) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [[FAnything], [FAnything], [FAnything]]                   [mkFs (Just DMN_String) "ACCEPT",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Acceptable"]              []
+        [DTrow (Just 1) [[FAnything], [FAnything], [FAnything]]                   [mkFs (Just DMN_String) "ACCEPT",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Acceptable"]              []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "<18", [FAnything], [FAnything]]  [mkFs (Just DMN_String) "DECLINE",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Applicant too young"]    []
         ,DTrow (Just 3) [[FAnything], mkFs (Just DMN_String) "HIGH", [FAnything]] [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 1", mkFs (Just DMN_String) "High risk application"] []
         ,DTrow (Just 4) [[FAnything], [FAnything], [FNullary (VB True)]]          [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 2", mkFs (Just DMN_String) "Applicant under debt review"]   []
@@ -341,8 +335,7 @@ spec3 = do
         , DTCH DTCH_Out "Review_level"  (Just DMN_String) (Just $ FNullary . VS <$> ["LEVEL 2", "LEVEL 1", "NONE"])
         , DTCH DTCH_Out "Reason"        (Just DMN_String) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [[FAnything], [FAnything], [FAnything]]                   [mkFs (Just DMN_String) "ACCEPT",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Acceptable"]              []
+        [DTrow (Just 1) [[FAnything], [FAnything], [FAnything]]                   [mkFs (Just DMN_String) "ACCEPT",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Acceptable"]              []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "<18", [FAnything], [FAnything]]  [mkFs (Just DMN_String) "DECLINE",  mkFs (Just DMN_String) "NONE", mkFs (Just DMN_String) "Applicant too young"]    []
         ,DTrow (Just 3) [[FAnything], mkFs (Just DMN_String) "HIGH", [FAnything]] [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 1", mkFs (Just DMN_String) "High risk application"] []
         ,DTrow (Just 4) [[FAnything], [FAnything], [FNullary (VB True)]]          [mkFs (Just DMN_String) "REFER",  mkFs (Just DMN_String) "LEVEL 2", mkFs (Just DMN_String) "Applicant under debt review"]   []
@@ -374,8 +367,7 @@ spec3 = do
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Number) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  mkFs (Just DMN_Number) "2"]    []
+        [DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  mkFs (Just DMN_Number) "2"]    []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "[18..21]"]  [mkFs (Just DMN_Number) "3",  mkFs (Just DMN_Number) "4"]    []
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  mkFs (Just DMN_Number) "6"]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  mkFs (Just DMN_Number) "8"]    []
@@ -393,8 +385,7 @@ spec3 = do
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Number) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  mkFs (Just DMN_Number) "2"]    []
+        [DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  mkFs (Just DMN_Number) "2"]    []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "[18..21]"]  [mkFs (Just DMN_Number) "3",  mkFs (Just DMN_Number) "4"]    []
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  mkFs (Just DMN_Number) "6"]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  mkFs (Just DMN_Number) "8"]    []
@@ -413,8 +404,7 @@ spec3 = do
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Number) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  mkFs (Just DMN_Number) "2"]    []
+        [DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  mkFs (Just DMN_Number) "2"]    []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "[18..21]"]  [mkFs (Just DMN_Number) "3",  mkFs (Just DMN_Number) "4"]    []
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  mkFs (Just DMN_Number) "6"]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  mkFs (Just DMN_Number) "8"]    []
@@ -455,8 +445,7 @@ spec3 = do
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Boolean) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  [(FNullary $ VB True )]]    []
+        [DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_Number) "1",  [(FNullary $ VB True )]]    []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "[18..21]"]  [mkFs (Just DMN_Number) "3",  [(FNullary $ VB False)]]    []
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_Number) "5",  [(FNullary $ VB True )]]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_Number) "7",  [(FNullary $ VB False)]]    []
@@ -468,8 +457,7 @@ spec3 = do
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_String) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Boolean) Nothing
         ]
-        [DThr
-        ,DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_String) "one",  [(FNullary $ VB True )]]    []
+        [DTrow (Just 1) [mkFs (Just DMN_Number) "<18"]       [mkFs (Just DMN_String) "one",  [(FNullary $ VB True )]]    []
         ,DTrow (Just 2) [mkFs (Just DMN_Number) "[18..21]"]  [mkFs (Just DMN_String) "three",  [(FNullary $ VB False)]]    []
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_String) "five",  [(FNullary $ VB True )]]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_String) "seven",  [(FNullary $ VB False)]]    []
@@ -491,8 +479,7 @@ spec3 = do
         , DTCH DTCH_Out "mayBuy" (Just DMN_Boolean) Nothing
         , DTCH DTCH_Out "limit" (Just DMN_Number) Nothing
         ]
-        [ DThr
-        , DTrow (Just 1) [[FSection Flt (VN 18.0)]] [[FNullary $ VB False], [FNullary (VN 0.0)]] []
+        [ DTrow (Just 1) [[FSection Flt (VN 18.0)]] [[FNullary $ VB False], [FNullary (VN 0.0)]] []
         , DTrow (Just 2) [[FInRange 18.0 21.0]]     [[FNullary $ VB True], [FNullary (VN 750.0)]] []
         , DTrow (Just 3) [[FInRange 21.0 25.0]]     [[FNullary $ VB True], [FNullary (VN 1500.0)]] []
         , DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] []

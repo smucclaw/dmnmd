@@ -101,10 +101,9 @@ data DecisionTable = DTable { tableName :: String
                deriving (Show, Eq)
 
 datarows :: DecisionTable -> [DTrow]
-datarows = filter (/= DThr) . allrows
+datarows = allrows
 
-data DTrow = DThr -- horizontal rule, a row of dashes or whatever, used as an inter-row separator sometimese
-           | DTrow { row_number   :: Maybe Int
+data DTrow = DTrow { row_number   :: Maybe Int
                    , row_inputs   :: [[FEELexp]] -- two-layer input and output to handle : | foo, bar | baz |
                    , row_outputs  :: [[FEELexp]] --                                        [[   ,    ]      ]
                    , row_comments :: [Maybe String] }
