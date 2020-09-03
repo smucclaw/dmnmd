@@ -2,7 +2,7 @@
 
 This will evolve into a Haskell-native dmnmd toolsuite.
 
-Using Template Haskell QuasiQuoting,
+Wouldn't it be cool if we could, using Template Haskell QuasiQuoting, write code like this?
 
 ``` haskell
 let whatdish = [dmnmd|
@@ -14,6 +14,7 @@ let whatdish = [dmnmd|
 | 4 | Spring               | [5..8]      | Steak                        |               |
 | 5 | Fall, Winter, Spring | > 8         | Stew                         |               |
 | 6 | Summer               | -           | Light Salad and a nice Steak | Hey, why not? |
+
 |]
 
 whatdish "Fall" 4

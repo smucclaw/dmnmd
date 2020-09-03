@@ -7,6 +7,7 @@ import DMN.DecisionTable
 import DMN.ParseFEEL
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
+import Data.Either (isLeft)
 import Control.Applicative hiding (many, some)
 -- import Data.Attoparsec.Text
 import Data.Text (Text)
@@ -88,8 +89,6 @@ mkHitPolicy_C '<' = HP_Collect Collect_Min
 mkHitPolicy_C '>' = HP_Collect Collect_Max
 mkHitPolicy_C '+' = HP_Collect Collect_Sum
 
--- TODO: switch to Parsec for better error messages
-
 -- TODO: consider allowing spaces in variable names
 
 -- TODO: use sepBy in parsing columns
@@ -123,15 +122,18 @@ parseTable tableName = do
            (cols headerRow)
            dataRows )
 
-parseDThr :: Parser DTrow
+grep_out_dashes :: String -> String
+grep_out_dashes x = unlines ( filter ( \str -> isLeft $ runParser parseDThr "internal" $ T.pack str ) ( lines x ) )
+
+parseDThr :: Parser ()
 parseDThr = do
     ("|---" <|> "| -") >> skipWhile "character" (/='\n') >> endOfLine
-    return DThr
+    return ()
 
--- continuation rows are used to batch both subheads and datarow continuations    
+-- continuation rows are used to match both subheads and datarow continuations    
 parseContinuationRows :: Parser [String]
 parseContinuationRows = do
-  plainrows <- many (parseContinuationRow <?> "parseContinuationRow")
+  plainrows <- many (try (many parseDThr >> parseContinuationRow <?> "parseContinuationRow")) <?> "ParseContinuationRows"
   return $ trim . unwords <$> transpose plainrows
 
 parseContinuationRow :: Parser [String]
@@ -156,7 +158,11 @@ parseTail = do
 
 parseDataRows :: [ColumnSignature] -> Parser [DTrow]
 parseDataRows csigs = do
-  drows <- many ((parseDThr <?> "parseDThr") <|> (parseDataRow csigs <?> "parseDataRow"))
+  -- the input could be a regular data row | foo | bar | baz |
+  -- or it could be a horizontal rule, which used to be called DThr
+  -- nowadays we discard all horizontal rules whenever we encounter them
+  -- so … now i want to match something and then throw it away.
+  drows <- many (parseDataRow csigs <?> "parseDataRow")
   endOfInput
   return drows
 
@@ -167,7 +173,7 @@ parseDataRow csigs =
       myrownumber <- many1 digit <?> "row number"
       pipeSeparator
       firstrowtail <- parseTail
-      morerows <- many parseContinuationRow
+      morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
       let datacols = zipWith mkFEELCol csigs (map (trim . unwords) $ transpose (firstrowtail : morerows))
       return ( DTrow (if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing)
                (catMaybes (zipWith getInputs  csigs datacols))
