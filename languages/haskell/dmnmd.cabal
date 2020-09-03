@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 067e5c7124f2b021553e6935e19a7423c43533a7799b1bb8f84242ebf0da5a1c
 
 name:           dmnmd
 version:        0.1.0.1
