@@ -162,7 +162,7 @@ parseDataRows csigs = do
   -- or it could be a horizontal rule, which used to be called DThr
   -- nowadays we discard all horizontal rules whenever we encounter them
   -- so … now i want to match something and then throw it away.
-  drows <- many (parseDataRow csigs <?> "parseDataRow")
+  drows <- many (try ((many parseDThr <?> "parseDThr") >> parseDataRow csigs <?> "parseDataRow"))
   endOfInput
   return drows
 
