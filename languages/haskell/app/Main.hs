@@ -16,6 +16,7 @@ import DMN.Types
 import DMN.ParseTable
 import DMN.DecisionTable
 import DMN.Translate.JS
+import DMN.Translate.PY
 import DMN.ParseFEEL
 
 import Text.Megaparsec hiding (label)
@@ -137,11 +138,12 @@ main = do
 
 -- not quite finished; in future refactor this over to JS.hs
 showToJSON :: DecisionTable -> [[FEELexp]] -> [String]
-showToJSON dtable cols = if not (null cols) then zipWith showFeels ((getOutputHeaders . header) dtable) cols else []
+showToJSON dtable cols = if not (null cols) then zipWith DMN.Translate.JS.showFeels ((getOutputHeaders . header) dtable) cols else []
 
 outputTo :: Handle -> String -> ArgOptions -> DecisionTable -> IO ()
-outputTo h "js" opts dtable = hPutStrLn h $ toJS (JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
-outputTo h "ts" opts dtable = hPutStrLn h $ toJS (JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
+outputTo h "js" opts dtable = hPutStrLn h $ toJS (DMN.Translate.JS.JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
+outputTo h "ts" opts dtable = hPutStrLn h $ toJS (DMN.Translate.JS.JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
+outputTo h "py" opts dtable = hPutStrLn h $ toPY (DMN.Translate.PY.JSOpts (Main.propstyle opts) (outformat opts == "ts")) dtable
 
 myOutHandle :: FilePath -> IO Handle
 myOutHandle h = if h == "-" then return stdout else openFile h WriteMode
