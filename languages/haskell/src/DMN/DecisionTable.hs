@@ -220,7 +220,6 @@ mkDTable origname orighp origchs origdtrows =
            --             "newchs = " ++ show(newchs) ++ "\n" )
     DTable origname orighp typedchs
     ((\case
-         DThr -> DThr
          (DTrow rn ri ro rc) -> (DTrow rn
                         (reprocessRows (getInputHeaders typedchs)  ri)
                         (reprocessRows (getOutputHeaders typedchs) ro)
