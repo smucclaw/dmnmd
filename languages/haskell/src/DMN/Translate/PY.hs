@@ -138,7 +138,7 @@ comment_headers = filter ((DTCH_Comment==).label)
 
 feel2jsIn :: String -> FEELexp -> String
 feel2jsIn lhs  FAnything = wrapParen "||" ["true",lhs]
-feel2jsIn lhs (FSection Feq (VB rhs))  = lhs ++ "==" ++ (toLower <$> show rhs)
+feel2jsIn lhs (FSection Feq (VB rhs))  = lhs ++ "==" ++ (show rhs)
 feel2jsIn lhs (FSection Feq (VN rhs))  = lhs ++ "==" ++ show rhs
 feel2jsIn lhs (FSection Feq (VS rhs))  = lhs ++ "==" ++ show rhs
 feel2jsIn lhs (FSection Flt  (VN rhs)) = lhs ++ " < "  ++ show rhs

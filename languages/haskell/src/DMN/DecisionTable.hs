@@ -9,7 +9,7 @@ import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, inter
 import Data.List.Split
 import Data.Maybe
 import Text.Regex.PCRE
-import Data.Char (toLower)
+import Data.Char (toLower, toTitle)
 import Debug.Trace
 import DMN.Types
 -- import Data.Attoparsec.Text
