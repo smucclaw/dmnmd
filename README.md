@@ -127,7 +127,9 @@ The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.
 
 #### Example 3: Routing Rules
 
-Github's Markdown renderer is slightly broken. This version of the table is for looking at:
+For hit policy "O", the order of results in the output is determined by the order of the column enums.
+
+The column enums are giving in a subhead row between the top row and body data row "1".
 
 | O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
 |---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
@@ -136,8 +138,6 @@ Github's Markdown renderer is slightly broken. This version of the table is for 
 | 2 | <18 |                   |                      | DECLINE                | NONE                   | Applicant too young         |
 | 3 |     | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
 | 4 |     |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
-
-For hit policy "O", the order of results in the output is determined by the order of the column enums.
 
 This example comes from the [DMM 1.3 specification](https://www.omg.org/spec/DMN/1.3/PDF), page 96.
 
