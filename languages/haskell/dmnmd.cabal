@@ -1,0 +1,139 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           dmnmd
+version:        0.1.0.1
+synopsis:       CLI to inter-convert DMN tables from Markdown format to JS, and more
+description:    Decision Model & Notation format conversion and code generation. Please see the README on GitHub at <https://github.com/smucclaw/complaw/dmnmd>
+category:       Code Generation
+homepage:       https://github.com/smucclaw/complaw#readme
+bug-reports:    https://github.com/smucclaw/complaw/issues
+author:         Meng Weng Wong
+maintainer:     mwwong@smu.edu.sg
+copyright:      2020 Singapore Management University
+license:        BSD3
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/smucclaw/complaw
+
+library
+  exposed-modules:
+      DMN.DecisionTable
+      DMN.ParseFEEL
+      DMN.ParseTable
+      DMN.ParsingUtils
+      DMN.SFeelGrammar
+      DMN.Translate.JS
+      DMN.Types
+      DMN.XML.ParseDMN
+      DMN.XML.PickleHelpers
+      DMN.XML.XmlToDmnmd
+      Text.XML.HXT.Pickle.TupleInstances
+  other-modules:
+      Paths_dmnmd
+  hs-source-dirs:
+      src
+  ghc-options: -Wno-unused-matches -fwrite-ide-info -hiedir=.hie
+  build-depends:
+      MissingH
+    , attoparsec
+    , base >=4.7 && <5
+    , containers
+    , haskeline
+    , hspec
+    , hspec-attoparsec
+    , hspec-golden
+    , hspec-megaparsec
+    , hxt
+    , lens
+    , megaparsec
+    , optparse-applicative
+    , parser-combinators
+    , pretty-simple
+    , raw-strings-qq
+    , regex-pcre
+    , scientific
+    , split
+    , text
+    , unix
+  default-language: Haskell2010
+
+executable dmnmd
+  main-is: Main.hs
+  other-modules:
+      Options
+      ParseMarkdown
+      Paths_dmnmd
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      MissingH
+    , attoparsec
+    , base >=4.7 && <5
+    , containers
+    , dmnmd
+    , filepath
+    , haskeline
+    , hspec
+    , hspec-attoparsec
+    , hspec-golden
+    , hspec-megaparsec
+    , hxt
+    , lens
+    , megaparsec
+    , optparse-applicative
+    , parser-combinators
+    , pretty-simple
+    , raw-strings-qq
+    , regex-pcre
+    , scientific
+    , split
+    , text
+    , unix
+  default-language: Haskell2010
+
+test-suite dmnmd-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      DmnXmlSpec
+      ParseFEELSpec
+      ParserSpecHelpers
+      SFeelGrammar
+      Paths_dmnmd
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      MissingH
+    , attoparsec
+    , base >=4.7 && <5
+    , containers
+    , dmnmd
+    , haskeline
+    , hspec
+    , hspec-attoparsec
+    , hspec-golden
+    , hspec-megaparsec
+    , hxt
+    , lens
+    , megaparsec
+    , optparse-applicative
+    , parser-combinators
+    , pretty-simple
+    , raw-strings-qq
+    , regex-pcre
+    , scientific
+    , split
+    , text
+    , unix
+  default-language: Haskell2010

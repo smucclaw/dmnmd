@@ -20,6 +20,7 @@ import qualified Control.Lens.TH as L_TH
 import qualified DMN.Types as DT
 import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
+import Data.Void (Void)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -28,6 +29,9 @@ getEx2 :: IO XmlTree
 getEx2 = do
   [ans] <- runX $ removeAllWhiteSpace <<< readDocument [withCheckNamespaces True] "test/simple.dmn"
   pure ans
+
+ignoreContent :: [String] -> PU a -> PU a
+ignoreContent name = xpFilterCont (none `when` foldl1 (<+>) (hasName <$> name))
 
 xmlns_dmn, xmlns_dmndi, xmlns_dc, xmlns_di, xmlns_camunda :: String
 xmlns_dmn = "https://www.omg.org/spec/DMN/20191111/MODEL/"
@@ -48,7 +52,7 @@ withNS =
     . xpAddNSDecl "dmndi" xmlns_dmndi
     . xpAddNSDecl "dc" xmlns_dc
     . xpAddNSDecl "di" xmlns_di
-    . xpAddNSDecl "camunda" xmlns_camunda
+    . xpFilterAttr (none `when` hasName "xmlns:camunda")
 
 data Description = Description
   { description :: String
@@ -60,7 +64,7 @@ makePrisms ''Description
 instance XmlPickler Description where
   xpickle = xpDMNElem "description" _Description xpText
 
-data DmnNamed = DmnNamed 
+data DmnNamed = DmnNamed
   { dmnnId :: Maybe String
   , dmnnName :: String
  }
@@ -82,9 +86,10 @@ instance Show DmnNamed where
   show (DmnNamed (Just a) b ) = "dmnNamed' " ++ show a ++ " " ++ show b
   show (DmnNamed Nothing b) = "DmnNamed Nothing " ++ show b
 
+-- Corresponds to tDMNElement
 data DmnCommon = DmnCommon
   { dmnId :: Maybe String
-  , dmnName :: Maybe String
+  , dmnLabel :: Maybe String
   -- The spec says that description should be here, but it's only relevant for rules, so I place it there instead
   -- , dmnDescription :: Maybe String
   }
@@ -95,15 +100,19 @@ makePrisms ''DmnCommon
 instance Show DmnCommon where
   show (DmnCommon Nothing  Nothing  ) = "unnamed"
   show (DmnCommon (Just a) Nothing  ) = "dmnWithId " ++ show a
-  show (DmnCommon (Just a) (Just b) ) = "dmnNamed " ++ show a ++ " " ++ show b
+  show (DmnCommon (Just a) (Just b) ) = "dmnLabeled" ++ show a ++ " " ++ show b
   show (DmnCommon a b) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ")"
   -- show (DmnCommon Nothing  Nothing  Nothing) = "unnamed"
   -- show (DmnCommon (Just a) Nothing  Nothing) = "dmnWithId " ++ show a
   -- show (DmnCommon (Just a) (Just b) Nothing) = "dmnNamed " ++ show a ++ " " ++ show b
   -- show (DmnCommon a b c) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ") (" ++ show c ++ ")"
 
+{-# DEPRECATED dmnNamed "use dmnLabeled instead" #-}
 dmnNamed :: String -> String -> DmnCommon
-dmnNamed eid name = (dmnWithId eid) {dmnName = Just name }
+dmnNamed = dmnLabeled
+
+dmnLabeled :: String -> String -> DmnCommon
+dmnLabeled eid name = (dmnWithId eid) {dmnLabel = Just name }
 
 dmnWithId :: String -> DmnCommon
 dmnWithId eid = unnamed {dmnId = (Just eid)}
@@ -117,7 +126,7 @@ instance XmlPickler DmnCommon where
     wrapIso _DmnCommon $
       xpPair
         (xpOption $ xpAttr "id" xpText)
-        (xpOption $ xpAttr "name" xpText)
+        (xpOption $ xpAttr "name" xpText) -- NB: This should be "label" and not "name"
         -- (xpOption $ xpElemNS xmlns_dmn "" "description" xpText)
 
 data DMNDI = DMNDI
@@ -290,11 +299,50 @@ instance XmlPickler TextElement where
     xpDMNElem "text" _TextElement
       $ xpText0
 
-data InputExpression = InputExpression
-  { inputExprLabel :: DmnCommon
-  , inputExprTypeRef :: TypeRef
-  , inputExprText :: TextElement
+data TExpr = TExpr
+  { exprLabel :: DmnCommon
+  , exprTypeRef :: Maybe TypeRef
   }
+  deriving (Show, Eq)
+
+makePrisms ''TExpr
+
+instance XmlPickler TExpr where
+  xpickle = wrapIso _TExpr xpickle
+
+data ExpressionLanguage = ExpressionLanguage String -- xsd:anyURI
+  deriving (Show, Eq)
+
+makePrisms ''ExpressionLanguage
+instance XmlPickler ExpressionLanguage where
+  xpickle = xpAttr "expressionLanguage" $ wrapIso _ExpressionLanguage xpText
+
+data TLiteralExpression = TLiteralExpression
+  { tleExpr :: TExpr
+  , tleExpressionLanguage :: Maybe ExpressionLanguage
+  , tleContent :: Maybe TextElement -- NB: Either this or importedValues
+  }
+  deriving (Show, Eq)
+
+makePrisms ''TLiteralExpression
+
+instance XmlPickler TLiteralExpression where
+  xpickle = wrapIso _TLiteralExpression xpickle
+
+data LiteralExpression = LiteralExpression TLiteralExpression
+  deriving (Show, Eq)
+
+makePrisms ''LiteralExpression
+
+instance XmlPickler LiteralExpression where
+  xpickle =
+    xpDMNElem "literalExpression" _LiteralExpression
+      -- . xpFilterAttr (hasName "id" <+> hasName "name")
+      -- . xpFilterCont none -- TODO
+      $ xpickle
+
+
+data InputExpression = InputExpression TLiteralExpression
   deriving (Show, Eq)
 
 makePrisms ''InputExpression
@@ -319,9 +367,10 @@ instance XmlPickler TableInput where
       . xpFilterAttr (none `when` hasName "camunda:inputVariable")
       $ xpickle
 
+-- tOutputClause in schema
 data TableOutput = TableOutput
   { toutName :: DmnCommon
-  , toutLabel :: ColumnLabel
+  , toutLabel :: ColumnLabel -- Note: This is optional according to the schema, but that doesn't make much sense
   , toutTypeRef :: TypeRef
   }
   deriving (Show, Eq)
@@ -413,10 +462,25 @@ instance XmlPickler DecisionTable where
         (xpList1 xpickle)
         xpickle
 
+data Expression = ExprDTable DecisionTable | ExprLiteral LiteralExpression
+  deriving (Show, Eq)
+
+exprNr :: Expression -> Int
+exprNr (ExprDTable _) = 0
+exprNr (ExprLiteral _) = 0
+
+instance XmlPickler Expression where
+  xpickle =
+    xpAlt
+      exprNr
+      [ xpWrap (ExprDTable, \(ExprDTable x) -> x) xpickle
+      , xpWrap (ExprLiteral, \(ExprLiteral x) -> x) xpickle
+      ]
+
 data Decision = Decision
   { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
     decInfoReq :: [InformationRequirement],
-    decDTable :: Maybe DecisionTable -- Schema says this could be any "expression", not just table
+    decDTable :: Maybe Expression -- Schema says this could be any "expression", not just table
   }
   deriving (Show, Eq)
 
@@ -427,7 +491,8 @@ instance XmlPickler Decision where
     xpDMNElem "decision" _Decision
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
-      . xpFilterCont (none `when` hasName "authorityRequirement") -- We don't care about "Authority" which express where rules come from
+      . ignoreContent ["authorityRequirement"] -- We don't care about "Authority" which express where rules come from
+      . ignoreContent ["variable"] -- I don't know what this is
       $ xpickle
 
 data InputData = InputData
@@ -462,12 +527,31 @@ makePrisms ''Namespace
 instance XmlPickler Namespace where
   xpickle = wrapIso _Namespace $ xpAttr "namespace" xpText
 
+data DrgElems = DrgDec Decision | DrgInpData InputData | DrgKS KnowledgeSource
+  deriving (Show, Eq)
+
+drgNr :: DrgElems -> Int
+drgNr (DrgDec _) = 0
+drgNr (DrgInpData _) = 1
+drgNr (DrgKS _) = 2
+
+instance XmlPickler DrgElems where
+  xpickle =
+    xpAlt
+      drgNr
+      [ xpWrap (DrgDec, \(DrgDec x) -> x) xpickle
+      , xpWrap (DrgInpData, \(DrgInpData x) -> x) xpickle
+      , xpWrap (DrgKS, \(DrgKS x) -> x) xpickle
+      ]
+
+
+
 data Definitions = Definitions
-  { defLabel :: DmnCommon,
+  { defLabel :: DmnNamed,
     defsNamespace :: Namespace,
-    defsDescisions :: [Decision],
     defInputData :: [InputData],
-    defDrgElems :: [KnowledgeSource],
+    defsDescisions :: [Decision],
+    defDrgElems :: [DrgElems],
     defDMNDI :: Maybe DMNDI
   }
   deriving (Show, Eq)
@@ -479,7 +563,7 @@ type XDMN = Definitions
 ex3 :: XDMN
 ex3 =
   Definitions
-    { defLabel = dmnNamed "hi" "there",
+    { defLabel = dmnNamed' "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
       defsDescisions = [
         Decision (dmnNamed' "a" "b") [
@@ -498,8 +582,12 @@ dmnPickler =
     -- . xpFilterAttr (getAttrValue _ _)
     -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
     -- . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
-    . xpFilterCont (none `when` hasName "dmndi") -- We're not interested in diagrams
+    . ignoreContent ["dmndi"] -- We're not interested in diagrams
+    . ignoreContent ["variable"] -- I don't know what this is
+    . xpFilterAttr (none `when` (hasName "exporter" <+> hasName "exporterVersion") ) -- Used by Camunda Modeler
     $ xpickle
+
+--     <variable id="InformationItem_1mjp1b5" name="safe price" typeRef="double" />
 
 -- $> :m + Text.Pretty.Simple
 
@@ -528,6 +616,8 @@ parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
 -- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision) >>> writeDocumentToString []
 --- ^ Doesn't work when the data is filtered with xpFilterAttr/Cont. Fails with Prelude.foldr1.
 
+-- $> parseDMN "test/safe2.dmn"
+
 -- $> runEx1
 
 runEx1 :: IO [XDMN]
@@ -538,6 +628,7 @@ runEx1 = parseDMN "test/simulation.dmn"
 
 runEx2 :: IO [XDMN]
 runEx2 = parseDMN "test/simple.dmn"
+
 
 -- id="dinnerDecisions"
 -- name="Dinner Decisions"

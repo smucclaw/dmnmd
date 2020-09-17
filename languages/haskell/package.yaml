@@ -41,6 +41,9 @@ dependencies:
 - lens
 - hspec-golden
 - pretty-simple
+# For number parsing
+- scientific
+- parser-combinators
 
 library:
   source-dirs: src
@@ -61,6 +64,7 @@ executables:
     # - -Wall
     dependencies:
     - dmnmd
+    - filepath
 
 tests:
   dmnmd-test:
