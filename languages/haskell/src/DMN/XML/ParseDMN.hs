@@ -107,10 +107,6 @@ instance Show DmnCommon where
   -- show (DmnCommon (Just a) (Just b) Nothing) = "dmnNamed " ++ show a ++ " " ++ show b
   -- show (DmnCommon a b c) = "DmnCommon (" ++ show a ++ ") (" ++ show b ++ ") (" ++ show c ++ ")"
 
-{-# DEPRECATED dmnNamed "use dmnLabeled instead" #-}
-dmnNamed :: String -> String -> DmnCommon
-dmnNamed = dmnLabeled
-
 dmnLabeled :: String -> String -> DmnCommon
 dmnLabeled eid name = (dmnWithId eid) {dmnLabel = Just name }
 
@@ -567,7 +563,7 @@ ex3 =
       defsNamespace = Namespace xmlns_camunda,
       defsDescisions = [
         Decision (dmnNamed' "a" "b") [
-          InformationRequirement (dmnNamed "c" "d") RequiredInput (Href "#url")
+          InformationRequirement (dmnLabeled "c" "d") RequiredInput (Href "#url")
           ]
           Nothing],
       defInputData = [],
