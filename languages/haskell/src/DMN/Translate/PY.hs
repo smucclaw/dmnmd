@@ -57,7 +57,7 @@ mkIf jsopts hp ifword chs dtrow =
   in
     "  " ++ ifword ++ " (" ++
     (if not (null conditions)
-     then intercalate " && " conditions
+     then intercalate " and " conditions
      else "\"default\"") -- TODO: tweak ifword to allow just an "else" here, rather than exploiting the truthiness of JS
     ++ "): # " ++
     maybe "cont'd" show (row_number dtrow) ++ "\n" ++
@@ -87,7 +87,7 @@ annotationsAsComments chs dtrow =
   unlines $ ("    # "++) <$> (if length unprefixed > 1 then prefixedComments else unprefixed)
 
 fexp2js :: PYOpts -> ColHeader -> [FEELexp] -> String
-fexp2js jsopts ch fexps = wrapParen " || " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
+fexp2js jsopts ch fexps = wrapParen " or " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
 
 showVarname :: PYOpts -> ColHeader -> String
 showVarname jsopts ch
@@ -116,7 +116,7 @@ capitalize [] = []
 capitalize (x:xs) = toUpper x : xs
 
 feel2pyIn :: String -> FEELexp -> String
-feel2pyIn lhs  FAnything = wrapParen "||" ["True",lhs]
+feel2pyIn lhs  FAnything = wrapParen "or" ["True",lhs]
 feel2pyIn lhs (FSection Feq (VB rhs))  = lhs ++ "==" ++ capitalize (toLower <$> show rhs)
 feel2pyIn lhs (FSection Feq (VN rhs))  = lhs ++ "==" ++ show rhs
 feel2pyIn lhs (FSection Feq (VS rhs))  = lhs ++ "==" ++ show rhs
@@ -124,7 +124,7 @@ feel2pyIn lhs (FSection Flt  (VN rhs)) = lhs ++ " < "  ++ show rhs
 feel2pyIn lhs (FSection Flte (VN rhs)) = lhs ++ " <="  ++ show rhs
 feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ " > "  ++ show rhs
 feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ " >="  ++ show rhs
-feel2pyIn lhs (FInRange lower upper)   = wrapParen " && " [show lower ++ "<=" ++ lhs, lhs ++ "<=" ++ show upper]
+feel2pyIn lhs (FInRange lower upper)   = wrapParen " and " [show lower ++ "<=" ++ lhs, lhs ++ "<=" ++ show upper]
 feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
 
 -- TODO:
