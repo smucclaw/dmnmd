@@ -15,6 +15,8 @@ import System.Console.Haskeline
 import DMN.Types
 import DMN.DecisionTable
 import DMN.Translate.JS
+import DMN.Translate.PY
+import DMN.Translate.FEELhelpers
 import DMN.XML.ParseDMN (parseDMN)
 import DMN.XML.XmlToDmnmd (convertAll)
 
@@ -116,6 +118,7 @@ showToJSON dtable cols' = if not (null cols') then zipWith showFeels ((getOutput
 outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
 outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
+outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype 
                                    ++ ".\nSupported output formats are 'ts' and 'js'"
 
