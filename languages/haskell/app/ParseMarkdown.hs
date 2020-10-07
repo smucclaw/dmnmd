@@ -53,7 +53,9 @@ parseMarkdown opts1 = do
     mylog opts msg = when (verbose opts) $ myerr opts msg
 
     parseChunk :: ArgOptions -> InputChunk -> IO [DecisionTable]
-    parseChunk opts mychunk = do
+    parseChunk opts mychunk
+     | chunkLines mychunk == ["|]"] = pure [] -- special case, sometimes |] closes a quasiquotation block
+     | otherwise = do
       let parseResult = parseOnly (parseTable (chunkName mychunk) <?> "parseTable")
             $ T.pack $ unlines $ chunkLines mychunk
       let printParseError myPTfail =
