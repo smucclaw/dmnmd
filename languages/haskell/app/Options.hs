@@ -52,7 +52,7 @@ detectOutformat opts = opts { outformat = detectFormat [out opts] (outformat opt
 detectInformat :: ArgOptions -> ArgOptions
 detectInformat opts = opts { informat = detectFormat (input opts) (informat opts)}
 
-data FileFormat = Ts | Js | Xml | Md | Unknown
+data FileFormat = Ts | Js | Py | Xml | Md | Unknown
   deriving (Show, Eq)
 
 -- | A file format option
@@ -64,6 +64,7 @@ parseFileFormat :: OA.ReadM FileFormat
 parseFileFormat = OA.eitherReader $ \case 
     "ts" -> return Ts
     "js" -> return Js
+    "py" -> return Py
     "md" -> return Md
     "xml" -> return Xml
     _    -> Left "Accepted file types are 'ts', 'js', 'xml', and 'md'."
@@ -75,6 +76,7 @@ fileExtensionMappings :: [(String, FileFormat)]
 fileExtensionMappings =
   [ (".ts", Ts)
   , (".js", Js)
+  , (".py", Py)
   , (".dmn", Xml)
   , (".md", Md)
   ]
