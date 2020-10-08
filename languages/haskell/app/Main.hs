@@ -122,7 +122,7 @@ outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) 
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts))  dtable
 outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype 
-                                   ++ ".\nSupported output formats are 'ts' and 'js'"
+                                   ++ ".\nSupported output formats are 'ts', 'js' and 'py'"
 
 myOutHandle :: FilePath -> IO Handle
 myOutHandle h = if h == "-" then return stdout else openFile h WriteMode
