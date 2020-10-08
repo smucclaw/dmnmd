@@ -67,7 +67,7 @@ parseFileFormat = OA.eitherReader $ \case
     "py" -> return Py
     "md" -> return Md
     "xml" -> return Xml
-    _    -> Left "Accepted file types are 'ts', 'js', 'xml', and 'md'."
+    _    -> Left "Accepted file types are 'ts', 'js', 'py', 'xml', and 'md'."
 
 testExtThing :: String
 testExtThing = takeExtension "test/simulation.dmn"
