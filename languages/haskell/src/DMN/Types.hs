@@ -140,7 +140,22 @@ data FNOp2 = FNMul
            | FNPlus
            | FNMinus
            | FNExp
-             deriving (Show, Eq)
+           deriving (Show, Eq)
+
+-- Logical operators (ALF: I'm not sure how i feel about this, when it comes to generating the lambda syntax in FEELhelpers.hs) 
+data FNLog = FNNot
+           | FNAnd
+           | FNOr
+           deriving (Show, Eq)
+
+-- Comparison Operators (ALF: I'm not sure how i feel about this, when it comes to generating the lambda syntax in FEELhelpers.hs) 
+data FNComp = FNEq
+            | FNNeq
+            | FNLt
+            | FNLeq
+            | FNGt
+            | FNGeq
+            deriving (Show, Eq)
 
 -- will need some pickle/unpickle infrastructure later
 data DMNVal = VS String
