@@ -13,8 +13,7 @@ import Data.Char
 import DMN.Types
 import DMN.Translate.FEELhelpers
 
-data PYOpts = PYOpts { propstyle :: Bool
-                     , typescript :: Bool }
+data PYOpts = PYOpts { propstyle :: Bool }
 
 toPY :: PYOpts -> DecisionTable -> String
 -- https://github.com/faylang/fay/wiki
@@ -43,7 +42,7 @@ mkArguments pyopts chs = ["(", intercalate ", " (mkArgument pyopts <$> input_hea
 
 -- helper function for generating individual arguments that go into (args)
 mkArgument :: PYOpts -> ColHeader -> String
-mkArgument pyopts ch = var_name ch ++ maybe "" (if typescript pyopts then (" : " ++) . type2py else const "") (vartype ch) 
+mkArgument pyopts ch = var_name ch ++ maybe "" (const "") (vartype ch) 
 
 type2py :: DMNType -> String
 type2py DMN_String    = "str"
@@ -111,20 +110,17 @@ input_headers   = filter ((DTCH_In==).label)
 comment_headers :: [ColHeader] -> [ColHeader]
 comment_headers = filter ((DTCH_Comment==).label)
 
-capitalize :: String -> String
-capitalize [] = []
-capitalize (x:xs) = toUpper x : xs
 
 feel2pyIn :: String -> FEELexp -> String
 feel2pyIn lhs  FAnything = wrapParen "or" ["True",lhs]
-feel2pyIn lhs (FSection Feq (VB rhs))  = lhs ++ "==" ++ capitalize (toLower <$> show rhs)
-feel2pyIn lhs (FSection Feq (VN rhs))  = lhs ++ "==" ++ show rhs
-feel2pyIn lhs (FSection Feq (VS rhs))  = lhs ++ "==" ++ show rhs
-feel2pyIn lhs (FSection Flt  (VN rhs)) = lhs ++ " < "  ++ show rhs
-feel2pyIn lhs (FSection Flte (VN rhs)) = lhs ++ " <="  ++ show rhs
-feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ " > "  ++ show rhs
-feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ " >="  ++ show rhs
-feel2pyIn lhs (FInRange lower upper)   = wrapParen " and " [show lower ++ "<=" ++ lhs, lhs ++ "<=" ++ show upper]
+feel2pyIn lhs (FSection Feq (VB rhs))  = lhs ++ showFNComp "py" FNEq  ++ capitalize (toLower <$> show rhs)
+feel2pyIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "py" FNEq  ++ show rhs
+feel2pyIn lhs (FSection Feq (VS rhs))  = lhs ++ showFNComp "py" FNEq  ++ show rhs
+feel2pyIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "py" FNLt  ++ show rhs
+feel2pyIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "py" FNLeq ++ show rhs
+feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "py" FNGt  ++ show rhs
+feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "py" FNGeq ++ show rhs
+feel2pyIn lhs (FInRange lower upper)   = wrapParen (showFNLog "py" FNAnd) [show lower ++ showFNComp "py" FNLeq ++ lhs, lhs ++ showFNComp "py" FNLeq ++ show upper]
 feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
 
 -- TODO:
@@ -141,6 +137,6 @@ feel2pyOut :: HitPolicy -> [ColHeader] -> DTrow -> (Maybe String, [String])
 feel2pyOut hp chs dtrow
   -- ("// one input column, allowing binary operators in output column(s)"
   = (Nothing, -- "toreturn[thiscolumn] = ..."
-     uncurry showFeels <$> zip
-                             (filter ((DTCH_Out==).label) chs)
-                             (row_outputs dtrow))
+     uncurry (showFeels "py") <$> zip
+                                  (filter ((DTCH_Out==).label) chs)
+                                  (row_outputs dtrow))

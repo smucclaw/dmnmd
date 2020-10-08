@@ -139,14 +139,14 @@ comment_headers = filter ((DTCH_Comment==).label)
 
 feel2jsIn :: String -> FEELexp -> String
 feel2jsIn lhs  FAnything = wrapParen "||" ["true",lhs]
-feel2jsIn lhs (FSection Feq (VB rhs))  = lhs ++ "===" ++ (toLower <$> show rhs)
-feel2jsIn lhs (FSection Feq (VN rhs))  = lhs ++ "===" ++ show rhs
-feel2jsIn lhs (FSection Feq (VS rhs))  = lhs ++ "===" ++ show rhs
-feel2jsIn lhs (FSection Flt  (VN rhs)) = lhs ++ " < "  ++ show rhs
-feel2jsIn lhs (FSection Flte (VN rhs)) = lhs ++ " <="  ++ show rhs
-feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ " > "  ++ show rhs
-feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ " >="  ++ show rhs
-feel2jsIn lhs (FInRange lower upper)   = wrapParen " && " [show lower ++ "<=" ++ lhs, lhs ++ "<=" ++ show upper]
+feel2jsIn lhs (FSection Feq (VB rhs))  = lhs ++ showFNComp "ts" FNEq  ++ (toLower <$> show rhs)
+feel2jsIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "ts" FNEq  ++ show rhs
+feel2jsIn lhs (FSection Feq (VS rhs))  = lhs ++ showFNComp "ts" FNEq  ++ show rhs
+feel2jsIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "ts" FNLt  ++ show rhs
+feel2jsIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "ts" FNLeq ++ show rhs
+feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "ts" FNGt  ++ show rhs
+feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ show rhs
+feel2jsIn lhs (FInRange lower upper)   = wrapParen (showFNLog "ts" FNAnd) [show lower ++ showFNComp "ts" FNLeq ++ lhs, lhs ++ showFNComp "ts" FNLeq ++ show upper]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
 
 -- TODO:
@@ -163,7 +163,7 @@ feel2jsOut :: HitPolicy -> [ColHeader] -> DTrow -> (Maybe String, [String])
 feel2jsOut hp chs dtrow
   -- ("// one input column, allowing binary operators in output column(s)"
   = (Nothing, -- "toreturn[thiscolumn] = ..."
-     uncurry showFeels <$> zip
-                             (filter ((DTCH_Out==).label) chs)
-                             (row_outputs dtrow))
+     uncurry (showFeels "js") <$> zip
+                                    (filter ((DTCH_Out==).label) chs)
+                                    (row_outputs dtrow))
 
