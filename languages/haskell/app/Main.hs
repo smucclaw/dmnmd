@@ -68,7 +68,7 @@ main = do
                   either
                     (\errstr -> outputStrLn $ "problem running " ++ inputCmd ++ " against table " ++ tableName dtable ++ ": " ++ errstr)
                     (outputStr . unlines . map (\resultrow ->
-                                                   tableName dtable ++ ": " ++ intercalate ", " (showToJSON dtable resultrow)))
+                                                   tableName dtable ++ ": " ++ intercalate ", " (showToJSON (outformat opts) dtable resultrow)))
                     (evalTable dtable (zipWith mkF expecting splitInput))
                 ) dtables
           outputStrLn ""
@@ -110,15 +110,17 @@ parseDmnXml opts = do
   convertAll <$> parseDMN fileName
 
 -- not quite finished; in future refactor this over to JS.hs
-showToJSON :: DecisionTable -> [[FEELexp]] -> [String]
-showToJSON dtable cols' = if not (null cols') then zipWith showFeels ((getOutputHeaders . header) dtable) cols' else []
+showToJSON :: FileFormat -> DecisionTable -> [[FEELexp]] -> [String]
+showToJSON Js dtable cols' = if not (null cols') then zipWith (showFeels "js") ((getOutputHeaders . header) dtable) cols' else []
+showToJSON Ts dtable cols' = if not (null cols') then zipWith (showFeels "ts") ((getOutputHeaders . header) dtable) cols' else []
+showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") ((getOutputHeaders . header) dtable) cols' else []
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
 outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
 outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
-outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
+outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts))  dtable
 outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype 
                                    ++ ".\nSupported output formats are 'ts' and 'js'"
 
