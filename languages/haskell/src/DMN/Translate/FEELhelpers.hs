@@ -6,17 +6,12 @@ import Data.Char
 import Data.List
 import DMN.Types
 
+data Opts = Opts { propstyle :: Bool
+                 , typehints :: Bool }
+
 capitalize :: String -> String -- This file is the "root" for generating the if-else condittions, and should be imported in fileformat-specific translation scripts, so I thought it'd be best to place this here
 capitalize [] = []
 capitalize (x:xs) = toUpper x : xs
-
--- Helper functions are are intended for use in generating lambda 
--- functions in the respective outputs (ts, js, python)
-lambdaHeader :: String -> String
-lambdaHeader optform
-  | optform == "py" = "lambda x: "
-  | (optform == "ts") || (optform == "js") = "(x)=> "
-  | otherwise = error "Currently only ts, js and py formats are supported"
 
 
 wrapArray :: String -> [String] -> String
@@ -76,3 +71,20 @@ showFNComp "ts" FNEq  = " === "
 showFNComp "ts" FNNeq = " !== "
 showFNComp "ts" x     = showFNComp "py" x
 showFNComp "js" x     = showFNComp "ts" x
+
+
+wrapParen :: String -> [String] -> String
+wrapParen myop xs
+  | length xs  > 1 = "(" ++ intercalate myop xs ++ ")"
+  | length xs == 1 = head xs
+  | otherwise      = "null"
+
+nonBlankCols :: a -> [FEELexp] -> Maybe (a, [FEELexp])
+nonBlankCols chs dtrows = if dtrows /= [FAnything] then Just (chs, dtrows) else Nothing
+
+input_headers :: [ColHeader] -> [ColHeader]
+input_headers   = filter ((DTCH_In==).label)
+
+comment_headers :: [ColHeader] -> [ColHeader]
+comment_headers = filter ((DTCH_Comment==).label)
+

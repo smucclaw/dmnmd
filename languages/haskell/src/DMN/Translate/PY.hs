@@ -13,18 +13,16 @@ import Data.Char
 import DMN.Types
 import DMN.Translate.FEELhelpers
 
-data PYOpts = PYOpts { propstyle :: Bool }
-
-toPY :: PYOpts -> DecisionTable -> String
+toPY :: Opts -> DecisionTable -> String
 -- https://github.com/faylang/fay/wiki
-toPY jsopts dt =
+toPY opts dt =
   unlines $ ( --this section creates the function header
              [ unwords $ concat [ mkFunction (tableName dt)                                 
-             , mkArguments jsopts (header dt)
+             , mkArguments opts (header dt)
                                 , [ ":"]
                                 ] ] 
              -- this section creates the relevant function body
-             ++ zipWith (\if_ dtrow -> mkIf jsopts (hitpolicy dt) if_ (header dt) dtrow) elsif (datarows dt)             
+             ++ zipWith (\if_ dtrow -> mkIf opts (hitpolicy dt) if_ (header dt) dtrow) elsif (datarows dt)             
             )   
   where
     elsif = "if" : repeat ( case hitpolicy dt of
@@ -37,11 +35,11 @@ toPY jsopts dt =
 mkFunction tablename = [ "def", underscore tablename ]  -- helper function for function boilerplate 
 
 -- helper function for generating (arguments)
-mkArguments :: PYOpts -> [ColHeader] -> [String]
+mkArguments :: Opts -> [ColHeader] -> [String]
 mkArguments pyopts chs = ["(", intercalate ", " (mkArgument pyopts <$> input_headers chs), ")"]
 
 -- helper function for generating individual arguments that go into (args)
-mkArgument :: PYOpts -> ColHeader -> String
+mkArgument :: Opts -> ColHeader -> String
 mkArgument pyopts ch = var_name ch ++ maybe "" (const "") (vartype ch) 
 
 type2py :: DMNType -> String
@@ -50,9 +48,9 @@ type2py DMN_Number    = "float"
 type2py DMN_Boolean   = "bool"
 type2py (DMN_List x)  = type2py x ++ "[]"
 
-mkIf :: PYOpts -> HitPolicy -> String -> [ColHeader] -> DTrow -> String
-mkIf jsopts hp ifword chs dtrow =
-  let conditions = uncurry (fexp2js jsopts) <$> catMaybes ( zipWith nonBlankCols (input_headers chs) (row_inputs dtrow) )
+mkIf :: Opts -> HitPolicy -> String -> [ColHeader] -> DTrow -> String
+mkIf opts hp ifword chs dtrow =
+  let conditions = uncurry (fexp2js opts) <$> catMaybes ( zipWith nonBlankCols (input_headers chs) (row_inputs dtrow) )
   in
     "  " ++ ifword ++ " (" ++
     (if not (null conditions)
@@ -85,31 +83,14 @@ annotationsAsComments chs dtrow =
   in
   unlines $ ("    # "++) <$> (if length unprefixed > 1 then prefixedComments else unprefixed)
 
-fexp2js :: PYOpts -> ColHeader -> [FEELexp] -> String
-fexp2js jsopts ch fexps = wrapParen " or " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
+fexp2js :: Opts -> ColHeader -> [FEELexp] -> String
+fexp2js opts ch fexps = wrapParen " or " (feel2pyIn ( showVarname opts ch) <$> fexps)
 
-showVarname :: PYOpts -> ColHeader -> String
-showVarname jsopts ch
-  | propstyle jsopts = "props[\"" ++ varname ch ++ "\"]"
+showVarname :: Opts -> ColHeader -> String
+showVarname opts ch
+  | propstyle opts = "props[\"" ++ varname ch ++ "\"]"
   | otherwise        = var_name ch
                
-wrapParen :: String -> [String] -> String
-wrapParen myop xs
-  | length xs  > 1 = "(" ++ intercalate myop xs ++ ")"
-  | length xs == 1 = head xs
-  | otherwise      = "null"
-wrapArray :: String -> [String] -> String
-wrapArray myop xs = "[" ++ intercalate myop xs ++ "]"
-
-nonBlankCols :: a -> [FEELexp] -> Maybe (a, [FEELexp])
-nonBlankCols chs dtrows = if dtrows /= [FAnything] then Just (chs, dtrows) else Nothing
-
-input_headers :: [ColHeader] -> [ColHeader]
-input_headers   = filter ((DTCH_In==).label)
-
-comment_headers :: [ColHeader] -> [ColHeader]
-comment_headers = filter ((DTCH_Comment==).label)
-
 
 feel2pyIn :: String -> FEELexp -> String
 feel2pyIn lhs  FAnything = wrapParen "or" ["True",lhs]
@@ -140,3 +121,6 @@ feel2pyOut hp chs dtrow
      uncurry (showFeels "py") <$> zip
                                   (filter ((DTCH_Out==).label) chs)
                                   (row_outputs dtrow))
+
+lambdaHeader :: String
+lambdaHeader = "lambda x: "

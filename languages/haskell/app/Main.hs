@@ -118,9 +118,9 @@ showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") (
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
 outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
-outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
-outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
-outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts))  dtable
+outputTo h Js opts dtable = hPutStrLn h $ toJS (Opts (Options.propstyle opts) (outformat opts == Ts)) dtable
+outputTo h Ts opts dtable = hPutStrLn h $ toJS (Opts (Options.propstyle opts) (outformat opts == Ts)) dtable
+outputTo h Py opts dtable = hPutStrLn h $ toPY (Opts (Options.propstyle opts) False                 ) dtable
 outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype 
                                    ++ ".\nSupported output formats are 'ts', 'js' and 'py'"
 
