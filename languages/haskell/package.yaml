@@ -48,7 +48,7 @@ dependencies:
 library:
   source-dirs: src
   ghc-options:
-  # - -Wall
+  - -Wall
   - -Wno-unused-matches
   - -fwrite-ide-info # Used by stan, the static analyser
   - -hiedir=.hie     # Ditto

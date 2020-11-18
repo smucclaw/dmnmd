@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wincomplete-patterns -Wno-unused-imports #-}
+
 module DMN.XML.PickleHelpers where
 
 import Text.XML.HXT.Core (xp6Tuple, XmlPickler(..), xpWrap, PU)

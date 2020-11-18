@@ -3,13 +3,13 @@
 
 module SFeelGrammar where
 
-import DMN.Types
-import DMN.ParseFEEL
+-- import DMN.Types
+-- import DMN.ParseFEEL
 import Test.Hspec
 import DMN.SFeelGrammar
 import ParserSpecHelpers
-import Text.Megaparsec
-import Data.Text (Text)
+-- import Text.Megaparsec
+-- import Data.Text (Text)
 
 sfeelSpec :: Spec
 sfeelSpec = do
@@ -46,6 +46,7 @@ sfeelSpec = do
      it "Allow '.5' as an alias for 0.5" $
         ".5" ~> numericLiteral `shouldParse` NumericLiteral 0.5
 
+onePlusTwo :: SimpleExpression
 onePlusTwo = Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
                        (SimpleValue . SimpleLiteral $ NumericLiteral 2))
 

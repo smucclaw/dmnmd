@@ -129,6 +129,7 @@ feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "ts" FNGt  ++ show rh
 feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ show rhs
 feel2jsIn lhs (FInRange lower upper)   = wrapParen (showFNLog "ts" FNAnd) [show lower ++ showFNComp "ts" FNLeq ++ lhs, lhs ++ showFNComp "ts" FNLeq ++ show upper]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
+feel2jsIn lhs rhs                      = error $ "feel2jsIn: unhandled case " ++ lhs ++ " / " ++ show rhs
 
 -- TODO:
 -- let's extend FEEL with support for PCRE lol

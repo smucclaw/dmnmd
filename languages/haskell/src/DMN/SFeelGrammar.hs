@@ -6,12 +6,12 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import Control.Monad.Combinators.Expr
 import qualified Text.Megaparsec.Char.Lexer as L
-import Options.Applicative (Alternative((<|>)))
-import DMN.Types
+-- import Options.Applicative (Alternative((<|>)))
+-- import DMN.Types
 import DMN.ParsingUtils
 import Data.Text (Text)
 import Data.Scientific (Scientific)
-import Data.Fixed (Fixed)
+-- import Data.Fixed (Fixed)
 import qualified Data.Text as T
 
 -- 9.2 S-FEEL syntax
@@ -136,7 +136,7 @@ interval :: Parser UnaryTest
 interval = do
     leftOpen <- (openIntervalStart <|> closedIntervalStart)
     leftEndpoint <- endpoint 
-    ".."
+    _ <- ".."
     rightEndpoint <- endpoint 
     rightOpen <- (openIntervalEnd <|> closedIntervalEnd)
     pure $ Interval leftOpen leftEndpoint rightEndpoint rightOpen
@@ -277,9 +277,9 @@ simpleLiteral = numericLiteral <|> StringLiteral <$> stringLiteral <|> booleanLi
 
 stringLiteral :: Parser Text
 stringLiteral =  do
-    "\""
+    _ <- "\""
     x <- T.concat <$> many (nonEscapeChar <|> stringEscapeSequence)
-    "\""
+    _ <- "\""
     pure x
 
 -- TODO: This could be faster, by parsing a long sequence at a time
@@ -323,9 +323,9 @@ data Date = DateThing TimeType Text
 dateTimeLiteral :: Parser SimpleLiteral
 dateTimeLiteral = do
     timeType <- Date <$ "date" <|> Time <$ "time" <|> Duration <$ "duration"
-    "("
+    _ <- "("
     str <- stringLiteral
-    ")"
+    _ <- ")"
     pure . DateLiteral $ DateThing timeType str
 
 -- 35 comparison = expression , ( "=" | "!=" | "<" | "<=" | ">" | ">=" ) , expression ;

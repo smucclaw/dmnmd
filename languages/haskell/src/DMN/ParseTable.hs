@@ -19,23 +19,23 @@ import DMN.ParsingUtils
 import DMN.Types
 
 pipeSeparator :: Parser ()
-pipeSeparator = try $ Mega.label "pipeSeparator" $ skipHorizontalSpace >> "|" >> skipHorizontalSpace
--- pipeSeparator = Mega.label "pipeSeparator" $ try skipHorizontalSpace >> skip (=='|') >> skipHorizontalSpace
+pipeSeparator = try $ Mega.label "pipeSeparator" $ hspace >> "|" >> hspace
+-- pipeSeparator = Mega.label "pipeSeparator" $ try hspace >> skip (=='|') >> hspace
 
 getpipeSeparator :: Parser Text
-getpipeSeparator = skipHorizontalSpace *> "|" <* skipHorizontalSpace
+getpipeSeparator = hspace *> "|" <* hspace
 
 parseColHeader :: Parser ColHeader
 parseColHeader = do
-  mylabel_pre <- parseLabelPre <* skipHorizontalSpace <?> "mylabel_pre"
+  mylabel_pre <- parseLabelPre <* hspace <?> "mylabel_pre"
   myvarname <- parseVarname <?> "parseVarname"
   mytype <- option Nothing parseTypeDecl <?> "parseTypeDecl"
-  mylabel_post <- skipHorizontalSpace *> parseLabelPost <?> "parseLabelPost"
+  mylabel_post <- hspace *> parseLabelPost <?> "parseLabelPost"
   return $ DTCH (mkHeaderLabel mylabel_pre mylabel_post) (T.unpack myvarname) mytype Nothing
 
 parseTypeDecl :: Parser (Maybe DMNType) -- Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
 parseTypeDecl = do
-  skipHorizontalSpace >> ":" >> skipHorizontalSpace
+  hspace >> ":" >> hspace
   parseType
 
 parseType :: Parser (Maybe DMNType)
@@ -46,11 +46,13 @@ parseType =
     (("Number"  >> return (Just DMN_Number)) <?> "number type") <|>
     (("Boolean" >> return (Just DMN_Boolean)) <?> "boolean type") ) -- need to check what the official DMN names are for these
 
+mkHeaderLabel :: Maybe Text -> Maybe Text -> DTCH_Label
 mkHeaderLabel (Just "//") _        = DTCH_Comment
 mkHeaderLabel (Just "#" ) _        = DTCH_Comment
 mkHeaderLabel _ (Just "(comment)") = DTCH_Comment
 mkHeaderLabel _ (Just "(out)")     = DTCH_Out
 mkHeaderLabel _ (Just "(in)")      = DTCH_In
+mkHeaderLabel _ (Just _)           = DTCH_In
 mkHeaderLabel _  Nothing           = DTCH_In
 
 parseLabelPre :: Parser (Maybe Text)
@@ -63,7 +65,7 @@ parseHitPolicy :: Parser HitPolicy
 parseHitPolicy = 
   mkHitPolicy_  <$> satisfy (inClass "UAPFOR")
   <|>
-  (char 'C' >> skipHorizontalSpace >> (mkHitPolicy_C <$> option 'A' (satisfy (inClass "#<>+A"))))
+  (char 'C' >> hspace >> (mkHitPolicy_C <$> option 'A' (satisfy (inClass "#<>+A"))))
 
 parseHeaderRow :: Parser HeaderRow
 parseHeaderRow = do
@@ -81,6 +83,7 @@ mkHitPolicy_ 'P' = HP_Priority
 mkHitPolicy_ 'F' = HP_First
 mkHitPolicy_ 'O' = HP_OutputOrder
 mkHitPolicy_ 'R' = HP_RuleOrder
+mkHitPolicy_ x   = error $ "unrecognized hit policy " ++ [x]
 
 mkHitPolicy_C :: Char -> HitPolicy
 mkHitPolicy_C 'A' = HP_Collect Collect_All
@@ -88,6 +91,7 @@ mkHitPolicy_C '#' = HP_Collect Collect_Cnt
 mkHitPolicy_C '<' = HP_Collect Collect_Min
 mkHitPolicy_C '>' = HP_Collect Collect_Max
 mkHitPolicy_C '+' = HP_Collect Collect_Sum
+mkHitPolicy_C x   = error $ "unrecognized collect hit policy " ++ [x]
 
 -- TODO: consider allowing spaces in variable names
 
@@ -106,7 +110,7 @@ mkHitPolicy_C '+' = HP_Collect Collect_Sum
 -- so we probably need to bite the bullet and just support JSON input.
 
 parseTable :: String -> Parser DecisionTable
-parseTable tableName = do
+parseTable table_name = do
   headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
@@ -118,7 +122,7 @@ parseTable tableName = do
                   else headerRow_1
   dataRows <- parseDataRows columnSignatures <?> "parseDataRows"
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
-  return ( mkDTable tableName (hrhp headerRow)
+  return ( mkDTable table_name (hrhp headerRow)
            (cols headerRow)
            dataRows )
 
@@ -139,13 +143,13 @@ parseContinuationRows = do
 parseContinuationRow :: Parser [String]
 parseContinuationRow = try $ do -- We need try since it starts with a pipe
       pipeSeparator
-      skipHorizontalSpace
+      hspace
       pipeSeparator
       parseTail <?> "parseTail"
 
 parseTail :: Parser [String]
 parseTail = do
-  rowtail <- manyTill (manyTill (satisfy (/='|') <?> "Non-pipe") pipeSeparator <?> "headr") (skipHorizontalSpace >> endOfLine)
+  rowtail <- manyTill (manyTill (satisfy (/='|') <?> "Non-pipe") pipeSeparator <?> "headr") (hspace >> endOfLine)
   return $ trim <$> rowtail
   
 -- the pattern is this:

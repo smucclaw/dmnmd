@@ -123,6 +123,7 @@ data ColBody = DTCBFeels [FEELexp] -- inputs and outputs are both FEELexps. list
 
 
 -- in a decision table, a cell might contain something like
+-- max(0, age)  which is  FFunction ( FNFf FNFmax [ ... ] )
 -- age      which becomes FFunction (       FNF1 "age"                            )
 -- age * 2  which becomes FFunction ( FNF3 (FNF1 "age")    FNMul (FNF0 (FN 2.0))  )
 -- 2 * 4    which becomes FFunction ( FNF3 (FNF0 (FN 2.0)) FNMul (FNF0 (FN 4.0))  )
@@ -132,7 +133,16 @@ data ColBody = DTCBFeels [FEELexp] -- inputs and outputs are both FEELexps. list
 data FNumFunction = FNF0 DMNVal  -- terminal value
                   | FNF1 String  -- variable name
                   | FNF3 FNumFunction FNOp2 FNumFunction -- binary operator function
+                  | FNFf FNFF [ FNumFunction ] -- function name, followed by argument list
              deriving (Show, Eq)
+
+data FNFF = FNFmax | FNFmin
+  deriving (Eq)
+
+instance Show FNFF where
+  show FNFmax = "max"
+  show FNFmin = "min"
+
 
 -- binary operators returning num
 data FNOp2 = FNMul
@@ -163,3 +173,9 @@ data DMNVal = VS String
             | VB Bool
             deriving (Show, Eq)
 
+-- for the max/min functionality
+instance Ord DMNVal where
+  compare (VS x) (VS y) = compare x y
+  compare (VN x) (VN y) = compare x y
+  compare (VB x) (VB y) = compare x y
+  compare _ _           = error "can't compare different types"

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Text.XML.HXT.Pickle.TupleInstances where
 import Text.XML.HXT.Core
 

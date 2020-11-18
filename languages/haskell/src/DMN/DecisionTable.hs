@@ -6,7 +6,6 @@ import Control.Arrow
 import Prelude hiding (takeWhile)
 import DMN.ParseFEEL
 import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
-import Data.List.Split
 import Data.Maybe
 import Text.Regex.PCRE
 import Data.Char (toLower)
@@ -14,7 +13,7 @@ import Debug.Trace
 import DMN.Types
 -- import Data.Attoparsec.Text
 -- import Text.Megaparsec hiding (label)
--- import Text.Megaparsec.Char
+import Text.Megaparsec (runParser)
 -- import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
@@ -117,12 +116,15 @@ fNEval symtab (FNF3 fnf1 fnop2 fnf3) = let lhs = fromVN (fNEval symtab fnf1)
                                              FNMinus -> lhs - rhs
                                              FNExp   -> lhs ** rhs
                                        in VN result
+fNEval symtab (FNFf FNFmax args) = maximum $ fNEval symtab <$> args
+fNEval symtab (FNFf FNFmin args) = minimum $ fNEval symtab <$> args
 
 mkFs :: Maybe DMNType -> String -> [FEELexp]
-mkFs dmntype args = do
-  arg <- trim <$> splitOn "," args
-  return (mkF dmntype arg)
+mkFs dmntype args =
+  either (error . show) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
 
+
+-- mkF is being deprecated in favour of parseFEELexp which knows about functions
 
 -- TODO: add a state monad to allow type inference to span all input rows;
 -- if any row contains a string, that entire column becomes a string not a num;
@@ -139,8 +141,6 @@ mkF t@(Just (DMN_List _)) x  = mkF (baseType t) x
 mkF Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type inference should have found some type for this column. coercing to string: " ++ arg1)
   FNullary (VS (trim arg1))
 
--- strings are tricky because they could be FEEL expression variable names like "Dish Name"
--- or just literal strings like "Lentil Soup"
 
 mkF (Just DMN_String)  arg1 = FNullary (VS (trim arg1))
 mkF (Just DMN_Boolean) arg1 = FNullary (mkVB arg1)
@@ -231,12 +231,13 @@ mkDTable origname orighp origchs origdtrows =
                          
 reprocessRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
 reprocessRows = 
-  -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
+  -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re-parse it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
                if notElem (vartype ch) [Nothing, Just DMN_String] && (length [ x | FNullary (VS x) <- cells] == length cells)
                then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
-                    [ mkF (vartype ch) x | FNullary (VS x) <- cells ]
+                    [ either (error.show) id (runParser (parseFEELexp (vartype ch)) "-" (T.pack x))
+                    | FNullary (VS x) <- cells ]
                else cells)
                          
   

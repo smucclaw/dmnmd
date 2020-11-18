@@ -4,13 +4,13 @@
 
 module DmnXmlSpec where
 
-import Control.Monad.IO.Class (MonadIO (liftIO))
+-- import Control.Monad.IO.Class (MonadIO (liftIO))
 import DMN.XML.ParseDMN
 import DMN.XML.XmlToDmnmd (convertAll)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
-import Test.Hspec.Golden
+-- import Test.Hspec.Golden
 import Text.RawString.QQ
 -- import qualified DMN.Types as DT
 import DMN.Types as DT

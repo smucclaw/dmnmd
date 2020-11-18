@@ -12,7 +12,6 @@ import Data.Maybe
 
 import DMN.Types
 import DMN.ParseTable
-import DMN.ParseFEEL
 
 import Text.Megaparsec hiding (label)
 import Text.Megaparsec.Char
@@ -176,13 +175,13 @@ maybeHeaderLine = do
 headerLine :: Parser (Maybe String)
 headerLine = do
   skipMany1 (satisfy (\c -> c == '#' || c == '*'))
-  skipHorizontalSpace
+  hspace
   content <- manyTill anyChar endOfLine
   return (Just content)
 
 orgNameLine :: Parser (Maybe String)
 orgNameLine = do
-  "#+NAME:" >> skipHorizontalSpace
+  "#+NAME:" >> hspace
   content <- manyTill anyChar endOfLine
   return (Just content)
 

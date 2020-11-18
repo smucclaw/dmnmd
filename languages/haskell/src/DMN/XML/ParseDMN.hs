@@ -4,7 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -Wincomplete-patterns #-}
+{-# OPTIONS_GHC -Wincomplete-patterns -Wno-unused-imports #-}
 
 module DMN.XML.ParseDMN where
 

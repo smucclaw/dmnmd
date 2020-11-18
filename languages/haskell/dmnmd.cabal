@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 2e81fa190ca61101d02e949f0f69e99df60cba738f9fe2a1bf07c054c267374e
 
 name:           dmnmd
 version:        0.1.0.1
@@ -43,7 +45,7 @@ library
       Paths_dmnmd
   hs-source-dirs:
       src
-  ghc-options: -Wno-unused-matches -fwrite-ide-info -hiedir=.hie
+  ghc-options: -Wall -Wno-unused-matches -fwrite-ide-info -hiedir=.hie
   build-depends:
       MissingH
     , attoparsec

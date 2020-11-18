@@ -6,7 +6,6 @@ module DMN.Translate.PY where
 
 -- in a future iteration of this code, consider using http://hackage.haskell.org/package/js-good-parts
 
-import DMN.DecisionTable
 import Data.List
 import Data.Maybe
 import Data.Char
@@ -31,7 +30,8 @@ toPY opts dt =
                                HP_Priority  -> "elif"
                                HP_Collect _ -> "if"
                                _            -> "if")
-  
+
+mkFunction :: String -> [String]  
 mkFunction tablename = [ "def", underscore tablename ]  -- helper function for function boilerplate 
 
 -- helper function for generating (arguments)
@@ -103,6 +103,7 @@ feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "py" FNGt  ++ show rh
 feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "py" FNGeq ++ show rhs
 feel2pyIn lhs (FInRange lower upper)   = wrapParen (showFNLog "py" FNAnd) [show lower ++ showFNComp "py" FNLeq ++ lhs, lhs ++ showFNComp "py" FNLeq ++ show upper]
 feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
+feel2pyIn lhs rhs                      = error $ "feel2pyIn: unhandled case " ++ lhs ++ " / " ++ show rhs
 
 -- TODO:
 -- let's extend FEEL with support for PCRE lol
