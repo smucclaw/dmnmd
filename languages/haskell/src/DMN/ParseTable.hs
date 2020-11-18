@@ -109,6 +109,10 @@ mkHitPolicy_C x   = error $ "unrecognized collect hit policy " ++ [x]
 -- also, see page 112 for boxed expressions -- the contexts are pretty clearly an oop / record paradigm
 -- so we probably need to bite the bullet and just support JSON input.
 
+mkFs :: Maybe DMNType -> String -> [FEELexp]
+mkFs dmntype args =
+  either (error . show) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
+
 parseTable :: String -> Parser DecisionTable
 parseTable table_name = do
   headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
@@ -212,6 +216,7 @@ reviseInOut hr = let noncomments = filter ((DTCH_Comment /= ) . label) $ cols hr
                          in hr { cols = map (\ch -> if ch == rightmost then ch { label = DTCH_Out } else ch) (cols hr) }
                     else hr
 
+-- the first time we parse a table, we don't always know the data types; we infer them, then re-parse.
 mkDataCol :: Maybe DMNType -> String -> ColBody
 mkDataCol dmntype = DTCBFeels . mkFs dmntype 
 mkDataColComment :: String -> ColBody

@@ -13,6 +13,7 @@ import System.Console.Haskeline
 -- import Debug.Trace
 
 import DMN.Types
+import DMN.ParseFEEL
 import DMN.DecisionTable
 import DMN.Translate.JS
 import DMN.Translate.PY
@@ -73,7 +74,6 @@ main = do
                 ) dtables
           outputStrLn ""
           loop opts dtables
-
     -- in future, allow decision tables to curry: partial application returns a partial decision table.
     -- completed evaluation returns the matching result columns, passed through an aggregation hit policy if necessary.
 

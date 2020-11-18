@@ -5,7 +5,7 @@ module DMN.XML.XmlToDmnmd where
 import DMN.XML.ParseDMN as X
 import qualified DMN.Types as T
 import Data.Maybe (maybeToList)
-import DMN.DecisionTable (mkFs)
+import DMN.ParseTable (mkFs)
 
 -- $> :t runEx1
 

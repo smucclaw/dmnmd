@@ -5,7 +5,7 @@ module DMN.DecisionTable where
 import Control.Arrow
 import Prelude hiding (takeWhile)
 import DMN.ParseFEEL
-import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
+import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find)
 import Data.Maybe
 import Text.Regex.PCRE
 import Data.Char (toLower)
@@ -17,7 +17,6 @@ import Text.Megaparsec (runParser)
 -- import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
-import DMN.ParsingUtils
 
 -- main = do
 --     putStrLn $ show example1_dish
@@ -118,54 +117,6 @@ fNEval symtab (FNF3 fnf1 fnop2 fnf3) = let lhs = fromVN (fNEval symtab fnf1)
                                        in VN result
 fNEval symtab (FNFf FNFmax args) = maximum $ fNEval symtab <$> args
 fNEval symtab (FNFf FNFmin args) = minimum $ fNEval symtab <$> args
-
-mkFs :: Maybe DMNType -> String -> [FEELexp]
-mkFs dmntype args =
-  either (error . show) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
-
-
--- mkF is being deprecated in favour of parseFEELexp which knows about functions
-
--- TODO: add a state monad to allow type inference to span all input rows;
--- if any row contains a string, that entire column becomes a string not a num;
--- if all the columns contain nums or bools, then they're that;
--- but we can only make that decision after viewing the entire table.
--- maybe we use a multi-pass strategy ... where we allow the cells to remain untyped ... and then we review the entire table
--- after it's been fully parsed once.
-mkF :: Maybe DMNType -> String -> FEELexp
-mkF _ ""  = FAnything
-mkF _ "_" = FAnything
-mkF _ "-" = FAnything
--- in a numeric column, an FFunction is detected by the presence of an numeric operator
-mkF t@(Just (DMN_List _)) x  = mkF (baseType t) x
-mkF Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type inference should have found some type for this column. coercing to string: " ++ arg1)
-  FNullary (VS (trim arg1))
-
-
-mkF (Just DMN_String)  arg1 = FNullary (VS (trim arg1))
-mkF (Just DMN_Boolean) arg1 = FNullary (mkVB arg1)
-  where
-    mkVB arg
-      | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = VB True
-      | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = VB False
-      | otherwise = error $  "unable to parse an alleged boolean: " ++ arg
-mkF (Just DMN_Number)  arg1
-  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> error $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) FFunction (parseOnly parseFNumFunction (T.pack arg2))
-  | "<=" `isPrefixOf` arg2 = FSection Flte (mkVN $ trim $ drop 2 arg2)
-  | "<"  `isPrefixOf` arg2 = FSection Flt  (mkVN $ trim $ drop 1 arg2)
-  | ">=" `isPrefixOf` arg2 = FSection Fgte (mkVN $ trim $ drop 2 arg2)
-  | ">"  `isPrefixOf` arg2 = FSection Fgt  (mkVN $ trim $ drop 1 arg2)
-  | "<=" `isSuffixOf` arg2 = FSection Fgt  (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | "<"  `isSuffixOf` arg2 = FSection Fgte (mkVN $ trim $ Prelude.take (length arg2 - 1) arg2)
-  | ">=" `isSuffixOf` arg2 = FSection Flt  (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: Bool =
-    let (_,_,_,bounds) = arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: (String,String,String,[String])
-    in FInRange ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float)
-  | "="  `isPrefixOf` arg2 = FSection Feq  (mkVN $ trim $ dropWhile    (=='=') arg2)
-  | "="  `isSuffixOf` arg2 = FSection Feq  (mkVN $ trim $ dropWhileEnd (=='=') arg2)
-  | otherwise              = FNullary      (mkVN $ trim                        arg2)
-  where arg2 = trim arg1 -- probably extraneous
-        mkVN x = VN (read x :: Float)
 
 fromVN :: DMNVal -> Float
 fromVN (VN n) = n
