@@ -5,7 +5,7 @@ module DMN.XML.XmlToDmnmd where
 import DMN.XML.ParseDMN as X
 import qualified DMN.Types as T
 import Data.Maybe (maybeToList)
-import DMN.ParseTable (mkFs)
+import DMN.ParseTable (mkFsIn, mkFsOut)
 
 -- $> :t runEx1
 
@@ -122,11 +122,11 @@ convRule intypes outtypes rowNumber ( Rule
 
 convInputEntry :: Maybe T.DMNType -> InputEntry -> [T.FEELexp]
 convInputEntry intype (InputEntry { ieLabel , ieText = TextElement str }) 
-    = mkFs intype str
+    = mkFsIn intype str
 
 convOutputEntry :: Maybe T.DMNType -> OutputEntry -> [T.FEELexp]
 convOutputEntry outtype (OutputEntry { outputEntryLabel , outputEntryText = TextElement str }) 
-    = mkFs outtype str
+    = mkFsOut outtype str
 
 oeExample :: OutputEntry
 oeExample =

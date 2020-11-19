@@ -3,25 +3,27 @@
 module DMN.ParseFEEL where
 
 import Prelude hiding (takeWhile)
-import Control.Monad (guard)
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust)
 import Control.Applicative hiding (many, some) 
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Text (Text)
+import Data.List (nub)
 import qualified Data.Text as T
 import DMN.Types
 import DMN.ParsingUtils
 import qualified Data.Void
 import qualified Data.Functor.Identity
+import Debug.Trace
 
 -- see Text.Megaparsec.Char.Lexer documentation
 symbol :: Tokens Text -> ParsecT Data.Void.Void Text Data.Functor.Identity.Identity (Tokens Text)
-symbol    = L.symbol hspace
+symbol    = L.symbol space
 
-parens :: ParsecT Data.Void.Void Text Data.Functor.Identity.Identity a -> ParsecT Data.Void.Void Text Data.Functor.Identity.Identity a
+brackets, parens :: ParsecT Data.Void.Void Text Data.Functor.Identity.Identity a -> ParsecT Data.Void.Void Text Data.Functor.Identity.Identity a
 parens    = between (symbol "(") (symbol ")")
+brackets  = between (symbol "[") (symbol "]")
 
 lexeme :: ParsecT Data.Void.Void Text Data.Functor.Identity.Identity a -> ParsecT Data.Void.Void Text Data.Functor.Identity.Identity a
 lexeme    = L.lexeme hspace
@@ -38,124 +40,181 @@ parseVarname = try $ do
   return $ T.strip $ T.append (T.singleton firstLetter) remainder
 
 
-
+-- for input cells
 parseDataCell :: Maybe DMNType -> Parser [FEELexp]
 parseDataCell dmntype = try $ do
-  fexp  <- optional $ parseFEELexp dmntype
-  guard $ isJust fexp
+  fexp  <- parseFEELexp dmntype
   fexps <- many $ symbol "," *> parseFEELexp dmntype
   _ <- eof
-  return $ fromJust fexp : fexps
+  return $  fexp : fexps
+
+
+-- output cells have a slightly wider range of recognized expressions -- we allow FFunctions (which are still in FEELexp)
+parseOutCell :: Maybe DMNType -> Parser [FEELexp]
+parseOutCell dmntype = try $ do
+  fexp  <- parseFEELext dmntype
+  fexps <- many $ symbol "," *> parseFEELext dmntype
+  _ <- eof
+  return $  fexp : fexps
+
+-- note -- "exp" for expression, "ext" for extended
+parseFEELext :: Maybe DMNType -> Parser FEELexp
+parseFEELext mdt = parseFEELexp mdt <|> (FFunction <$> parseFNumFunction mdt)
 
 mkF :: Maybe DMNType -> String -> FEELexp
 mkF maybetype myinput =
   either (error . show) id (runParser (parseFEELexp maybetype) "(2nd parse mkF)" (T.pack myinput))
 
 parseFEELexp :: Maybe DMNType -> Parser FEELexp
-parseFEELexp mdt = try ((char '_' <|> char '-') >> eof >> return FAnything)
-                   <|> parseFEELexp' mdt
+parseFEELexp mdt = (try ((char '_' <|> char '-') >> eof >> return FAnything)
+                    <|> parseFEELexp' mdt <*  (lookAhead (char ',' >> return ()) <|> eof))
 
 parseFEELexp' :: Maybe DMNType -> Parser FEELexp
 parseFEELexp' (Just (DMN_List x)) = parseFEELexp' (Just x)
+
+-- if we're given "Nothing" and "DMN_String" hints, we always return a string -- FNullary VS.
+-- a subsequent reprocessing stage will perform type inference and retype the column and data cells.
+
 parseFEELexp' Nothing = do
   inner <- (hspace *> manyTill anyChar eof)
   return $ FNullary (VS inner)
 -- strings are tricky because they could be FEEL expression variable names like "Dish Name"
 -- or just literal strings like "Lentil Soup"
 
--- let's have a rule that a string expression can be bare, but no commas -- if there are commas, the string has to be quoted.
-parseFEELexp' (Just DMN_String)  = FNullary . VS   <$> (nocommas <|> stringLiteral)
-  where
-    stringLiteral :: Parser String
-    stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
-    nocommas :: Parser String
-    nocommas = many $ satisfy (/= ',')
-
+-- string expressions can be `like this` or `"quoted"`.
+parseFEELexp' (Just DMN_String)  = (FNullary . VS <$> parseBareString)
 
 parseFEELexp' (Just DMN_Boolean) = do
-  FNullary (VB True)  <$ (choice (string <$> T.words "True true yes t y positive"))
-  <|>
-  FNullary (VB False) <$ (choice (string <$> T.words "False false no f n negative"))
+  choice [ try $ FNullary (VB True)  <$ (tryChoice (symbol <$> T.words "True true yes t y positive"))
+         , try $ FNullary (VB False) <$ (tryChoice (symbol <$> T.words "False false no f n negative"))
+         ] <* (lookAhead (char ',' >> return ()) <|> eof)
+
 parseFEELexp' (Just DMN_Number) = do
-  FFunction <$> parseFNumFunction -- only number columns get function types for now
-  <|> FSection Flte . VN <$> (symbol "<=" *> lexeme L.float)
-  <|> FSection Flt  . VN <$> (symbol "<"  *> lexeme L.float)
-  <|> FSection Fgte . VN <$> (symbol ">=" *> lexeme L.float)
-  <|> FSection Fgt  . VN <$> (symbol ">"  *> lexeme L.float)
-  <|> FSection Fgt  . VN <$> (lexeme L.float <* symbol "<=")
-  <|> FSection Fgte . VN <$> (lexeme L.float <* symbol "<" )
-  <|> FSection Flt  . VN <$> (lexeme L.float <* symbol ">=")
-  <|> FSection Flte . VN <$> (lexeme L.float <* symbol ">" )
-  <|> FSection Feq  . VN <$> (lexeme L.float <* symbol "=" )
-  <|> FSection Feq  . VN <$> (symbol "=" *> lexeme L.float )
-  <|> do
-    lower <- symbol "[" *> lexeme L.decimal
-    upper <- symbol ".." *> lexeme L.decimal <* symbol "]"
-    return $ FInRange lower upper
-  <|> FNullary      . VN <$> (lexeme L.float)
+  choice [ try $ FSection Flte . VN <$> (symbol "<=" *> someNum)
+         , try $ FSection Flt  . VN <$> (symbol "<"  *> someNum)
+         , try $ FSection Fgte . VN <$> (symbol ">=" *> someNum)
+         , try $ FSection Fgt  . VN <$> (symbol ">"  *> someNum)
+         , try $ FSection Fgt  . VN <$> (someNum <* symbol "<=")
+         , try $ FSection Fgte . VN <$> (someNum <* symbol "<" )
+         , try $ FSection Flt  . VN <$> (someNum <* symbol ">=")
+         , try $ FSection Flte . VN <$> (someNum <* symbol ">" )
+         , try $ FSection Feq  . VN <$> (someNum <* symbol "=" )
+         , try $ FSection Feq  . VN <$> (symbol "=" *> someNum )
+         , try $ do -- Yoda would be pissed
+             lower <- symbol "[" *> lexeme L.decimal
+             upper <- symbol ".." *> lexeme L.decimal <* symbol "]"
+             return $ FInRange lower upper
+         , try $ FNullary      . VN <$> (someNum)
+         ]
 
--- TODO
--- there seems to be some code duplication here, between parseFEELexp and the parseFNF* below.
--- figure out the control flow involved in the type inferencing, and see how the second pass deals with strings containing ", " -- we don't seem to re-process the "," giving it an opportunity to split.
 
-parseFNumFunction :: Parser FNumFunction
-parseFNumFunction =
-  choice [ parseFNFf, parseFNF3, parseFNF0, parseFNF1 ]
+parseBareString :: Parser String
+parseBareString = (try nocommas <|> stringLiteral)
+
+nocommas :: Parser String
+nocommas = do
+  firstword <- lexeme $ some alphaNumChar
+  remainder <- many ( lexeme $ some alphaNumChar )
+  return (unwords $ firstword : remainder)
+
+stringLiteral :: Parser String
+stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
+
+-- for type inference, in the 2nd step; we can assume we are working on input columns only
+-- so we can blithely split on commas.
+-- ideally we would be able to parse     true,false  using only Megaparsec
+-- but the backtracking doesn't seem to work that way -- instead   true,false  seems to parse as a string?
+parseDMNType :: Parser (Maybe DMNType)
+parseDMNType = do
+  first <- innerParse <* hspace
+  after <- many (symbol "," *> innerParse)
+  eof
+  --Debug.Trace.trace ("parseDMNType: returning " ++ show(first:after)) $
+  return $ flattenTypes (first:after)
+  where
+    innerParse :: Parser (Maybe DMNType)
+    innerParse =
+      tryChoice [ Just DMN_Number  <$  (choice ( symbol <$> T.words "<= < >= > ==" ) *> someNum)
+                , Just DMN_Number  <$  (someNum <* choice ( symbol <$> T.words "<= < >= > ==" ))
+                , Just DMN_Number  <$  (lexeme (isNum <|> isAlphaNumChar)
+                                         >> lexeme (choice [ char x | x <- "+-*/" ])
+                                         >> lexeme (isNum <|> isAlphaNumChar))
+                  -- TODO: a full language would allow "celsius * 9/5 + 32"
+                , Just DMN_Number  <$  (brackets (someNum >> symbol ".." >> someNum))
+                , Just DMN_Number  <$  (someNum)
+                , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words "True true yes t y positive")  <* (lookAhead (char ',' >> return ()) <|> eof))
+                , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words "False false no f n negative")  <* (lookAhead (char ',' >> return ()) <|> eof))
+                , Just . DMN_List  <$> (brackets (many anyChar) >> (fromJust <$> parseDMNType)) -- the first element is dispositive
+                , Nothing          <$  (choice ( symbol <$> T.words "- _") )
+                , Just DMN_String  <$  parseBareString
+                ]
+    flattenTypes :: [Maybe DMNType] -> Maybe DMNType
+    flattenTypes xs
+      | (Just DMN_String) `elem` xs = Just DMN_String
+      | length (nub xs) == 1        = head xs
+      | otherwise                   = Just DMN_String
+
+-- additional special function-like expressions found only in output columns
+parseFNumFunction :: Maybe DMNType -> Parser FNumFunction
+parseFNumFunction mdt =
+  tryChoice [ parseFNFf mdt, parseFNF3 mdt, parseFNF1 mdt, parseFNF0 mdt ]
 -- max(21, age * 2) -- FNFf (FNF1 "max") [ FNF1 "age" FNMul (FNF0 $ VN 2.0) ]
 -- age * 2  -- FNF3 (FNF1 "age") FNMul (FNF0 $ VN 2.0)
 -- age      -- FNF1 "age"
 -- "age"    -- FNF0 (VS "age")
 
-parseFNFmax :: Parser FNFF -- recognized functions
-parseFNFmax = string "max" >> return FNFmax
+parseFNFmax :: Maybe DMNType -> Parser FNFF -- recognized functions
+parseFNFmax mdt = symbol "max" >> return FNFmax
 
-parseFNFmin :: Parser FNFF -- recognized functions
-parseFNFmin = string "min" >> return FNFmin
+parseFNFmin :: Maybe DMNType -> Parser FNFF -- recognized functions
+parseFNFmin mdt = symbol "min" >> return FNFmin
 
-parseFNFf :: Parser FNumFunction -- function call
-parseFNFf = try $ do
-  fName <- hspace *> (parseFNFmax <|> parseFNFmin) <* hspace
-  args  <- parens $ many ( hspace *> parseFNumFunction <* ( hspace >> optional (char ',' >> hspace ) ) )
+parseFNFf :: Maybe DMNType -> Parser FNumFunction -- function call
+parseFNFf mdt = try $ do
+  fName <- choice [ parseFNFmax mdt, parseFNFmin mdt ]
+  args  <- parens $ many ( parseFNumFunction mdt <* optional (symbol ",") )
   return $ FNFf fName args
 
-parseFNF1 :: Parser FNumFunction -- variable which should appear in the symbol table
-parseFNF1 = FNF1 . T.unpack <$> parseVarname
+parseFNF1 :: Maybe DMNType -> Parser FNumFunction -- unquoted variable which should appear in the symbol table
+parseFNF1 mdt = Debug.Trace.trace ("parseFNF1: called with " ++ show mdt ++ "...") $
+                case mdt of
+                  (Just DMN_String)  -> (FNF1 <$> nocommas) <|> (feel2fnf <$> parseFEELexp' mdt)
+                  (Just DMN_Number)  -> feel2fnf <$> parseFEELexp' mdt
+                  (Just DMN_Boolean) -> feel2fnf <$> parseFEELexp' mdt
+                  (Just (DMN_List _))-> error $ "list type not supported in output columns"
+                  Nothing            -> feel2fnf <$> parseFEELexp' (Just DMN_String)
 
-parseFNF3 :: Parser FNumFunction -- complex function of multiple sub functions
-parseFNF3 = try $ do
-  let complex = ( ( "(" *> hspace *> parseFNumFunction <* hspace <* ")" )
-                  <|> parseFNF0
-                  <|> parseFNF1 )
-  fnfa  <- complex
-  hspace
-  fnfop <- parseFNOp2
-  hspace
-  fnfb  <- complex
+feel2fnf :: FEELexp -> FNumFunction
+feel2fnf (FNullary x)   = FNF0 x
+feel2fnf (FSection c x) = error $ "declining to construct lambda result in FNumFunction"
+feel2fnf (FAnything)    = FNF0 (VB True)
+feel2fnf (FInRange x y) = error $ "declining to construct range result in FNumFunction"
+feel2fnf (FFunction x)  = x
+
+parseFNF3 :: Maybe DMNType -> Parser FNumFunction -- complex function of multiple sub functions
+parseFNF3 mdt = try $ do
+  let complex = ( ( parens $ parseFNumFunction mdt )
+                  <|> parseFNF0 mdt
+                  <|> parseFNF1 mdt )
+  fnfa  <- lexeme complex
+  fnfop <- lexeme parseFNOp2
+  fnfb  <- lexeme complex
   return $ FNF3 fnfa fnfop fnfb
 
-parseFNF0 :: Parser FNumFunction -- double-quoted string literal
-parseFNF0 =
-  let inner = fmap return (try nonEscape) <|> escape
-  in ( do _ <- char '"'
-          strings <- many inner
-          _ <- char '"'
-          return $ FNF0 $ VS $ concat strings )
-     <|> (FNF0 . VN . realToFrac <$> double)
-     <|> (("yes" <|> "true"  <|> "True"  <|> "t" <|> "y") >> return ( FNF0 $ VB True))
-     <|> (("no"  <|> "false" <|> "False" <|> "f" <|> "n") >> return ( FNF0 $ VB False))
-      
-      
+parseFNF0 :: Maybe DMNType -> Parser FNumFunction -- double-quoted string literal
+parseFNF0 mdt = FNF0 . VS <$> stringLiteral
+
 parseFNOp2 :: Parser FNOp2
 parseFNOp2 =
-  choice [ "**" >> return FNExp
-         , "*"  >> return FNMul
-         , "/"  >> return FNDiv
-         , "-"  >> return FNMinus
-         , "+"  >> return FNPlus
+  choice [ symbol "**" >> return FNExp
+         , symbol "*"  >> return FNMul
+         , symbol "/"  >> return FNDiv
+         , symbol "-"  >> return FNMinus
+         , symbol "+"  >> return FNPlus
          ]
     
 escape :: Parser String
-escape = do
+escape = try $ do
     d <- char '\\'
     c <- oneOf ['\\', '\"', '0', 'n', 'r', 'v', 't', 'b', 'f']
     return [d, c]

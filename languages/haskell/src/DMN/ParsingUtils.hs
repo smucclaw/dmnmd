@@ -11,7 +11,10 @@ import Data.Char (isDigit)
 import Data.Text (Text)
 -- import qualified Data.Text as T
 import Data.Void (Void)
+import Data.List (dropWhileEnd)
 import qualified Data.Attoparsec.Text as Atto
+import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.Megaparsec.Char as TMC
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Megaparsec.Char.Lexer
@@ -52,6 +55,8 @@ double :: Parser Double
 double = realToFrac <$> scientific
 -- double = read <$> many1 digit
 
+
+
 -- | Parse a single digit, as recognised by 'isDigit'.
 digit :: Parser Char
 digit = satisfy isDigit <?> "digit"
@@ -68,6 +73,14 @@ endOfLine = (() <$ char '\n') <|> (() <$ string "\r\n") <?> "End of line"
 endOfInput :: Parser ()
 endOfInput = eof
 
+trim :: String -> String
+trim = dropWhile (==' ') . dropWhileEnd (==' ')
+trimLeft :: String -> String
+trimLeft = dropWhile (==' ')
+trimRight :: String -> String
+trimRight = dropWhileEnd (==' ')
+ 
+
 -- attoparsec calls 'some' 'many1'
 many1 :: Parser a -> Parser [a]
 many1 = some
@@ -80,3 +93,19 @@ anyChar = anySingle
 
 notChar :: Char -> Parser Char
 notChar = anySingleBut
+
+spaceconsumer :: Parser ()
+spaceconsumer = L.space TMC.space1 empty empty
+
+someNum :: Parser Float
+someNum = L.signed spaceconsumer (L.lexeme spaceconsumer (try L.float <|> L.decimal))
+
+isNum :: Parser ()
+isNum = () <$ someNum
+
+isAlphaNumChar :: Parser ()
+isAlphaNumChar = () <$ some alphaNumChar
+
+tryChoice :: (Foldable f, MonadParsec e s m, Functor f) => f (m a) -> m a
+tryChoice  xs = choice ( try <$> xs )
+

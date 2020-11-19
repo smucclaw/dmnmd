@@ -17,6 +17,7 @@ import Text.Megaparsec hiding (label)
 import Text.Megaparsec.Char
 import DMN.ParsingUtils
 import DMN.Types
+import Debug.Trace
 
 pipeSeparator :: Parser ()
 pipeSeparator = try $ Mega.label "pipeSeparator" $ hspace >> "|" >> hspace
@@ -109,9 +110,11 @@ mkHitPolicy_C x   = error $ "unrecognized collect hit policy " ++ [x]
 -- also, see page 112 for boxed expressions -- the contexts are pretty clearly an oop / record paradigm
 -- so we probably need to bite the bullet and just support JSON input.
 
-mkFs :: Maybe DMNType -> String -> [FEELexp]
-mkFs dmntype args =
-  either (error . show) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
+mkFsIn :: Maybe DMNType -> String -> [FEELexp]
+mkFsIn dmntype args = either (\e -> error $ "mkFsIn: when parseDataCell (" ++ args ++ "): " ++ show e) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
+
+mkFsOut :: Maybe DMNType -> String -> [FEELexp]
+mkFsOut dmntype args = either (error . show) (id) $ runParser (parseOutCell dmntype) "-" (T.pack args)
 
 parseTable :: String -> Parser DecisionTable
 parseTable table_name = do
@@ -122,9 +125,10 @@ parseTable table_name = do
   let headerRow = if not (null subHeadRow)
                   then  headerRow_1 { cols = zipWith (\orig subhead -> orig { enums = if subhead == [FAnything] then Nothing else Just subhead } ) -- in the data section a blank cell means anything, but in the subhead it means nothing.
                                              (cols headerRow_1)
-                                             (zipWith (\cs cell -> mkFs (snd cs) cell) columnSignatures subHeadRow) }
+                                             (zipWith (\cs cell -> mkFsIn (snd cs) cell) columnSignatures subHeadRow) }
                   else headerRow_1
   dataRows <- parseDataRows columnSignatures <?> "parseDataRows"
+  traceM $ "parseTable: after parseDataRows " ++ show dataRows
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
   return ( mkDTable table_name (hrhp headerRow)
            (cols headerRow)
@@ -184,7 +188,7 @@ parseDataRow csigs =
       morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
       let datacols = zipWith mkFEELCol csigs (map (trim . unwords) $ transpose (firstrowtail : morerows))
       return ( DTrow (if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing)
-               (catMaybes (zipWith getInputs  csigs datacols))
+               (catMaybes (zipWith getInputs  csigs datacols)) -- rearrange the inputs to match our data type ordering
                (catMaybes (zipWith getOutputs csigs datacols))
                (catMaybes (zipWith getComments csigs datacols)) )
   
@@ -200,7 +204,7 @@ parseDataRow csigs =
 mkFEELCol :: ColumnSignature -> String -> ColBody
 mkFEELCol (DTCH_Comment, _)      = mkDataColComment
 mkFEELCol (DTCH_In, maybe_type)  = mkDataCol maybe_type
-mkFEELCol (DTCH_Out, maybe_type) = mkDataCol maybe_type
+mkFEELCol (DTCH_Out, maybe_type) = mkOutCol  maybe_type
 
 type ColumnSignature = (DTCH_Label, Maybe DMNType)
 
@@ -218,6 +222,10 @@ reviseInOut hr = let noncomments = filter ((DTCH_Comment /= ) . label) $ cols hr
 
 -- the first time we parse a table, we don't always know the data types; we infer them, then re-parse.
 mkDataCol :: Maybe DMNType -> String -> ColBody
-mkDataCol dmntype = DTCBFeels . mkFs dmntype 
+mkDataCol dmntype = DTCBFeels . (mkFsIn dmntype )
+
+mkOutCol :: Maybe DMNType -> String -> ColBody
+mkOutCol dmntype = DTCBFeels . (mkFsOut dmntype )
+
 mkDataColComment :: String -> ColBody
 mkDataColComment mcs = DTComment (if mcs == "" then Nothing else Just mcs)

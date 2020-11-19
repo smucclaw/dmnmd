@@ -49,6 +49,7 @@ data DMNType = DMN_String         -- no need to double quote; we use this for en
              | DMN_Boolean
              | DMN_List DMNType
              deriving (Show, Eq)
+
 baseType :: Maybe DMNType -> Maybe DMNType
 baseType Nothing = Just DMN_String
 baseType (Just (DMN_List x)) = baseType (Just x)
@@ -63,10 +64,10 @@ data FBinOp = Flt | Flte               -- binary operators < <=
              deriving (Show, Eq)
 
 data FEELexp = FSection FBinOp DMNVal  --    > 2               FSection Fgt (VN Float)
-             | FInRange Float Float    --    [2..4]            FInRange 2.0 4.0
+             | FInRange Float Float    --    [2..4]            FInRange 2.0 4.0 -- though it should be Int Int!
              | FAnything               --    -                 FAnything
              | FNullary DMNVal         --    plain string      FNullary (VS "plain string")
-             | FFunction FNumFunction  --    FEEL expression   age * 2
+             | FFunction FNumFunction  --    FEEL expression   age * 2 (meant for output)
              deriving (Show, Eq)
 type SymbolTable = Map.Map String FEELexp
 
@@ -122,9 +123,10 @@ data ColBody = DTCBFeels [FEELexp] -- inputs and outputs are both FEELexps. list
                  deriving (Show, Eq)
 
 
--- in a decision table, a cell might contain something like
+-- in a decision table, an output cell might contain something like
 -- max(0, age)  which is  FFunction ( FNFf FNFmax [ ... ] )
 -- age      which becomes FFunction (       FNF1 "age"                            )
+-- "age"    a string literal remains FNullary (FS "age")
 -- age * 2  which becomes FFunction ( FNF3 (FNF1 "age")    FNMul (FNF0 (FN 2.0))  )
 -- 2 * 4    which becomes FFunction ( FNF3 (FNF0 (FN 2.0)) FNMul (FNF0 (FN 4.0))  )
 -- < 2      which becomes FSection FBinOp DMNVal
@@ -140,9 +142,8 @@ data FNFF = FNFmax | FNFmin
   deriving (Eq)
 
 instance Show FNFF where
-  show FNFmax = "max"
-  show FNFmin = "min"
-
+  show FNFmax     = "max"
+  show FNFmin     = "min"
 
 -- binary operators returning num
 data FNOp2 = FNMul

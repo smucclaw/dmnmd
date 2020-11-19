@@ -20,6 +20,7 @@ import DMN.Translate.PY
 import DMN.Translate.FEELhelpers
 import DMN.XML.ParseDMN (parseDMN)
 import DMN.XML.XmlToDmnmd (convertAll)
+import DMN.ParsingUtils (trim)
 
 import Options
 import ParseMarkdown (parseMarkdown)
@@ -44,9 +45,10 @@ main = do
     -- which tables shall we run eval against? maybe the user gave a --pick. Maybe they didn't. if they didn't, run against all tables.
     -- if the tables have different input types, die. because our plan is to run the same input against all the different tables.
 
-  if | not $ query opts              -> mapM_ (outputTo myouthandle (outformat opts) opts) pickedTables
-     | differentlyTyped pickedTables -> fail $ "tables " ++ show (tableName <$> pickedTables) ++ " have different types; can't query. use --pick to choose one"
+  if | differentlyTyped pickedTables -> fail $ "tables " ++ show (tableName <$> pickedTables) ++ " have different types; can't query. use --pick to choose one"
      | query opts                    -> runInputT defaultSettings (loop opts pickedTables)
+     | otherwise                     -> mapM_ (outputTo myouthandle (outformat opts) opts) pickedTables
+     
   hClose myouthandle
 
   where
@@ -114,6 +116,7 @@ showToJSON :: FileFormat -> DecisionTable -> [[FEELexp]] -> [String]
 showToJSON Js dtable cols' = if not (null cols') then zipWith (showFeels "js") ((getOutputHeaders . header) dtable) cols' else []
 showToJSON Ts dtable cols' = if not (null cols') then zipWith (showFeels "ts") ((getOutputHeaders . header) dtable) cols' else []
 showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") ((getOutputHeaders . header) dtable) cols' else []
+showToJSON x  _ _          = error $ "sorry, file format " ++ show x ++ " not supported at the moment."
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 

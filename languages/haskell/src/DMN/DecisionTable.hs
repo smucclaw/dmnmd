@@ -5,10 +5,8 @@ module DMN.DecisionTable where
 import Control.Arrow
 import Prelude hiding (takeWhile)
 import DMN.ParseFEEL
-import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find)
+import Data.List (transpose, nub, sortOn, sortBy, elemIndex, find)
 import Data.Maybe
-import Text.Regex.PCRE
-import Data.Char (toLower)
 import Debug.Trace
 import DMN.Types
 -- import Data.Attoparsec.Text
@@ -17,6 +15,7 @@ import Text.Megaparsec (runParser)
 -- import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import Data.Char (toLower)
 
 -- main = do
 --     putStrLn $ show example1_dish
@@ -124,13 +123,6 @@ fromVN (VB True) = 1.0
 fromVN (VB False) = 0.0
 fromVN _ = error "type error: tried to read a float out of a string"
 
-trim :: String -> String
-trim = dropWhile (==' ') . dropWhileEnd (==' ')
-trimLeft :: String -> String
-trimLeft = dropWhile (==' ')
-trimRight :: String -> String
-trimRight = dropWhileEnd (==' ')
- 
 fEvals :: FEELexp -> [FEELexp] -> Bool
 fEvals arg exps = or $ (`fEval` arg) <$> exps
 
@@ -168,29 +160,58 @@ mkDTable :: String -> HitPolicy -> [ColHeader] -> [DTrow] -> DecisionTable
 mkDTable origname orighp origchs origdtrows =
 --  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
-                                     (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
+                                     (transpose $ [ row_inputs r ++  row_outputs r
+                                                  | r@DTrow{} <- origdtrows])
       typedchs = if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs
-  in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
-        --                 "origchs = " ++ show(origchs) ++ "\n" ++
-           --             "newchs = " ++ show(newchs) ++ "\n" )
+  in Debug.Trace.trace ("mkDTable: finishing...\n" ++
+                        "origchs = " ++ show(origchs) ++ "\n" ++
+                        "newchs = " ++ show(newchs) ++ (if null (getCommentHeaders origchs) then "" else " (yes the comment columns don't show here)\n" ))
     DTable origname orighp typedchs
     ((\case
          (DTrow rn ri ro rc) -> (DTrow rn
-                        (reprocessRows (getInputHeaders typedchs)  ri)
-                        (reprocessRows (getOutputHeaders typedchs) ro)
+                        (reprocessInRows  (getInputHeaders  typedchs) ri)
+                        (reprocessOutRows (                 typedchs) ro)
                         rc)) <$> origdtrows)
-                         
-reprocessRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
-reprocessRows = 
+
+reprocessInRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
+reprocessInRows = 
   -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re-parse it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
-               if notElem (vartype ch) [Nothing, Just DMN_String] && (length [ x | FNullary (VS x) <- cells] == length cells)
+               if notElem (vartype ch) [Nothing]
+                  && (length [ x | FNullary (VS x) <- cells] == length cells)
                then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
-                    [ either (error.show) id (runParser (parseFEELexp (vartype ch)) "-" (T.pack x))
+                    concat [ either (error.show) id (runParser (parseDataCell (vartype ch)) "type-inferred reprocessing for input columns" (T.pack x))
                     | FNullary (VS x) <- cells ]
-               else cells)
-                         
+               else -- Debug.Trace.trace ("declining to reprocess because we probably got it right the first time") $
+                 cells)
+
+-- rewrite any `bareword strings` from FNullary VS to FFunction FNF1 if they're found in the symbol table.
+reprocessOutRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
+reprocessOutRows allchs colcells =
+  let inputchs  = getInputHeaders allchs
+      symtab = (toLower <$>) <$> varname <$> inputchs
+      outputchs = getOutputHeaders allchs
+      pass1 = zipWith (\ch cells ->
+               if notElem (vartype ch) [Nothing]
+                  && (length [ x | FNullary (VS x) <- cells] == length cells)
+               then let myout = [ either (error.show) (id)
+                                  (runParser (parseFEELext (vartype ch))
+                                   "type-inferred reprocessing for output columns" (T.pack x))
+                                | FNullary (VS x) <- cells ]
+                    in Debug.Trace.trace (unlines [ unwords [ "reprocessing outputs to ",
+                                                              show (vartype ch), ": ", show cells ]
+                                                  , unwords [ "result: ", show myout ] ] ) myout
+               else Debug.Trace.trace ("declining to reprocess output cells") $
+                 cells) outputchs colcells
+  in (\cells -> do
+         cell <- cells
+         return $ case cell of
+                    FNullary (VS x) -> if (toLower <$> x) `elem` symtab
+                                       then FFunction (FNF1 x)
+                                       else cell
+                    _               -> cell
+     ) <$> pass1
   
 getInputHeaders :: [ColHeader] -> [ColHeader]
 getInputHeaders = getWantedHeaders DTCH_In
@@ -204,6 +225,9 @@ getCommentHeaders = getWantedHeaders DTCH_Comment
 getWantedHeaders :: DTCH_Label -> [ColHeader] -> [ColHeader]
 getWantedHeaders wantedLabel = filter ((wantedLabel==).label)
 
+-- TODO: we should treat input and output columns slightly differently:
+--  input columns can be comma-separated
+--  output columns can be FNumFunctions
 inferTypes :: ColHeader   -- in or out header column
            -> [[FEELexp]] -- body column of expressions corresponding to that column
            -> ColHeader   -- revised header column with vartype set
@@ -217,14 +241,18 @@ inferTypes origch origrows = -- Debug.Trace.trace ("  infertypes: called with co
           in if null (vartype origch)
              then origch { vartype = Just coltype }
              else if vartype origch /= Just coltype
-                  then -- Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred type is " ++ (show coltype))
+                  then Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred type is " ++ (show coltype))
                        origch
                   else origch { vartype = Just coltype }
-     else -- Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred types are " ++ (show coltypes))
+     else Debug.Trace.trace ("    length coltypes > 1, no changes due to type inference")
           origch
 
 -- initially, we let type inference work for everything except functions.
 -- in the future we may need to change the return type from Maybe DMNType to FEELexp (FNumFunction | FNullary)
+
+-- the FEELexp might have already been typed as something other than FNullary VS because the column header carried an explicit type annotation
+-- so we'll just basically pass those through
+-- but we will need to take a more critical look at anything that came in as an FNullary VS
 inferType :: FEELexp -> Maybe DMNType
 inferType (FFunction _) = Just DMN_Number
 inferType (FSection _ (VN _)) = Just DMN_Number
@@ -234,11 +262,7 @@ inferType (FInRange _ _)      = Just DMN_Number
 inferType  FAnything         = Nothing
 inferType (FNullary (VN _)) = Just DMN_Number
 inferType (FNullary (VB _)) = Just DMN_Boolean
-inferType (FNullary (VS arg))
-  | any (arg =~) ["^\\d+(\\.\\d+)?$", "\\.\\.", ">", "<", "="] = Just DMN_Number
-  | arg `elem` ["-","_",""] = Nothing
-  | (toLower <$> arg) `elem` ["true","yes","positive","y","false","no","negative","n"] = Just DMN_Boolean
-  | head arg == '\"' && last arg == '\"' = Just DMN_String
-  | any (arg =~) [" \\* ", " \\+ ", " - ", " / ", " \\*\\* "] = Just DMN_Number
-  | otherwise = -- Debug.Trace.trace ("inferType " ++ show arg ++ " returning String!") $
-      Just DMN_String
+
+-- parse, don't validate!
+inferType (FNullary (VS arg)) = either (error.show) id $ runParser parseDMNType "type inference" (T.pack arg)
+
