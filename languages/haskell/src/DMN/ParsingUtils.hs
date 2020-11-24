@@ -106,6 +106,13 @@ isNum = () <$ someNum
 isAlphaNumChar :: Parser ()
 isAlphaNumChar = () <$ some alphaNumChar
 
+isVar_name :: Parser ()
+isVar_name = () <$ parseVar_name
+
+-- classic variable name convention -- has to start with a letter, followed by numbers or underscore
+parseVar_name :: Parser String
+parseVar_name = (:) <$> letterChar <*> (many (alphaNumChar <|> char '_'))
+
 tryChoice :: (Foldable f, MonadParsec e s m, Functor f) => f (m a) -> m a
 tryChoice  xs = choice ( try <$> xs )
 

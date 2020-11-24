@@ -111,10 +111,14 @@ mkHitPolicy_C x   = error $ "unrecognized collect hit policy " ++ [x]
 -- so we probably need to bite the bullet and just support JSON input.
 
 mkFsIn :: Maybe DMNType -> String -> [FEELexp]
-mkFsIn dmntype args = either (\e -> error $ "mkFsIn: when parseDataCell (" ++ args ++ "): " ++ show e) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
+mkFsIn dmntype args = either (\e -> error $ "mkFsIn: when parseDataCell (" ++ args ++ "): " ++ errorBundlePretty e) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
 
 mkFsOut :: Maybe DMNType -> String -> [FEELexp]
-mkFsOut dmntype args = either (error . show) (id) $ runParser (parseOutCell dmntype) "-" (T.pack args)
+mkFsOut dmntype args = either (\e -> error $ unwords [ "error during mkFsOut ("
+                                                     , show dmntype
+                                                     , ", " , args
+                                                     , "): ", errorBundlePretty e ]) (id) $
+                                     runParser (parseOutCell dmntype) "-" (T.pack args)
 
 parseTable :: String -> Parser DecisionTable
 parseTable table_name = do

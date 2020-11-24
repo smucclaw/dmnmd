@@ -199,10 +199,12 @@ reprocessOutRows allchs colcells =
                                   (runParser (parseFEELext (vartype ch))
                                    "type-inferred reprocessing for output columns" (T.pack x))
                                 | FNullary (VS x) <- cells ]
-                    in Debug.Trace.trace (unlines [ unwords [ "reprocessing outputs to ",
-                                                              show (vartype ch), ": ", show cells ]
-                                                  , unwords [ "result: ", show myout ] ] ) myout
-               else Debug.Trace.trace ("declining to reprocess output cells") $
+                    in
+                      -- Debug.Trace.trace (unlines [ unwords [ "reprocessing outputs to ",
+                      --                                        show (vartype ch), ": ", show cells ]
+                      --                            , unwords [ "result: ", show myout ] ] ) $
+                       myout
+               else -- Debug.Trace.trace ("declining to reprocess output cells") $
                  cells) outputchs colcells
   in (\cells -> do
          cell <- cells
@@ -264,5 +266,6 @@ inferType (FNullary (VN _)) = Just DMN_Number
 inferType (FNullary (VB _)) = Just DMN_Boolean
 
 -- parse, don't validate!
-inferType (FNullary (VS arg)) = either (error.show) id $ runParser parseDMNType "type inference" (T.pack arg)
+inferType (FNullary (VS arg)) = Debug.Trace.trace ("type inference trying to parse " ++ arg) $
+  either (\e -> error $ "error during inferType: " ++ show e) id $ runParser parseDMNType "type inference" (T.pack arg)
 

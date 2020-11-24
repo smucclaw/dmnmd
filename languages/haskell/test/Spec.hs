@@ -55,159 +55,159 @@ spec2 = do
 
 spec3 :: Spec
 spec3 = do
-  describe "parseVarname" $ do
-    it "should parse a typical variable name"             $ ("varname" :: Text) ~> parseVarname `shouldParse` ("varname" :: Text)
-    it "should parse a variable name with spaces"         $ ("var name" :: Text) ~> parseVarname `shouldParse` ("var name" :: Text)
-    it "should fail on a non-variable name (digit first)" $ parseVarname `shouldFailOn` ("123varname" :: Text)
-    it "should fail on a non-variable name (dash first)"  $ parseVarname `shouldFailOn` ("- Foovar_" :: Text)
-    it "should fail on a blank string"                    $ parseVarname `shouldFailOn` ("" :: Text)
-  describe "parseColHeader" $ do
-    it "should parse just a column header"                $ ("varname" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_In"varname" Nothing Nothing)
-  describe "pipeSeparator" $ do
-    it "should parse just a single pipe"                  $ (getpipeSeparator >> endOfInput) `shouldSucceedOn` ("|" :: Text)
-    it "should not parse more than one pipe"              $ (getpipeSeparator >> endOfInput) `shouldFailOn`    ("||" :: Text)
-  describe "getpipeSeparator" $ do
-    it "should parse just a single pipe"                   $ ("|" :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
-    it "should parse just a single pipe with r whitespace" $ ("|   " :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
-    it "should parse just a single pipe with l whitespace" $ ("   |" :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
-    it "should parse just a single pipe with 2 whitespace" $ ("  | " :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
-    it "should not parse multiple pipes to end"            $ (getpipeSeparator *> endOfInput) `shouldFailOn` ("||" :: Text)
-    it "should parse multiple pipes presumably leaving some unconsumed" $ (getpipeSeparator) `shouldSucceedOn` ("||" :: Text)
-    -- it "should leave the text unconsumed"                  $ ("|abc" :: Text) ~?> getpipeSeparator `leavesUnconsumed` ("abc" :: Text)
-  describe "parseHeaderRow" $ do
-    it "should parse a pipe"                                 $ pipeSeparator `shouldSucceedOn` ("|"::Text)
-    it "should parse many pipes"                             $ (many pipeSeparator <* endOfInput) `shouldSucceedOn` ("| |||   |  |  "::Text)
-    it "should parse many pipes but not something with text" $ (many pipeSeparator <* endOfInput) `shouldFailOn`    ("| | text |"::Text)
-    it "should parse a no-column header row"  $ ("| U |"                       :: Text) ~> parseHeaderRow `shouldParse` (DTHR HP_Unique [])
-    it "should parse a one-column header row" $ ("| U | varname1 |"            :: Text) ~> parseHeaderRow `shouldParse` (DTHR HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing])
-    it "should parse a two-column header row" $ ("| U | varname1 | varname2 |" :: Text) ~> parseHeaderRow `shouldParse` (DTHR HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing
-                                                                                                                                        ,DTCH DTCH_In "varname2" Nothing Nothing])
+  -- describe "parseVarname" $ do
+  --   it "should parse a typical variable name"             $ ("varname" :: Text) ~> parseVarname `shouldParse` ("varname" :: Text)
+  --   it "should parse a variable name with spaces"         $ ("var name" :: Text) ~> parseVarname `shouldParse` ("var name" :: Text)
+  --   it "should fail on a non-variable name (digit first)" $ parseVarname `shouldFailOn` ("123varname" :: Text)
+  --   it "should fail on a non-variable name (dash first)"  $ parseVarname `shouldFailOn` ("- Foovar_" :: Text)
+  --   it "should fail on a blank string"                    $ parseVarname `shouldFailOn` ("" :: Text)
+  -- describe "parseColHeader" $ do
+  --   it "should parse just a column header"                $ ("varname" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_In"varname" Nothing Nothing)
+  -- describe "pipeSeparator" $ do
+  --   it "should parse just a single pipe"                  $ (getpipeSeparator >> endOfInput) `shouldSucceedOn` ("|" :: Text)
+  --   it "should not parse more than one pipe"              $ (getpipeSeparator >> endOfInput) `shouldFailOn`    ("||" :: Text)
+  -- describe "getpipeSeparator" $ do
+  --   it "should parse just a single pipe"                   $ ("|" :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
+  --   it "should parse just a single pipe with r whitespace" $ ("|   " :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
+  --   it "should parse just a single pipe with l whitespace" $ ("   |" :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
+  --   it "should parse just a single pipe with 2 whitespace" $ ("  | " :: Text) ~> getpipeSeparator `shouldParse` ("|" :: Text)
+  --   it "should not parse multiple pipes to end"            $ (getpipeSeparator *> endOfInput) `shouldFailOn` ("||" :: Text)
+  --   it "should parse multiple pipes presumably leaving some unconsumed" $ (getpipeSeparator) `shouldSucceedOn` ("||" :: Text)
+  --   -- it "should leave the text unconsumed"                  $ ("|abc" :: Text) ~?> getpipeSeparator `leavesUnconsumed` ("abc" :: Text)
+  -- describe "parseHeaderRow" $ do
+  --   it "should parse a pipe"                                 $ pipeSeparator `shouldSucceedOn` ("|"::Text)
+  --   it "should parse many pipes"                             $ (many pipeSeparator <* endOfInput) `shouldSucceedOn` ("| |||   |  |  "::Text)
+  --   it "should parse many pipes but not something with text" $ (many pipeSeparator <* endOfInput) `shouldFailOn`    ("| | text |"::Text)
+  --   it "should parse a no-column header row"  $ ("| U |"                       :: Text) ~> parseHeaderRow `shouldParse` (DTHR HP_Unique [])
+  --   it "should parse a one-column header row" $ ("| U | varname1 |"            :: Text) ~> parseHeaderRow `shouldParse` (DTHR HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing])
+  --   it "should parse a two-column header row" $ ("| U | varname1 | varname2 |" :: Text) ~> parseHeaderRow `shouldParse` (DTHR HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing
+  --                                                                                                                                       ,DTCH DTCH_In "varname2" Nothing Nothing])
 
-  describe "parseSubHeadRow" $ do
-    it "should parse a continuation row" $
-      ("|  | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |\n" :: Text) ~>
-      parseContinuationRow `shouldParse` (["LOW, MEDIUM, HIGH", "", "DECLINE, REFER, ACCEPT", "LEVEL 2, LEVEL 1, NONE", ""])
+  -- describe "parseSubHeadRow" $ do
+  --   it "should parse a continuation row" $
+  --     ("|  | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |\n" :: Text) ~>
+  --     parseContinuationRow `shouldParse` (["LOW, MEDIUM, HIGH", "", "DECLINE, REFER, ACCEPT", "LEVEL 2, LEVEL 1, NONE", ""])
 
-  describe "parseSubHeadRows" $ do
-    it "should parse multiple continuation rows, unwrapping along the way" $
-      (("|  | LOW, MEDIUM,      |                      | DECLINE,      | LEVEL 2, LEVEL |                             |\n" :: Text) <>
-       ("|  |              HIGH |                      | REFER, ACCEPT | 1, NONE        |                             |\n" :: Text)) ~>
-      parseContinuationRows `shouldParse` (["LOW, MEDIUM, HIGH", "", "DECLINE, REFER, ACCEPT", "LEVEL 2, LEVEL 1, NONE", ""])
+  -- describe "parseSubHeadRows" $ do
+  --   it "should parse multiple continuation rows, unwrapping along the way" $
+  --     (("|  | LOW, MEDIUM,      |                      | DECLINE,      | LEVEL 2, LEVEL |                             |\n" :: Text) <>
+  --      ("|  |              HIGH |                      | REFER, ACCEPT | 1, NONE        |                             |\n" :: Text)) ~>
+  --     parseContinuationRows `shouldParse` (["LOW, MEDIUM, HIGH", "", "DECLINE, REFER, ACCEPT", "LEVEL 2, LEVEL 1, NONE", ""])
 
-  describe "parse header and subhead together" $ do
-    it "should parse an entire header ignoring dashed lines" $
-      (("| O | Age | RiskCategory (out) | DebtReview : Boolean (out)|\n" :: Text) <>
-       ("|----------------------------------------------------------|\n" :: Text) <>
-       ("|   |     | LOW, MEDIUM,       | true                      |\n" :: Text) <>
-       ("|----------------------------------------------------------|\n" :: Text) <>
-       ("|   |     | HIGH               |                           |\n" :: Text))
-      ~> (do
-        hr <- parseHeaderRow
-        sh <- parseContinuationRows
-        return (hr, sh)
-      ) `shouldParse` ( (DTHR HP_OutputOrder [ DTCH DTCH_In "Age" Nothing Nothing
-                                             , DTCH DTCH_Out "RiskCategory" Nothing Nothing
-                                             , DTCH DTCH_Out "DebtReview" (Just DMN_Boolean) Nothing])
-                      , [ "", "LOW, MEDIUM, HIGH", "true" ] )
+  -- describe "parse header and subhead together" $ do
+  --   it "should parse an entire header ignoring dashed lines" $
+  --     (("| O | Age | RiskCategory (out) | DebtReview : Boolean (out)|\n" :: Text) <>
+  --      ("|----------------------------------------------------------|\n" :: Text) <>
+  --      ("|   |     | LOW, MEDIUM,       | true                      |\n" :: Text) <>
+  --      ("|----------------------------------------------------------|\n" :: Text) <>
+  --      ("|   |     | HIGH               |                           |\n" :: Text))
+  --     ~> (do
+  --       hr <- parseHeaderRow
+  --       sh <- parseContinuationRows
+  --       return (hr, sh)
+  --     ) `shouldParse` ( (DTHR HP_OutputOrder [ DTCH DTCH_In "Age" Nothing Nothing
+  --                                            , DTCH DTCH_Out "RiskCategory" Nothing Nothing
+  --                                            , DTCH DTCH_Out "DebtReview" (Just DMN_Boolean) Nothing])
+  --                     , [ "", "LOW, MEDIUM, HIGH", "true" ] )
 
-  describe "parse header and subhead and a data row together" $ do
-    it "should parse an entire header, the ---- line, and a logical data row below split over two physical rows, then a data row" $
-      (("| O | Age : Number | RiskCategory (out) | DebtReview : Boolean (out)|\n" :: Text) <>
-       ("|   |              | LOW, MEDIUM,       | true                      |\n" :: Text) <>
-       ("|   |              | HIGH               |                           |\n" :: Text) <>
-       ("|-------------------------------------------------------------------|\n" :: Text) <>
-       ("| 1 | <            | HIGH               |                           |\n" :: Text) <>
-       ("|   |   18         |                    | false                     |\n" :: Text) <>
-       ("| 2 | >= 21        | LOW                | yes                       |\n" :: Text))
-      ~> (do
-        hr <- parseHeaderRow
-        sh <- parseContinuationRows <?> "parseContinuationRows"
-        let columnSignatures = columnSigs hr
-        dr <- parseDataRows columnSignatures <?> "parseDataRows"
-        return (hr, sh, dr)
-      ) `shouldParse` ( (DTHR HP_OutputOrder [ DTCH DTCH_In "Age"           (Just DMN_Number) Nothing
-                                             , DTCH DTCH_Out "RiskCategory"  Nothing Nothing
-                                             , DTCH DTCH_Out "DebtReview"   (Just DMN_Boolean) Nothing])
-                      , [ "", "LOW, MEDIUM, HIGH", "true" ]
-                      , [ DTrow (Just 1) [ mkFsIn (Just DMN_Number) "< 18"  ] [ [ FNullary $ VS "HIGH" ] , [ FNullary $ VB False ] ] []
-                        , DTrow (Just 2) [ mkFsIn (Just DMN_Number) ">= 21" ] [ [ FNullary $ VS "LOW" ]  , [ FNullary $ VB True  ] ] [] 
-                        ])
+  -- describe "parse header and subhead and a data row together" $ do
+  --   it "should parse an entire header, the ---- line, and a logical data row below split over two physical rows, then a data row" $
+  --     (("| O | Age : Number | RiskCategory (out) | DebtReview : Boolean (out)|\n" :: Text) <>
+  --      ("|   |              | LOW, MEDIUM,       | true                      |\n" :: Text) <>
+  --      ("|   |              | HIGH               |                           |\n" :: Text) <>
+  --      ("|-------------------------------------------------------------------|\n" :: Text) <>
+  --      ("| 1 | <            | HIGH               |                           |\n" :: Text) <>
+  --      ("|   |   18         |                    | false                     |\n" :: Text) <>
+  --      ("| 2 | >= 21        | LOW                | yes                       |\n" :: Text))
+  --     ~> (do
+  --       hr <- parseHeaderRow
+  --       sh <- parseContinuationRows <?> "parseContinuationRows"
+  --       let columnSignatures = columnSigs hr
+  --       dr <- parseDataRows columnSignatures <?> "parseDataRows"
+  --       return (hr, sh, dr)
+  --     ) `shouldParse` ( (DTHR HP_OutputOrder [ DTCH DTCH_In "Age"           (Just DMN_Number) Nothing
+  --                                            , DTCH DTCH_Out "RiskCategory"  Nothing Nothing
+  --                                            , DTCH DTCH_Out "DebtReview"   (Just DMN_Boolean) Nothing])
+  --                     , [ "", "LOW, MEDIUM, HIGH", "true" ]
+  --                     , [ DTrow (Just 1) [ mkFsIn (Just DMN_Number) "< 18"  ] [ [ FNullary $ VS "HIGH" ] , [ FNullary $ VB False ] ] []
+  --                       , DTrow (Just 2) [ mkFsIn (Just DMN_Number) ">= 21" ] [ [ FNullary $ VS "LOW" ]  , [ FNullary $ VB True  ] ] [] 
+  --                       ])
 
-  describe "parseHitPolicy" $ do
-    it "should parse a Unique hit policy"        $ ("U"  :: Text) ~> parseHitPolicy `shouldParse` HP_Unique
-    it "should parse an Any hit policy"          $ ("A"  :: Text) ~> parseHitPolicy `shouldParse` HP_Any
-    it "should parse a Collect All hit policy"   $ ("C"  :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_All
-    it "should parse a Collect All hit policy"   $ ("CA" :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_All
-    it "should parse a Collect Sum hit policy"   $ ("C+" :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_Sum
-    it "should parse a Collect Count hit policy" $ ("C#" :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_Cnt
+  -- describe "parseHitPolicy" $ do
+  --   it "should parse a Unique hit policy"        $ ("U"  :: Text) ~> parseHitPolicy `shouldParse` HP_Unique
+  --   it "should parse an Any hit policy"          $ ("A"  :: Text) ~> parseHitPolicy `shouldParse` HP_Any
+  --   it "should parse a Collect All hit policy"   $ ("C"  :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_All
+  --   it "should parse a Collect All hit policy"   $ ("CA" :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_All
+  --   it "should parse a Collect Sum hit policy"   $ ("C+" :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_Sum
+  --   it "should parse a Collect Count hit policy" $ ("C#" :: Text) ~> parseHitPolicy `shouldParse` HP_Collect Collect_Cnt
 
-  describe "parseTypeDecl" $ do
-    it "should parse a String type annotation"  $ (": String"  :: Text) ~> parseTypeDecl `shouldParse` (Just DMN_String)
-    it "should parse a Number type annotation"  $ (": Number"  :: Text) ~> parseTypeDecl `shouldParse` (Just DMN_Number)
-    it "should parse a Boolean type annotation" $ (": Boolean" :: Text) ~> parseTypeDecl `shouldParse` (Just DMN_Boolean)
-    it "should parse a List of Strings"         $ (": [String]" :: Text) ~> parseTypeDecl `shouldParse` (Just (DMN_List DMN_String))
+  -- describe "parseTypeDecl" $ do
+  --   it "should parse a String type annotation"  $ (": String"  :: Text) ~> parseTypeDecl `shouldParse` (Just DMN_String)
+  --   it "should parse a Number type annotation"  $ (": Number"  :: Text) ~> parseTypeDecl `shouldParse` (Just DMN_Number)
+  --   it "should parse a Boolean type annotation" $ (": Boolean" :: Text) ~> parseTypeDecl `shouldParse` (Just DMN_Boolean)
+  --   it "should parse a List of Strings"         $ (": [String]" :: Text) ~> parseTypeDecl `shouldParse` (Just (DMN_List DMN_String))
 
-  describe "wtf" $ do
-    it "testing many1 digit"
-      $ ("| 123 |" :: Text) ~> (
-      do
-        pipeSeparator
-        mymap <- mapM (\x -> do
-                          myjust <- Just . (\d -> x * (read d) :: Int) <$> many1 digit
-                          pipeSeparator
-                          return myjust
-                      ) [2]
-        return mymap
-      ) `shouldParse` ([Just 246])
+  -- describe "wtf" $ do
+  --   it "testing many1 digit"
+  --     $ ("| 123 |" :: Text) ~> (
+  --     do
+  --       pipeSeparator
+  --       mymap <- mapM (\x -> do
+  --                         myjust <- Just . (\d -> x * (read d) :: Int) <$> many1 digit
+  --                         pipeSeparator
+  --                         return myjust
+  --                     ) [2]
+  --       return mymap
+  --     ) `shouldParse` ([Just 246])
 
-    it "testing manual recreation of parseDataRow"
-      $ ("| 1 |\n" :: Text) ~> (
-      do
-        pipeSeparator
-        myrownumber <-  many1 digit
-        pipeSeparator
-        endOfLine
-        return (DTrow (Just . (\n -> (read n) :: Int) $ myrownumber) [] [] [])
-      ) `shouldParse` (DTrow (Just 1) [] [] [])
+  --   it "testing manual recreation of parseDataRow"
+  --     $ ("| 1 |\n" :: Text) ~> (
+  --     do
+  --       pipeSeparator
+  --       myrownumber <-  many1 digit
+  --       pipeSeparator
+  --       endOfLine
+  --       return (DTrow (Just . (\n -> (read n) :: Int) $ myrownumber) [] [] [])
+  --     ) `shouldParse` (DTrow (Just 1) [] [] [])
       
-  describe "parseDataRow" $ do
-    it "should parse a zero-column row"
-      $ ("| 1 |\n" :: Text ) ~> (parseDataRow []) `shouldParse` (DTrow (Just 1) [] [] [])
-    it "should parse a comment-only row"
-      $ ("| 1 | rem |\n" :: Text ) ~> (parseDataRow [(DTCH_Comment, Nothing)]) `shouldParse` (DTrow (Just 1) [] [] [Just "rem"])
-    it "should parse an input-only row"
-      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow [(DTCH_In, Nothing)]) `shouldParse` (DTrow (Just 1) [[FNullary $ VS "potato"]] [] [])
-    it "should parse an output-only row"
-      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow [(DTCH_Out, Nothing)]) `shouldParse` (DTrow (Just 1) [] [[FNullary $ VS "potato"]] [])
+  -- describe "parseDataRow" $ do
+  --   it "should parse a zero-column row"
+  --     $ ("| 1 |\n" :: Text ) ~> (parseDataRow []) `shouldParse` (DTrow (Just 1) [] [] [])
+  --   it "should parse a comment-only row"
+  --     $ ("| 1 | rem |\n" :: Text ) ~> (parseDataRow [(DTCH_Comment, Nothing)]) `shouldParse` (DTrow (Just 1) [] [] [Just "rem"])
+  --   it "should parse an input-only row"
+  --     $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow [(DTCH_In, Nothing)]) `shouldParse` (DTrow (Just 1) [[FNullary $ VS "potato"]] [] [])
+  --   it "should parse an output-only row"
+  --     $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow [(DTCH_Out, Nothing)]) `shouldParse` (DTrow (Just 1) [] [[FNullary $ VS "potato"]] [])
 
   describe "parseTable" $ do
-    it "should parse a null table with no header columns and no body rows"
-      $ ("| U |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [] [])
-    it "should parse a boring table with one header column and no body rows"
-      $ ("| U | varname1 |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing] [])
-    it "should parse a boring table with one in header, one explicit out, and no body rows"
-      $ ("| U | varname1 | varname2 (out) |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
-    it "should parse a boring table with two in headers, which should autoswitch to out"
-      $ ("| U | varname1 | varname2 |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
-    it "should parse a boring table with one explicit in headers, and the other which should autoswitch to out"
-      $ ("| U | varname1 (in) | varname2 |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
-    it "should parse a boring table with one header column, one comment column, and no body rows"
-      $ ("| U | varname1 | # rem |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
-    it "should parse a boring table with one header column, one comment column, and no body rows"
-      $ ("| U | varname1 | rem (comment) |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
-    it "should parse a boring table with one header column, one comment column, and one body row"
-      $ ("| U | varname1 | rem (comment) |\n| 1 | foo | mycomment |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_Unique
-        [DTCH DTCH_In "varname1" (Just DMN_String) Nothing, DTCH DTCH_Comment "rem" Nothing Nothing]
-        [DTrow (Just 1) [mkFsIn (Just DMN_String) "foo"] [] [Just "mycomment"]])
+    -- it "should parse a null table with no header columns and no body rows"
+    --   $ ("| U |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [] [])
+    -- it "should parse a boring table with one header column and no body rows"
+    --   $ ("| U | varname1 |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing] [])
+    -- it "should parse a boring table with one in header, one explicit out, and no body rows"
+    --   $ ("| U | varname1 | varname2 (out) |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
+    -- it "should parse a boring table with two in headers, which should autoswitch to out"
+    --   $ ("| U | varname1 | varname2 |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
+    -- it "should parse a boring table with one explicit in headers, and the other which should autoswitch to out"
+    --   $ ("| U | varname1 (in) | varname2 |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
+    -- it "should parse a boring table with one header column, one comment column, and no body rows"
+    --   $ ("| U | varname1 | # rem |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
+    -- it "should parse a boring table with one header column, one comment column, and no body rows"
+    --   $ ("| U | varname1 | rem (comment) |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
+    -- it "should parse a boring table with one header column, one comment column, and one body row"
+    --   $ ("| U | varname1 | rem (comment) |\n| 1 | foo | mycomment |\n" :: Text )
+    --   ~> (parseTable "mytable1") `shouldParse`
+    --   (DTable "mytable1" HP_Unique
+    --     [DTCH DTCH_In "varname1" (Just DMN_String) Nothing, DTCH DTCH_Comment "rem" Nothing Nothing]
+    --     [DTrow (Just 1) [mkFsIn (Just DMN_String) "foo"] [] [Just "mycomment"]])
     it "should parse the standard dmn example 1"
       $ dmn1
       ~> (parseTable "mytable1") `shouldParse`

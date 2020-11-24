@@ -59,11 +59,11 @@ parseOutCell dmntype = try $ do
 
 -- note -- "exp" for expression, "ext" for extended
 parseFEELext :: Maybe DMNType -> Parser FEELexp
-parseFEELext mdt = parseFEELexp mdt <|> (FFunction <$> parseFNumFunction mdt)
+parseFEELext mdt = try (parseFEELexp mdt) <|> (FFunction <$> parseFNumFunction mdt)
 
 mkF :: Maybe DMNType -> String -> FEELexp
 mkF maybetype myinput =
-  either (error . show) id (runParser (parseFEELexp maybetype) "(2nd parse mkF)" (T.pack myinput))
+  either (error . errorBundlePretty) id (runParser (parseFEELexp maybetype) "(2nd parse mkF)" (T.pack myinput))
 
 parseFEELexp :: Maybe DMNType -> Parser FEELexp
 parseFEELexp mdt = (try ((char '_' <|> char '-') >> eof >> return FAnything)
@@ -112,10 +112,7 @@ parseBareString :: Parser String
 parseBareString = (try nocommas <|> stringLiteral)
 
 nocommas :: Parser String
-nocommas = do
-  firstword <- lexeme $ some alphaNumChar
-  remainder <- many ( lexeme $ some alphaNumChar )
-  return (unwords $ firstword : remainder)
+nocommas = unwords <$> some ( lexeme parseVar_name )
 
 stringLiteral :: Parser String
 stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
@@ -136,9 +133,9 @@ parseDMNType = do
     innerParse =
       tryChoice [ Just DMN_Number  <$  (choice ( symbol <$> T.words "<= < >= > ==" ) *> someNum)
                 , Just DMN_Number  <$  (someNum <* choice ( symbol <$> T.words "<= < >= > ==" ))
-                , Just DMN_Number  <$  (lexeme (isNum <|> isAlphaNumChar)
+                , Just DMN_Number  <$  (lexeme (isNum <|> isVar_name)
                                          >> lexeme (choice [ char x | x <- "+-*/" ])
-                                         >> lexeme (isNum <|> isAlphaNumChar))
+                                         >> lexeme (isNum <|> isVar_name))
                   -- TODO: a full language would allow "celsius * 9/5 + 32"
                 , Just DMN_Number  <$  (brackets (someNum >> symbol ".." >> someNum))
                 , Just DMN_Number  <$  (someNum)
@@ -178,9 +175,9 @@ parseFNFf mdt = try $ do
 parseFNF1 :: Maybe DMNType -> Parser FNumFunction -- unquoted variable which should appear in the symbol table
 parseFNF1 mdt = Debug.Trace.trace ("parseFNF1: called with " ++ show mdt ++ "...") $
                 case mdt of
-                  (Just DMN_String)  -> (FNF1 <$> nocommas) <|> (feel2fnf <$> parseFEELexp' mdt)
-                  (Just DMN_Number)  -> feel2fnf <$> parseFEELexp' mdt
-                  (Just DMN_Boolean) -> feel2fnf <$> parseFEELexp' mdt
+                  (Just DMN_String)  -> (FNF1 <$> parseVar_name) <|> (feel2fnf <$> parseFEELexp' mdt)
+                  (Just DMN_Number)  -> (FNF1 <$> parseVar_name) <|> (feel2fnf <$> parseFEELexp' mdt)
+                  (Just DMN_Boolean) -> (FNF1 <$> parseVar_name) <|> (feel2fnf <$> parseFEELexp' mdt)
                   (Just (DMN_List _))-> error $ "list type not supported in output columns"
                   Nothing            -> feel2fnf <$> parseFEELexp' (Just DMN_String)
 
