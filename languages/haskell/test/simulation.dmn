@@ -66,7 +66,7 @@
       </rule>
       <rule id="row-506282952-11">
         <inputEntry id="UnaryTests_11o8pqj">
-          <text></text>
+          <text>-</text>
         </inputEntry>
         <inputEntry id="UnaryTests_1298ow3">
           <text>true</text>
@@ -77,7 +77,7 @@
       </rule>
       <rule id="row-506282952-12">
         <inputEntry id="UnaryTests_0shocr0">
-          <text></text>
+          <text>-</text>
         </inputEntry>
         <inputEntry id="UnaryTests_0nblyrk">
           <text>false</text>
@@ -185,7 +185,7 @@
           <text>"Summer"</text>
         </inputEntry>
         <inputEntry id="UnaryTests_1nuzyri">
-          <text></text>
+          <text>-</text>
         </inputEntry>
         <outputEntry id="LiteralExpression_0nspzk1">
           <text>"Light Salad and a nice Steak"</text>

@@ -385,7 +385,7 @@ simulationDmn =
                                       ruleInputEntry =
                                         [ InputEntry
                                             { ieLabel = dmnWithId "UnaryTests_11o8pqj",
-                                              ieText = TextElement {innerText = ""}
+                                              ieText = TextElement {innerText = "-"}
                                             },
                                           InputEntry
                                             { ieLabel = dmnWithId "UnaryTests_1298ow3",
@@ -405,7 +405,7 @@ simulationDmn =
                                       ruleInputEntry =
                                         [ InputEntry
                                             { ieLabel = dmnWithId "UnaryTests_0shocr0",
-                                              ieText = TextElement {innerText = ""}
+                                              ieText = TextElement {innerText = "-"}
                                             },
                                           InputEntry
                                             { ieLabel = dmnWithId "UnaryTests_0nblyrk",
@@ -616,7 +616,7 @@ simulationDmn =
                                             },
                                           InputEntry
                                             { ieLabel = dmnWithId "UnaryTests_1nuzyri",
-                                              ieText = TextElement {innerText = ""}
+                                              ieText = TextElement {innerText = "-"}
                                             }
                                         ],
                                       ruleOutputEntry =
