@@ -164,9 +164,9 @@ mkDTable origname orighp origchs origdtrows =
                                      (transpose $ [ row_inputs r ++  row_outputs r
                                                   | r@DTrow{} <- origdtrows])
       typedchs = if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs
-  in Debug.Trace.trace ("mkDTable: finishing...\n" ++
-                        "origchs = " ++ show(origchs) ++ "\n" ++
-                        "newchs = " ++ show(newchs) ++ (if null (getCommentHeaders origchs) then "" else " (yes the comment columns don't show here)\n" ))
+  in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
+     --                    "origchs = " ++ show(origchs) ++ "\n" ++
+     --                    "newchs = " ++ show(newchs) ++ (if null (getCommentHeaders origchs) then "" else " (yes the comment columns don't show here)\n" ))
     DTable origname orighp typedchs
     ((\case
          (DTrow rn ri ro rc) -> (DTrow rn
@@ -244,10 +244,10 @@ inferTypes origch origrows = -- Debug.Trace.trace ("  infertypes: called with co
           in if null (vartype origch)
              then origch { vartype = Just coltype }
              else if vartype origch /= Just coltype
-                  then Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred type is " ++ (show coltype))
+                  then -- Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred type is " ++ (show coltype))
                        origch
                   else origch { vartype = Just coltype }
-     else Debug.Trace.trace ("    length coltypes > 1, no changes due to type inference")
+     else -- Debug.Trace.trace ("    length coltypes > 1, no changes due to type inference")
           origch
 
 -- initially, we let type inference work for everything except functions.
@@ -267,6 +267,6 @@ inferType (FNullary (VN _)) = Just DMN_Number
 inferType (FNullary (VB _)) = Just DMN_Boolean
 
 -- parse, don't validate!
-inferType (FNullary (VS arg)) = Debug.Trace.trace ("type inference trying to parse " ++ arg) $
+inferType (FNullary (VS arg)) = -- Debug.Trace.trace ("type inference trying to parse " ++ arg) $
   either (\e -> error $ "error during inferType: " ++ errorBundlePretty e) id $ runParser parseDMNType "type inference" (T.pack arg)
 

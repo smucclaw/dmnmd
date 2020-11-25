@@ -16,7 +16,7 @@ import DMN.Types
 import DMN.ParsingUtils
 import qualified Data.Void
 import qualified Data.Functor.Identity
-import Debug.Trace
+-- import Debug.Trace
 
 -- see Text.Megaparsec.Char.Lexer documentation
 symbol :: Tokens Text -> ParsecT Data.Void.Void Text Data.Functor.Identity.Identity (Tokens Text)
@@ -68,8 +68,11 @@ mkF maybetype myinput =
   either (error . errorBundlePretty) id (runParser (parseFEELexp maybetype) "(2nd parse mkF)" (T.pack myinput))
 
 parseFEELexp :: Maybe DMNType -> Parser FEELexp
-parseFEELexp mdt = (try ((char '_' <|> char '-') >> eof >> return FAnything)
-                    <|> parseFEELexp' mdt <*  (lookAhead (char ',' >> return ()) <|> eof))
+parseFEELexp mdt = parseAnything
+                    <|> parseFEELexp' mdt <*  (lookAhead (char ',' >> return ()) <|> eof)
+
+parseAnything :: Parser FEELexp
+parseAnything = try ((char '_' <|> char '-') >> eof >> return FAnything)
 
 parseFEELexp' :: Maybe DMNType -> Parser FEELexp
 parseFEELexp' (Just (DMN_List x)) = parseFEELexp' (Just x)
@@ -145,7 +148,7 @@ parseDMNType = try (Nothing <$ (choice ( symbol <$> (T.words "- _")) ) <* eof )
                   -- TODO: a full language would allow "celsius * 9/5 + 32"
                 , Just DMN_Number  <$  (brackets (someNum >> symbol ".." >> someNum))
                 , Just DMN_Number  <$  (someNum)
-                , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words "True true yes t y positive")  <* (lookAhead (char ',' >> return ()) <|> eof))
+                , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words  "True true yes t y positive")  <* (lookAhead (char ',' >> return ()) <|> eof))
                 , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words "False false no f n negative")  <* (lookAhead (char ',' >> return ()) <|> eof))
                 , Just . DMN_List  <$> (brackets (many anyChar) >> (fromJust <$> parseDMNType)) -- the first element is dispositive
                 , Just DMN_String  <$  parseBareString
@@ -164,6 +167,7 @@ parseFNumFunction mdt =
 -- age * 2  -- FNF3 (FNF1 "age") FNMul (FNF0 $ VN 2.0)
 -- age      -- FNF1 "age"
 -- "age"    -- FNF0 (VS "age")
+-- 2        -- not parsed by parseFNumFunction -- should be handled by parseFEELexp!
 
 parseFNFmax :: Maybe DMNType -> Parser FNFF -- recognized functions
 parseFNFmax mdt = symbol "max" >> return FNFmax
@@ -178,11 +182,11 @@ parseFNFf mdt = try $ do
   return $ FNFf fName args
 
 parseFNF1 :: Maybe DMNType -> Parser FNumFunction -- unquoted variable which should appear in the symbol table
-parseFNF1 mdt = Debug.Trace.trace ("parseFNF1: called with " ++ show mdt ++ "...") $
+parseFNF1 mdt = -- Debug.Trace.trace ("parseFNF1: called with " ++ show mdt ++ "...") $
                 case mdt of
                   (Just DMN_String)  -> (FNF1 <$> parseVar_name) <|> (feel2fnf <$> parseFEELexp' mdt)
                   (Just DMN_Number)  -> (FNF1 <$> parseVar_name) <|> (feel2fnf <$> parseFEELexp' mdt)
-                  (Just DMN_Boolean) -> (FNF1 <$> parseVar_name) <|> (feel2fnf <$> parseFEELexp' mdt)
+                  (Just DMN_Boolean) -> (feel2fnf <$> parseFEELexp' mdt) <|> (FNF1 <$> parseVar_name)
                   (Just (DMN_List _))-> error $ "list type not supported in output columns"
                   Nothing            -> feel2fnf <$> parseFEELexp' (Just DMN_String)
 
@@ -203,8 +207,8 @@ parseFNF3 mdt = try $ do
   fnfb  <- lexeme complex
   return $ FNF3 fnfa fnfop fnfb
 
-parseFNF0 :: Maybe DMNType -> Parser FNumFunction -- double-quoted string literal
-parseFNF0 mdt = FNF0 . VS <$> stringLiteral
+parseFNF0 :: Maybe DMNType -> Parser FNumFunction -- by the time we get here, anything will become a double-quoted string literal
+parseFNF0 _ = FNF0 . VS <$> stringLiteral
 
 parseFNOp2 :: Parser FNOp2
 parseFNOp2 =

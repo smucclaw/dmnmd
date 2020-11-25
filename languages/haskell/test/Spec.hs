@@ -254,8 +254,8 @@ spec3 = do
 
     it "should parse the Collect table with a subheader row"
       $ dmn3a
-      ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" (HP_Collect Collect_All)
+      ~> (parseTable "dmn3a") `shouldParse`
+      (DTable "dmn3a" (HP_Collect Collect_All)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_In "RiskCategory"  (Just DMN_String) (Just $ FNullary . VS <$> words "LOW MEDIUM HIGH")
         , DTCH DTCH_In "DebtReview"    (Just DMN_Boolean) Nothing
@@ -418,8 +418,8 @@ spec3 = do
     it "should handle a simple string literal"
       $ ("myvar" :: Text) ~> (parseFNumFunction (Just DMN_String)) `shouldParse` (FNF1 "myvar")
     it "should handle a quoted string"
-      $ ("\"myvar\"" :: Text) ~> (parseFNumFunction (Just DMN_String)) `shouldParse` (FNF0 $ VS "myvar")
-    it "should handle a literal number"
+      $ ("\"mystrlit\"" :: Text) ~> (parseFNumFunction (Just DMN_String)) `shouldParse` (FNF0 $ VS "\"mystrlit\"")
+    it "should read a literal number"
       $ ("100.0" :: Text) ~> (parseFNumFunction (Just DMN_Number)) `shouldParse` (FNF0 $ VN 100.0)
     it "should handle a literal bool"
       $ ("False" :: Text) ~> (parseFNumFunction (Just DMN_Boolean)) `shouldParse` (FNF0 $ VB False)
@@ -540,11 +540,11 @@ dmn3a :: Text
 dmn3a = T.pack $ dropWhile (=='\n') [r|
 | C | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)                |
 |   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
-|---|--------------|-------------------|----------------------|------------------------|------------------------|-----------------------------|
-| 1 |              |                   |                      | ACCEPT                 | NONE                   | Acceptable                  |
-| 2 | <18          |                   |                      | DECLINE                | NONE                   | Applicant too young         |
-| 3 |              | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
-| 4 |              |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
+|---+--------------+-------------------+----------------------+------------------------+------------------------+-----------------------------|
+| 1 | -            | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
+| 2 | <18          | -                 | -                    | DECLINE                | NONE                   | Applicant too young         |
+| 3 | -            | HIGH              | -                    | REFER                  | LEVEL 1                | High risk application       |
+| 4 | -            | -                 | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
 |]
 
 dmn3b :: Text
@@ -552,23 +552,23 @@ dmn3b = T.pack $ dropWhile (=='\n') [r|
 | O | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)        |
 |   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                     |
 |---+--------------+-------------------+----------------------+------------------------+------------------------+---------------------|
-| 1 |              |                   |                      | ACCEPT                 | NONE                   | Acceptable          |
-| 2 |          <18 |                   |                      | DECLINE                | NONE                   | Applicant too young |
-| 3 |              | HIGH              |                      | REFER                  | LEVEL 1                | High risk           |
+| 1 | -            | -                 | -                    | ACCEPT                 | NONE                   | Acceptable          |
+| 2 | <18          | -                 | -                    | DECLINE                | NONE                   | Applicant too young |
+| 3 | -            | HIGH              | -                    | REFER                  | LEVEL 1                | High risk           |
 |   |              |                   |                      |                        |                        | application         |
-| 4 |              |                   | True                 | REFER                  | LEVEL                  | Applicant under     |
+| 4 | -            | -                 | True                 | REFER                  | LEVEL                  | Applicant under     |
 |   |              |                   |                      |                        | 2                      | debt review         |
 |]
 
 dmn3count :: Text
 dmn3count = T.pack $ dropWhile (=='\n') [r|
 | C# | Age : Number | RiskCategory      | DebtReview : Boolean | Routing (out)          | Review_level (out)     | Reason (out)                |
-|   |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
-|---|--------------|-------------------|----------------------|------------------------|------------------------|-----------------------------|
-| 1 |              |                   |                      | ACCEPT                 | NONE                   | Acceptable                  |
-| 2 | <18          |                   |                      | DECLINE                | NONE                   | Applicant too young         |
-| 3 |              | HIGH              |                      | REFER                  | LEVEL 1                | High risk application       |
-| 4 |              |                   | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
+|    |              | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
+|----+--------------+-------------------+----------------------+------------------------+------------------------+-----------------------------|
+|  1 | -            | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
+|  2 | <18          | -                 | -                    | DECLINE                | NONE                   | Applicant too young         |
+|  3 | -            | HIGH              | -                    | REFER                  | LEVEL 1                | High risk application       |
+|  4 | -            | -                 | True                 | REFER                  | LEVEL 2                | Applicant under debt review |
 |]
 
 
