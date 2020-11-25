@@ -12,6 +12,7 @@ import DMN.Types
 -- import Data.Attoparsec.Text
 -- import Text.Megaparsec hiding (label)
 import Text.Megaparsec (runParser)
+import Text.Megaparsec.Error
 -- import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
@@ -267,5 +268,5 @@ inferType (FNullary (VB _)) = Just DMN_Boolean
 
 -- parse, don't validate!
 inferType (FNullary (VS arg)) = Debug.Trace.trace ("type inference trying to parse " ++ arg) $
-  either (\e -> error $ "error during inferType: " ++ show e) id $ runParser parseDMNType "type inference" (T.pack arg)
+  either (\e -> error $ "error during inferType: " ++ errorBundlePretty e) id $ runParser parseDMNType "type inference" (T.pack arg)
 

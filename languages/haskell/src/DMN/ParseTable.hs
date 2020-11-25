@@ -111,7 +111,10 @@ mkHitPolicy_C x   = error $ "unrecognized collect hit policy " ++ [x]
 -- so we probably need to bite the bullet and just support JSON input.
 
 mkFsIn :: Maybe DMNType -> String -> [FEELexp]
-mkFsIn dmntype args = either (\e -> error $ "mkFsIn: when parseDataCell (" ++ args ++ "): " ++ errorBundlePretty e) (id) $ runParser (parseDataCell dmntype) "-" (T.pack args)
+mkFsIn dmntype args = Debug.Trace.trace ("mkFsIn: processing " ++ args ++ ": " ++ show dmntype) $
+                      either (\e -> error $ "mkFsIn: when parseDataCell (" ++ args ++ "): " ++ errorBundlePretty e)
+                      (\x -> Debug.Trace.trace ("mkFsIn: returning " ++ show x) x) $
+                      runParser (parseDataCell dmntype) "-" (T.pack args)
 
 mkFsOut :: Maybe DMNType -> String -> [FEELexp]
 mkFsOut dmntype args = either (\e -> error $ unwords [ "error during mkFsOut ("
@@ -125,12 +128,16 @@ parseTable table_name = do
   headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
+  Debug.Trace.traceM $ "parseTable: subHeadRow = " ++ show subHeadRow
   -- merge headerRow with subHeadRows
   let headerRow = if not (null subHeadRow)
-                  then  headerRow_1 { cols = zipWith (\orig subhead -> orig { enums = if subhead == [FAnything] then Nothing else Just subhead } ) -- in the data section a blank cell means anything, but in the subhead it means nothing.
+                  then let newsubheads = (zipWith (\cs cell -> mkFsIn (Just DMN_String) cell) columnSignatures subHeadRow)
+                       in Debug.Trace.trace ("parseTable: newsubheads = " ++ show newsubheads) $
+                          headerRow_1 { cols = zipWith (\orig subhead -> orig { enums = if subhead == [] then Nothing else Just subhead } ) -- in the data section a blank cell means anything, but in the subhead it means nothing.
                                              (cols headerRow_1)
-                                             (zipWith (\cs cell -> mkFsIn (snd cs) cell) columnSignatures subHeadRow) }
-                  else headerRow_1
+                                             newsubheads }
+                  else Debug.Trace.trace "subHeadRow is null, not re-parsing" $
+                       headerRow_1
   dataRows <- parseDataRows columnSignatures <?> "parseDataRows"
   traceM $ "parseTable: after parseDataRows " ++ show dataRows
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
@@ -146,7 +153,7 @@ parseDThr = do
     ("|---" <|> "| -") >> skipWhile "character" (/='\n') >> endOfLine
     return ()
 
--- continuation rows are used to match both subheads and datarow continuations    
+-- continuation rows are used to match subhead continuations only
 parseContinuationRows :: Parser [String]
 parseContinuationRows = do
   plainrows <- many (try (many parseDThr >> parseContinuationRow <?> "parseContinuationRow")) <?> "ParseContinuationRows"

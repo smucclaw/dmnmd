@@ -9,6 +9,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Text (Text)
+import Data.Char (isPrint)
 import Data.List (nub)
 import qualified Data.Text as T
 import DMN.Types
@@ -42,7 +43,8 @@ parseVarname = try $ do
 
 -- for input cells
 parseDataCell :: Maybe DMNType -> Parser [FEELexp]
-parseDataCell dmntype = try $ do
+parseDataCell dmntype = ([] <$ (lexeme eof)) <|>
+                        do
   fexp  <- parseFEELexp dmntype
   fexps <- many $ symbol "," *> parseFEELexp dmntype
   _ <- eof
@@ -112,7 +114,7 @@ parseBareString :: Parser String
 parseBareString = (try nocommas <|> stringLiteral)
 
 nocommas :: Parser String
-nocommas = unwords <$> some ( lexeme parseVar_name )
+nocommas = unwords <$> some ( lexeme ( some $ satisfy (\c -> isPrint c && c /= ',' ) ) )
 
 stringLiteral :: Parser String
 stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
@@ -121,8 +123,12 @@ stringLiteral = char '"' >> manyTill L.charLiteral (char '"')
 -- so we can blithely split on commas.
 -- ideally we would be able to parse     true,false  using only Megaparsec
 -- but the backtracking doesn't seem to work that way -- instead   true,false  seems to parse as a string?
+
+-- TODO: remove duplication vs parseDataCell; it makes no sense to duplicate the parsing logic. Instead we should just call parseDataCell and throw away the content, preserving only the type.
 parseDMNType :: Parser (Maybe DMNType)
-parseDMNType = do
+parseDMNType = try (Nothing <$ (choice ( symbol <$> (T.words "- _")) ) <* eof )
+               <|> (Nothing <$ (hspace >> eof))
+               <|> do
   first <- innerParse <* hspace
   after <- many (symbol "," *> innerParse)
   eof
@@ -142,7 +148,6 @@ parseDMNType = do
                 , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words "True true yes t y positive")  <* (lookAhead (char ',' >> return ()) <|> eof))
                 , Just DMN_Boolean <$  (tryChoice (symbol <$> T.words "False false no f n negative")  <* (lookAhead (char ',' >> return ()) <|> eof))
                 , Just . DMN_List  <$> (brackets (many anyChar) >> (fromJust <$> parseDMNType)) -- the first element is dispositive
-                , Nothing          <$  (choice ( symbol <$> T.words "- _") )
                 , Just DMN_String  <$  parseBareString
                 ]
     flattenTypes :: [Maybe DMNType] -> Maybe DMNType
