@@ -540,6 +540,16 @@ instance XmlPickler DrgElems where
       , xpWrap (DrgKS, \(DrgKS x) -> x) xpickle
       ]
 
+{-
+ TODO: Make a generic instance that generates the code above
+ - Make a test that the new code does the same as the old code
+   - Preferably with a simpler example that doesn't contain all the nested complexity of the above code
+ - Find a way to generically get the index of a constructor for a sum-type
+ - Generate the list of the picklers
+ - Ignore more complex cases (e.g. product types)
+ - Make a newtype for DerivingVia
+
+-}
 
 
 data Definitions = Definitions
