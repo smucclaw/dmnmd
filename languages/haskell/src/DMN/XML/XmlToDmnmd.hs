@@ -19,7 +19,7 @@ convertAll x = x >>= convertIt
 
 convertIt :: X.XDMN -> [T.DecisionTable]
 convertIt d = do
-    desicions <- X.defsDescisions d
+    desicions <- X.defsDecisions d
     convdec desicions
 
 convdec :: X.Decision -> [T.DecisionTable]

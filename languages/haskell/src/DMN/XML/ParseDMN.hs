@@ -546,7 +546,7 @@ data Definitions = Definitions
   { defLabel :: DmnNamed,
     defsNamespace :: Namespace,
     defInputData :: [InputData],
-    defsDescisions :: [Decision],
+    defsDecisions :: [Decision],
     defDrgElems :: [DrgElems],
     defDMNDI :: Maybe DMNDI
   }
@@ -561,7 +561,7 @@ ex3 =
   Definitions
     { defLabel = dmnNamed' "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
-      defsDescisions = [
+      defsDecisions = [
         Decision (dmnNamed' "a" "b") [
           InformationRequirement (dmnLabeled "c" "d") RequiredInput (Href "#url")
           ]
