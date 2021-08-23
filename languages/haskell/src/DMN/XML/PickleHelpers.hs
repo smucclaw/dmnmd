@@ -24,14 +24,14 @@ This is contributed upstream in https://github.com/UweSchmidt/hxt/pull/86
 
 -- | Generates XmlPickler instances for tuples of size 4 <= n <= 26
 mkInstance :: Int -> String
-mkInstance n = 
+mkInstance n =
     "instance (" ++ constrainsts ++ ") => XmlPickler (" ++
     tuple ++ ") where\n" ++
     "  xpickle = xp" ++ show n ++ "Tuple " ++ xpickleStrings
   where
-    xpickleStrings = intercalate " " (replicate n "xpickle")
+    xpickleStrings = unwords (replicate n "xpickle")
     tuple = intercalate ", " letters
-    letters = map (:[]) $ take n ['a'..'z']
+    letters = map (:[]) $ take n ['a'..'z']
     constrainsts = intercalate ", " $ map oneConstr letters
     oneConstr a = "XmlPickler " ++ a
 
