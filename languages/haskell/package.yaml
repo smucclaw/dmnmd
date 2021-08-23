@@ -31,8 +31,8 @@ dependencies:
 - hspec-attoparsec
 - raw-strings-qq
 - optparse-applicative
-- MissingH
-- hxt
+# - MissingH
+- hxt >= 9.3.1.20
 # - fadno-xml
 - megaparsec
 - hspec-megaparsec

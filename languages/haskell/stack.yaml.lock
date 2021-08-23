@@ -25,16 +25,9 @@ packages:
       sha256: aee2f75974e868ff429b8ff349a29667536c60397098f5dfedc968d1951511bb
   original:
     hackage: hxt-xpath-9.1.2.2
-- completed:
-    hackage: MissingH-1.4.3.0@sha256:7136282773f7b3e7ce3af856b41dde98a04f9b03c51813c98d040fc060dcaa53,4650
-    pantry-tree:
-      size: 5271
-      sha256: b8e1b8f04bde976538303752932ad6a9ada1eacaa1c28fdb514022fc62be80d6
-  original:
-    hackage: MissingH-1.4.3.0
 snapshots:
 - completed:
-    size: 494635
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/12.yaml
-    sha256: a71c4293d8f461f455ff0d9815dfe4ab2f1adacd7e0bbc9a218f46ced8c4929a
-  original: lts-15.12
+    size: 587113
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/6.yaml
+    sha256: f74c482d7c93739ecf3abfbc0f2dea1c20a2dfb2462c689846ed55a9653b66f7
+  original: lts-18.6
