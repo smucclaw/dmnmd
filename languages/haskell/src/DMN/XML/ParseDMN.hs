@@ -463,7 +463,7 @@ data Expression = ExprDTable DecisionTable | ExprLiteral LiteralExpression
 
 exprNr :: Expression -> Int
 exprNr (ExprDTable _) = 0
-exprNr (ExprLiteral _) = 0
+exprNr (ExprLiteral _) = 1
 
 instance XmlPickler Expression where
   xpickle =
