@@ -44,6 +44,8 @@ dependencies:
 # For number parsing
 - scientific
 - parser-combinators
+- sop-core
+- generics-sop
 
 library:
   source-dirs: src
