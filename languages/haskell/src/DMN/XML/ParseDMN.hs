@@ -40,11 +40,11 @@ xmlns_dc = "http://www.omg.org/spec/DMN/20180521/DC/"
 xmlns_di = "http://www.omg.org/spec/DMN/20180521/DI/"
 xmlns_camunda = "http://camunda.org/schema/1.0/dmn"
 
-xpDMNElem :: String -> AnIso' a b -> PU b -> PU a
-xpDMNElem name iso = xpElemNS xmlns_dmn "" name . wrapIso iso
+xpDMNElemIso :: String -> AnIso' a b -> PU b -> PU a
+xpDMNElemIso name iso = xpElemNS xmlns_dmn "" name . wrapIso iso
 
-xpDMNDIElem :: String -> AnIso' a b -> PU b -> PU a
-xpDMNDIElem name iso = xpElemNS xmlns_dmndi "dmndi" name . wrapIso iso
+xpDMNDIElemIso :: String -> AnIso' a b -> PU b -> PU a
+xpDMNDIElemIso name iso = xpElemNS xmlns_dmndi "dmndi" name . wrapIso iso
 
 withNS :: PU a -> PU a
 withNS =
@@ -62,7 +62,7 @@ data Description = Description
 makePrisms ''Description
 
 instance XmlPickler Description where
-  xpickle = xpDMNElem "description" _Description xpText
+  xpickle = xpDMNElemIso "description" _Description xpText
 
 data DmnNamed = DmnNamed
   { dmnnId :: Maybe String
@@ -132,7 +132,7 @@ makePrisms ''DMNDI
 
 instance XmlPickler DMNDI where
   xpickle =
-    xpDMNDIElem "DMNDI" _DMNDI
+    xpDMNDIElemIso "DMNDI" _DMNDI
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       . xpFilterCont none -- TODO
       $ xpickle
@@ -152,7 +152,7 @@ instance XmlPickler RequiredInput where
         xpElemNS xmlns_dmn "" "requiredDecision" $ xpLift RequiredDecision
       ]
 
--- xpDMNElem "requiredInput" _RequiredInput
+-- xpDMNElemIso "requiredInput" _RequiredInput
 --   $ xpickle
 
 pcklReqInput :: PU a -> PU (RequiredInput, a)
@@ -183,7 +183,7 @@ makePrisms ''InformationRequirement
 
 instance XmlPickler InformationRequirement where
   xpickle =
-    xpDMNElem "informationRequirement" (_InformationRequirement . pairsIso)
+    xpDMNElemIso "informationRequirement" (_InformationRequirement . pairsIso)
     $
       xpPair xpickle (pcklReqInput xpickle)
 
@@ -292,7 +292,7 @@ makePrisms ''TextElement
 
 instance XmlPickler TextElement where
   xpickle =
-    xpDMNElem "text" _TextElement
+    xpDMNElemIso "text" _TextElement
       $ xpText0
 
 data TExpr = TExpr
@@ -332,7 +332,7 @@ makePrisms ''LiteralExpression
 
 instance XmlPickler LiteralExpression where
   xpickle =
-    xpDMNElem "literalExpression" _LiteralExpression
+    xpDMNElemIso "literalExpression" _LiteralExpression
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
       $ xpickle
@@ -344,7 +344,7 @@ data InputExpression = InputExpression TLiteralExpression
 makePrisms ''InputExpression
 
 instance XmlPickler InputExpression where
-  xpickle = xpDMNElem "inputExpression" _InputExpression xpickle
+  xpickle = xpDMNElemIso "inputExpression" _InputExpression xpickle
 
 data TableInput = TableInput
   { tinpName :: DmnCommon
@@ -357,7 +357,7 @@ makePrisms ''TableInput
 
 instance XmlPickler TableInput where
   xpickle =
-    xpDMNElem "input" _TableInput
+    xpDMNElemIso "input" _TableInput
       -- . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label")
       -- . xpFilterAttr (none `when` hasQName (mkQName xmlns_camunda "camunda" "inputVariable"))
       . xpFilterAttr (none `when` hasName "camunda:inputVariable")
@@ -375,7 +375,7 @@ makePrisms ''TableOutput
 
 instance XmlPickler TableOutput where
   xpickle =
-    xpDMNElem "output" _TableOutput
+    xpDMNElemIso "output" _TableOutput
       -- . xpFilterCont none -- TODO: Need a test case
       $ xpickle
 
@@ -395,7 +395,7 @@ makePrisms ''InputEntry
 
 instance XmlPickler InputEntry where
   xpickle =
-    xpDMNElem "inputEntry" _InputEntry
+    xpDMNElemIso "inputEntry" _InputEntry
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
       $ xpickle
@@ -410,7 +410,7 @@ makePrisms ''OutputEntry
 
 instance XmlPickler OutputEntry where
   xpickle =
-    xpDMNElem "outputEntry" _OutputEntry
+    xpDMNElemIso "outputEntry" _OutputEntry
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
       $ xpickle
@@ -427,7 +427,7 @@ makePrisms ''Rule
 
 instance XmlPickler Rule where
   xpickle =
-    xpDMNElem "rule" _Rule
+    xpDMNElemIso "rule" _Rule
       -- . xpFilterCont none -- TODO
       -- . xpFilterCont (none `when` hasName "hitPolicy")
       -- . xpFilterCont (hasName "description" <+> hasName "inputEntry")
@@ -447,7 +447,7 @@ makePrisms ''DecisionTable
 
 instance XmlPickler DecisionTable where
   xpickle =
-    xpDMNElem "decisionTable" _DecisionTable
+    xpDMNElemIso "decisionTable" _DecisionTable
       -- . xpFilterAttr (hasName "id" <+> hasName "name") -- TODO
       -- . xpFilterAttr (none `when` hasName "hitPolicy")
       -- . xpFilterCont none -- TODO
@@ -484,7 +484,7 @@ makePrisms ''Decision
 
 instance XmlPickler Decision where
   xpickle =
-    xpDMNElem "decision" _Decision
+    xpDMNElemIso "decision" _Decision
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
       . ignoreContent ["authorityRequirement"] -- We don't care about "Authority" which express where rules come from
@@ -499,7 +499,7 @@ data InputData = InputData
 makePrisms ''InputData
 
 instance XmlPickler InputData where
-  xpickle = xpDMNElem "inputData" _InputData $ xpickle
+  xpickle = xpDMNElemIso "inputData" _InputData $ xpickle
 
 data KnowledgeSource = KnowledgeSource
   { knsLabel :: DmnNamed
@@ -510,7 +510,7 @@ makePrisms ''KnowledgeSource
 
 instance XmlPickler KnowledgeSource where
   xpickle =
-    xpDMNElem "knowledgeSource" _KnowledgeSource
+    xpDMNElemIso "knowledgeSource" _KnowledgeSource
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       . xpFilterCont none -- TODO
       $ xpickle
@@ -583,7 +583,7 @@ ex3 =
 
 dmnPickler :: PU XDMN
 dmnPickler =
-  xpDMNElem "definitions" _Definitions
+  xpDMNElemIso "definitions" _Definitions
     . withNS
     -- . xpFilterAttr (getAttrValue _ _)
     -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
