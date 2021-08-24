@@ -8,7 +8,7 @@ on:
     # paths:
     # - 'languages/haskell/**'
   push:
-    # branches: [master]
+    branches: [trunk]
     # paths:
     # - 'languages/haskell/**'
 
