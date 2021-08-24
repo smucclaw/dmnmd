@@ -26,7 +26,7 @@ xmlSpec = do
         `shouldBe` [ Definitions
                        { defLabel = dmnNamed' "dinnerDecisions" "Dinner Decisions",
                          defsNamespace = Namespace { namespace = "http://camunda.org/schema/1.0/dmn" },
-                         defsDescisions = [],
+                         defsDecisions = [],
                          defInputData = [],
                          defDrgElems = [],
                          defDMNDI = Just DMNDI
@@ -233,7 +233,7 @@ simulationDmn =
       { defLabel = dmnNamed' "dinnerDecisions" "Dinner Decisions",
         defsNamespace = Namespace {namespace = "http://camunda.org/schema/1.0/dmn"},
         defInputData = [],
-        defsDescisions =
+        defsDecisions =
           [ Decision
               { decLabel = dmnNamed' "beverages" "Beverages",
                 decInfoReq =
