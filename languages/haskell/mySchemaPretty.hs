@@ -314,6 +314,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}Size"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Dimension" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -436,6 +437,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}Text"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -558,6 +560,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}FillColor"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Color" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -572,6 +575,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}StrokeColor"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Color" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -586,6 +590,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}FontColor"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Color" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -780,6 +785,7 @@ schm = XmlSchema
                                                                     }
                                                                 }
                                                             }
+                                                        , elemSubstGroup = Nothing
                                                         }
                                                     }
                                                 )
@@ -887,6 +893,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{http://www.omg.org/spec/DMN/20180521/DI/}waypoint"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Point" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1031,6 +1038,7 @@ schm = XmlSchema
                                                                     }
                                                                 }
                                                             }
+                                                        , elemSubstGroup = Nothing
                                                         }
                                                     }
                                                 )
@@ -1109,6 +1117,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}sourceRef"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1123,6 +1132,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}targetRef"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1178,6 +1188,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}requiredDecision"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1192,6 +1203,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}requiredInput"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1206,6 +1218,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}requiredAuthority"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1246,6 +1259,7 @@ schm = XmlSchema
                                                     { unElDef = ElementDef
                                                         { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}parameter"
                                                         , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                        , elemSubstGroup = Nothing
                                                         }
                                                     }
                                                 )
@@ -1327,6 +1341,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}encapsulatedLogic"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tFunctionDefinition" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1341,6 +1356,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}knowledgeRequirement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tKnowledgeRequirement" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1355,6 +1371,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}authorityRequirement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tAuthorityRequirement" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1440,6 +1457,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}variable"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1489,6 +1507,7 @@ schm = XmlSchema
                                                     { unElDef = ElementDef
                                                         { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}description"
                                                         , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                        , elemSubstGroup = Nothing
                                                         }
                                                     }
                                                 )
@@ -1536,6 +1555,7 @@ schm = XmlSchema
                                                                     }
                                                                 }
                                                             }
+                                                        , elemSubstGroup = Nothing
                                                         }
                                                     }
                                                 )
@@ -1645,6 +1665,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}question"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1659,6 +1680,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}allowedAnswers"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1673,6 +1695,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}variable"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1687,6 +1710,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}informationRequirement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationRequirement" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1701,6 +1725,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}knowledgeRequirement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tKnowledgeRequirement" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1715,6 +1740,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}authorityRequirement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tAuthorityRequirement" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1729,6 +1755,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}supportedObjective"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1743,6 +1770,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}impactedPerformanceIndicator"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1757,6 +1785,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionMaker"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1771,6 +1800,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionOwner"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1785,6 +1815,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}usingProcess"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1799,6 +1830,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}usingTask"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1853,6 +1885,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}inputEntry"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tUnaryTests" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1867,6 +1900,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}outputEntry"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tLiteralExpression" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1881,6 +1915,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}annotationEntry"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tRuleAnnotation" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1926,6 +1961,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}outputDecision"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1940,6 +1976,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}encapsulatedDecision"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1954,6 +1991,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}inputDecision"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -1968,6 +2006,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}inputData"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2013,6 +2052,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}input"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInputClause" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2027,6 +2067,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}output"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tOutputClause" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2041,6 +2082,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}annotation"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tRuleAnnotationClause" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2055,6 +2097,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}rule"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDecisionRule" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2146,6 +2189,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}itemDefinition"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tItemDefinition" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2178,6 +2222,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}elementCollection"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tElementCollection" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2287,6 +2332,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}drgElement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2362,6 +2408,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}formalParameter"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2426,6 +2473,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}parameters"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2559,6 +2607,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}importedElement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2651,6 +2700,7 @@ schm = XmlSchema
                                                                             { unElDef = ElementDef
                                                                                 { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}requiredDecision"
                                                                                 , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                                , elemSubstGroup = Nothing
                                                                                 }
                                                                             }
                                                                         )
@@ -2665,6 +2715,7 @@ schm = XmlSchema
                                                                             { unElDef = ElementDef
                                                                                 { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}requiredInput"
                                                                                 , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                                , elemSubstGroup = Nothing
                                                                                 }
                                                                             }
                                                                         )
@@ -2713,6 +2764,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}inputExpression"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tLiteralExpression" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2727,6 +2779,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}inputValues"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tUnaryTests" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2772,6 +2825,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}variable"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2817,6 +2871,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}variable"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2871,6 +2926,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}binding"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tBinding" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2923,6 +2979,7 @@ schm = XmlSchema
                                                                             { unElDef = ElementDef
                                                                                 { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}typeRef"
                                                                                 , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                                , elemSubstGroup = Nothing
                                                                                 }
                                                                             }
                                                                         )
@@ -2937,6 +2994,7 @@ schm = XmlSchema
                                                                             { unElDef = ElementDef
                                                                                 { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}allowedValues"
                                                                                 , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tUnaryTests" }
+                                                                                , elemSubstGroup = Nothing
                                                                                 }
                                                                             }
                                                                         )
@@ -2954,6 +3012,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}itemComponent"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tItemDefinition" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -2968,6 +3027,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}functionItem"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tFunctionItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3032,6 +3092,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}requiredKnowledge"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3077,6 +3138,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}authorityRequirement"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tAuthorityRequirement" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3091,6 +3153,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}type"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3105,6 +3168,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}owner"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3200,6 +3264,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}text"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3214,6 +3279,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}importedValues"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tImportedValues" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3299,6 +3365,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionMade"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3313,6 +3380,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionOwned"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3358,6 +3426,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}outputValues"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tUnaryTests" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3372,6 +3441,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}defaultOutputEntry"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tLiteralExpression" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3436,6 +3506,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}impactingDecision"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElementReference" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3481,6 +3552,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}column"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3495,6 +3567,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}row"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tList" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3535,6 +3608,7 @@ schm = XmlSchema
                                                     { unElDef = ElementDef
                                                         { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}text"
                                                         , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                        , elemSubstGroup = Nothing
                                                         }
                                                     }
                                                 )
@@ -3599,6 +3673,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}text"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3654,6 +3729,7 @@ schm = XmlSchema
                                                                 { unElDef = ElementDef
                                                                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}text"
                                                                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.w3.org/2001/XMLSchema}xsd:string" }
+                                                                    , elemSubstGroup = Nothing
                                                                     }
                                                                 }
                                                             )
@@ -3688,6 +3764,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{http://www.omg.org/spec/DMN/20180521/DC/}Bounds"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Bounds" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3697,6 +3774,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{http://www.omg.org/spec/DMN/20180521/DC/}Color"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Color" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3706,6 +3784,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNDI"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNDI" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3715,6 +3794,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNDecisionServiceDividerLine"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNDecisionServiceDividerLine" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3724,6 +3804,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNDiagram"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNDiagram" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3733,6 +3814,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNDiagramElement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DI/}di:DiagramElement" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3742,15 +3824,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNEdge"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNEdge" }
+                    , elemSubstGroup = Just "dmndi:DMNDiagramElement"
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}DMNElement"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}DMNElement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDMNElement" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3760,6 +3844,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNLabel"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNLabel" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3769,6 +3854,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNShape"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNShape" }
+                    , elemSubstGroup = Just "dmndi:DMNDiagramElement"
                     }
                 }
             )
@@ -3778,6 +3864,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}DMNStyle"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/DMNDI/}dmndi:DMNStyle" }
+                    , elemSubstGroup = Just "di:Style"
                     }
                 }
             )
@@ -3787,6 +3874,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{http://www.omg.org/spec/DMN/20180521/DC/}Dimension"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Dimension" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3796,6 +3884,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{http://www.omg.org/spec/DMN/20180521/DC/}Point"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DC/}dc:Point" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3805,15 +3894,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{http://www.omg.org/spec/DMN/20180521/DI/}Style"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{http://www.omg.org/spec/DMN/20180521/DI/}di:Style" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}artifact"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}artifact"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tArtifact" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
@@ -3823,6 +3914,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}association"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tAssociation" }
+                    , elemSubstGroup = Just "artifact"
                     }
                 }
             )
@@ -3832,15 +3924,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}authorityRequirement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tAuthorityRequirement" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}businessContextElement"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}businessContextElement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tBusinessContextElement" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3850,6 +3944,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}businessKnowledgeModel"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tBusinessKnowledgeModel" }
+                    , elemSubstGroup = Just "invocable"
                     }
                 }
             )
@@ -3859,6 +3954,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}context"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tContext" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
@@ -3868,6 +3964,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}contextEntry"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tContextEntry" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
@@ -3877,6 +3974,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decision"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDecision" }
+                    , elemSubstGroup = Just "drgElement"
                     }
                 }
             )
@@ -3886,6 +3984,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionService"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDecisionService" }
+                    , elemSubstGroup = Just "invocable"
                     }
                 }
             )
@@ -3895,6 +3994,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionTable"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDecisionTable" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
@@ -3904,15 +4004,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}definitions"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDefinitions" }
+                    , elemSubstGroup = Just "namedElement"
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}drgElement"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}drgElement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tDRGElement" }
+                    , elemSubstGroup = Just "namedElement"
                     }
                 }
             )
@@ -3922,15 +4024,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}elementCollection"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tElementCollection" }
+                    , elemSubstGroup = Just "namedElement"
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}expression"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}expression"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tExpression" }
+                    , elemSubstGroup = Nothing
                     }
                 }
             )
@@ -3940,6 +4044,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}functionDefinition"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tFunctionDefinition" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
@@ -3949,6 +4054,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}functionItem"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tFunctionItem" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
@@ -3958,6 +4064,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}group"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tGroup" }
+                    , elemSubstGroup = Just "artifact"
                     }
                 }
             )
@@ -3967,6 +4074,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}import"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tImport" }
+                    , elemSubstGroup = Just "namedElement"
                     }
                 }
             )
@@ -3976,6 +4084,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}informationItem"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationItem" }
+                    , elemSubstGroup = Just "namedElement"
                     }
                 }
             )
@@ -3985,6 +4094,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}informationRequirement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInformationRequirement" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
@@ -3994,15 +4104,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}inputData"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInputData" }
+                    , elemSubstGroup = Just "drgElement"
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}invocable"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}invocable"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInvocable" }
+                    , elemSubstGroup = Just "drgElement"
                     }
                 }
             )
@@ -4012,6 +4124,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}invocation"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tInvocation" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
@@ -4021,6 +4134,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}itemDefinition"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tItemDefinition" }
+                    , elemSubstGroup = Just "namedElement"
                     }
                 }
             )
@@ -4030,6 +4144,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}knowledgeRequirement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tKnowledgeRequirement" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
@@ -4039,6 +4154,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}knowledgeSource"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tKnowledgeSource" }
+                    , elemSubstGroup = Just "drgElement"
                     }
                 }
             )
@@ -4048,6 +4164,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}list"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tList" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
@@ -4057,15 +4174,17 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}literalExpression"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tLiteralExpression" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
         ,
             ( "{https://www.omg.org/spec/DMN/20191111/MODEL/}namedElement"
-            , ElDef
+            , ElAbs
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}namedElement"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tNamedElement" }
+                    , elemSubstGroup = Just "DMNElement"
                     }
                 }
             )
@@ -4075,6 +4194,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}organizationUnit"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tOrganizationUnit" }
+                    , elemSubstGroup = Just "businessContextElement"
                     }
                 }
             )
@@ -4084,6 +4204,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}performanceIndicator"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tPerformanceIndicator" }
+                    , elemSubstGroup = Just "businessContextElement"
                     }
                 }
             )
@@ -4093,6 +4214,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}relation"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tRelation" }
+                    , elemSubstGroup = Just "expression"
                     }
                 }
             )
@@ -4102,6 +4224,7 @@ schm = XmlSchema
                 { unElDef = ElementDef
                     { elemName = "{https://www.omg.org/spec/DMN/20191111/MODEL/}textAnnotation"
                     , elemTypeDef = ETDTypeAttr { unETDTypeAttr = "{https://www.omg.org/spec/DMN/20191111/MODEL/}tTextAnnotation" }
+                    , elemSubstGroup = Just "artifact"
                     }
                 }
             )
