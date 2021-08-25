@@ -25,6 +25,19 @@ packages:
       sha256: aee2f75974e868ff429b8ff349a29667536c60397098f5dfedc968d1951511bb
   original:
     hackage: hxt-xpath-9.1.2.2
+- completed:
+    subdir: hxt-xmlschema
+    name: hxt-xmlschema
+    version: 9.3.1.3
+    git: https://github.com/anka-213/hxt.git
+    pantry-tree:
+      size: 3391
+      sha256: c46ca61daa57da19e7b34c076ccb033ee26593b48fff2cf19b2c29c22a1e6fa5
+    commit: 41b5605b426703e3b5301a10f3187e26277f6a64
+  original:
+    subdir: hxt-xmlschema
+    git: https://github.com/anka-213/hxt.git
+    commit: 41b5605b426703e3b5301a10f3187e26277f6a64
 snapshots:
 - completed:
     size: 587113

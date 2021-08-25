@@ -46,6 +46,7 @@ dependencies:
 - parser-combinators
 - sop-core
 - generics-sop
+- hxt-xmlschema
 
 library:
   source-dirs: src

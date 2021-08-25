@@ -46,6 +46,13 @@ extra-deps:
 # - MissingH-1.4.3.0
 # - fadno-xml-1.1.3@sha256:2f097d297a85db5e607467fd5d08c314e8e3297d4feb78a736745855418a362c,1391
 
+# - git: https://github.com/UweSchmidt/hxt.git
+#   commit: c4fcbde870f5c99dfddd4211ca4213d8147fae05
+- git: https://github.com/anka-213/hxt.git
+  commit: 41b5605b426703e3b5301a10f3187e26277f6a64
+  subdirs:
+    - hxt-xmlschema
+
 # allow-newer:
 # - missingH
 
@@ -77,3 +84,4 @@ nix:
   packages:
   - pkg-config
   - pcre
+  - curl
