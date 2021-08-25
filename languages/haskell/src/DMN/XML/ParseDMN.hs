@@ -139,12 +139,12 @@ instance XmlPickler DMNDI where
 
 -- These can point to some input node (which is kind of useless) or to another table,
 -- in which case it shows their dependency on each other.
-data RequiredInput = RequiredInput | RequiredDecision
+data InformationRequirement = RequiredInput | RequiredDecision
   deriving (Show, Eq, Enum)
 
-makePrisms ''RequiredInput
+makePrisms ''InformationRequirement
 
-instance XmlPickler RequiredInput where
+instance XmlPickler InformationRequirement where
   xpickle =
     xpAlt
       fromEnum
@@ -155,7 +155,8 @@ instance XmlPickler RequiredInput where
 -- xpDMNElemIso "requiredInput" _RequiredInput
 --   $ xpickle
 
-pcklReqInput :: PU a -> PU (RequiredInput, a)
+-- | Pickle a RequiredInput with some other thing inside its element
+pcklReqInput :: PU a -> PU (InformationRequirement, a)
 pcklReqInput p =
   xpAlt
     (fromEnum . fst)
@@ -172,18 +173,18 @@ makePrisms ''Href
 instance XmlPickler Href where
   xpickle = wrapIso _Href $ xpAttr "href" xpText
 
-data InformationRequirement = InformationRequirement
+data InformationRequirementWrapper = InformationRequirementWrapper
   { infrLabel :: DmnCommon,
-    infrReq :: RequiredInput,
+    infrReq :: InformationRequirement,
     infoHref :: Href
   }
   deriving (Show, Eq)
 
-makePrisms ''InformationRequirement
+makePrisms ''InformationRequirementWrapper
 
-instance XmlPickler InformationRequirement where
+instance XmlPickler InformationRequirementWrapper where
   xpickle =
-    xpDMNElemIso "informationRequirement" (_InformationRequirement . pairsIso)
+    xpDMNElemIso "informationRequirement" (_InformationRequirementWrapper . pairsIso)
     $
       xpPair xpickle (pcklReqInput xpickle)
 
@@ -475,7 +476,7 @@ instance XmlPickler Expression where
 
 data Decision = Decision
   { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
-    decInfoReq :: [InformationRequirement],
+    decInfoReq :: [InformationRequirementWrapper],
     decDTable :: Maybe Expression -- Schema says this could be any "expression", not just table
   }
   deriving (Show, Eq)
@@ -573,7 +574,7 @@ ex3 =
       defsNamespace = Namespace xmlns_camunda,
       defsDecisions = [
         Decision (dmnNamed' "a" "b") [
-          InformationRequirement (dmnLabeled "c" "d") RequiredInput (Href "#url")
+          InformationRequirementWrapper (dmnLabeled "c" "d") RequiredInput (Href "#url")
           ]
           Nothing],
       defInputData = [],
