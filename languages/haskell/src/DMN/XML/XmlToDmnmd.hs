@@ -19,7 +19,7 @@ convertAll x = x >>= convertIt
 
 convertIt :: X.XDMN -> [T.DecisionTable]
 convertIt d = do
-    desicions <- X.defsDescisions d
+    desicions <- X.defsDecisions d
     convdec desicions
 
 convdec :: X.Decision -> [T.DecisionTable]
@@ -36,7 +36,7 @@ convTable name (X.DecisionTable
     X.dtInput ,
     X.dtOutput ,
     X.dtRules
-  }) = T.DTable 
+  }) = T.DTable
     { T.tableName = name
     , T.hitpolicy = dtHitPolicy
     , T.header    = inputHeaders ++ outputHeaders
@@ -59,11 +59,11 @@ convTable name (X.DecisionTable
 -- convHeader ins outs = map convHeader' $ inAndOut ins outs
 
 convInputHeader :: TableInput -> T.ColHeader
-convInputHeader (tin@TableInput { tinpName , tinpLabel , tinpExpr = InputExpression inpexpr }) 
+convInputHeader (tin@TableInput { tinpName , tinpLabel , tinpExpr = InputExpression inpexpr })
     -- = error $ show tin
-    = T.DTCH 
+    = T.DTCH
         { T.label   = T.DTCH_In
-        , T.varname = maybe "I don't know?" id . fmap innerText $ tleContent inpexpr -- TODO: I think this is correct, but I'm not sure
+        , T.varname = maybe "I don't know?" id . fmap innerText $ tleContent inpexpr -- TODO: I think this is correct, but I'm not sure
         , T.vartype = fmap convertType . exprTypeRef $ tleExpr inpexpr
         , T.enums   = Nothing -- TODO: This is definitely wrong
         }
@@ -71,7 +71,7 @@ convInputHeader (tin@TableInput { tinpName , tinpLabel , tinpExpr = InputExpress
 
 convOutputHeader :: TableOutput -> T.ColHeader
 convOutputHeader ( tout@TableOutput { toutName , toutLabel , toutTypeRef })
-    = T.DTCH 
+    = T.DTCH
         { T.label   = T.DTCH_Out
         , T.varname = columnLabel $ toutLabel -- TODO: Is this what we want?
         , T.vartype = Just $ convertType $ toutTypeRef
@@ -82,7 +82,7 @@ convertType :: TypeRef -> T.DMNType
 convertType (TypeRef "string") = T.DMN_String
 convertType (TypeRef "boolean") = T.DMN_Boolean
 convertType (TypeRef "integer") = T.DMN_Number
-convertType (TypeRef tname) = error $ "Unknown type: " ++ show tname
+convertType (TypeRef tname) = error $ "Unknown type: " ++ show tname
 
 outThing :: TableOutput
 outThing =
@@ -118,15 +118,15 @@ convRule intypes outtypes rowNumber ( Rule
         { T.row_number   = Just rowNumber
         , T.row_inputs   = zipWith convInputEntry intypes ruleInputEntry
         , T.row_outputs  = zipWith convOutputEntry outtypes ruleOutputEntry
-        , T.row_comments = pure $ fmap description ruleDescription -- TODO: This may be bogus
+        , T.row_comments = pure $ fmap description ruleDescription -- TODO: This may be bogus
         }
 
 convInputEntry :: Maybe T.DMNType -> InputEntry -> [T.FEELexp]
-convInputEntry intype (InputEntry { ieLabel , ieText = TextElement str }) 
+convInputEntry intype (InputEntry { ieLabel , ieText = TextElement str })
     = mkFs intype str
 
 convOutputEntry :: Maybe T.DMNType -> OutputEntry -> [T.FEELexp]
-convOutputEntry outtype (OutputEntry { outputEntryLabel , outputEntryText = TextElement str }) 
+convOutputEntry outtype (OutputEntry { outputEntryLabel , outputEntryText = TextElement str })
     = mkFs outtype str
 
 oeExample :: OutputEntry

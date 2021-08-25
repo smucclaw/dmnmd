@@ -26,7 +26,7 @@ xmlSpec = do
         `shouldBe` [ Definitions
                        { defLabel = dmnNamed' "dinnerDecisions" "Dinner Decisions",
                          defsNamespace = Namespace { namespace = "http://camunda.org/schema/1.0/dmn" },
-                         defsDescisions = [],
+                         defsDecisions = [],
                          defInputData = [],
                          defDrgElems = [],
                          defDMNDI = Just DMNDI
@@ -233,16 +233,16 @@ simulationDmn =
       { defLabel = dmnNamed' "dinnerDecisions" "Dinner Decisions",
         defsNamespace = Namespace {namespace = "http://camunda.org/schema/1.0/dmn"},
         defInputData = [],
-        defsDescisions =
+        defsDecisions =
           [ Decision
               { decLabel = dmnNamed' "beverages" "Beverages",
                 decInfoReq =
-                  [ InformationRequirement
+                  [ InformationRequirementWrapper
                       { infrLabel = dmnWithId "InformationRequirement_1xvojck",
                         infrReq = RequiredInput,
                         infoHref = Href "#InputData_0pgvdj9"
                       },
-                    InformationRequirement
+                    InformationRequirementWrapper
                       { infrLabel = dmnWithId "InformationRequirement_083jsex",
                         infrReq = RequiredDecision,
                         infoHref = Href "#dish"
@@ -427,12 +427,12 @@ simulationDmn =
             Decision
               { decLabel = dmnNamed' "dish" "Dish",
                 decInfoReq =
-                  [ InformationRequirement
+                  [ InformationRequirementWrapper
                       { infrLabel = dmnWithId "InformationRequirement_0xbr982",
                         infrReq = RequiredInput,
                         infoHref = Href "#InputData_0rin549"
                       },
-                    InformationRequirement
+                    InformationRequirementWrapper
                       { infrLabel = dmnWithId "InformationRequirement_0s36klr",
                         infrReq = RequiredInput,
                         infoHref = Href "#InputData_1axnom3"
