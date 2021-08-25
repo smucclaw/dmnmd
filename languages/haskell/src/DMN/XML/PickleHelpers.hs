@@ -40,31 +40,36 @@ type PickleableSum a = (Generic a, All (Compose XmlPickler (NP I)) (Code a))
 
 -- | Pickler for an untagged sum type/union type
 pickleUntaggedUnion :: PickleableSum a => PU a
-pickleUntaggedUnion = xpAlt getIndex psInjEjc
+pickleUntaggedUnion = pickleSumOf mkPicklersForSum
 
--- | Don't use this! Use the namespaced version instead
-pickleTaggedSum :: PickleableSum a => NP (K String) (Code a) -> PU a
-pickleTaggedSum = xpAlt getIndex . hcollapse . hzipWith (mapKKK (flip xpElem)) pijej
+-- | Given a function for creating elements and a list of element names, constructs a pickler for a sum-type
+pickleTaggedSumOf :: PickleableSum a => (String -> PU a -> PU a) -> NP (K String) (Code a) -> PU a
+pickleTaggedSumOf mkElem = pickleSumOf . hzipWith (mapKKK (flip mkElem)) mkPicklersForSum
 
 -- | Example of tagged sum
 instance (XmlPickler a, XmlPickler b) => XmlPickler (Foo a b) where
- xpickle = pickleTaggedSum $ K "foo" :*  K "bar" :* Nil
+ xpickle = pickleTaggedSumOf xpElem $ K "foo" :*  K "bar" :* Nil
 
 -- >>> showPickled [] [Foo (), Bar ()]
 -- "<foo/><bar/>"
 
-psInjEjc :: PickleableSum a => [PU a]
-psInjEjc = hcollapse pijej
+-- | Takes a list of picklers, one for each constructor and returns a pickler for the whole thing
+pickleSumOf :: Generic a => NP (K (PU a)) (Code a) -> PU a
+pickleSumOf = xpAlt getIndex . hcollapse 
 
-pijej :: PickleableSum a => NP (K (PU a)) (Code a)
-pijej = hczipWith (Proxy @(Compose XmlPickler (NP I))) (\f g -> K $ xpWrap (unK . apFn f, apFn g . K) xpickle) myInject myEject
+-- | Creates a list of picklers for a sum type, one for each constructor
+mkPicklersForSum :: PickleableSum a => NP (K (PU a)) (Code a)
+mkPicklersForSum = hczipWith (Proxy @(Compose XmlPickler (NP I))) (\f g -> K $ xpWrap (unK . apFn f, apFn g . K) xpickle) myInject myEject
 
+-- | A list of all constructors for a sum type
 myInject :: Generic a => NP (NP I -.-> K a) (Code a)
 myInject = hmap (Fn . fmap (mapKK (to . SOP)) . apFn) injections
 
+-- | /PARTIAL/ A list of all eliminators for a sum type. Crashes if the wrong eliminator is used
 myEject :: Generic a => NP (K a -.-> NP I) (Code a)
 myEject = hmap (Fn . ((fromJust . unComp).) . (.mapKK (unSOP . from)) . apFn) ejections
 
+-- | Orphan instances for XmlPickler of NP I xs
 instance XmlPickler (NP I '[]) where
   xpickle = xpWrap (\ () -> Nil, \ Nil -> ()) xpUnit
 
