@@ -7,6 +7,7 @@
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module DMN.XML.ParseDMN where
 
@@ -24,7 +25,7 @@ import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
 import Data.Void (Void)
 import qualified GHC.Generics as GHC
-import Generics.SOP (Generic)
+import Generics.SOP (Generic (Code), NP, K)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -46,6 +47,9 @@ xmlns_camunda = "http://camunda.org/schema/1.0/dmn"
 
 xpDMNElemIso :: String -> AnIso' a b -> PU b -> PU a
 xpDMNElemIso name iso = xpElemNS xmlns_dmn "" name . wrapIso iso
+
+pickleDMNTaggedUnion :: PickleableSum a => NP (K String) (Code a) -> PU a
+pickleDMNTaggedUnion = pickleTaggedSumOf (xpElemNS xmlns_dmn "")
 
 xpDMNDIElemIso :: String -> AnIso' a b -> PU b -> PU a
 xpDMNDIElemIso name iso = xpElemNS xmlns_dmndi "dmndi" name . wrapIso iso
