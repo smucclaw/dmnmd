@@ -5,6 +5,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module DMN.XML.ParseDMN where
 
@@ -21,6 +23,8 @@ import qualified DMN.Types as DT
 import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
 import Data.Void (Void)
+import qualified GHC.Generics as GHC
+import Generics.SOP (Generic)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -525,21 +529,22 @@ instance XmlPickler Namespace where
   xpickle = wrapIso _Namespace $ xpAttr "namespace" xpText
 
 data DrgElems = DrgDec Decision | DrgInpData InputData | DrgKS KnowledgeSource
-  deriving (Show, Eq)
+  deriving (Show, Eq, GHC.Generic, Generic)
+  -- deriving XmlPickler via UntaggedUnion DrgElems
 
-drgNr :: DrgElems -> Int
-drgNr (DrgDec _) = 0
-drgNr (DrgInpData _) = 1
-drgNr (DrgKS _) = 2
+-- drgNr :: DrgElems -> Int
+-- drgNr (DrgDec _) = 0
+-- drgNr (DrgInpData _) = 1
+-- drgNr (DrgKS _) = 2
 
 instance XmlPickler DrgElems where
-  xpickle =
-    xpAlt
-      drgNr
-      [ xpWrap (DrgDec, \(DrgDec x) -> x) xpickle
-      , xpWrap (DrgInpData, \(DrgInpData x) -> x) xpickle
-      , xpWrap (DrgKS, \(DrgKS x) -> x) xpickle
-      ]
+  xpickle = pickleUntaggedUnion
+    -- xpAlt
+    --   drgNr
+    --   [ xpWrap (DrgDec, \(DrgDec x) -> x) xpickle
+    --   , xpWrap (DrgInpData, \(DrgInpData x) -> x) xpickle
+    --   , xpWrap (DrgKS, \(DrgKS x) -> x) xpickle
+    --   ]
 
 {-
  TODO: Make a generic instance that generates the code above
@@ -551,6 +556,11 @@ instance XmlPickler DrgElems where
  - Make a newtype for DerivingVia
 
 -}
+
+-- data NamedThing a = NamedThing
+--   { name :: DmnNamed
+--   , thing :: a
+--   }
 
 
 data Definitions = Definitions
