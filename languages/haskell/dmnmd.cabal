@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           dmnmd
-version:        0.1.0.1
+version:        0.1.0.2
 synopsis:       CLI to inter-convert DMN tables from Markdown format to JS, and more
 description:    Decision Model & Notation format conversion and code generation. Please see the README on GitHub at <https://github.com/smucclaw/complaw/dmnmd>
 category:       Code Generation
@@ -13,7 +13,7 @@ homepage:       https://github.com/smucclaw/complaw#readme
 bug-reports:    https://github.com/smucclaw/complaw/issues
 author:         Meng Weng Wong
 maintainer:     mwwong@smu.edu.sg
-copyright:      2020 Singapore Management University
+copyright:      2022 Singapore Management University
 license:        BSD3
 build-type:     Simple
 extra-source-files:
@@ -38,7 +38,6 @@ library
       DMN.XML.ParseDMN
       DMN.XML.PickleHelpers
       DMN.XML.XmlToDmnmd
-      Text.XML.HXT.Pickle.TupleInstances
   other-modules:
       Paths_dmnmd
   hs-source-dirs:

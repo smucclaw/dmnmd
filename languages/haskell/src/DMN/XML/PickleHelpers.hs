@@ -4,7 +4,6 @@ import Text.XML.HXT.Core (xp6Tuple, XmlPickler(..), xpWrap, PU)
 import Control.Lens (iso, withIso, AnIso', view, Iso', review)
 import qualified Data.List as L
 import Data.List (intercalate)
-import Text.XML.HXT.Pickle.TupleInstances ()
 
 isoToPair :: AnIso' s a -> (a -> s, s -> a)
 isoToPair l = withIso l $ \to from -> (from, to)
