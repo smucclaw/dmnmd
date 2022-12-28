@@ -3,23 +3,42 @@
 module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
-import DMN.DecisionTable
-import DMN.ParseFEEL
+import DMN.DecisionTable ( mkFs, trim, mkDTable )
+import DMN.ParseFEEL ( parseVarname, skipHorizontalSpace )
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
 import Data.Either (isLeft)
-import Control.Applicative hiding (many, some)
--- import Data.Attoparsec.Text
+import Control.Applicative ( Alternative((<|>)) )
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Text.Megaparsec as Mega
-import Text.Megaparsec hiding (label)
-import Text.Megaparsec.Char
+import Text.Megaparsec
+    ( (<?>),
+      runParser,
+      satisfy,
+      option,
+      many,
+      manyTill,
+      MonadParsec(try) )
+import Text.Megaparsec.Char ( char )
 import DMN.ParsingUtils
+    ( Parser, inClass, skipWhile, digit, endOfLine, endOfInput, many1 )
 import DMN.Types
+    ( ColBody(..),
+      HeaderRow(..),
+      DTrow(DTrow),
+      DecisionTable,
+      ColHeader(DTCH, label, enums, vartype),
+      DTCH_Label(..),
+      FEELexp(FAnything),
+      DMNType(..),
+      CollectOperator(Collect_Sum, Collect_All, Collect_Cnt, Collect_Min,
+                      Collect_Max),
+      HitPolicy(HP_Collect, HP_Unique, HP_Any, HP_Priority, HP_First,
+                HP_OutputOrder, HP_RuleOrder) )
 
 pipeSeparator :: Parser ()
-pipeSeparator = try $ Mega.label "pipeSeparator" $ skipHorizontalSpace >> "|" >> skipHorizontalSpace
+pipeSeparator = try $ Mega.label "pipeSeparator" $ skipHorizontalSpace >> "|" >> skipHorizontalSpace
 -- pipeSeparator = Mega.label "pipeSeparator" $ try skipHorizontalSpace >> skip (=='|') >> skipHorizontalSpace
 
 getpipeSeparator :: Parser Text

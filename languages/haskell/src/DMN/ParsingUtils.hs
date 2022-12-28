@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{- | A compatability module for moving from Attoparsec to Megaparsec
 
--}
 module DMN.ParsingUtils
   where
 
@@ -11,9 +9,19 @@ import Data.Char (isDigit)
 import Data.Text (Text)
 -- import qualified Data.Text as T
 import Data.Void (Void)
-import qualified Data.Attoparsec.Text as Atto
 import Text.Megaparsec
-import Text.Megaparsec.Char
+    ( (<|>),
+      (<?>),
+      anySingle,
+      anySingleBut,
+      parse,
+      satisfy,
+      errorBundlePretty,
+      skipMany,
+      some,
+      Parsec,
+      MonadParsec(eof, takeWhileP) )
+import Text.Megaparsec.Char ( char, string )
 import Text.Megaparsec.Char.Lexer
 
 import GHC.Stack (HasCallStack)
@@ -22,8 +30,7 @@ type Parser = Parsec Void Text
 
 
 inClass :: [Char] -> Char -> Bool
-inClass = Atto.inClass
--- inClass cs = (`elem` cs)
+inClass cs = (`elem` cs)
 
 notInClass :: [Char] -> Char -> Bool
 notInClass s = not . inClass s
@@ -67,6 +74,8 @@ endOfLine = (() <$ char '\n') <|> (() <$ string "\r\n") <?> "End of line"
 
 endOfInput :: Parser ()
 endOfInput = eof
+
+-- [TODO] why don't we just replace these remnants of the Atto -> Mega transition, with things from Text.Parser.Combinators
 
 -- attoparsec calls 'some' 'many1'
 many1 :: Parser a -> Parser [a]

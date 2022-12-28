@@ -18,9 +18,7 @@ import DMN.ParsingUtils
 parseVarname :: Parser Text
 parseVarname = do
   firstLetter <- letterChar
-  -- remainder <- takeWhileP Nothing (\c -> c /= ':' && c /= '|' && c /= '(' ) -- inClass "a-zA-Z0-9_"
   remainder <- takeWhileP Nothing (inClass "a-zA-Z0-9_ ")
-  -- remainder <- takeWhileP Nothing (inClass $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_ ")
   return $ T.strip $ T.append (T.singleton firstLetter) remainder
 
 
