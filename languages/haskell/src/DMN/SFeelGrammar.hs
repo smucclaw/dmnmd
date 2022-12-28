@@ -95,12 +95,12 @@ postfix name f = Postfix (f <$ symbol name)
 data SimpleExpression
   = Expr (ArithmeticExpression Expression)
   | SimpleValue SimpleValue
-  | Comparison Comparison
+  | Comparison UnaryTest
   deriving (Show, Eq)
 
 simpleExpression :: Parser SimpleExpression
-simpleExpression = arithmeticExpression 
-               <|> term
+simpleExpression = try arithmeticExpression 
+               <|> try term
                <|> Comparison <$> comparison
 
 -- 4 simple expressions = simple expression , { "," , simple expression } ;
@@ -113,14 +113,20 @@ simpleExpressions = sepBy simpleExpression ","
 -- 5.b interval ;
 
 data UTComparison = Lt | Le | Gt | Ge
+  deriving (Show, Eq)
 
 -- TODO
-data UnaryTest = UnaryTest UTComparison Endpoint | Interval IsOpen Endpoint Endpoint IsOpen
-
+data UnaryTest = UnaryTest UTComparison Endpoint
+               | Interval IsOpen Endpoint Endpoint IsOpen
+  deriving (Show, Eq)
 
 simplePositiveUnaryTest :: Parser UnaryTest
 simplePositiveUnaryTest = do
-    op <-  Lt <$ "<" <|> Le <$ "<=" <|> Gt <$ ">" <|> Ge <$ ">="  
+    op <- choice [ Lt <$ "<"
+                 , Le <$ "<="
+                 , Gt <$ ">"
+                 , Ge <$ ">="]
+    spaceConsumer
     endpt <- endpoint
     pure $ UnaryTest op endpt
   <|> interval
@@ -134,11 +140,11 @@ data IsOpen = Open | Closed
 
 interval :: Parser UnaryTest
 interval = do
-    leftOpen <- (openIntervalStart <|> closedIntervalStart)
+    leftOpen <- openIntervalStart <|> closedIntervalStart
     leftEndpoint <- endpoint 
     ".."
     rightEndpoint <- endpoint 
-    rightOpen <- (openIntervalEnd <|> closedIntervalEnd)
+    rightOpen <- openIntervalEnd <|> closedIntervalEnd
     pure $ Interval leftOpen leftEndpoint rightEndpoint rightOpen
 
 -- 7 open interval start = "(" | "]" ;
@@ -153,6 +159,7 @@ closedIntervalEnd   = Closed <$ "]"
 
 -- 11 simple positive unary tests = simple positive unary test , { "," , simple positive unary test } ;
 
+-- [TODO] the , should be running at a higher level, not forcing everything in the cell to be a particular type of test
 simplePositiveUnaryTests :: Parser [UnaryTest]
 simplePositiveUnaryTests = sepBy simplePositiveUnaryTest ","
 
@@ -162,9 +169,9 @@ simplePositiveUnaryTests = sepBy simplePositiveUnaryTest ","
 -- 12.c "-";
 
 simpleUnaryTests :: Parser [UnaryTest]
-simpleUnaryTests = simplePositiveUnaryTests 
-                <|> "not" *> "(" *> simplePositiveUnaryTests <* ")"
-                <|> [] <$ "-"
+simpleUnaryTests = try simplePositiveUnaryTests 
+                   <|> "not" *> "(" *> simplePositiveUnaryTests <* ")"
+                   <|> [] <$ some ("-" <|> "–"  <|> "—")
 
 -- 13 endpoint = simple value ;
 
@@ -268,7 +275,11 @@ data SimpleLiteral = NumericLiteral Scientific | StringLiteral Text
   deriving (Show, Eq)
 
 simpleLiteral :: Parser SimpleLiteral
-simpleLiteral = numericLiteral <|> StringLiteral <$> stringLiteral <|> booleanLiteral <|> dateTimeLiteral
+simpleLiteral = choice [ numericLiteral
+                       , StringLiteral <$> (try stringLiteral <|> unescapedLiteral)
+                       , booleanLiteral
+                       , dateTimeLiteral
+                       ]
 
 -- 29 string literal = """, { character – (""" | vertical space) | string escape sequence}, """ ;
 
@@ -278,9 +289,17 @@ simpleLiteral = numericLiteral <|> StringLiteral <$> stringLiteral <|> booleanLi
 stringLiteral :: Parser Text
 stringLiteral =  do
     "\""
-    x <- T.concat <$> many (nonEscapeChar <|> stringEscapeSequence)
+    x <- escapedLiteral
     "\""
     pure x
+
+escapedLiteral :: Parser Text
+escapedLiteral =  do
+    T.concat <$> many (nonEscapeChar <|> stringEscapeSequence)
+
+unescapedLiteral :: Parser Text
+unescapedLiteral =  do
+    T.pack <$> some alphaNumChar
 
 -- TODO: This could be faster, by parsing a long sequence at a time
 nonEscapeChar :: Parser Text
@@ -330,10 +349,8 @@ dateTimeLiteral = do
 
 -- 35 comparison = expression , ( "=" | "!=" | "<" | "<=" | ">" | ">=" ) , expression ;
 
-type Comparison = ()
-
-comparison :: Parser Comparison
-comparison = undefined
+comparison :: Parser UnaryTest
+comparison = simplePositiveUnaryTest
 
 -- 36 white space = vertical space | \u0009 | \u0020 | \u0085 | \u00A0 | \u1680 | \u180E | [\u2000-\u200B] | \u2028 | \u2029
 -- | \u202F | \u205F | \u3000 | \uFEFF ;
