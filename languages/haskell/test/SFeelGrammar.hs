@@ -10,6 +10,7 @@ import DMN.SFeelGrammar
 import ParserSpecHelpers
 import Text.Megaparsec
 import Data.Text (Text)
+import Data.Scientific
 
 sfeelSpec :: Spec
 sfeelSpec = do
@@ -49,6 +50,26 @@ sfeelSpec = do
   describe "SFeelGrammar's number parser should..." $ do
      it "Allow '.5' as an alias for 0.5" $
         ".5" ~> numericLiteral `shouldParse` NumericLiteral 0.5
+
+  describe "SFeelGrammar's comparison parser should..." $ do
+     it "handle unary comparison" $
+        "< 18"     ~> simpleExpression `shouldParse` Comparison (UnaryTest Lt (SimpleLiteral (NumericLiteral (scientific 18 0))))
+     it "handle interval comparison" $
+        "[18..21]" ~> simpleExpression `shouldParse` Comparison (Interval
+                                                                  Closed (SimpleLiteral (NumericLiteral (scientific 18 0)))
+                                                                  (SimpleLiteral (NumericLiteral (scientific 21 0))) Closed
+                                                                )
+     it "handle interval comparison involving negative ints" $
+       "[18..-21]" ~> simpleExpression `shouldParse` Comparison (Interval
+                                                                  Closed (SimpleLiteral (NumericLiteral (scientific 18 0)))
+                                                                  (SimpleLiteral (NumericLiteral (scientific (-21) 0))) Closed
+                                                                )
+
+     it "handle interval comparison involving negative ints" $
+       "[-1..21]" ~> simpleExpression `shouldParse` Comparison (Interval
+                                                                  Closed (SimpleLiteral (NumericLiteral (scientific (-1) 0)))
+                                                                  (SimpleLiteral (NumericLiteral (scientific 21 0))) Closed
+                                                                )
 
 onePlusTwo = Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
                        (SimpleValue . SimpleLiteral $ NumericLiteral 2))

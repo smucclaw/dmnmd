@@ -10,9 +10,10 @@ import Options.Applicative (Alternative((<|>)))
 import DMN.Types
 import DMN.ParsingUtils
 import Data.Text (Text)
-import Data.Scientific (Scientific)
+import Data.Scientific (Scientific, scientific)
 import Data.Fixed (Fixed)
 import qualified Data.Text as T
+import Debug.Trace
 
 -- 9.2 S-FEEL syntax
 -- The syntax for the S-FEEL expressions used in this section is specified in the EBNF below: it is a subset of the FEEL
@@ -131,7 +132,6 @@ simplePositiveUnaryTest = do
     spaceConsumer
     endpt <- endpoint
     pure $ UnaryTest op endpt
-  <|> interval
 
 -- 6 interval = ( open interval start | closed interval start ) 
 --            , endpoint , ".." , endpoint 
@@ -143,11 +143,16 @@ data IsOpen = Open | Closed
 interval :: Parser UnaryTest
 interval = do
     leftOpen <- openIntervalStart <|> closedIntervalStart
-    leftEndpoint <- endpoint 
+    leftEndpoint <- integerEndpoint
+    spaceConsumer
     ".."
-    rightEndpoint <- endpoint 
+    spaceConsumer
+    rightEndpoint <- integerEndpoint
+    spaceConsumer
     rightOpen <- openIntervalEnd <|> closedIntervalEnd
     pure $ Interval leftOpen leftEndpoint rightEndpoint rightOpen
+  where
+    integerEndpoint = try (SimpleLiteral <$> integerLiteral) <|> endpoint
 
 -- 7 open interval start = "(" | "]" ;
 -- 8 closed interval start = "[" ;
@@ -155,7 +160,7 @@ interval = do
 -- 10 closed interval end = "]" ;
 openIntervalStart, closedIntervalStart, openIntervalEnd, closedIntervalEnd :: Parser IsOpen
 openIntervalStart   = Open   <$ ("(" <|> "]")
-closedIntervalStart = Closed <$ "]"
+closedIntervalStart = Closed <$ "["
 openIntervalEnd     = Open   <$ (")" <|> "[")
 closedIntervalEnd   = Closed <$ "]"
 
@@ -272,12 +277,22 @@ additionalNameSymbols = char '.' <|> char '/' <|> char '-' <|> char '’' <|> ch
 
 -- 28 simple literal = numeric literal | string literal | boolean literal | date time literal ;
 
-data SimpleLiteral = NumericLiteral Scientific | StringLiteral Text
-                   | BooleanLiteral Bool | DateLiteral Date
+data SimpleLiteral = NumericLiteral Scientific
+                   | StringLiteral Text
+                   | BooleanLiteral Bool
+                   | DateLiteral Date
   deriving (Show, Eq)
 
+integerLiteral :: Parser SimpleLiteral
+integerLiteral = do
+  n <- (read :: String -> Integer) <$>
+       (T.unpack <$> symbol "-" <|> return [])
+       <> some digitChar
+  return (NumericLiteral $ scientific n 0)
+
+
 simpleLiteral :: Parser SimpleLiteral
-simpleLiteral = choice [ numericLiteral
+simpleLiteral = choice [ try numericLiteral
                        , StringLiteral <$> (try stringLiteral <|> unescapedLiteral)
                        , booleanLiteral
                        , dateTimeLiteral
@@ -352,7 +367,7 @@ dateTimeLiteral = do
 -- 35 comparison = expression , ( "=" | "!=" | "<" | "<=" | ">" | ">=" ) , expression ;
 
 comparison :: Parser UnaryTest
-comparison = simplePositiveUnaryTest
+comparison = simplePositiveUnaryTest <|> interval
 
 -- 36 white space = vertical space | \u0009 | \u0020 | \u0085 | \u00A0 | \u1680 | \u180E | [\u2000-\u200B] | \u2028 | \u2029
 -- | \u202F | \u205F | \u3000 | \uFEFF ;
