@@ -5,6 +5,7 @@
 module DMN.Translate.JS where
 
 -- in a future iteration of this code, consider using http://hackage.haskell.org/package/js-good-parts
+-- and https://hackage.haskell.org/package/language-typescript-0.0.4/docs/Language-TypeScript-Types.html
 
 import DMN.DecisionTable
 import Data.List
@@ -148,6 +149,7 @@ feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "ts" FNGt  ++ show rh
 feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ show rhs
 feel2jsIn lhs (FInRange lower upper)   = wrapParen (showFNLog "ts" FNAnd) [show lower ++ showFNComp "ts" FNLeq ++ lhs, lhs ++ showFNComp "ts" FNLeq ++ show upper]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
+feel2jsIn lhs o@(FFunction fnunf)      = showFeel "ts" o
 
 -- TODO:
 -- let's extend FEEL with support for PCRE lol

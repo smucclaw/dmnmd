@@ -5,6 +5,7 @@ module DMN.ParseTable where
 import Prelude hiding (takeWhile)
 import DMN.DecisionTable ( mkFs, trim, mkDTable )
 import DMN.ParseFEEL ( parseVarname, skipHorizontalSpace )
+import DMN.SFeelGrammar
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
 import Data.Either (isLeft)
@@ -17,6 +18,7 @@ import Text.Megaparsec
       runParser,
       satisfy,
       option,
+      some,
       many,
       manyTill,
       MonadParsec(try) )
@@ -36,6 +38,8 @@ import DMN.Types
                       Collect_Max),
       HitPolicy(HP_Collect, HP_Unique, HP_Any, HP_Priority, HP_First,
                 HP_OutputOrder, HP_RuleOrder) )
+import Debug.Trace
+import Control.Monad (when)
 
 pipeSeparator :: Parser ()
 pipeSeparator = try $ Mega.label "pipeSeparator" $ skipHorizontalSpace >> "|" >> skipHorizontalSpace
@@ -48,22 +52,23 @@ parseColHeader :: Parser ColHeader
 parseColHeader = do
   mylabel_pre <- parseLabelPre <* skipHorizontalSpace <?> "mylabel_pre"
   myvarname <- parseVarname <?> "parseVarname"
-  mytype <- option Nothing parseTypeDecl <?> "parseTypeDecl"
+  doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
+  mytype <- parseTypeDecl <?> "parseTypeDecl"
   mylabel_post <- skipHorizontalSpace *> parseLabelPost <?> "parseLabelPost"
   return $ DTCH (mkHeaderLabel mylabel_pre mylabel_post) (T.unpack myvarname) mytype Nothing
 
 parseTypeDecl :: Parser (Maybe DMNType) -- Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
-parseTypeDecl = do
+parseTypeDecl = Mega.optional $ do
   skipHorizontalSpace >> ":" >> skipHorizontalSpace
   parseType
 
-parseType :: Parser (Maybe DMNType)
+parseType :: Parser DMNType
 parseType =
-  (DMN_List <$>) <$> ("[" *> parseType <* "]" <?> "inside list")
+  DMN_List <$> ("[" *> parseType <* "]" <?> "inside list")
    <|>
-   ((("String"  >> return (Just DMN_String)) <?> "string type") <|>
-    (("Number"  >> return (Just DMN_Number)) <?> "number type") <|>
-    (("Boolean" >> return (Just DMN_Boolean)) <?> "boolean type") ) -- need to check what the official DMN names are for these
+   ((("String"  >> return (DMN_String)) <?> "string type") <|>
+    (("Number"  >> return (DMN_Number)) <?> "number type") <|>
+    (("Boolean" >> return (DMN_Boolean)) <?> "boolean type") ) -- need to check what the official DMN names are for these
 
 mkHeaderLabel (Just "//") _        = DTCH_Comment
 mkHeaderLabel (Just "#" ) _        = DTCH_Comment
@@ -73,10 +78,10 @@ mkHeaderLabel _ (Just "(in)")      = DTCH_In
 mkHeaderLabel _  Nothing           = DTCH_In
 
 parseLabelPre :: Parser (Maybe Text)
-parseLabelPre  = option Nothing (Just <$> ("//"   <|> "#"))
+parseLabelPre  = Mega.optional ("//"   <|> "#")
 
 parseLabelPost :: Parser (Maybe Text)
-parseLabelPost = option Nothing (Just <$> ("(in)" <|> "(out)" <|> "(comment)"))
+parseLabelPost = Mega.optional ("(in)" <|> "(out)" <|> "(comment)")
 
 parseHitPolicy :: Parser HitPolicy
 parseHitPolicy = 
@@ -126,7 +131,11 @@ mkHitPolicy_C '+' = HP_Collect Collect_Sum
 
 parseTable :: String -> Parser DecisionTable
 parseTable tableName = do
+  input <- Mega.lookAhead Mega.takeRest
+  doTrace ("parseTable: starting. input =\n" ++ T.unpack input)
+  doTrace ("parseTable: end of input")
   headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
+  doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
   -- merge headerRow with subHeadRows
@@ -185,6 +194,8 @@ parseDataRows csigs = do
   endOfInput
   return drows
 
+doTrace t = when False $ traceM t
+
 parseDataRow :: [ColumnSignature] -> Parser DTrow
 parseDataRow csigs =
   do
@@ -192,8 +203,15 @@ parseDataRow csigs =
       myrownumber <- many1 digit <?> "row number"
       pipeSeparator
       firstrowtail <- parseTail
+      doTrace $ unlines [ "ParseDataRows: calling parseDThr and parseContinuationRow" ]
       morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
-      let datacols = zipWith mkFEELCol csigs (map (trim . unwords) $ transpose (firstrowtail : morerows))
+      let transposed = map (trim . unwords) $ transpose (firstrowtail : morerows)
+          datacols = zipWith mkFEELCol csigs transposed
+      doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
+                        , "    csigs = " <> show csigs
+                        , "    transposed = " <> show transposed
+                        ]
+          
       return ( DTrow (if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing)
                (catMaybes (zipWith getInputs  csigs datacols))
                (catMaybes (zipWith getOutputs csigs datacols))

@@ -10,16 +10,18 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import DMN.Types
 import DMN.ParsingUtils
-
+import Debug.Trace
 
 -- parser for low-level expressions, e.g. FEEL, common to all DMN syntaxes.
 
 -- let's allow spaces in variable names. what could possibly go wrong?
 parseVarname :: Parser Text
 parseVarname = do
+  input <- T.take 40 <$> lookAhead takeRest
+  -- traceM $ "parseVarname: input: " ++ T.unpack input
   firstLetter <- letterChar
-  remainder <- takeWhileP Nothing (inClass "a-zA-Z0-9_ ")
-  return $ T.strip $ T.append (T.singleton firstLetter) remainder
+  remainder <- some (choice [ alphaNumChar, char '_', char ' ' ])
+  return $ T.strip $ T.append (T.singleton firstLetter) (T.pack remainder)
 
 
 parseFNumFunction :: Parser FNumFunction
