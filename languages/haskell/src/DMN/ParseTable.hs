@@ -21,6 +21,7 @@ import Text.Megaparsec
       some,
       many,
       manyTill,
+      lookAhead,
       MonadParsec(try) )
 import Text.Megaparsec.Char ( char )
 import DMN.ParsingUtils
@@ -52,7 +53,7 @@ parseColHeader :: Parser ColHeader
 parseColHeader = do
   mylabel_pre <- parseLabelPre <* skipHorizontalSpace <?> "mylabel_pre"
   myvarname <- parseVarname <?> "parseVarname"
-  doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
+  -- doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
   mytype <- parseTypeDecl <?> "parseTypeDecl"
   mylabel_post <- skipHorizontalSpace *> parseLabelPost <?> "parseLabelPost"
   return $ DTCH (mkHeaderLabel mylabel_pre mylabel_post) (T.unpack myvarname) mytype Nothing
@@ -131,11 +132,11 @@ mkHitPolicy_C '+' = HP_Collect Collect_Sum
 
 parseTable :: String -> Parser DecisionTable
 parseTable tableName = do
-  input <- Mega.lookAhead Mega.takeRest
-  doTrace ("parseTable: starting. input =\n" ++ T.unpack input)
-  doTrace ("parseTable: end of input")
+  input <- lookAhead Mega.takeRest
+  -- doTrace ("parseTable: starting. input =\n" ++ T.unpack input)
+  -- doTrace ("parseTable: end of input")
   headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
-  doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
+  -- doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
   -- merge headerRow with subHeadRows
@@ -194,7 +195,7 @@ parseDataRows csigs = do
   endOfInput
   return drows
 
-doTrace t = when False $ traceM t
+doTrace t = when True $ traceM t
 
 parseDataRow :: [ColumnSignature] -> Parser DTrow
 parseDataRow csigs =
@@ -203,19 +204,24 @@ parseDataRow csigs =
       myrownumber <- many1 digit <?> "row number"
       pipeSeparator
       firstrowtail <- parseTail
-      doTrace $ unlines [ "ParseDataRows: calling parseDThr and parseContinuationRow" ]
+      doTrace $ unlines [ "** ParseDataRows: calling parseDThr and parseContinuationRow" ]
       morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
       let transposed = map (trim . unwords) $ transpose (firstrowtail : morerows)
           datacols = zipWith mkFEELCol csigs transposed
-      doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
-                        , "    csigs = " <> show csigs
-                        , "    transposed = " <> show transposed
-                        ]
-          
-      return ( DTrow (if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing)
-               (catMaybes (zipWith getInputs  csigs datacols))
-               (catMaybes (zipWith getOutputs csigs datacols))
-               (catMaybes (zipWith getComments csigs datacols)) )
+          toreturn =
+            DTrow (if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing)
+            (catMaybes (zipWith getInputs  csigs datacols))
+            (catMaybes (zipWith getOutputs csigs datacols))
+            (catMaybes (zipWith getComments csigs datacols))
+          sfeelPd = zip transposed (runParser simpleExpression "" . T.pack <$> transposed)
+      doTrace $ unlines $ [ "parseDataRows: mkFEELCol running on"
+                          , "    csigs = " <> show csigs
+                          , "    transposed = " <> show transposed
+                          , "    toreturn = " <> show toreturn
+                          ] ++ [ "*** sfeelPd: \"" <> i <> "\"\n" <>
+                                 either (\err -> "original:\n" <> i <> "\n" <> Mega.errorBundlePretty err) show o
+                               | (i,o) <- sfeelPd ]
+      return toreturn
   
   -- TODO: if myrownumber is blank, append the current row to the previous row as though connected by a ,
   where

@@ -36,9 +36,9 @@ parseFNF1 = FNF1 . T.unpack <$> parseVarname
 
 parseFNF3 :: Parser FNumFunction -- complex function of multiple sub functions
 parseFNF3 = do
-  let complex = ( ( "(" *> skipHorizontalSpace *> parseFNumFunction <* skipHorizontalSpace <* ")" )
+  let complex = ( "(" *> skipHorizontalSpace *> parseFNumFunction <* skipHorizontalSpace <* ")" )
                   <|> parseFNF0
-                  <|> parseFNF1 )
+                  <|> parseFNF1
   fnfa  <- complex
   skipHorizontalSpace
   fnfop <- parseFNOp2

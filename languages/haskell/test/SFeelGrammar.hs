@@ -46,6 +46,10 @@ sfeelSpec = do
      it "Allow '.5' as an alias for 0.5" $
         ".5" ~> numericLiteral `shouldParse` NumericLiteral 0.5
 
+  describe "SFeelGrammar's number parser should..." $ do
+     it "Allow '.5' as an alias for 0.5" $
+        ".5" ~> numericLiteral `shouldParse` NumericLiteral 0.5
+
 onePlusTwo = Expr (Add (SimpleValue . SimpleLiteral $ NumericLiteral 1)
                        (SimpleValue . SimpleLiteral $ NumericLiteral 2))
 

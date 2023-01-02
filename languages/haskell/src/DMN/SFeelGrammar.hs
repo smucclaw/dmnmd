@@ -96,12 +96,14 @@ data SimpleExpression
   = Expr (ArithmeticExpression Expression)
   | SimpleValue SimpleValue
   | Comparison UnaryTest
+  | MatchAnything
   deriving (Show, Eq)
 
 simpleExpression :: Parser SimpleExpression
 simpleExpression = try arithmeticExpression 
                <|> try term
                <|> Comparison <$> comparison
+               <|> MatchAnything <$ eof
 
 -- 4 simple expressions = simple expression , { "," , simple expression } ;
 
