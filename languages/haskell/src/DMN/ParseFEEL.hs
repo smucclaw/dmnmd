@@ -61,7 +61,7 @@ parseFNF0 =
       
 parseFNOp2 :: Parser FNOp2
 parseFNOp2 =
-  choice [ "**" >> return FNExp
+  choice [ "**" >> return FNExp    -- apparently we don't need a try with strings -- the "**" doesn't consume the first "*" so the next "*" down the list is safe
          , "*"  >> return FNMul
          , "/"  >> return FNDiv
          , "-"  >> return FNMinus

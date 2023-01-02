@@ -52,8 +52,14 @@ sfeelSpec = do
         ".5" ~> numericLiteral `shouldParse` NumericLiteral 0.5
 
   describe "SFeelGrammar's comparison parser should..." $ do
-     it "handle unary comparison" $
+     it "handle unary comparison <" $
         "< 18"     ~> simpleExpression `shouldParse` Comparison (UnaryTest Lt (SimpleLiteral (NumericLiteral (scientific 18 0))))
+     it "handle unary comparison <=" $
+        "<= 18"     ~> simpleExpression `shouldParse` Comparison (UnaryTest Le (SimpleLiteral (NumericLiteral (scientific 18 0))))
+     it "handle unary comparison >=" $
+        ">= 18"     ~> simpleExpression `shouldParse` Comparison (UnaryTest Ge (SimpleLiteral (NumericLiteral (scientific 18 0))))
+     it "handle unary comparison >" $
+        "> 18"     ~> simpleExpression `shouldParse` Comparison (UnaryTest Gt (SimpleLiteral (NumericLiteral (scientific 18 0))))
      it "handle interval comparison" $
         "[18..21]" ~> simpleExpression `shouldParse` Comparison (Interval
                                                                   Closed (SimpleLiteral (NumericLiteral (scientific 18 0)))

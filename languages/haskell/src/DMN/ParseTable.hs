@@ -197,6 +197,11 @@ parseDataRows csigs = do
 
 doTrace t = when True $ traceM t
 
+-- | given some hints as to the types (from the column headers, aka the column signatures), parse a row of data.
+-- Because each row has multiple columns, we use `zipWith` to, basically, fmap over both the column signatures and the data cells.
+-- In the same breath we distinguish between the input columns and the output columns.
+-- mkFEELCol does the heavy lifting here.
+
 parseDataRow :: [ColumnSignature] -> Parser DTrow
 parseDataRow csigs =
   do

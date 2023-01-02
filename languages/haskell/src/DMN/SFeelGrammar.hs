@@ -125,10 +125,11 @@ data UnaryTest = UnaryTest UTComparison Endpoint
 
 simplePositiveUnaryTest :: Parser UnaryTest
 simplePositiveUnaryTest = do
-    op <- choice [ Lt <$ "<"
-                 , Le <$ "<="
+    op <- choice [ Le <$ "<="
+                 , Lt <$ "<"
+                 , Ge <$ ">="
                  , Gt <$ ">"
-                 , Ge <$ ">="]
+                 ]
     spaceConsumer
     endpt <- endpoint
     pure $ UnaryTest op endpt
