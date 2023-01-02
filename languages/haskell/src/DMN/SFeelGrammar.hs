@@ -46,7 +46,9 @@ arithmeticExpression = makeExprParser term table <?> "arithmeticExpression"
 -- expr = makeExprParser term table <?> "expression"
 
 term :: Parser SimpleExpression
-term = SimpleValue <$> simpleValue
+term = "(" *> expression <* ")"
+       <|> SimpleValue <$> simpleValue
+
 -- term = parens expr <|> integer <?> "term"
 
 table :: [[Operator Parser Expression]]
@@ -194,12 +196,12 @@ data SimpleValue = QName [String] | SimpleLiteral SimpleLiteral
   deriving (Show, Eq)
 
 simpleValue :: Parser SimpleValue
-simpleValue = qualifiedName <|> SimpleLiteral <$> simpleLiteral
+simpleValue = (qualifiedName <|> SimpleLiteral <$> simpleLiteral) <* spaceConsumer
 
 -- 15 qualified name = name , { "." , name } ;
 
 qualifiedName :: Parser SimpleValue
-qualifiedName = QName <$> sepBy1 name "."
+qualifiedName = QName <$> name `sepBy1` "."
 
 type BinOp a = a -> a -> a
 
@@ -244,12 +246,14 @@ name = do
 -- 23 name start = name start char, { name part char } ;
 
 nameStart :: Parser Char
-nameStart = satisfy nameStartChar -- The above is nonsense
-
+nameStart = letterChar
+  -- satisfy nameStartChar -- The above is nonsense
+  
 -- 24 name part = name part char , { name part char } ;
 
 namePart :: Parser Char
-namePart = satisfy namePartChar -- TODO: Better errors
+namePart = alphaNumChar
+  -- satisfy namePartChar -- TODO: Better errors
 
 -- 25 name start char = "?" | [A-Z] | "_" | [a-z] | [\uC0-\uD6] | [\uD8-\uF6] | [\uF8-\u2FF] | [\u370-\u37D] | [\u37F-\u1FFF]
 -- | [\u200C-\u200D] | [\u2070-\u218F] | [\u2C00-\u2FEF] | [\u3001-\uD7FF] | [\uF900-\uFDCF] | [\uFDF0-\uFFFD] |
@@ -262,19 +266,22 @@ namePart = satisfy namePartChar -- TODO: Better errors
 
 -- parseClass (a:'-':b:xs) = [a..b] ++ parseClass xs; parseClass (x:xs) = x:parseClass xs; parseClass [] = []
 
+-- | this doesn't work because megaparsec doesn't seem to easily support the notion of character class
+
 nameStartChar :: Char -> Bool
 nameStartChar = inClass "?A-Z_a-z\xC0-\xD6\xD8-\xF6\xF8-\x2FF\x370-\x37D\x37F-\x1FFF"
 
 -- 26 name part char = name start char | digit | \uB7 | [\u0300-\u036F] | [\u203F-\u2040] ;
 
+-- | this doesn't work because megaparsec doesn't seem to easily support the notion of character class
 namePartChar :: Char -> Bool
 namePartChar c = nameStartChar c || inClass "0-9\xB7\x0300-\x036F\x203F-\x2040" c
 
 -- 27 additional name symbols = "." | "/" | "-" | "’" | "+" | "*" ;
 
--- TODO: Improve this. Also, it'll probably cause a ton of trouble. Why do we allow this?
+-- | the dash is going to get us in trouble one day.
 additionalNameSymbols :: Parser Char
-additionalNameSymbols = char '.' <|> char '/' <|> char '-' <|> char '’' <|> char '+' <|> char '*'
+additionalNameSymbols = choice (char <$> ("./'_-" :: String))
 
 -- 28 simple literal = numeric literal | string literal | boolean literal | date time literal ;
 
@@ -294,7 +301,7 @@ integerLiteral = do
 
 simpleLiteral :: Parser SimpleLiteral
 simpleLiteral = choice [ try numericLiteral
-                       , StringLiteral <$> (try stringLiteral <|> unescapedLiteral)
+                       , try $ StringLiteral <$> (stringLiteral <|> unescapedLiteral)
                        , booleanLiteral
                        , dateTimeLiteral
                        ]
@@ -317,7 +324,7 @@ escapedLiteral =  do
 
 unescapedLiteral :: Parser Text
 unescapedLiteral =  do
-    T.pack <$> some alphaNumChar
+    T.pack <$> name
 
 -- TODO: This could be faster, by parsing a long sequence at a time
 nonEscapeChar :: Parser Text
@@ -331,7 +338,8 @@ charToText = T.singleton
 -- 30 boolean literal = "true" | "false" ;
 
 booleanLiteral :: Parser SimpleLiteral
-booleanLiteral = BooleanLiteral <$> (True <$ "true" <|> False <$ "false")
+booleanLiteral = BooleanLiteral <$> (True  <$ choice (symbol <$> T.words "true  True  yes Yes t y T Y") <|>
+                                     False <$ choice (symbol <$> T.words "false False  no  No f n F N"))
 
 -- 31 numeric literal = [ "-" ] , ( digits , [ ".", digits ] | "." , digits ) ;
 
