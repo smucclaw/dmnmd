@@ -1,55 +1,39 @@
-# Script comes from: https://kodimensional.dev/github-actions
-
 name: Haskell CI
 
-# Trigger the workflow on push or pull request, but only for the master branch
 on:
-  pull_request:
-    # paths:
-    # - 'languages/haskell/**'
   push:
-    # branches: [master]
-    # paths:
-    # - 'languages/haskell/**'
+    branches: [ trunk ]
+  pull_request:
+    branches: [ trunk ]
 
 jobs:
-
-  stack:
-    name: stack / ghc ${{ matrix.ghc }}
+  build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        stack: ["2.3.1"]
-        ghc: ["8.8.3"]
 
     steps:
-    - uses: actions/checkout@v2
-      # if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.ref == 'refs/heads/master'
-
-    - uses: actions/setup-haskell@v1.1
-      name: Setup Haskell Stack
+    - uses: actions/checkout@v3
+    - uses: haskell/actions/setup@v2
       with:
-        ghc-version: ${{ matrix.ghc }}
-        stack-version: ${{ matrix.stack }}
+        enable-stack: true
+        stack-version: 'latest'
 
-    - uses: actions/cache@v1
+    - uses: actions/cache@v3
       name: Cache ~/.stack
       with:
         path: ~/.stack
-        key: ${{ runner.os }}-${{ matrix.ghc }}-stack-${{ hashFiles('languages/haskell/stack.yaml') }}
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('languages/haskell/**/package.yaml','languages/haskell/**/stack.yaml.lock') }}
 
     - name: Install dependencies
       run: |
-        # stack update
-        stack build --system-ghc --only-dependencies
+        stack build --only-dependencies
       working-directory: languages/haskell
 
     - name: Build
       run: |
-        stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+        stack build --test --bench --no-run-tests --no-run-benchmarks
       working-directory: languages/haskell
 
     - name: Test
       run: |
-        stack test --system-ghc
+        stack test
       working-directory: languages/haskell
