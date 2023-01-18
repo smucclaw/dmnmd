@@ -247,6 +247,10 @@ The vision: after you `npm i --save dmnmd`, you can define a function `dinner` b
 
 You should then be able to call `dinner({Season:"Fall"})` and get back `{Dish:"Spareribs"}`.
 
+### to Haxe
+
+Perhaps [Haxe])(https://www.haxe.org/) can help us achieve a longer list of transpilation targets.
+
 ### to XML
 
 On the roadmap.
