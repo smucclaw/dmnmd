@@ -48,40 +48,50 @@ pipeSeparator = try $ Mega.label "pipeSeparator" $ skipHorizontalSpace >> "|" >
 getpipeSeparator :: Parser Text
 getpipeSeparator = skipHorizontalSpace *> "|" <* skipHorizontalSpace
 
+-- | parse column header.
+-- (//|#|>|<) *([a-zA-Z0-9_ ]+?( *: *[a-z]+) *
 parseColHeader :: Parser ColHeader
 parseColHeader = do
-  mylabel_pre <- parseLabelPre <* skipHorizontalSpace <?> "mylabel_pre"
-  myvarname <- parseVarname <?> "parseVarname"
+  mylabel_pre  <- parseLabelPre <?> "pre-label"
+  myvarname    <- parseVarname <?> "variable name"
   doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
-  mytype <- parseTypeDecl <?> "parseTypeDecl"
-  mylabel_post <- skipHorizontalSpace *> parseLabelPost <?> "parseLabelPost"
-  return $ DTCH (mkHeaderLabel mylabel_pre mylabel_post) (T.unpack myvarname) mytype Nothing
+  mytype       <- parseTypeDecl <?> "type declaration"
+  mylabel_post <- skipHorizontalSpace *> parseLabelPost <?> "post-label (in/out/comment)"
+  return ( DTCH
+           (mkHeaderLabel mylabel_pre mylabel_post)
+           (T.unpack myvarname)
+           mytype Nothing )
 
-parseTypeDecl :: Parser (Maybe DMNType) -- Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
-parseTypeDecl = Mega.optional $ do
-  skipHorizontalSpace >> ":" >> skipHorizontalSpace
-  parseType
+-- | Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
+parseTypeDecl :: Parser (Maybe DMNType)
+parseTypeDecl = Mega.optional $ lexeme ":" *> parseType
+
+lexeme :: Parser a -> Parser a
+lexeme x = x <* skipHorizontalSpace
 
 parseType :: Parser DMNType
-parseType =
-  DMN_List <$> ("[" *> parseType <* "]" <?> "inside list")
-   <|>
-   ((("String"  >> return (DMN_String)) <?> "string type") <|>
-    (("Number"  >> return (DMN_Number)) <?> "number type") <|>
-    (("Boolean" >> return (DMN_Boolean)) <?> "boolean type") ) -- need to check what the official DMN names are for these
-
+parseType
+  =   (DMN_List    <$>  (lexeme "[" *> parseType <* lexeme "]") <?> "inside list")
+  <|> (DMN_String  <$    lexeme "String"                        <?> "string type")
+  <|> (DMN_Number  <$    lexeme "Number"                        <?> "number type")
+  <|> (DMN_Boolean <$    lexeme "Boolean"                       <?> "boolean type")
+  -- need to check what the official DMN names are for these
+    
+mkHeaderLabel :: Maybe Text -> Maybe Text -> DTCH_Label
 mkHeaderLabel (Just "//") _        = DTCH_Comment
 mkHeaderLabel (Just "#" ) _        = DTCH_Comment
+mkHeaderLabel (Just "<" ) _        = DTCH_In
+mkHeaderLabel (Just ">" ) _        = DTCH_Out
 mkHeaderLabel _ (Just "(comment)") = DTCH_Comment
 mkHeaderLabel _ (Just "(out)")     = DTCH_Out
 mkHeaderLabel _ (Just "(in)")      = DTCH_In
 mkHeaderLabel _  Nothing           = DTCH_In
 
 parseLabelPre :: Parser (Maybe Text)
-parseLabelPre  = Mega.optional ("//"   <|> "#")
+parseLabelPre  = Mega.optional $ lexeme ("//" <|> "#" <|> "<" <|> ">")
 
 parseLabelPost :: Parser (Maybe Text)
-parseLabelPost = Mega.optional ("(in)" <|> "(out)" <|> "(comment)")
+parseLabelPost = Mega.optional $ lexeme ("(in)" <|> "(out)" <|> "(comment)")
 
 parseHitPolicy :: Parser HitPolicy
 parseHitPolicy = 

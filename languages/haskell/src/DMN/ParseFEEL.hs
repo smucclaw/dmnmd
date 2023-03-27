@@ -7,6 +7,7 @@ import Control.Applicative hiding (many, some)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Text (Text)
+import Data.Char (isAlphaNum)
 import qualified Data.Text as T
 import DMN.Types
 import DMN.ParsingUtils
@@ -17,11 +18,15 @@ import Debug.Trace
 -- let's allow spaces in variable names. what could possibly go wrong?
 parseVarname :: Parser Text
 parseVarname = do
-  input <- T.take 40 <$> lookAhead takeRest
-  -- traceM $ "parseVarname: input: " ++ T.unpack input
+  -- input <- T.take 40 <$> lookAhead takeRest; traceM $ "parseVarname: input: " ++ T.unpack input
   firstLetter <- letterChar
-  remainder <- some (choice [ alphaNumChar, char '_', char ' ' ])
-  return $ T.strip $ T.append (T.singleton firstLetter) (T.pack remainder)
+  remainder <- takeWhileP (Just "legal identifier character, including spaces")
+               (\c -> isAlphaNum c    || c == '\t'
+                      || c == ' '     || c == '\x00A0' -- nonbreaking space
+                      || c == '_'     || c == '_'      )
+
+  -- we should now have run up against either eol, |, (, or :
+  return $ T.strip $ T.cons firstLetter remainder
 
 
 parseFNumFunction :: Parser FNumFunction

@@ -117,6 +117,8 @@ Supported. This is the native format for `dmnmd`.
 
 ASCII has its limitations. In graphical decision tables, output columns are separated from input columns by a double bar; most GUI implementations use colour and other formatting to distinguish input, output, and annotation columns. In `dmnmd` syntax, output columns are optionally labeled with an `(out)`; annotation columns are prefixed with a `#`. By default, if the columns are unlabeled, the rightmost column will be taken to be the output, and columns to the left will be taken to be inputs. (Leaving out annotation columns.)
 
+You can also prefix output columns with a `>` character.
+
 Columns are optionally typed using a colon. You will see `Column Name : String`, `Column Name : Number`, and `Column Name : Boolean`. If you omit the type definition, `dmnmd` will attempt to infer the type.
 
 In some decision tables, the input and outputs are enumerated in a sort of sub-header row. The order matters.
@@ -131,7 +133,7 @@ For hit policy "O", the order of results in the output is determined by the orde
 
 The column enums are giving in a subhead row between the top row and body data row "1".
 
-| O | Age | Risk Category     | Debt Review :Boolean | Routing (out)          | Review level (out)     | Reason (out)                |
+| O | Age | Risk Category     | Debt Review :Boolean | > Routing              | > Review level         | Reason (out)                |
 |---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
 |   |     | LOW, MEDIUM, HIGH |                      | DECLINE, REFER, ACCEPT | LEVEL 2, LEVEL 1, NONE |                             |
 | 1 | -   | -                 | -                    | ACCEPT                 | NONE                   | Acceptable                  |
