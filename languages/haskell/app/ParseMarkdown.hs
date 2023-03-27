@@ -12,7 +12,6 @@ import Data.Maybe ( catMaybes, fromMaybe )
 
 import DMN.Types ( DecisionTable )
 import DMN.ParseTable ( parseTable )
-import DMN.ParseFEEL ( skipHorizontalSpace )
 
 import Text.Megaparsec
     ( MonadParsec(try, eof), satisfy, manyTill, many, (<?>), (<|>) )
@@ -25,7 +24,9 @@ import DMN.ParsingUtils
       endOfLine,
       anyChar,
       many1,
-      parseOnly )
+      parseOnly,
+      skipHorizontalSpace
+    )
 import qualified Data.Text as T
 
 import Options ( ArgOptions(input, verbose) )

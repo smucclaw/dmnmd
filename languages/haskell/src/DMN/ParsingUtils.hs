@@ -3,12 +3,12 @@
 module DMN.ParsingUtils
   where
 
--- import Control.Monad (void)
 import Data.Bifunctor (first)
 import Data.Char (isDigit)
 import Data.Text (Text)
--- import qualified Data.Text as T
 import Data.Void (Void)
+import Text.Megaparsec.Char ( char, string )
+import Text.Megaparsec.Char.Lexer ( scientific )
 import Text.Megaparsec
     ( (<|>),
       (<?>),
@@ -21,8 +21,6 @@ import Text.Megaparsec
       some,
       Parsec,
       MonadParsec(eof, takeWhileP) )
-import Text.Megaparsec.Char ( char, string )
-import Text.Megaparsec.Char.Lexer
 
 import GHC.Stack (HasCallStack)
 
@@ -37,6 +35,9 @@ notInClass s = not . inClass s
   
 skipWhile :: String -> (Char -> Bool) -> Parser ()
 skipWhile tokenLabel p = () <$ takeWhileP (Just tokenLabel) p
+
+lexeme :: Parser a -> Parser a
+lexeme x = x <* skipHorizontalSpace
 
 -- | The parser @skip p@ succeeds for any character for which the
 -- predicate @p@ returns 'True'.
@@ -89,3 +90,8 @@ anyChar = anySingle
 
 notChar :: Char -> Parser Char
 notChar = anySingleBut
+
+skipHorizontalSpace :: Parser ()
+skipHorizontalSpace = skipWhile "Horizontal space" isHorizontalSpace
+-- ^ Maybe add try here?
+

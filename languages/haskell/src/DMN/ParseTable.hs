@@ -4,7 +4,7 @@ module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
 import DMN.DecisionTable ( mkFs, trim, mkDTable )
-import DMN.ParseFEEL ( parseVarname, skipHorizontalSpace )
+import DMN.ParseFEEL ( parseVarname )
 import DMN.SFeelGrammar
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
@@ -24,7 +24,7 @@ import Text.Megaparsec
       MonadParsec(try) )
 import Text.Megaparsec.Char ( char )
 import DMN.ParsingUtils
-    ( Parser, inClass, skipWhile, digit, endOfLine, endOfInput, many1 )
+    ( Parser, inClass, skipWhile, digit, endOfLine, endOfInput, many1, lexeme, skipHorizontalSpace )
 import DMN.Types
     ( ColBody(..),
       HeaderRow(..),
@@ -65,9 +65,6 @@ parseColHeader = do
 -- | Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
 parseTypeDecl :: Parser (Maybe DMNType)
 parseTypeDecl = Mega.optional $ lexeme ":" *> parseType
-
-lexeme :: Parser a -> Parser a
-lexeme x = x <* skipHorizontalSpace
 
 parseType :: Parser DMNType
 parseType

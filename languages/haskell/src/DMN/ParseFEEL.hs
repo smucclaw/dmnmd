@@ -82,7 +82,3 @@ escape = do
 nonEscape :: Parser Char
 nonEscape = noneOf ['\\', '\"', '\0', '\n', '\r', '\v', '\t', '\b', '\f']
 
-skipHorizontalSpace :: Parser ()
-skipHorizontalSpace = skipWhile "Horizontal space" isHorizontalSpace
--- ^ Maybe add try here?
-
