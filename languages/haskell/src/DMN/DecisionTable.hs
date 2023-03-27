@@ -2,23 +2,21 @@
 
 module DMN.DecisionTable where
 
-import Control.Arrow
+{-| Given an ASCII decision table, parse it and transpile it to operational languages like JS and Python. -}
+
+import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseFEEL
+import DMN.ParseFEEL ( parseFNumFunction )
 import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
-import Data.List.Split
-import Data.Maybe
-import Text.Regex.PCRE
+import Data.List.Split ( splitOn )
+import Data.Maybe ( catMaybes, fromJust )
+import Text.Regex.PCRE ( (=~) )
 import Data.Char (toLower)
-import Debug.Trace
-import DMN.Types
--- import Data.Attoparsec.Text
--- import Text.Megaparsec hiding (label)
--- import Text.Megaparsec.Char
--- import Data.Text (Text)
+import Debug.Trace ( trace )
 import qualified Data.Text as T
 import qualified Data.Map as Map
-import DMN.ParsingUtils
+import DMN.ParsingUtils ( parseOnly )
+import DMN.Types
 
 -- main = do
 --     putStrLn $ show example1_dish

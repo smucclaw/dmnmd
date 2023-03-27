@@ -3,29 +3,40 @@
 
 module ParseMarkdown (parseMarkdown) where
 
-import System.IO
-import Control.Monad
+import System.IO ( stderr, hPutStrLn )
+import Control.Monad ( when )
 import Data.List (takeWhile)
-import Data.Maybe
+import Data.Maybe ( catMaybes, fromMaybe )
 
 -- import Debug.Trace
 
-import DMN.Types
-import DMN.ParseTable
-import DMN.ParseFEEL
+import DMN.Types ( DecisionTable )
+import DMN.ParseTable ( parseTable )
+import DMN.ParseFEEL ( skipHorizontalSpace )
 
-import Text.Megaparsec hiding (label)
-import Text.Megaparsec.Char
+import Text.Megaparsec
+    ( MonadParsec(try, eof), satisfy, manyTill, many, (<?>), (<|>) )
+import Text.Megaparsec.Char ( char )
 import DMN.ParsingUtils
+    ( Parser,
+      skipMany1,
+      skipWhile,
+      notChar,
+      endOfLine,
+      anyChar,
+      many1,
+      parseOnly )
 import qualified Data.Text as T
 
-import Options
+import Options ( ArgOptions(input, verbose) )
 import Data.Foldable (Foldable(toList))
 
+-- | monadic concatMap.
 -- TODO: Use ListT or this thing
 concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
 concatMapM f xs = fmap concat $ mapM f xs
 
+-- | parse input markdown file.
 parseMarkdown :: ArgOptions -> IO [DecisionTable]
 parseMarkdown opts1 = do
   let infiles = input opts1
@@ -65,72 +76,14 @@ parseMarkdown opts1 = do
       whenLeft parseResult printParseError
       pure $ toList parseResult
 
--- -- | Convert an Either to a Maybe and run an action if it was left.
--- consumeLeft :: Monad m => Either a b -> (a -> m ()) -> m (Maybe b)
--- consumeLeft val onLeft = do
---   whenLeft val onLeft
---   pure $ eitherToMaybe val
-
 whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
 whenLeft val onLeft =
       case val of
         Left e -> onLeft e
         Right _ -> return ()
 
--- eitherToMaybe :: Either a b -> Maybe b
--- eitherToMaybe = either (const Nothing) Just
--- -- eitherToMaybe val =
--- --       case val of
--- --         Left _ -> Nothing
--- --         Right x -> Just x
-
-{-
-parseChunk :: ArgOptions -> InputChunk -> IO (Maybe DecisionTable)
-parseChunk opts mychunk = do
-  let parseResult = parseOnly (parseTable (chunkName mychunk) <?> "parseTable")
-        $ T.pack $ unlines $ chunkLines mychunk
-
-  whenLeft parseResult $ \myPTfail ->
-        myerr opts $
-          "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\nat " ++ myPTfail
-
-  pure $ eitherToMaybe parseResult
-
-parseChunk :: ArgOptions -> InputChunk -> IO (Maybe DecisionTable)
-parseChunk opts mychunk = do
-  let parseResult = parseOnly (parseTable (chunkName mychunk) <?> "parseTable")
-        $ T.pack $ unlines $ chunkLines mychunk
-
-  case parseResult of
-    Left myPTfail -> do
-        myerr opts $
-          "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\nat " ++ myPTfail
-        return Nothing
-    Right x -> return . Just $ x
-
-mapLeft onLeft val =
-      case val of
-        Left e -> do
-            onLeft e
-            return Nothing
-        Right x -> return . Just $ x
-
-parseChunk :: ArgOptions -> InputChunk -> IO (Maybe DecisionTable)
-parseChunk opts mychunk = do
-  let parseResult = (parseOnly (parseTable (chunkName mychunk) <?> "parseTable") 
-        $ T.pack $ unlines $ chunkLines mychunk)
-
-  either
-    (\myPTfail -> do
-        myerr opts $ 
-          "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\nat " ++ myPTfail
-        return Nothing)
-    (return . Just)
-    parseResult
--}
-
---  putStrLn $ toJS (fromRight (error "parse error") (parseOnly (parseTable "mydmn1") dmn2))
-
+-- * parsing support
+-- | the markdown parser deals with InputChunks, which tracks the chunk name and lines
 type InputChunks = [InputChunk]
 
 data InputChunk = InputChunk
@@ -140,39 +93,46 @@ data InputChunk = InputChunk
   deriving (Show, Eq)
 -- in future, consider grabbing the tables out of Pandoc -- maybe this would be better off as a JSON filter?
 
+-- | look for relevant table sections in the markdown file
 grepMarkdown :: String -> Parser InputChunks
 grepMarkdown defaultName = do
   mytables <- many1 (try (grepTable defaultName) <?> "grepTable")
   (many irrelevantLine >> eof)
   return $ catMaybes mytables
 
+-- | start to break down a table
 grepTable :: String -> Parser (Maybe InputChunk)
 grepTable defaultName = do
   mHeader <- maybeHeaderLines <?> "maybeHeaderLines"
   tablelines <- many1 (getTableLine <?> "getTableLine")
   return (Just (InputChunk (fromMaybe defaultName mHeader) tablelines))
 
+-- | a table line begins with a pipe
 getTableLine :: Parser String
 getTableLine = do
   pipe <- char '|'
   therest <- manyTill anyChar endOfLine
   return $ pipe : therest
 
+-- | ignore irrelevant lines in the markdown file
 irrelevantLine :: Parser (Maybe String)
 irrelevantLine = do
   endOfLine <|> (notChar '|' >> skipWhile "character" (/= '\n') >> endOfLine)
   return Nothing
 
+-- | have we got multiple header lines?
 maybeHeaderLines :: Parser (Maybe String)
 maybeHeaderLines = do
   gotHeaders <- catMaybes <$> many maybeHeaderLine
   return (if not (null gotHeaders) then Just (last gotHeaders) else Nothing)
 
+-- | have we got a header line?
 maybeHeaderLine :: Parser (Maybe String)
 maybeHeaderLine = do
   foundLine <- try orgNameLine <|> try (headerLine <?> "header line") <|> (irrelevantLine <?> "irrelevant line")
   return $ Data.List.takeWhile (/=':') <$> foundLine
 
+-- | deal with a header line
 headerLine :: Parser (Maybe String)
 headerLine = do
   skipMany1 (satisfy (\c -> c == '#' || c == '*'))
@@ -180,6 +140,7 @@ headerLine = do
   content <- manyTill anyChar endOfLine
   return (Just content)
 
+-- | record the name of the chunk from the org file saying @#+NAME@
 orgNameLine :: Parser (Maybe String)
 orgNameLine = do
   "#+NAME:" >> skipHorizontalSpace

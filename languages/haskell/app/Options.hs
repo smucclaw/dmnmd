@@ -2,19 +2,17 @@
 {-# LANGUAGE NoMonomorphismRestriction, MultiWayIf, OverloadedStrings, DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wall #-}
 
+{-| Handle command line options -}
+
 module Options 
---    ( parseOptions, ArgOptions(..), FileFormat(..))
    where
 
-import System.FilePath
-import Data.Maybe
-
--- import Debug.Trace
-
+import System.FilePath ( takeExtension )
+import Data.Maybe ( fromMaybe )
 import qualified Options.Applicative as OA
 import Options.Applicative (Parser, long, short, help, helper, fullDesc, progDesc, strOption, switch, value, info, metavar, str, argument)
 
--- let's do getopt properly
+-- | let's do getopt properly
 
 data ArgOptions = ArgOptions
   { verbose  :: Bool
@@ -28,6 +26,7 @@ data ArgOptions = ArgOptions
   }
   deriving (Show, Eq)
 
+-- | define the options we take
 argOptions :: OA.Parser ArgOptions
 argOptions = ArgOptions
   <$> switch    (long "verbose"    <> short 'v'                                          <> help "more verbosity" )
@@ -39,6 +38,7 @@ argOptions = ArgOptions
   <*> strOption (long "pick"       <> short 'p' <> metavar "TABLE,..."    <> value ""    <> help "name of desired decision table" )
   <*> (OA.some ( argument str (metavar "FILES...")) OA.<|> pure ["-"])
 
+-- | do the actual parsing of options
 parseOptions :: IO ArgOptions
 parseOptions = do
   opts1 <- OA.execParser $ info (argOptions OA.<**> helper) (fullDesc <> progDesc "DMN CLI interpreter and converter" <> OA.header "dmnmd")
@@ -46,12 +46,15 @@ parseOptions = do
 
 -- * File format detection
 
+-- | guess output format
 detectOutformat :: ArgOptions -> ArgOptions
 detectOutformat opts = opts { outformat = detectFormat [out opts] (outformat opts)}
 
+-- | guess input format
 detectInformat :: ArgOptions -> ArgOptions
 detectInformat opts = opts { informat = detectFormat (input opts) (informat opts)}
 
+-- | supported formats include typescriot and python
 data FileFormat = Ts | Js | Py | Xml | Md | Unknown
   deriving (Show, Eq)
 
@@ -69,9 +72,7 @@ parseFileFormat = OA.eitherReader $ \case
     "xml" -> return Xml
     _    -> Left "Accepted file types are 'ts', 'js', 'py', 'xml', and 'md'."
 
-testExtThing :: String
-testExtThing = takeExtension "test/simulation.dmn"
-
+-- | from file extension string to internal types
 fileExtensionMappings :: [(String, FileFormat)]
 fileExtensionMappings =
   [ (".ts", Ts)
@@ -81,15 +82,19 @@ fileExtensionMappings =
   , (".md", Md)
   ]
 
+-- | opposite direction
 extensionToFileFormat :: String -> Maybe FileFormat
 extensionToFileFormat ext = lookup ext fileExtensionMappings
 
+-- | guess at file format
 detectFormat :: [FilePath] -> FileFormat -> FileFormat
 detectFormat files Unknown = fromMaybe Unknown $ detectFormat' files
 detectFormat _ origFormat = origFormat
 
--- >>> detectFormat' ["test/simulation.dmn"]
+-- | helper function
+-- > detectFormat' ["test/simulation.dmn"]
 -- Just Xml
+--
 detectFormat' :: [FilePath] -> Maybe FileFormat
 detectFormat' files = do
   let exts = map takeExtension files
