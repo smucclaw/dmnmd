@@ -1,35 +1,57 @@
 {-# LANGUAGE NoMonomorphismRestriction, MultiWayIf, OverloadedStrings, DuplicateRecordFields #-}
-{-# OPTIONS_GHC -Wall #-}
 
-module Main (main)
-where
+module Main (main) where
 
 import System.IO
-import Control.Monad
+    ( stderr,
+      hPutStrLn,
+      Handle,
+      hClose,
+      openFile,
+      stdout,
+      IOMode(WriteMode) )
+import Control.Monad ( when )
 import Data.List.Split (splitOn)
 import Data.List (intercalate, nub)
 
 import System.Console.Haskeline
+    ( defaultSettings,
+      getInputLine,
+      outputStr,
+      outputStrLn,
+      runInputT,
+      InputT )
 -- import Debug.Trace
 
 import DMN.Types
+    ( DecisionTable(header, tableName),
+      FEELexp,
+      DMNType,
+      ColHeader(vartype) )
 import DMN.DecisionTable
-import DMN.Translate.JS
-import DMN.Translate.PY
-import DMN.Translate.FEELhelpers
+    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF )
+import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
+import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
+import DMN.Translate.FEELhelpers ( showFeels )
 import DMN.XML.ParseDMN (parseDMN)
 import DMN.XML.XmlToDmnmd (convertAll)
 
 import Options
+    ( ArgOptions(propstyle, verbose, out, pick, query, informat, input,
+                 outformat),
+      parseOptions,
+      FileFormat(Py, Md, Xml, Js, Ts) )
 import ParseMarkdown (parseMarkdown)
 
-
+-- | read DMN ASCII tables out of a Markdown file, and do useful things with it:
+-- transpile to operational languages, evaluate expressions against the table, and so on.
 main :: IO ()
 main = do
   opts <- parseOptions
   mylog opts $ "Options: " ++ show opts
   myouthandle <- myOutHandle $ out opts
 
+  -- a markdown file could contain multiple tables, so give the user the option of choosing one.
   mydtables <- parseTables opts -- TODO: Don't hardcode markdown here
   mylog opts $ "* imported " ++ show (length mydtables) ++ " tables."
   mylog opts $ "pick = " ++ pick opts
@@ -94,6 +116,7 @@ main = do
 crash :: String -> a
 crash = errorWithoutStackTrace
 
+-- | initial parse of input tables. at present the emphasis is on markdown.
 parseTables :: ArgOptions -> IO [DecisionTable]
 parseTables opts = case informat opts of
   Md -> parseMarkdown opts
@@ -101,6 +124,7 @@ parseTables opts = case informat opts of
   x -> crash $ "Unsupported input format: " ++ show x
              ++ ".\nSupported formats are: 'md' and 'xml'"
 
+-- | Not sure if this is actually functional.
 parseDmnXml :: ArgOptions -> IO [DecisionTable]
 parseDmnXml opts = do
   fileName <- case input opts of
@@ -109,7 +133,10 @@ parseDmnXml opts = do
 
   convertAll <$> parseDMN fileName
 
--- not quite finished; in future refactor this over to JS.hs
+-- | Transpile decision table to outpu tformats.
+-- This is not quite finished; in future refactor this over to JS.hs
+-- It would be nice to have a consistent pretty-printing library that we can use for both DMN and Natural4.
+-- There are probably already packages on Hackage that represent these languages for output purposes.
 showToJSON :: FileFormat -> DecisionTable -> [[FEELexp]] -> [String]
 showToJSON Js dtable cols' = if not (null cols') then zipWith (showFeels "js") ((getOutputHeaders . header) dtable) cols' else []
 showToJSON Ts dtable cols' = if not (null cols') then zipWith (showFeels "ts") ((getOutputHeaders . header) dtable) cols' else []
@@ -117,6 +144,7 @@ showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") (
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
+-- | print to a file handle
 outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
 outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
