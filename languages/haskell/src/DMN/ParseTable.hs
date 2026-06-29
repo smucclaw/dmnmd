@@ -52,13 +52,18 @@ getpipeSeparator = skipHorizontalSpace *> "|" <* skipHorizontalSpace
 -- (//|#|>|<) *([a-zA-Z0-9_ ]+?( *: *[a-z]+) *
 parseColHeader :: Parser ColHeader
 parseColHeader = do
-  mylabel_pre  <- parseLabelPre <?> "pre-label"
-  myvarname    <- parseVarname <?> "variable name"
+  mylabel_pre   <- parseLabelPre <?> "pre-label"
+  myvarname     <- parseVarname <?> "variable name"
   doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
-  mytype       <- parseTypeDecl <?> "type declaration"
-  mylabel_post <- skipHorizontalSpace *> parseLabelPost <?> "post-label (in/out/comment)"
+  -- Accept the (in)/(out)/(comment) post-label in EITHER order relative to the
+  -- ": Type" declaration: dmnmd's own fixtures write "name : Type (out)", while
+  -- the homelab golden writes "name (out) : Type". Try the label both before and
+  -- after the type so both spellings parse to the same ColHeader.
+  mylabel_postA <- skipHorizontalSpace *> parseLabelPost <?> "post-label (in/out/comment)"
+  mytype        <- parseTypeDecl <?> "type declaration"
+  mylabel_postB <- skipHorizontalSpace *> parseLabelPost <?> "post-label (in/out/comment)"
   return ( DTCH
-           (mkHeaderLabel mylabel_pre mylabel_post)
+           (mkHeaderLabel mylabel_pre (mylabel_postA <|> mylabel_postB))
            (T.unpack myvarname)
            mytype Nothing )
 
