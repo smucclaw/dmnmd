@@ -17,10 +17,11 @@ module DMN.Translate.L4 where
 
 import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder)
 import DMN.Types
-import Data.Char (isAlpha, isAlphaNum, ord, toUpper)
+import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, mapMaybe)
 import Numeric (floatToDigits)
+import Text.Megaparsec.Unicode (isWideChar)
 
 -- | Options governing L4 emission (see BUILD-SPEC §4.1).
 data L4Opts = L4Opts
@@ -517,43 +518,16 @@ rpad w s = s ++ replicate (max 0 (w - length s)) ' '
 rpadD :: Int -> String -> String
 rpadD w s = s ++ replicate (max 0 (w - displayWidth s)) ' '
 
--- | Display width of a string in L4 lexer columns: East-Asian-Wide and Fullwidth
--- code points count as 2, everything else (Latin, accents, regional-indicator
--- emoji) as 1.
+-- | Display width of a string in L4 lexer columns. The lexer advances columns
+-- via megaparsec's @TraversableStream Text@ instance, whose per-char step is
+-- @if isWideChar c then 2 else 1@ ('Text.Megaparsec.Unicode', @since@ megaparsec
+-- 9.7.0). We defer to that EXACT function rather than a parallel East_Asian_Width
+-- table, so the emitted ditto grid measures columns identically to the lexer that
+-- resolves @^@. (A prior hand-rolled table silently diverged on the BMP
+-- pictographs megaparsec counts as wide — U+231A ⌚, U+2728 ✨, U+2B50 ⭐, … —
+-- placing them at width 1 and misaligning ditto.)
 displayWidth :: String -> Int
 displayWidth = sum . map (\c -> if isWideChar c then 2 else 1)
-
--- | Is this code point East-Asian Wide (W) or Fullwidth (F)? Ranges mirror the
--- Unicode East_Asian_Width property's W/F classes: the CJK blocks, fullwidth
--- forms, and the wide pictographic-emoji blocks (Emoticons / Misc & Supplemental
--- Symbols & Pictographs). Narrow/neutral/ambiguous code points and combining
--- marks stay width 1, matching the lexer (verified: 中 / 😀 advance two columns).
-isWideChar :: Char -> Bool
-isWideChar c = any (\(lo, hi) -> n >= lo && n <= hi) wideRanges
-  where
-    n = ord c
-    wideRanges =
-      [ (0x1100, 0x115F)   -- Hangul Jamo
-      , (0x2329, 0x232A)   -- angle brackets
-      , (0x2E80, 0x303E)   -- CJK radicals, Kangxi, CJK symbols/punctuation
-      , (0x3041, 0x33FF)   -- Hiragana, Katakana, CJK symbols
-      , (0x3400, 0x4DBF)   -- CJK Unified Ideographs Extension A
-      , (0x4E00, 0x9FFF)   -- CJK Unified Ideographs
-      , (0xA000, 0xA4CF)   -- Yi
-      , (0xA960, 0xA97F)   -- Hangul Jamo Extended-A
-      , (0xAC00, 0xD7A3)   -- Hangul Syllables
-      , (0xF900, 0xFAFF)   -- CJK Compatibility Ideographs
-      , (0xFE10, 0xFE19)   -- Vertical forms
-      , (0xFE30, 0xFE6F)   -- CJK Compatibility Forms, Small Form Variants
-      , (0xFF00, 0xFF60)   -- Fullwidth Forms
-      , (0xFFE0, 0xFFE6)   -- Fullwidth signs
-      , (0x1B000, 0x1B16F) -- Kana Supplement / Extended
-      , (0x1F200, 0x1F251) -- Enclosed Ideographic Supplement
-      , (0x1F300, 0x1F64F) -- Misc Symbols & Pictographs, Emoticons (wide emoji)
-      , (0x1F900, 0x1F9FF) -- Supplemental Symbols & Pictographs
-      , (0x1FA70, 0x1FAFF) -- Symbols & Pictographs Extended-A
-      , (0x20000, 0x3FFFD) -- CJK Unified Ideographs Extensions B–G
-      ]
 
 -- | Sanitize a name to a bare L4 identifier (record field / param).
 sanitizeIdent :: String -> String
