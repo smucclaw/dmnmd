@@ -524,9 +524,10 @@ displayWidth :: String -> Int
 displayWidth = sum . map (\c -> if isWideChar c then 2 else 1)
 
 -- | Is this code point East-Asian Wide (W) or Fullwidth (F)? Ranges mirror the
--- Unicode East_Asian_Width property's W/F classes (the CJK blocks plus fullwidth
--- forms); narrow/neutral/ambiguous code points — and astral-plane emoji such as
--- regional indicators — stay width 1, matching the observed lexer behaviour.
+-- Unicode East_Asian_Width property's W/F classes: the CJK blocks, fullwidth
+-- forms, and the wide pictographic-emoji blocks (Emoticons / Misc & Supplemental
+-- Symbols & Pictographs). Narrow/neutral/ambiguous code points and combining
+-- marks stay width 1, matching the lexer (verified: 中 / 😀 advance two columns).
 isWideChar :: Char -> Bool
 isWideChar c = any (\(lo, hi) -> n >= lo && n <= hi) wideRanges
   where
@@ -548,6 +549,9 @@ isWideChar c = any (\(lo, hi) -> n >= lo && n <= hi) wideRanges
       , (0xFFE0, 0xFFE6)   -- Fullwidth signs
       , (0x1B000, 0x1B16F) -- Kana Supplement / Extended
       , (0x1F200, 0x1F251) -- Enclosed Ideographic Supplement
+      , (0x1F300, 0x1F64F) -- Misc Symbols & Pictographs, Emoticons (wide emoji)
+      , (0x1F900, 0x1F9FF) -- Supplemental Symbols & Pictographs
+      , (0x1FA70, 0x1FAFF) -- Symbols & Pictographs Extended-A
       , (0x20000, 0x3FFFD) -- CJK Unified Ideographs Extensions B–G
       ]
 
