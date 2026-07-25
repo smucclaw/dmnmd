@@ -136,6 +136,25 @@ drops with a named fidelity note.
 | **E3** | A decision that is **not a table** — a bare FEEL expression      | nothing — every decision is a table        | the decision is skipped entirely (`D-MD-NOLITERAL`)        |
 | **E4** | Enum and record types                                            | `String \| Number \| Boolean \| List`      | collapses to `String` (`D-MD-TYPE`)                        |
 | **E5** | Provenance (`@ref`) and rule-version / as-of date                | free-text `#` annotation columns           | provenance into a `#` column; as-of dropped               |
+| **E6** | An input **expression** distinct from its human-readable label   | one header slot, must be an identifier     | the expression, with the label discarded                   |
+| **E7** | A **negative number** in a numeric cell (`>= -5`)                | `mkF` reads any `+ - * /` as arithmetic    | **misparsed, not rejected** — see §2.1                      |
+| **E8** | An **enum domain** on a column (`accredited \| retail \| …`)     | no column-values construct                 | collapsed to a bare `String` column                        |
+
+### 2.1 The one that is worse than the rest: silent misreading
+
+Every other row in that table is an *omission* — dmnmd cannot say it, we do not say it, and a
+fidelity note records the loss. **E7 is different: dmnmd reads the cell and reads it wrongly.**
+`mkF` treats the presence of any of `+ - * /` in a cell as a signal that the cell is an arithmetic
+expression, so `>= -5` in a Number column is not a comparison against negative five.
+
+That is the worst failure mode a format can have. An omission is visible to anyone comparing the
+two documents; a misparse produces a table that looks right, parses clean, and means something
+else. Whoever picks this up should treat "does any construct we accept get *misread*" as a
+higher-priority question than "what can we not express", and audit `mkF` and `ParseFEEL.hs` for
+others of the same kind.
+
+_(E7 and E8 were found by the L4 exporter's author reading dmnmd's parser source, not by exercising
+it — so E7 is inferred from the code path and has not been demonstrated end to end.)_
 
 E2 is the one that is actively dangerous rather than merely lossy: a `U` table written with a
 catch-all row is a table dmnmd would **read back with different semantics**, so the exporter
@@ -146,12 +165,104 @@ capability gap.
 
 ## 3. Proposed designs
 
-Ordered by value-per-unit-effort. All four are markdown-native and introduce as little new syntax
-as possible — the format's whole virtue is that it is legible to someone who has never read a spec.
+Ordered by value-per-unit-effort. All are markdown-native and introduce as little new syntax as
+possible — the format's whole virtue is that it is legible to someone who has never read a spec.
 
-### E0 — **do this first.** Two small fixes that unlock a differential test for free
+### 3.1 The evidence — what `safe.md` was trying to say
 
-Not a feature; a bug fix and a papercut. Highest value per line of anything in this document.
+**Read this before the designs.** Two of them (E1, E3) were originally invented here; both turn out
+to be documented by an author already, and the corpus corrects the details.
+
+`test/safe.md` (Jason Morris, 2020-09-14, commit `9e8c479`) is a **transcription of a real DMN
+model** — its sibling `test/safe2.dmn`, in the same directory, is the same SAFE agreement in DMN
+XML. Comparing them shows exactly where the markdown format ran out.
+
+**The eight "single-column formula tables" are DMN literal expressions.** Verbatim:
+
+```
+## Safe Price
+
+| Safe Price                                                    |
+| ------------------------------------------------------------- |
+| decimal(Post-Money Valuation Cap / Company Capitalization, 4) |
+```
+
+```
+## Cash Out Amount
+
+| Cash Out Amount |
+| --------------- |
+| Purchase Amount |
+```
+
+The convention is consistent across all eight: three rows, the header cell is **the name of the
+quantity being defined** and equals the `##` heading, and there is exactly one body row. No
+hit-policy column, no inputs. `Cash Out Amount` is the tell — its body is a bare `Purchase Amount`
+with no arithmetic at all, so the shape is not "a table with one computed column". It is
+**`name ::= expression`**.
+
+And in `safe2.dmn` those same seven quantities exist as **`<literalExpression>` decisions**:
+`safe price ::= post money valuation cap / company capitalization`,
+`conversion price ::= min(safe price, discount price)`, and so on. So **E3 is not a new feature —
+it is a construct DMN already has and the markdown carrier lacks.** The author needed it, found no
+notation for it, and improvised the one-column table.
+
+**The tables chain by name — E1's design, authored.** Formula bodies reference other headings
+(`Conversion Price` → `Safe Price`, `Discount Price`; `Liquidity Price` → `Liquidity
+Capitalization`), and the decision tables chain through columns: a table named `X` emits `X (out)`
+and a later table consumes a bare input column `X`. `Dissolution Event` takes `Liquidity Event`;
+`Safe Event Type` takes both. `safe2.dmn` carries the same graph explicitly as
+`<informationRequirement>`. This is what corrects E1's matching rule.
+
+**Input headers are expressions, not names.** `| U | Safe Terminated | Event Date < Safe Termination
+Date | … |` looks like a column name containing an operator. The XML settles it: DMN gives an input
+column **two slots**, `label` and `inputExpression`, and there they are
+`'date of event before date of termination?'` and `'date of event < date of SAFE termination'`.
+Markdown has one slot, and the author put the **expression** in it. That is a different problem from
+"allow `<` in identifiers" — see **E6**.
+
+**Two hard blockers found by measuring how far the failures actually are:**
+
+- `Event Prior to Termination` is **one character** from parsing — the `<` is its only defect.
+- `Result of Termination` is three deep: `(out )`, then the hyphen in `Non-Participating` (not a
+  legal identifier character), and then it **crashes** — `floor(Purchase Amount / Conversion Price)`
+  hits an uncaught `error` at `src/DMN/DecisionTable.hs:151`, _"parsing suspected function
+  expression"_. Any numeric cell containing `+ - * /` routes to `parseFNumFunction`, which handles
+  arithmetic over variable names but **not function calls**.
+
+That crash is load-bearing for sequencing: the eight formula bodies are all `decimal(…)`,
+`floor(…)`, `if…then…else`. **Accepting the one-column shape without FEEL-capable cell parsing just
+moves the failure one stage later**, and into a hard crash rather than a diagnostic. E3 and E4 are
+therefore coupled, and `parseFNumFunction`'s `error` should become a diagnostic regardless.
+
+**Provenance: the format outran the parser and nothing noticed for six years.** `safe.md` landed
+2020-09-14; `src/DMN/ParseTable.hs` was last touched ten days earlier and then not again until
+2022-12-29. `README.md` — which doubles as the format's spec — documents only hit-policy tables. And
+**`safe.md` is referenced by no test**. There is no commit at which it parsed: this is not a
+regression, it is a design someone wrote down, checked in, and never wired to anything that would
+have complained. Worth naming, because the fix for that is a test, not a parser.
+
+### E0 — **do this first.** Four bug fixes that unlock a differential test
+
+Not features; bugs and a papercut. Highest value per line of anything in this document.
+
+> **Scope correction, 2026-07-25.** An earlier version of this section said E0a was the only thing
+> standing between us and a working `-f xml -t l4`. That was wrong. The L4 exporter drove its own
+> DMN 1.3 output through dmnmd and stripped it one construct at a time until a minimal numeric
+> table got through. **There are four blockers, and E0a is the last of them** — the first three are
+> `tDefinitions` unpickling failures that fire *before* any type conversion runs, so fixing E0a
+> alone changes nothing observable.
+
+| #   | symptom (verbatim from dmnmd)                                                                                                                                  | cause                                                                                             |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1   | `xpCheckEmptyContents: unprocessed XML content detected`, `context: element "{…MODEL/}inputData"`, `contents: <variable id="…" name="class" typeRef="string"/>` | `<variable>` is not modelled as a child of `<inputData>` — and `<variable>` is how DMN names an element's value |
+| 2   | `no attribute value found for "label"`, `context: element "{…MODEL/}output"`                                                                                    | dmnmd **requires** `label` on `<output>`; DMN 1.3 makes it **optional**                              |
+| 3   | `xpCheckEmptyContents…`, `contents: <defaultOutputEntry id="…"><text>false<…`                                                                                   | `<defaultOutputEntry>` unmodelled                                                                    |
+| 4   | `dmnmd: Unknown type: "number"` (`src/DMN/XML/XmlToDmnmd.hs:85:31`)                                                                                             | **E0a** below                                                                                        |
+
+Blockers 1–3 are conformance gaps against DMN 1.3 rather than exotic usage: every one of those
+constructs appears in output a standard producer emits. Fix all four or the reader stays unusable
+for real files.
 
 **E0a — `convertType` must cover FEEL's type names** (`src/DMN/XML/XmlToDmnmd.hs:81-85`). Today:
 
@@ -210,12 +321,23 @@ A `DecisionTable` already has a `tableName`. Proposal:
        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ names the table above ⇒ an edge in the DRG
 ```
 
-Notes:
+**This design is confirmed by an author, not invented here** — see §3.1. `test/safe.md` already
+chains its tables exactly this way, and its sibling `test/safe2.dmn` carries the corresponding
+`<informationRequirement>` graph explicitly. Two corrections and three notes follow from that
+evidence.
 
-- Match against **table names**, not output-column names. Output columns collide across tables far
-  more often than table names do, so name-matching on outputs would manufacture spurious edges.
-- **v1 restriction:** only single-output tables can be referenced this way. Multi-output tables
-  need a column selector and that is a second design.
+- **Match against output-column names, not table headings** — this reverses what this spec
+  originally said. The authored convention is that a table named `X` emits a column `X (out)`, and a
+  consumer takes a bare input column `X`. Keying off the output column is what the corpus actually
+  does; keying off the heading breaks on case (`## Safe Event Type` vs the column `SAFE Event Type`).
+  So: **match case-insensitively against output column names**, and report ambiguity rather than
+  silently picking one.
+- **The `(out)` marker is not reliably present.** In `safe.md`, `Liquidity Event` and
+  `Dissolution Event` mark their output `(out)`; `Event Prior to Termination` and `Safe Event Type`
+  leave the final column unmarked; `Result of Termination` marks all seven. Resolution must cope
+  with the unmarked-final-column convention, which the parser already accepts.
+- **v1 restriction:** only single-output tables can be referenced this way. Multi-output tables need
+  a column selector, and that is a second design.
 - Requires cycle detection and a topological evaluation order in `evalTable`'s caller.
 - Report resolved edges under `-v`. Implicit linkage is only acceptable if it is observable.
 - **Fallback if implicit proves too magical in practice:** an explicit per-table `# requires:`
@@ -242,26 +364,70 @@ being used to paper over a hit-policy mistake.
 "unnumbered row" from "the default". Suggest a `row_default :: Bool` or promoting `row_number` to a
 three-way sum.
 
-### E3 — non-table decisions
+### E3 — literal-expression decisions
 
-> **A fenced `feel` code block under a heading is a literal-expression decision named by that heading.**
+DMN's own name for this is a **literal expression**: a decision whose logic is one FEEL expression
+rather than a table. `safe2.dmn` has seven of them; `safe.md` needed all seven and had no notation,
+so it improvised (§3.1). So this is not a feature request against DMN — it is the markdown carrier
+catching up with a construct its source notation has had all along.
 
-````
-## investment limit
+**Adopt the authored form.** It is already in the repo, it is what a transcriber reached for
+unprompted, and it keeps the document uniformly tabular:
 
-```feel
-if either annual income or net worth is less than the cut point
-then max(2500, 0.05 * greater of annual income or net worth)
-else min(0.10 * greater of annual income or net worth, 124000)
 ```
-````
+## Safe Price
 
-This is how a decision that has no table form survives the round trip instead of vanishing. It also
-gives E1 something to point at: a literal-expression decision is a perfectly good DRG node.
+| Safe Price                                                    |
+| ------------------------------------------------------------- |
+| decimal(Post-Money Valuation Cap / Company Capitalization, 4) |
+```
 
-Parsing is cheap — `grepMarkdown` already walks the document looking for tables; it gains a second
-thing to look for. Evaluation is not required in v1: carrying the text faithfully through
-`-t l4` / `-t py` / `-t js` as an opaque expression is most of the value.
+> **A table with exactly one column and exactly one body row is a literal-expression decision:
+> the header cell names it, the body cell is its FEEL expression.**
+
+No new syntax at all — it is a degenerate case of the existing grammar, currently rejected because
+`parseTable` demands a hit-policy column. That is why this is preferable to the fenced-code-block
+form this spec originally proposed: a fenced block is new syntax that solves a problem the corpus
+had already solved.
+
+A literal-expression decision is also a perfectly good DRG node, which is how the two designs meet:
+`Conversion Price` is a literal expression that references `Safe Price` and `Discount Price`, both
+literal expressions themselves.
+
+**Sequencing warning, from §3.1:** accepting the shape is necessary but not sufficient. All eight
+authored bodies are `decimal(…)`, `floor(…)` or `if…then…else`, and `parseFNumFunction` **crashes**
+on function calls (`src/DMN/DecisionTable.hs:151`, uncaught `error`). Land E3 alone and every real
+example fails one stage later, harder. Either do E4 with it, or gate E3 on cell contents it can
+actually parse — and turn that `error` into a diagnostic either way.
+
+### E6 — an input header is an expression, not a name
+
+Found in the corpus, not anticipated by this spec. DMN gives an input column **two** slots:
+
+```
+label           = 'date of event before date of termination?'
+inputExpression = 'date of event < date of SAFE termination'
+```
+
+A markdown header has **one**, and `safe.md`'s author put the expression in it —
+`| U | Safe Terminated | Event Date < Safe Termination Date | … |` — discarding the human-readable
+label. The parser rejects it because `<` is not a legal identifier character.
+
+The reframing matters more than the fix: **every input header is an expression**, and ordinary ones
+like `Safe Terminated` are degenerate expressions that happen to be bare identifiers. "Allow `<` in
+names" would be the wrong repair — it treats the symptom and leaves `Non-Participating` (a hyphen in
+a *cell* value) and `floor(…)` still broken for the same underlying reason.
+
+Two directions, and the choice is a genuine design decision this spec does not make:
+
+1. **Widen headers to expressions**, with the type annotation still available
+   (`Event Date < Safe Termination Date : Boolean`). Simplest, matches what was authored, loses the
+   label.
+2. **Give the header both slots**, e.g. `label ⟨expression⟩` or a `#`-annotation row carrying labels.
+   Faithful to DMN, more syntax, and the format's virtue is having little.
+
+Whoever takes this should look at how much of `README.md`'s existing grammar assumes a header is an
+identifier before choosing.
 
 ### E4 — `DMN_Enum` and `DMN_FEEL`
 
@@ -286,6 +452,13 @@ domains are the difference between a table you can *read* and a table you can *c
 
 ### E5 — provenance by convention, not syntax
 
+> **Qualified 2026-07-25** by the L4 exporter's empirical pass. Provenance is expressible, but
+> more narrowly than stated below: a `#` column's **header must itself be a legal varname**
+> (`parseVarname`: a letter, then `[alnum | space | tab | _]`). So `# ref` works as a header and the
+> citation lives in the cells — but you cannot name a column after the citation, and a header
+> carrying `§`, `(`, `)` or `.` is rejected. The L4 exporter currently emits no provenance at all
+> and reports no note for it; that is an exporter gap, not a format gap.
+
 Provenance is **already expressible**: annotation (`#`) columns carry free text. So this needs no
 format change, only a convention — recommend `# ref` for a citation column, which the L4 exporter
 will populate from `@ref`.
@@ -302,17 +475,29 @@ front-matter is a bigger decision than this spec should make.
 | ---- | ---------- | --------------------------------------------------------------------------------------------------- |
 | E0a  | —          | **hours.** One case-expression arm plus removing an `error`. Unlocks the differential test            |
 | E0b  | —          | small — relax or explain the namespace requirement                                                    |
+| X    | —          | **hygiene, small each.** Wire the fixtures into the test suite; fix the eight-line error-position bug; turn `parseFNumFunction`'s `error` into a diagnostic |
 | E2   | —          | smallest real feature; parser flag + `evalTable` case. Removes a correctness hazard                   |
 | E4   | —          | `DMNType` gains two constructors; touches parser, all four translate backends, `evalTable`            |
-| E3   | —          | `grepMarkdown` learns a second block shape; backends pass the text through                            |
+| E3   | **E4**     | accept the authored one-column form. Alone it just moves the failure one stage later — see §3.1       |
+| E6   | —          | headers become expressions; a real design choice, not a mechanical change                             |
 | E1   | E3 helps   | largest — needs name resolution, cycle detection, evaluation ordering                                 |
 | —    | —          | _optional, separately sized:_ `-t xml` and/or `-t md` writers, or removing them from `FileFormat`     |
 
 **Start with E0a.** It is the smallest change here and the only one that immediately improves
 something outside this repo: it turns dmnmd into a neutral referee for the L4 exporter's two
-backends. E2 and E4 are then independent and self-contained; either is a good second move. E1 is
-the one that changes dmnmd's model of the world — from "a table" to "a graph of tables" — and
-should be last.
+backends.
+
+**Then do X, and do not skip it.** §3.1 establishes that `safe.md` has never parsed at any commit,
+is referenced by no test, and describes a format `README.md` does not document. The parser did not
+regress — nothing was watching. Wiring the fixtures into the suite is what prevents the next
+six-year gap, and it costs less than any feature in this document. The misreported error position
+and the `parseFNumFunction` crash belong in the same pass: both make every downstream failure harder
+to diagnose than it needs to be, and both will otherwise tax whoever does E3.
+
+After that, E2 is independent and self-contained. **E3 must not ship before E4** — its authored
+bodies are all function calls, which is precisely what the cell parser crashes on. E1 is the one
+that changes dmnmd's model of the world — from "a table" to "a graph of tables" — and should be
+last.
 
 ---
 
