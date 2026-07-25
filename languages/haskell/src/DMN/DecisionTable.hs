@@ -12,6 +12,7 @@ import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust )
 import Text.Regex.PCRE ( (=~) )
 import Data.Char (toLower)
+import Text.Read (readMaybe)
 import Debug.Trace ( trace )
 import qualified Data.Text as T
 import qualified Data.Map as Map
@@ -117,9 +118,19 @@ fNEval symtab (FNF3 fnf1 fnop2 fnf3) = let lhs = fromVN (fNEval symtab fnf1)
                                        in VN result
 
 mkFs :: Maybe DMNType -> String -> [FEELexp]
-mkFs dmntype args = do
-  arg <- trim <$> splitOn "," args
-  return (mkF dmntype arg)
+mkFs dmntype args = either error id (mkFsEither dmntype args)
+
+-- | 'mkFs' as a total function.
+--
+-- The markdown reader is happy to die on a malformed cell: it has already told
+-- the user which file and table it was reading. The XML reader is not — it has
+-- to name the table, column and rule, and refuse just that table. So the real
+-- work lives in 'mkFEither' and 'mkF' is the @error@-ing wrapper, which keeps
+-- the markdown path byte-for-byte as it was while giving the XML path something
+-- it can report on. Do not reintroduce a second copy of these guards elsewhere:
+-- a validator that drifts from the constructor is worse than no validator.
+mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
+mkFsEither dmntype args = traverse (mkFEither dmntype) (trim <$> splitOn "," args)
 
 
 -- TODO: add a state monad to allow type inference to span all input rows;
@@ -129,41 +140,53 @@ mkFs dmntype args = do
 -- maybe we use a multi-pass strategy ... where we allow the cells to remain untyped ... and then we review the entire table
 -- after it's been fully parsed once.
 mkF :: Maybe DMNType -> String -> FEELexp
-mkF _ ""  = FAnything
-mkF _ "_" = FAnything
-mkF _ "-" = FAnything
+mkF dmntype arg = either error id (mkFEither dmntype arg)
+
+-- | The single definition of "what does this cell mean, given this column type".
+--
+-- Every failure is a 'Left' carrying a message that names the offending text;
+-- 'mkF' turns those into @error@ (unchanged markdown behaviour), the XML reader
+-- turns them into a located diagnostic. In particular the numeric literals go
+-- through 'readMaybe', so a Number column holding @not("Fall"@ no longer dies
+-- with a bare @Prelude.read: no parse@.
+mkFEither :: Maybe DMNType -> String -> Either String FEELexp
+mkFEither _ ""  = Right FAnything
+mkFEither _ "_" = Right FAnything
+mkFEither _ "-" = Right FAnything
 -- in a numeric column, an FFunction is detected by the presence of an numeric operator
-mkF t@(Just (DMN_List _)) x  = mkF (baseType t) x
-mkF Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type inference should have found some type for this column. coercing to string: " ++ arg1)
-  FNullary (VS (trim arg1))
+mkFEither t@(Just (DMN_List _)) x  = mkFEither (baseType t) x
+mkFEither Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type inference should have found some type for this column. coercing to string: " ++ arg1)
+  Right (FNullary (VS (trim arg1)))
 
 -- strings are tricky because they could be FEEL expression variable names like "Dish Name"
 -- or just literal strings like "Lentil Soup"
 
-mkF (Just DMN_String)  arg1 = FNullary (VS (trim arg1))
-mkF (Just DMN_Boolean) arg1 = FNullary (mkVB arg1)
+mkFEither (Just DMN_String)  arg1 = Right (FNullary (VS (trim arg1)))
+mkFEither (Just DMN_Boolean) arg1 = FNullary <$> mkVB arg1
   where
     mkVB arg
-      | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = VB True
-      | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = VB False
-      | otherwise = error $  "unable to parse an alleged boolean: " ++ arg
-mkF (Just DMN_Number)  arg1
-  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> error $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) FFunction (parseOnly parseFNumFunction (T.pack arg2))
-  | "<=" `isPrefixOf` arg2 = FSection Flte (mkVN $ trim $ drop 2 arg2)
-  | "<"  `isPrefixOf` arg2 = FSection Flt  (mkVN $ trim $ drop 1 arg2)
-  | ">=" `isPrefixOf` arg2 = FSection Fgte (mkVN $ trim $ drop 2 arg2)
-  | ">"  `isPrefixOf` arg2 = FSection Fgt  (mkVN $ trim $ drop 1 arg2)
-  | "<=" `isSuffixOf` arg2 = FSection Fgt  (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | "<"  `isSuffixOf` arg2 = FSection Fgte (mkVN $ trim $ Prelude.take (length arg2 - 1) arg2)
-  | ">=" `isSuffixOf` arg2 = FSection Flt  (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
+      | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = Right (VB True)
+      | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = Right (VB False)
+      | otherwise = Left $  "unable to parse an alleged boolean: " ++ arg
+mkFEither (Just DMN_Number)  arg1
+  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> Left $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) (Right . FFunction) (parseOnly parseFNumFunction (T.pack arg2))
+  | "<=" `isPrefixOf` arg2 = FSection Flte <$> (mkVN $ trim $ drop 2 arg2)
+  | "<"  `isPrefixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ drop 1 arg2)
+  | ">=" `isPrefixOf` arg2 = FSection Fgte <$> (mkVN $ trim $ drop 2 arg2)
+  | ">"  `isPrefixOf` arg2 = FSection Fgt  <$> (mkVN $ trim $ drop 1 arg2)
+  | "<=" `isSuffixOf` arg2 = FSection Fgt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
+  | "<"  `isSuffixOf` arg2 = FSection Fgte <$> (mkVN $ trim $ Prelude.take (length arg2 - 1) arg2)
+  | ">=" `isSuffixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
   | arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: Bool =
     let (_,_,_,bounds) = arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: (String,String,String,[String])
-    in FInRange ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float)
-  | "="  `isPrefixOf` arg2 = FSection Feq  (mkVN $ trim $ dropWhile    (=='=') arg2)
-  | "="  `isSuffixOf` arg2 = FSection Feq  (mkVN $ trim $ dropWhileEnd (=='=') arg2)
-  | otherwise              = FNullary      (mkVN $ trim                        arg2)
+    in Right (FInRange ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float))
+  | "="  `isPrefixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhile    (=='=') arg2)
+  | "="  `isSuffixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhileEnd (=='=') arg2)
+  | otherwise              = FNullary      <$> (mkVN $ trim                        arg2)
   where arg2 = trim arg1 -- probably extraneous
-        mkVN x = VN (read x :: Float)
+        mkVN x = maybe (Left $ "expected a number, but this column is typed Number and the cell reads " ++ show arg2)
+                       (Right . VN)
+                       (readMaybe x :: Maybe Float)
 
 fromVN :: DMNVal -> Float
 fromVN (VN n) = n

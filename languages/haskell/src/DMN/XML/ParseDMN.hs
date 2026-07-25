@@ -21,6 +21,8 @@ import qualified DMN.Types as DT
 import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
 import Data.Void (Void)
+import Data.Maybe (listToMaybe)
+import Data.List (intercalate, nub)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -30,9 +32,6 @@ getEx2 = do
   [ans] <- runX $ removeAllWhiteSpace <<< readDocument [withCheckNamespaces True] "test/simple.dmn"
   pure ans
 
-ignoreContent :: [String] -> PU a -> PU a
-ignoreContent name = xpFilterCont (none `when` foldl1 (<+>) (hasName <$> name))
-
 xmlns_dmn, xmlns_dmndi, xmlns_dc, xmlns_di, xmlns_camunda :: String
 xmlns_dmn = "https://www.omg.org/spec/DMN/20191111/MODEL/"
 xmlns_dmndi = "https://www.omg.org/spec/DMN/20191111/DMNDI/"
@@ -40,19 +39,100 @@ xmlns_dc = "http://www.omg.org/spec/DMN/20180521/DC/"
 xmlns_di = "http://www.omg.org/spec/DMN/20180521/DI/"
 xmlns_camunda = "http://camunda.org/schema/1.0/dmn"
 
+-- | Namespaces of the DMN releases we can recognise. Only 1.3 is readable; the
+-- others exist so that we can say /which/ version we are refusing rather than
+-- failing with a generic unpickling error.
+dmnVersionOfNamespace :: String -> Maybe String
+dmnVersionOfNamespace ns = lookup ns
+  [ ("http://www.omg.org/spec/DMN/20151101/dmn.xsd", "DMN 1.1")
+  , ("http://www.omg.org/spec/DMN/20180521/MODEL/",  "DMN 1.2")
+  , (xmlns_dmn,                                      "DMN 1.3")
+  ]
+
 xpDMNElem :: String -> AnIso' a b -> PU b -> PU a
 xpDMNElem name iso = xpElemNS xmlns_dmn "" name . wrapIso iso
 
 xpDMNDIElem :: String -> AnIso' a b -> PU b -> PU a
 xpDMNDIElem name iso = xpElemNS xmlns_dmndi "dmndi" name . wrapIso iso
 
-withNS :: PU a -> PU a
-withNS =
-  xpAddNSDecl "" xmlns_dmn
-    . xpAddNSDecl "dmndi" xmlns_dmndi
-    . xpAddNSDecl "dc" xmlns_dc
-    . xpAddNSDecl "di" xmlns_di
-    . xpFilterAttr (none `when` hasName "xmlns:camunda")
+-- * Schema-guided ignoring
+--
+-- The picklers below are deliberately strict: an element or attribute that the
+-- DMN 1.3 XSD does not allow in that position makes the whole document fail.
+-- The helpers here exist so that the things the XSD /does/ allow but dmnmd has
+-- no use for (diagram interchange, provenance, foreign extensions) can be
+-- consumed *in their schema position* instead of being waved through by a
+-- blanket filter.
+
+-- | Consume an attribute that the XSD declares here but dmnmd does not model,
+-- and throw its value away. Naming it explicitly keeps every *other* attribute
+-- an error.
+xpIgnoredAttr :: String -> PU a -> PU a
+xpIgnoredAttr name =
+  xpSeq' (xpWrap (const (), const Nothing) . xpOption $ xpAttr name xpText)
+
+xpIgnoredAttrs :: [String] -> PU a -> PU a
+xpIgnoredAttrs names p = foldr xpIgnoredAttr p names
+
+-- | Consume one child element in the DMN namespace, with whatever attributes
+-- and content it happens to carry, and throw it away. Only ever used at a
+-- position where the XSD permits that element.
+xpIgnoredElem :: String -> PU ()
+xpIgnoredElem name =
+  xpElemNS xmlns_dmn "" name . xpFilterAttr none . xpFilterCont none $ xpUnit
+
+-- | @minOccurs="0" maxOccurs="1"@ version of 'xpIgnoredElem'.
+xpIgnoredElemOpt :: String -> PU ()
+xpIgnoredElemOpt name =
+  xpWrap (const (), const Nothing) . xpOption $ xpIgnoredElem name
+
+-- | @minOccurs="0" maxOccurs="unbounded"@ over a substitution group: any run of
+-- children whose local names are in the given list.
+xpIgnoredElemsOf :: [String] -> PU ()
+xpIgnoredElemsOf [] = xpLift ()
+xpIgnoredElemsOf names =
+  xpWrap (const (), const []) . xpList . xpAlt (const 0) $ map xpIgnoredElem names
+
+xpIgnoredElems :: String -> PU ()
+xpIgnoredElems name = xpIgnoredElemsOf [name]
+
+-- | The two children every @tDMNElement@ may carry, in schema order:
+-- @<description>@ and @<extensionElements>@.
+--
+-- Both are dropped. @<description>@ is human-readable annotation that only
+-- 'Rule' makes use of (as a row comment), so 'Rule' parses it explicitly
+-- instead of using this. @<extensionElements>@ is declared
+-- @<xsd:any namespace="##other" processContents="lax"/>@ — the standard itself
+-- says a consumer may ignore it.
+xpDmnAnnotations :: PU ()
+xpDmnAnnotations =
+  xpWrap (const (), const ((), ())) $
+    xpPair (xpIgnoredElemOpt "description") (xpIgnoredElemOpt "extensionElements")
+
+-- | @<extensionElements>@ only, for elements whose @<description>@ we keep.
+xpExtensionElements :: PU ()
+xpExtensionElements = xpIgnoredElemOpt "extensionElements"
+
+-- | Attributes that are XML plumbing rather than DMN content, stripped from the
+-- whole tree before unpickling:
+--
+-- * namespace declarations (@xmlns@, @xmlns:foo@). Once HXT has resolved names
+--   these carry no information, and demanding a fixed set of them (as the old
+--   'xpAddNSDecl' chain did) rejected both minimal files and files carrying one
+--   extra unrelated declaration such as @xsi@.
+-- * attributes in a foreign namespace. @tDMNElement@ ends with
+--   @<xsd:anyAttribute namespace="##other" processContents="lax"/>@, so DMN
+--   itself sanctions ignoring these (@camunda:inputVariable@, @kie:*@ …).
+--
+-- Unprefixed attributes have no namespace and are therefore *not* touched: an
+-- unknown attribute in DMN's own vocabulary is still an error.
+stripIgnorableAttrs :: ArrowXml a => a XmlTree XmlTree
+stripIgnorableAttrs =
+    processTopDown (processAttrl (none `when` (isNsDecl <+> isForeignAttr)) `when` isElem)
+  where
+    isNsDecl      = hasNameWith isNameSpaceName
+    isForeignAttr = hasNameWith $ \qn ->
+      let uri = namespaceUri qn in not (null uri) && uri /= xmlns_dmn
 
 data Description = Description
   { description :: String
@@ -130,11 +210,13 @@ data DMNDI = DMNDI
 
 makePrisms ''DMNDI
 
+-- | Diagram interchange: geometry only, deliberately not modelled. The whole
+-- subtree (and any attributes on it) is discarded.
 instance XmlPickler DMNDI where
   xpickle =
     xpDMNDIElem "DMNDI" _DMNDI
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      . xpFilterCont none -- TODO
+      . xpFilterAttr none
+      . xpFilterCont none
       $ xpickle
 
 -- These can point to some input node (which is kind of useless) or to another table,
@@ -181,11 +263,14 @@ data InformationRequirement = InformationRequirement
 
 makePrisms ''InformationRequirement
 
+-- | @tInformationRequirement@: @description?@, @extensionElements?@, then
+-- exactly one of @requiredDecision@ / @requiredInput@.
 instance XmlPickler InformationRequirement where
   xpickle =
     xpDMNElem "informationRequirement" (_InformationRequirement . pairsIso)
+      . xpIgnoredAttr "label"
     $
-      xpPair xpickle (pcklReqInput xpickle)
+      xpPair xpickle (xpSeq' xpDmnAnnotations (pcklReqInput xpickle))
 
 {-
 	<xsd:simpleType name="tBuiltinAggregator">
@@ -279,6 +364,9 @@ data ColumnLabel = ColumnLabel
 
 makePrisms ''ColumnLabel
 
+-- | @tDMNElement/@label@. DMN 1.3 makes it optional everywhere (XSD line 29,
+-- @use="optional"@), so callers wrap this in 'xpOption'; requiring it here is
+-- what used to reject perfectly legal @<input>@ and @<output>@ clauses.
 instance XmlPickler ColumnLabel where
   xpickle = wrapIso _ColumnLabel $ xpAttr "label" xpText
 
@@ -303,8 +391,10 @@ data TExpr = TExpr
 
 makePrisms ''TExpr
 
+-- | @tExpression@'s attributes: @id@/@label@ (from @tDMNElement@) plus an
+-- optional @typeRef@. @label@ is consumed and dropped.
 instance XmlPickler TExpr where
-  xpickle = wrapIso _TExpr xpickle
+  xpickle = xpIgnoredAttr "label" . wrapIso _TExpr $ xpickle
 
 data ExpressionLanguage = ExpressionLanguage String -- xsd:anyURI
   deriving (Show, Eq)
@@ -322,8 +412,62 @@ data TLiteralExpression = TLiteralExpression
 
 makePrisms ''TLiteralExpression
 
+-- | @tLiteralExpression@: @description?@, @extensionElements?@, then a choice of
+-- @<text>@ or @<importedValues>@ (both optional). We model @<text>@; a literal
+-- expression backed by @<importedValues>@ is rejected rather than silently read
+-- as an empty expression.
 instance XmlPickler TLiteralExpression where
-  xpickle = wrapIso _TLiteralExpression xpickle
+  xpickle =
+    wrapIso _TLiteralExpression $
+      xpTriple
+        xpickle                                    -- TExpr: id/typeRef attrs
+        (xpOption xpickle)                         -- expressionLanguage attr
+        (xpSeq' xpDmnAnnotations (xpOption xpickle))  -- <text>?
+
+-- | @tUnaryTests@ (used by @<inputValues>@, @<outputValues>@, @<inputEntry>@).
+-- Same shape as a literal expression but @<text>@ is required.
+data UnaryTestsBody = UnaryTestsBody
+  { utExpr :: TExpr
+  , utExpressionLanguage :: Maybe ExpressionLanguage
+  , utText :: TextElement
+  }
+  deriving (Show, Eq)
+
+makePrisms ''UnaryTestsBody
+
+instance XmlPickler UnaryTestsBody where
+  xpickle =
+    wrapIso _UnaryTestsBody $
+      xpTriple xpickle (xpOption xpickle) (xpSeq' xpDmnAnnotations xpickle)
+
+-- | @tInputClause/inputValues@ — the declared domain of an input column.
+newtype InputValues = InputValues UnaryTestsBody
+  deriving (Show, Eq)
+
+makePrisms ''InputValues
+
+instance XmlPickler InputValues where
+  xpickle = xpDMNElem "inputValues" _InputValues xpickle
+
+-- | @tOutputClause/outputValues@ — the declared domain of an output column.
+-- Byte-identically unmodelled before this change, which is why a fix aimed only
+-- at @defaultOutputEntry@ would have left it broken.
+newtype OutputValues = OutputValues UnaryTestsBody
+  deriving (Show, Eq)
+
+makePrisms ''OutputValues
+
+instance XmlPickler OutputValues where
+  xpickle = xpDMNElem "outputValues" _OutputValues xpickle
+
+-- | @tOutputClause/defaultOutputEntry@ — the value taken when no rule matches.
+newtype DefaultOutputEntry = DefaultOutputEntry TLiteralExpression
+  deriving (Show, Eq)
+
+makePrisms ''DefaultOutputEntry
+
+instance XmlPickler DefaultOutputEntry where
+  xpickle = xpDMNElem "defaultOutputEntry" _DefaultOutputEntry xpickle
 
 data LiteralExpression = LiteralExpression TLiteralExpression
   deriving (Show, Eq)
@@ -346,10 +490,17 @@ makePrisms ''InputExpression
 instance XmlPickler InputExpression where
   xpickle = xpDMNElem "inputExpression" _InputExpression xpickle
 
+-- | @tInputClause@: @description?@, @extensionElements?@, @inputExpression@
+-- (required), @inputValues?@. Attributes @id@ and @label@ (both optional).
+--
+-- @camunda:inputVariable@ used to need a hand-written filter here; foreign
+-- attributes are now stripped tree-wide by 'stripIgnorableAttrs', which is what
+-- the XSD's @anyAttribute namespace="##other"@ actually calls for.
 data TableInput = TableInput
   { tinpName :: DmnCommon
-  , tinpLabel :: ColumnLabel
+  , tinpLabel :: Maybe ColumnLabel
   , tinpExpr :: InputExpression
+  , tinpValues :: Maybe InputValues
   }
   deriving (Show, Eq)
 
@@ -358,16 +509,22 @@ makePrisms ''TableInput
 instance XmlPickler TableInput where
   xpickle =
     xpDMNElem "input" _TableInput
-      -- . xpFilterAttr (hasName "id" <+> hasName "name" <+> hasName "label")
-      -- . xpFilterAttr (none `when` hasQName (mkQName xmlns_camunda "camunda" "inputVariable"))
-      . xpFilterAttr (none `when` hasName "camunda:inputVariable")
-      $ xpickle
+      $ xp4Tuple
+          xpickle
+          (xpOption xpickle)
+          (xpSeq' xpDmnAnnotations xpickle)
+          (xpOption xpickle)
 
--- tOutputClause in schema
+-- | @tOutputClause@: @description?@, @extensionElements?@, @outputValues?@,
+-- @defaultOutputEntry?@. Attributes @id@, @label@, @name@, @typeRef@ — all
+-- optional (XSD lines 326-339: neither @name@ nor @typeRef@ carries a @use=@,
+-- and @use="optional"@ is the default).
 data TableOutput = TableOutput
   { toutName :: DmnCommon
-  , toutLabel :: ColumnLabel -- Note: This is optional according to the schema, but that doesn't make much sense
-  , toutTypeRef :: TypeRef
+  , toutLabel :: Maybe ColumnLabel
+  , toutTypeRef :: Maybe TypeRef
+  , toutValues :: Maybe OutputValues
+  , toutDefault :: Maybe DefaultOutputEntry
   }
   deriving (Show, Eq)
 
@@ -376,8 +533,12 @@ makePrisms ''TableOutput
 instance XmlPickler TableOutput where
   xpickle =
     xpDMNElem "output" _TableOutput
-      -- . xpFilterCont none -- TODO: Need a test case
-      $ xpickle
+      $ xp5Tuple
+          xpickle
+          (xpOption xpickle)
+          (xpOption xpickle)
+          (xpSeq' xpDmnAnnotations (xpOption xpickle))
+          (xpOption xpickle)
 
 --- $> import Text.XML.HXT.Core
 
@@ -393,12 +554,12 @@ data InputEntry = InputEntry
 
 makePrisms ''InputEntry
 
+-- | @tUnaryTests@ in the @<inputEntry>@ position.
 instance XmlPickler InputEntry where
   xpickle =
     xpDMNElem "inputEntry" _InputEntry
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      -- . xpFilterCont none -- TODO
-      $ xpickle
+      . xpIgnoredAttrs ["label", "typeRef", "expressionLanguage"]
+      $ xpPair xpickle (xpSeq' xpDmnAnnotations xpickle)
 
 data OutputEntry = OutputEntry
   { outputEntryLabel :: DmnCommon
@@ -408,54 +569,92 @@ data OutputEntry = OutputEntry
 
 makePrisms ''OutputEntry
 
+-- | @tLiteralExpression@ in the @<outputEntry>@ position.
 instance XmlPickler OutputEntry where
   xpickle =
     xpDMNElem "outputEntry" _OutputEntry
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      -- . xpFilterCont none -- TODO
-      $ xpickle
+      . xpIgnoredAttrs ["label", "typeRef", "expressionLanguage"]
+      $ xpPair xpickle (xpSeq' xpDmnAnnotations xpickle)
+
+-- | @tRuleAnnotation@ (XSD line 352): the @<annotationEntry>@ that hangs off a
+-- @<rule>@. DMN 1.3's own spelling of a row comment, so 'DMN.XML.XmlToDmnmd'
+-- carries it straight into 'DMN.Types.row_comments'. @<text>@ is @minOccurs=0@.
+newtype AnnotationEntry = AnnotationEntry (Maybe TextElement)
+  deriving (Show, Eq)
+
+makePrisms ''AnnotationEntry
+
+instance XmlPickler AnnotationEntry where
+  xpickle = xpDMNElem "annotationEntry" _AnnotationEntry $ xpOption xpickle
+
+-- | The text of an @<annotationEntry>@, or @""@ if it had no @<text>@ child.
+annotationEntryText :: AnnotationEntry -> String
+annotationEntryText (AnnotationEntry mt) = maybe "" innerText mt
+
+-- | @tRuleAnnotationClause@ (XSD line 338): the column header for one
+-- @<annotationEntry>@ position. Carries a @name@ and nothing else.
+newtype AnnotationClause = AnnotationClause (Maybe String)
+  deriving (Show, Eq)
+
+makePrisms ''AnnotationClause
+
+instance XmlPickler AnnotationClause where
+  xpickle =
+    xpDMNElem "annotation" _AnnotationClause . xpFilterCont none $
+      xpOption (xpAttr "name" xpText)
+
+annotationClauseName :: AnnotationClause -> String
+annotationClauseName (AnnotationClause n) = maybe "" id n
 
 data Rule = Rule
   { ruleLabel :: DmnCommon
   , ruleDescription :: Maybe Description
   , ruleInputEntry :: [InputEntry]
   , ruleOutputEntry :: [OutputEntry] -- TODO: Should be NonEmpty
+  , ruleAnnotations :: [AnnotationEntry]
   }
   deriving (Show, Eq)
 
 makePrisms ''Rule
 
+-- | @tDecisionRule@: @description?@, @extensionElements?@, @inputEntry*@,
+-- @outputEntry+@, @annotationEntry*@. Both @description@ and @annotationEntry@
+-- are kept; they become row comments.
 instance XmlPickler Rule where
   xpickle =
     xpDMNElem "rule" _Rule
-      -- . xpFilterCont none -- TODO
-      -- . xpFilterCont (none `when` hasName "hitPolicy")
-      -- . xpFilterCont (hasName "description" <+> hasName "inputEntry")
-      -- . xpFilterCont (none `when` hasName "outputEntry")
-      $ xpickle
+      . xpIgnoredAttr "label"
+      $ xp5Tuple
+          xpickle
+          (xpOption xpickle)
+          (xpSeq' xpExtensionElements xpickle)
+          xpickle
+          xpickle
 
 data DecisionTable = DecisionTable
   { dtLabel :: DmnCommon,
     dtHitPolicy :: DT.HitPolicy,
     dtInput :: [TableInput],
     dtOutput :: [TableOutput], -- TODO: Should be NonEmpty
+    dtAnnotations :: [AnnotationClause],
     dtRules :: [Rule]
   }
   deriving (Show, Eq)
 
 makePrisms ''DecisionTable
 
+-- | @tDecisionTable@: @description?@, @extensionElements?@, @input*@,
+-- @output+@, @annotation*@, @rule*@.
 instance XmlPickler DecisionTable where
   xpickle =
     xpDMNElem "decisionTable" _DecisionTable
-      -- . xpFilterAttr (hasName "id" <+> hasName "name") -- TODO
-      -- . xpFilterAttr (none `when` hasName "hitPolicy")
-      -- . xpFilterCont none -- TODO
-      $ xp5Tuple
+      . xpIgnoredAttrs ["label", "typeRef", "preferredOrientation", "outputLabel"]
+      $ xp6Tuple
         xpickle
         xpHitPolicy
-        xpickle
+        (xpSeq' xpDmnAnnotations xpickle)
         (xpList1 xpickle)
+        xpickle
         xpickle
 
 data Expression = ExprDTable DecisionTable | ExprLiteral LiteralExpression
@@ -482,25 +681,74 @@ data Decision = Decision
 
 makePrisms ''Decision
 
+-- | @tDecision@: @description?@, @extensionElements?@, @question?@,
+-- @allowedAnswers?@, @variable?@, @informationRequirement*@,
+-- @knowledgeRequirement*@, @authorityRequirement*@, then a run of
+-- @tDMNElementReference@ children, then the decision logic (@expression?@).
+--
+-- The previous version used name-based content filters for @variable@ and
+-- @authorityRequirement@, which accepted them anywhere among the children.
+-- These are positional: an element out of schema order is still an error.
 instance XmlPickler Decision where
   xpickle =
     xpDMNElem "decision" _Decision
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      -- . xpFilterCont none -- TODO
-      . ignoreContent ["authorityRequirement"] -- We don't care about "Authority" which express where rules come from
-      . ignoreContent ["variable"] -- I don't know what this is
-      $ xpickle
+      . xpIgnoredAttr "label"
+      $ xpTriple
+          xpickle
+          (xpSeq' decisionPrelude xpickle)
+          (xpSeq' decisionInterlude xpickle)
+    where
+      decisionPrelude =
+        xpWrap (const (), const ((), ((), ((), ())))) $
+          xpPair
+            xpDmnAnnotations
+            (xpPair
+              (xpIgnoredElemOpt "question")
+              (xpPair (xpIgnoredElemOpt "allowedAnswers") (xpIgnoredElemOpt "variable")))
+      decisionInterlude =
+        xpIgnoredElemsOf
+          [ "knowledgeRequirement", "authorityRequirement"
+          , "supportedObjective", "impactedPerformanceIndicator"
+          , "decisionMaker", "decisionOwner", "usingProcess", "usingTask"
+          ]
 
+-- | @tInformationItem@ in the @<variable>@ position. Parsed but not modelled
+-- beyond its existence — see 'InputData'.
+data InformationItem = InformationItem
+  { iiLabel :: DmnNamed
+  , iiTypeRef :: Maybe TypeRef
+  }
+  deriving (Show, Eq)
+
+makePrisms ''InformationItem
+
+-- | @tInputData@: @description?@, @extensionElements?@, @variable?@.
+--
+-- The @<variable>@ is how DMN names the value an @<inputData>@ node carries, so
+-- real files have one almost always; before this change /any/ child element at
+-- all made the whole document fail to unpickle.
 data InputData = InputData
   { inpLabel :: DmnNamed
+  , inpVariable :: Maybe InformationItem
   }
   deriving (Show, Eq)
 
 makePrisms ''InputData
 
-instance XmlPickler InputData where
-  xpickle = xpDMNElem "inputData" _InputData $ xpickle
+xpVariable :: PU InformationItem
+xpVariable =
+  xpDMNElem "variable" _InformationItem
+    . xpIgnoredAttr "label"
+    $ xpPair xpickle (xpSeq' xpDmnAnnotations (xpOption xpickle))
 
+instance XmlPickler InputData where
+  xpickle =
+    xpDMNElem "inputData" _InputData
+      . xpIgnoredAttr "label"
+      $ xpPair xpickle (xpSeq' xpDmnAnnotations (xpOption xpVariable))
+
+-- | @tKnowledgeSource@: provenance metadata, not decision logic. Consumed
+-- wholesale.
 data KnowledgeSource = KnowledgeSource
   { knsLabel :: DmnNamed
   }
@@ -511,8 +759,8 @@ makePrisms ''KnowledgeSource
 instance XmlPickler KnowledgeSource where
   xpickle =
     xpDMNElem "knowledgeSource" _KnowledgeSource
-      -- . xpFilterAttr (hasName "id" <+> hasName "name")
-      . xpFilterCont none -- TODO
+      . xpIgnoredAttrs ["label", "locationURI"]
+      . xpFilterCont none
       $ xpickle
 
 data Namespace = Namespace { namespace :: String }
@@ -571,17 +819,43 @@ ex3 =
       defDMNDI = Just DMNDI
     }
 
+-- | @tDefinitions@: @description?@, @extensionElements?@, @import*@,
+-- @itemDefinition*@, @drgElement*@, @artifact*@, @elementCollection*@,
+-- @businessContextElement*@, @dmndi:DMNDI?@.
+--
+-- @defInputData@ / @defsDescisions@ / @defDrgElems@ are a greedy split of the
+-- one @drgElement*@ run: leading @<inputData>@, then leading @<decision>@, then
+-- whatever mixture follows. 'DMN.XML.XmlToDmnmd.convertIt' therefore has to look
+-- for decisions in both of the last two.
+--
+-- Namespace declarations are no longer demanded here (see 'stripIgnorableAttrs'):
+-- requiring a fixed set of them rejected minimal DMN 1.3 files that declare only
+-- the model namespace, and also rejected files carrying one extra declaration.
+-- The document is still pinned to DMN 1.3 by 'xpDMNElem', which matches
+-- @definitions@ only in the 1.3 model namespace.
 dmnPickler :: PU XDMN
 dmnPickler =
   xpDMNElem "definitions" _Definitions
-    . withNS
-    -- . xpFilterAttr (getAttrValue _ _)
-    -- . xpSeq' (xpAttr "namespace" xpUnit)  -- Ignore the namespace (I want to do the above though)
-    -- . xpAddFixedAttr "namespace" xmlns_camunda -- Ignore the namespace (I want to do the above though, and make it optional)
-    . ignoreContent ["dmndi"] -- We're not interested in diagrams
-    . ignoreContent ["variable"] -- I don't know what this is
-    . xpFilterAttr (none `when` (hasName "exporter" <+> hasName "exporterVersion") ) -- Used by Camunda Modeler
-    $ xpickle
+    . xpIgnoredAttrs ["label", "expressionLanguage", "typeLanguage", "exporter", "exporterVersion"]
+    $ xp6Tuple
+        xpickle                                  -- id / name attributes
+        xpickle                                  -- namespace attribute
+        (xpSeq' definitionsPrelude xpickle)      -- [InputData]
+        xpickle                                  -- [Decision]
+        xpickle                                  -- [DrgElems]
+        (xpSeq' definitionsEpilogue xpickle)     -- Maybe DMNDI
+  where
+    definitionsPrelude =
+      xpWrap (const (), const ((), ((), ()))) $
+        xpPair
+          xpDmnAnnotations
+          (xpPair (xpIgnoredElems "import") (xpIgnoredElems "itemDefinition"))
+    definitionsEpilogue =
+      xpIgnoredElemsOf
+        [ "association", "textAnnotation"          -- artifact
+        , "elementCollection"
+        , "performanceIndicator", "organizationUnit" -- businessContextElement
+        ]
 
 --     <variable id="InformationItem_1mjp1b5" name="safe price" typeRef="double" />
 
@@ -605,8 +879,77 @@ instance XmlPickler Definitions where
 pickleConfig :: [SysConfig]
 pickleConfig = [withValidate no, withCheckNamespaces yes, withRemoveWS yes, withIndent yes]
 
+-- | Read a DMN 1.3 file, reporting *why* it could not be read.
+--
+-- 'Text.XML.HXT.Arrow.Pickle.xunpickleDocument' swallows unpickling failures:
+-- it prints @fatal error: document unpickling failed@ and yields an empty list,
+-- which is indistinguishable from a valid file containing nothing. Callers then
+-- reported success. Here a failure is a 'Left' that the caller has to deal with.
+parseDMNEither :: FilePath -> IO (Either String [XDMN])
+parseDMNEither filename = do
+  roots <- runX $ readDocument pickleConfig filename
+                    >>> getChildren >>> isElem
+                    >>> stripIgnorableAttrs
+  pure $ case roots of
+    [] ->
+      Left $ filename ++ ": no XML root element found"
+          ++ " (the file is missing, empty, or not well-formed XML)."
+    (root : _) -> do
+      checkDmnRoot filename root
+      case unpickleDoc' dmnPickler root of
+        Left msg -> Left $ filename ++ ": " ++ readerRefusal root ++ "\n" ++ msg
+        Right v  -> Right [v]
+
+-- | Say what actually went wrong.
+--
+-- The document has already been confirmed to be a DMN 1.3 @<definitions>@ by
+-- 'checkDmnRoot', so blaming the version — as this message used to, for every
+-- unpickling failure whatsoever — was simply false. The commonest real cause is
+-- a DRG element that DMN 1.3 permits and dmnmd does not model
+-- (@<businessKnowledgeModel>@, @<decisionService>@ …); name those when they are
+-- present, and otherwise admit that we only have the unpickler's complaint.
+readerRefusal :: XmlTree -> String
+readerRefusal root
+  | not (null unmodelled) =
+      "this is valid DMN 1.3, but it contains "
+        ++ intercalate ", " (map (\n -> "<" ++ n ++ ">") unmodelled)
+        ++ ", which dmnmd does not model. Only <decision>, <inputData> and"
+        ++ " <knowledgeSource> are read."
+  | otherwise = "dmnmd could not read this DMN 1.3 document."
+  where
+    childNames = runLA (getChildren >>> isElem >>> getQName >>> arr localPart) root
+    unmodelled = nub (filter (`elem` unmodelledDrgElements) childNames)
+
+-- | Children of @<definitions>@ that the DMN 1.3 XSD allows but this reader has
+-- no representation for. Listing them is what lets 'readerRefusal' tell the
+-- truth instead of guessing at the version.
+unmodelledDrgElements :: [String]
+unmodelledDrgElements =
+  [ "businessKnowledgeModel", "decisionService" ]
+
+-- | Reject non-DMN-1.3 documents up front, naming what we actually found.
+-- Without this, a DMN 1.1 or 1.2 file (correctly refused) failed with
+-- @xpElem: got element name \"...\"@ deep inside the pickler.
+checkDmnRoot :: FilePath -> XmlTree -> Either String ()
+checkDmnRoot filename root =
+  case listToMaybe (runLA getQName root) of
+    Nothing -> Left $ filename ++ ": XML root element has no name."
+    Just qn
+      | localPart qn /= "definitions" ->
+          Left $ filename ++ ": expected a <definitions> root element, but found <"
+              ++ qualifiedName qn ++ ">."
+      | namespaceUri qn == xmlns_dmn -> Right ()
+      | otherwise ->
+          Left $ filename ++ ": <definitions> is in namespace "
+              ++ show (namespaceUri qn) ++ versionNote
+              ++ ".\ndmnmd reads DMN 1.3 only, i.e. " ++ show xmlns_dmn ++ "."
+      where
+        versionNote = maybe "" (\v -> " (" ++ v ++ ")") (dmnVersionOfNamespace (namespaceUri qn))
+
+-- | Backwards-compatible wrapper: throws in 'IO' on a bad document rather than
+-- returning an empty list.
 parseDMN :: FilePath -> IO [XDMN]
-parseDMN filename = runX $ xunpickleDocument dmnPickler pickleConfig filename
+parseDMN filename = either fail pure =<< parseDMNEither filename
 
 -- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision)
 -- runX $ constA undefined >>> xpickleDTD @_ @() (xpickle :: PU Decision) >>> writeDocumentToString []
