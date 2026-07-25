@@ -132,8 +132,14 @@ regression. `l4 run` exits 0 even on a failed assertion, so the test greps stdou
 - **XML is aspirational.** `--from=xml` parses but imports 0 tables; `--to=xml` is not
   implemented at all, despite `Xml` existing in `FileFormat` and `DMN.XML.*` existing in
   the library. Treat any claim that dmnmd "supports DMN XML" as unverified.
-- **Multi-table Markdown files are unreliable.** The checked-in `test/safe.md` (ten tables)
-  fails to parse at line 75. Producers should emit one table per file.
+- **Multi-table Markdown works — `test/safe.md` is a bad fixture, not a chunking limit.**
+  Its file-level failure is a **missing final newline** (the last byte is `|`); append one
+  and `grepMarkdown` succeeds and 3 of its 13 tables import. Also, the reported position is
+  not where the problem is — the failure surfaces at `75:1` while the defect is at EOF,
+  because `try` backtracks the failed table and the error resurfaces from the fallback
+  parser some lines earlier. **Check for a final newline before trusting a `grepMarkdown`
+  position.** The 10 tables that still fail after the fix are one-column tables that the
+  grammar has no construct for; that is a separate, open gap.
 - The `~/.local/bin/dmnmd` shim on this machine is broken (`libpcre.1.dylib` not loaded);
   run the cabal/stack build output directly.
 - **CI was red from 2025-06-29 until the `feat/translate-l4` CI fixes.** Two stacked
