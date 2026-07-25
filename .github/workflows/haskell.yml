@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     # regex-pcre links against libpcre and finds it via pkg-config; without these
     # the dependency fails to *configure* before any project code is compiled.
@@ -21,16 +21,24 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y pkg-config libpcre3-dev
 
-    - uses: haskell/actions/setup@v2
+    # haskell/actions/setup has been unmaintained since 2023-09-09 and its
+    # 'latest' resolved to stack 2.11.1, whose bundled Hackage TUF keys can no
+    # longer validate the current root.json ("does not have enough signatures
+    # signed with the appropriate keys"), so any package fetch died. Use the
+    # maintained action, which resolves a current stack.
+    - uses: haskell-actions/setup@v2
       with:
         enable-stack: true
         stack-version: 'latest'
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       name: Cache ~/.stack
       with:
         path: ~/.stack
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('languages/haskell/**/package.yaml','languages/haskell/**/stack.yaml.lock') }}
+        # stack.yaml itself belongs in the key: the resolver lives there, so
+        # without it a snapshot bump silently reuses the previous snapshot's cache.
+        key: ${{ runner.os }}-stack-${{ hashFiles('languages/haskell/stack.yaml','languages/haskell/stack.yaml.lock','languages/haskell/package.yaml') }}
+        restore-keys: ${{ runner.os }}-stack-
 
     - name: Install dependencies
       run: |

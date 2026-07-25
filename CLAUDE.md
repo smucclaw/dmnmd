@@ -26,16 +26,14 @@ stack run -- --to=l4 path/to/table.md      # or: stack exec -- dmnmd README.md -
 stack install                               # puts dmnmd on PATH
 ```
 
-Both stack (`stack.yaml`, lts-20.12 / GHC 9.4.4) and cabal (`dist-newstyle/`, GHC 9.10.3)
-are used in practice; `cabal build all && cabal test all` also works. CI runs `stack test`.
+Both stack (`stack.yaml`, lts-24.20) and cabal (`dist-newstyle/`) are used in practice, and
+both are on **GHC 9.10.3 with megaparsec 9.7.0** — keep them aligned. `DMN.Translate.L4`
+imports `Text.Megaparsec.Unicode (isWideChar)`, which does not exist before megaparsec
+9.7.0, so an older resolver silently makes the L4 backend uncompilable under stack while
+cabal keeps working. CI runs `stack test`.
+
 The cabal file is generated from `package.yaml` by hpack — **edit `package.yaml`**, not
 `dmnmd.cabal` (stack regenerates it; a hand-edit to the `.cabal` will be overwritten).
-
-**The two toolchains have diverged.** `DMN.Translate.L4` imports
-`Text.Megaparsec.Unicode (isWideChar)`, which only exists in megaparsec ≥ 9.7.0; lts-20.12
-pins 9.2.2. So the L4 backend builds under cabal (which resolves 9.7.0) but **not** under
-`stack` at the current resolver. Fixing that needs a resolver bump or a
-`megaparsec` extra-dep in `stack.yaml`.
 
 macOS needs `brew install pkg-config pcre` for `regex-pcre` (Linux: `libpcre3-dev`).
 `stack.yaml` also carries a `nix: pure: true` stanza supplying those.
@@ -138,7 +136,9 @@ regression. `l4 run` exits 0 even on a failed assertion, so the test greps stdou
   fails to parse at line 75. Producers should emit one table per file.
 - The `~/.local/bin/dmnmd` shim on this machine is broken (`libpcre.1.dylib` not loaded);
   run the cabal/stack build output directly.
-- **CI has been red since 2025-06-29, on trunk as well as on PRs.** The workflow never
-  installs `libpcre3-dev`/`pkg-config`, so the `regex-pcre` dependency fails to configure
-  on the runner before any project code is compiled. A red check on a PR here is not by
-  itself evidence that the PR broke anything.
+- **CI was red from 2025-06-29 until the `feat/translate-l4` CI fixes.** Two stacked
+  causes, both environmental: the workflow never installed `libpcre3-dev`/`pkg-config` (so
+  `regex-pcre` failed to configure before any project code compiled), and the deprecated
+  `haskell/actions/setup` resolved `latest` to stack 2.11.1, whose bundled Hackage TUF keys
+  can no longer validate `root.json`. If CI goes red again, check whether project code was
+  even reached before assuming a regression.
