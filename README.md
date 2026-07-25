@@ -354,8 +354,6 @@ By default, brevity is 1.
 
 Some linguistic magic happens behind the scenes. Different parameters take different determiners.
 
-See [languages/gf/](languages/gf/) for more.
-
 ### to LegalRuleML
 
 On the roadmap.
