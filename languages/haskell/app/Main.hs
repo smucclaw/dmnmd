@@ -10,7 +10,8 @@ import System.IO
       openFile,
       stdout,
       IOMode(WriteMode) )
-import Control.Monad ( when )
+import Control.Monad ( when, unless )
+import System.Exit ( exitFailure )
 import Data.List.Split (splitOn)
 import Data.List (intercalate, nub)
 
@@ -34,8 +35,8 @@ import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
 import DMN.Translate.L4 ( toL4, L4Opts(..), defaultL4Opts )
 import DMN.Translate.FEELhelpers ( showFeels )
-import DMN.XML.ParseDMN (parseDMN)
-import DMN.XML.XmlToDmnmd (convertAll)
+import DMN.XML.ParseDMN (parseDMNEither)
+import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError)
 
 import Options
     ( ArgOptions(propstyle, verbose, out, pick, query, informat, input,
@@ -118,21 +119,53 @@ crash :: String -> a
 crash = errorWithoutStackTrace
 
 -- | initial parse of input tables. at present the emphasis is on markdown.
+--
+-- The exit status answers exactly one question: did something we were asked to
+-- read fail to read?
+--
+-- * a decision table that did not parse, or a DMN document that did not
+--   unpickle, or a table we refused to convert — nonzero, including when other
+--   tables in the same file were fine. A partial answer presented as a whole
+--   one is the failure mode this is here to prevent.
+-- * a well-formed file that simply contains no decision tables — zero. Prose
+--   markdown, and DMN with no @<decision>@, are legitimate inputs.
 parseTables :: ArgOptions -> IO [DecisionTable]
 parseTables opts = case informat opts of
-  Md -> parseMarkdown opts
+  Md -> do
+    (errs, tables) <- parseMarkdown opts
+    unless (null errs) $ do
+      mapM_ (hPutStrLn stderr . ("error: " ++)) errs
+      hPutStrLn stderr $
+        "dmnmd: " ++ show (length errs) ++ " decision table(s) in "
+          ++ intercalate ", " (input opts) ++ " could not be read"
+          ++ (if null tables then "" else "; refusing to emit the "
+                ++ show (length tables) ++ " that could, because partial output is"
+                ++ " indistinguishable from complete output.")
+      exitFailure
+    pure tables
   Xml -> parseDmnXml opts
   x -> crash $ "Unsupported input format: " ++ show x
              ++ ".\nSupported formats are: 'md' and 'xml'"
 
--- | Not sure if this is actually functional.
+-- | Read DMN XML. An unreadable document is fatal, not an empty table list.
 parseDmnXml :: ArgOptions -> IO [DecisionTable]
 parseDmnXml opts = do
   fileName <- case input opts of
     [fn] -> pure fn
     _ -> crash "Xml currently only supports a single file"
 
-  convertAll <$> parseDMN fileName
+  parsed <- parseDMNEither fileName
+  case parsed of
+    Left err -> crash err
+    Right defs -> do
+      let (diags, tables) = convertAll defs
+      mapM_ (hPutStrLn stderr . (\d -> fileName ++ ": " ++ renderDiagnostic d)) diags
+      when (any isError diags) $ do
+        hPutStrLn stderr $
+          "dmnmd: " ++ fileName ++ ": one or more decision tables were refused"
+            ++ " (see the errors above); nothing was emitted for them."
+        exitFailure
+      pure tables
 
 -- | Transpile decision table to outpu tformats.
 -- This is not quite finished; in future refactor this over to JS.hs

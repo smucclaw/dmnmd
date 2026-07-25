@@ -6,7 +6,7 @@ module DmnXmlSpec where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DMN.XML.ParseDMN
-import DMN.XML.XmlToDmnmd (convertAll)
+import DMN.XML.XmlToDmnmd (convertAll, Diagnostic (..), Severity (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
@@ -41,7 +41,190 @@ xmlSpec = do
     pure ()
   describe "convertIt" $ do
     it "should convert the standard example properly" $
-      convertAll simulationDmn `shouldBe` convertedSimulation
+      snd (convertAll simulationDmn) `shouldBe` convertedSimulation
+  dmn13Spec
+
+-- * DMN 1.3
+--
+-- Every other XML fixture in test/ is DMN 1.1 or 1.2, so none of them ever
+-- reached the DMN 1.3 reader. These do: `baseline` is a known-good file and
+-- each of the others is `baseline` plus exactly one construct that used to make
+-- the whole document fail to unpickle. See test/dmn13/README.md.
+
+dmn13 :: FilePath -> FilePath
+dmn13 name = "test/dmn13/" ++ name ++ ".dmn"
+
+-- | Parse a DMN 1.3 fixture and convert it, failing the example with the
+-- reader's own diagnostic if it could not be read at all.
+readDmn13 :: FilePath -> IO ([Diagnostic], [DT.DecisionTable])
+readDmn13 name = do
+  parsed <- parseDMNEither (dmn13 name)
+  case parsed of
+    Left err   -> expectationFailure err >> pure ([], [])
+    Right defs -> pure (convertAll defs)
+
+-- | Does any diagnostic of the given severity mention this text?
+hasDiag :: Severity -> String -> [Diagnostic] -> Bool
+hasDiag sev needle =
+  any (\d -> diagSeverity d == sev && T.pack needle `T.isInfixOf` T.pack (diagMessage d))
+
+-- | The single decision table every accepting fixture is expected to yield.
+shouldBeAgeBand :: String -> [DT.DecisionTable] -> Expectation
+shouldBeAgeBand outName tables = case tables of
+  [t] -> do
+    tableName t `shouldBe` "Band"
+    hitpolicy t `shouldBe` HP_First
+    map varname (header t) `shouldBe` ["age", outName]
+    map vartype (header t) `shouldBe` [Just DMN_Number, Just DMN_String]
+    map row_outputs (allrows t)
+      `shouldBe` [ [[FNullary (VS "minor")]]
+                 , [[FNullary (VS "adult")]]
+                 , [[FNullary (VS "senior")]]
+                 ]
+  _ -> expectationFailure $ "expected exactly one decision table, got " ++ show (length tables)
+
+dmn13Spec :: Spec
+dmn13Spec = describe "DMN 1.3" $ do
+  describe "accepts" $ do
+    it "the known-good baseline" $ do
+      (warns, tables) <- readDmn13 "baseline"
+      warns `shouldBe` []
+      shouldBeAgeBand "Band" tables
+
+    it "<inputData> carrying <description> and <variable> (B1)" $ do
+      (warns, tables) <- readDmn13 "inputdata-variable"
+      warns `shouldBe` []
+      shouldBeAgeBand "Band" tables
+
+    it "<input>/<output> with no label= and <output> with no typeRef= (B2)" $ do
+      (warns, tables) <- readDmn13 "output-without-label"
+      warns `shouldBe` []
+      -- with no label the output column falls back to its name= attribute,
+      -- and with no typeRef its type is inferred from the cells
+      case tables of
+        [t] -> do
+          map varname (header t) `shouldBe` ["age", "band"]
+          map vartype (header t) `shouldBe` [Just DMN_Number, Just DMN_String]
+        _ -> expectationFailure "expected exactly one decision table"
+
+    it "<output> with a <defaultOutputEntry> (B3)" $ do
+      (warns, tables) <- readDmn13 "default-output-entry"
+      -- dmnmd's DecisionTable has nowhere to put a default output, so the value
+      -- IS lost. That must be said out loud, with the value in the message —
+      -- the alternative is an OTHERWISE arm that quietly contradicts the file.
+      warns `shouldSatisfy` hasDiag Warning "<defaultOutputEntry> \"\\\"unknown\\\"\""
+      warns `shouldNotSatisfy` any ((== Error) . diagSeverity)
+      shouldBeAgeBand "Band" tables
+
+    it "<outputValues> and <inputValues> (B3)" $ do
+      (warns, tables) <- readDmn13 "output-values"
+      warns `shouldBe` []
+      shouldBeAgeBand "Band" tables
+      -- the declared domain is not dropped: it lands in the column's enums,
+      -- which is exactly what dmnmd's own subheader rows populate.
+      case tables of
+        [t] -> map enums (header t)
+          `shouldBe` [ Just [FInRange 0 150]
+                     , Just [FNullary (VS "minor"), FNullary (VS "adult"), FNullary (VS "senior")]
+                     ]
+        _ -> expectationFailure "expected exactly one decision table"
+
+    it "a file declaring only the DMN model namespace (B5)" $ do
+      (warns, tables) <- readDmn13 "minimal-namespaces"
+      warns `shouldBe` []
+      shouldBeAgeBand "Band" tables
+
+    it "extra namespace declarations and foreign-namespace attributes (B5)" $ do
+      (warns, tables) <- readDmn13 "extra-namespace"
+      warns `shouldBe` []
+      shouldBeAgeBand "Band" tables
+
+    it "typeRef=\"number\", the FEEL numeric type (B4)" $ do
+      (warns, tables) <- readDmn13 "feel-number-type"
+      warns `shouldBe` []
+      case tables of
+        [t] -> do
+          map vartype (header t) `shouldBe` [Just DMN_Number, Just DMN_Number]
+          map row_outputs (allrows t)
+            `shouldBe` [ [[FNullary (VN 100)]], [[FNullary (VN 200)]], [[FNullary (VN 150)]] ]
+        _ -> expectationFailure "expected exactly one decision table"
+
+    it "an unrecognised typeRef, refusing the table rather than guessing (B4)" $ do
+      -- Deliberately an Error, not a Warning. An earlier pass inferred the column
+      -- type from the cells here, on the reasoning that an unknown typeRef might be
+      -- a user-defined <itemDefinition> that happens to be a string. Adversarial
+      -- review showed that is the SAME defect as the temporal case: inference can
+      -- settle on String, and `mkF (Just DMN_String)` stores a guard like "< 18"
+      -- verbatim, so every rule becomes an equality test against that literal and
+      -- the generated code can never match — silently, at exit 0. We do not know
+      -- the domain, so we refuse the table and name the type. Widening support is
+      -- a matter of adding the spelling to convertType.
+      (diags, tables) <- readDmn13 "unknown-type"
+      diags  `shouldSatisfy` hasDiag Error "unknown typeRef"
+      tables `shouldBe` []
+
+    it "carries <annotationEntry> text into the row comments" $ do
+      (_, tables) <- readDmn13 "annotations"
+      case tables of
+        [t] -> map row_comments (allrows t)
+          `shouldBe` [ [Just "children", Just "under the age of majority"]
+                     , [Nothing, Just "working age"]
+                     , [Nothing, Just "retired"]
+                     ]
+        _ -> expectationFailure "expected exactly one decision table"
+
+  describe "refuses the table" $ do
+    it "when a column's typeRef is a FEEL temporal type" $ do
+      -- degrading `date` to String would make `< date(\"2020-01-01\")` an
+      -- equality test against that literal text: a table that can never fire.
+      (diags, tables) <- readDmn13 "temporal-type"
+      diags `shouldSatisfy` hasDiag Error "temporal type"
+      tables `shouldBe` []
+
+    it "when a rule carries more <inputEntry> elements than there are columns" $ do
+      (diags, tables) <- readDmn13 "bad-rule-arity"
+      diags `shouldSatisfy` hasDiag Error "<inputEntry>"
+      diags `shouldSatisfy` hasDiag Error "Rule_2"
+      tables `shouldBe` []
+
+    it "when a rule carries no <outputEntry> at all" $ do
+      (diags, tables) <- readDmn13 "bad-rule-no-output"
+      diags `shouldSatisfy` hasDiag Error "<outputEntry>"
+      tables `shouldBe` []
+
+  describe "rejects" $ do
+    let shouldReject name expected = do
+          parsed <- parseDMNEither (dmn13 name)
+          case parsed of
+            Right _  -> expectationFailure $ dmn13 name ++ " should not have been accepted"
+            Left err -> T.pack err `shouldSatisfy` T.isInfixOf (T.pack expected)
+
+    it "a DMN 1.2 document, naming the version" $
+      shouldReject "not-dmn13" "DMN 1.2"
+    it "an element the schema does not allow there" $
+      shouldReject "bad-unknown-element" "unprocessed XML content"
+    it "an attribute in DMN's own vocabulary that the schema does not declare" $
+      shouldReject "bad-unknown-attribute" "unprocessed XML attribute"
+    it "children that are out of schema order" $
+      shouldReject "bad-misordered-child" "unprocessed XML content"
+
+    it "a legal <businessKnowledgeModel>, saying so rather than blaming the version" $ do
+      shouldReject "unsupported-drgelement" "<businessKnowledgeModel>"
+      -- the old message claimed "this is not DMN 1.3", which was simply untrue:
+      -- businessKnowledgeModel is a legal drgElement substitution in the
+      -- vendored XSD. We just do not model it.
+      parsed <- parseDMNEither (dmn13 "unsupported-drgelement")
+      case parsed of
+        Right _ -> expectationFailure "should not have been accepted"
+        Left e -> T.pack e `shouldNotSatisfy` T.isInfixOf "not DMN 1.3"
+
+  describe "FEEL string quoting" $
+    it "does not double-quote a FEEL string literal" $ do
+      -- <text>\"minor\"</text> must land in the IR as VS \"minor\", the same as
+      -- the markdown cell `minor`, so that both readers agree downstream.
+      (_, tables) <- readDmn13 "baseline"
+      concatMap (concatMap concat . map row_outputs . allrows) tables
+        `shouldBe` [FNullary (VS "minor"), FNullary (VS "adult"), FNullary (VS "senior")]
 
 convertedSimulation :: [DT.DecisionTable]
 convertedSimulation =
@@ -72,40 +255,40 @@ convertedSimulation =
           [ DTrow
               { row_number = Just 1,
                 row_inputs =
-                  [ [FNullary (VS "\"Spareribs\"")],
+                  [ [FNullary (VS "Spareribs")],
                     [FNullary (VB True)]
                   ],
-                row_outputs = [[FNullary (VS "\"Aecht Schlenkerla Rauchbier\"")]],
+                row_outputs = [[FNullary (VS "Aecht Schlenkerla Rauchbier")]],
                 row_comments = [Just "Tough Stuff"]
               },
             DTrow
               { row_number = Just 2,
                 row_inputs =
-                  [ [FNullary (VS "\"Stew\"")],
+                  [ [FNullary (VS "Stew")],
                     [FNullary (VB True)]
                   ],
-                row_outputs = [[FNullary (VS "\"Guiness\"")]],
+                row_outputs = [[FNullary (VS "Guiness")]],
                 row_comments = [Nothing]
               },
             DTrow
               { row_number = Just 3,
                 row_inputs =
-                  [ [FNullary (VS "\"Roastbeef\"")],
+                  [ [FNullary (VS "Roastbeef")],
                     [FNullary (VB True)]
                   ],
-                row_outputs = [[FNullary (VS "\"Bordeaux\"")]],
+                row_outputs = [[FNullary (VS "Bordeaux")]],
                 row_comments = [Nothing]
               },
             DTrow
               { row_number = Just 4,
                 row_inputs =
-                  [ [ FNullary (VS "\"Steak\""),
-                      FNullary (VS "\"Dry Aged Gourmet Steak\""),
-                      FNullary (VS "\"Light Salad and a nice Steak\"")
+                  [ [ FNullary (VS "Steak"),
+                      FNullary (VS "Dry Aged Gourmet Steak"),
+                      FNullary (VS "Light Salad and a nice Steak")
                     ],
                     [FNullary (VB True)]
                   ],
-                row_outputs = [[FNullary (VS "\"Pinot Noir\"")]],
+                row_outputs = [[FNullary (VS "Pinot Noir")]],
                 row_comments = [Nothing]
               },
             DTrow
@@ -114,7 +297,7 @@ convertedSimulation =
                   [ [FAnything],
                     [FNullary (VB True)]
                   ],
-                row_outputs = [[FNullary (VS "\"Apple Juice\"")]],
+                row_outputs = [[FNullary (VS "Apple Juice")]],
                 row_comments = [Nothing]
               },
             DTrow
@@ -123,7 +306,7 @@ convertedSimulation =
                   [ [FAnything],
                     [FNullary (VB False)]
                   ],
-                row_outputs = [[FNullary (VS "\"Water\"")]],
+                row_outputs = [[FNullary (VS "Water")]],
                 row_comments = [Nothing]
               }
           ]
@@ -154,6 +337,26 @@ convertedSimulation =
         allrows =
           [ DTrow
               { row_number = Just 1,
+                -- ============================ KNOWN DEFECT ============================
+                -- This is NOT the desired behaviour; it is the current behaviour,
+                -- frozen so that a change to it is noticed.
+                --
+                -- The source cell reads  not("Fall", "Winter", "Spring", "Summer") .
+                -- 'DMN.DecisionTable.mkFs' splits every cell on commas before
+                -- anything looks at what the cell means, so this single FEEL
+                -- negation is shredded into four fragments, two of which have
+                -- unbalanced quotes and parentheses. Nothing downstream can
+                -- reconstruct the negation.
+                --
+                -- Fixing that is the cell-language redesign, deliberately out of
+                -- scope here. What is in scope is that dmnmd now *says so*: the
+                -- reader emits a warning naming the table, column and rule and
+                -- stating that the text is kept verbatim and comma-split. The
+                -- quotes below are therefore intact — a previous attempt stripped
+                -- them from whichever fragments happened to begin and end with
+                -- one, which produced a mixture that looked half-parsed and was
+                -- neither the source text nor a parse of it.
+                -- ======================================================================
                 row_inputs =
                   [ [ FNullary (VS "not(\"Fall\""),
                       FNullary (VS "\"Winter\""),
@@ -162,64 +365,64 @@ convertedSimulation =
                     ],
                     [FSection Fgte (VN 0.0)]
                   ],
-                row_outputs = [[FNullary (VS "\"Instant Soup\"")]],
+                row_outputs = [[FNullary (VS "Instant Soup")]],
                 row_comments = [Just "Default value"]
               },
             DTrow
               { row_number = Just 2,
                 row_inputs =
-                  [ [FNullary (VS "\"Fall\"")],
+                  [ [FNullary (VS "Fall")],
                     [FSection Flte (VN 8.0)]
                   ],
-                row_outputs = [[FNullary (VS "\"Spareribs\"")]],
+                row_outputs = [[FNullary (VS "Spareribs")]],
                 row_comments = [Nothing]
               },
             DTrow
               { row_number = Just 3,
                 row_inputs =
-                  [ [FNullary (VS "\"Winter\"")],
+                  [ [FNullary (VS "Winter")],
                     [FSection Flte (VN 8.0)]
                   ],
-                row_outputs = [[FNullary (VS "\"Roastbeef\"")]],
+                row_outputs = [[FNullary (VS "Roastbeef")]],
                 row_comments = [Nothing]
               },
             DTrow
               { row_number = Just 4,
                 row_inputs =
-                  [ [FNullary (VS "\"Spring\"")],
+                  [ [FNullary (VS "Spring")],
                     [FSection Flte (VN 4.0)]
                   ],
-                row_outputs = [[FNullary (VS "\"Dry Aged Gourmet Steak\"")]],
+                row_outputs = [[FNullary (VS "Dry Aged Gourmet Steak")]],
                 row_comments = [Nothing]
               },
             DTrow
               { row_number = Just 5,
                 row_inputs =
-                  [ [FNullary (VS "\"Spring\"")],
+                  [ [FNullary (VS "Spring")],
                     [FInRange 5.0 8.0]
                   ],
-                row_outputs = [[FNullary (VS "\"Steak\"")]],
+                row_outputs = [[FNullary (VS "Steak")]],
                 row_comments = [Just "Save money"]
               },
             DTrow
               { row_number = Just 6,
                 row_inputs =
-                  [ [ FNullary (VS "\"Fall\""),
-                      FNullary (VS "\"Winter\""),
-                      FNullary (VS "\"Spring\"")
+                  [ [ FNullary (VS "Fall"),
+                      FNullary (VS "Winter"),
+                      FNullary (VS "Spring")
                     ],
                     [FSection Fgt (VN 8.0)]
                   ],
-                row_outputs = [[FNullary (VS "\"Stew\"")]],
+                row_outputs = [[FNullary (VS "Stew")]],
                 row_comments = [Just "Less effort"]
               },
             DTrow
               { row_number = Just 7,
                 row_inputs =
-                  [ [FNullary (VS "\"Summer\"")],
+                  [ [FNullary (VS "Summer")],
                     [FAnything]
                   ],
-                row_outputs = [[FNullary (VS "\"Light Salad and a nice Steak\"")]],
+                row_outputs = [[FNullary (VS "Light Salad and a nice Steak")]],
                 row_comments = [Just "Hey, why not?"]
               }
           ]
@@ -252,12 +455,13 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_07q05jb",
+                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [],
                               dtHitPolicy = HP_Collect Collect_All,
                               dtInput =
                                 [ TableInput
                                     { tinpName = dmnWithId "InputClause_1acmlkd",
-                                      tinpLabel = ColumnLabel {columnLabel = "Dish"},
+                                      tinpLabel = Just ColumnLabel {columnLabel = "Dish"},
+                                      tinpValues = Nothing,
                                       tinpExpr =
                                         InputExpression
                                           ( TLiteralExpression
@@ -274,9 +478,10 @@ simulationDmn =
                                   TableInput
                                     { tinpName = dmnWithId "InputClause_0bo3uen",
                                       tinpLabel =
-                                        ColumnLabel
+                                        Just ColumnLabel
                                           { columnLabel = "Guests with children"
                                           },
+                                      tinpValues = Nothing,
                                       tinpExpr =
                                         InputExpression
                                           ( TLiteralExpression
@@ -294,13 +499,15 @@ simulationDmn =
                               dtOutput =
                                 [ TableOutput
                                     { toutName = dmnLabeled "OuputClause_99999" "beverages",
-                                      toutLabel = ColumnLabel {columnLabel = "Beverages"},
-                                      toutTypeRef = TypeRef {typeRef = "string"}
+                                      toutLabel = Just ColumnLabel {columnLabel = "Beverages"},
+                                      toutTypeRef = Just TypeRef {typeRef = "string"},
+                                      toutValues = Nothing,
+                                      toutDefault = Nothing
                                     }
                                 ],
                               dtRules =
                                 [ Rule
-                                    { ruleLabel = dmnWithId "row-506282952-7",
+                                    { ruleLabel = dmnWithId "row-506282952-7", ruleAnnotations = [],
                                       ruleDescription = Just (Description {description = "Tough Stuff"}),
                                       ruleInputEntry =
                                         [ InputEntry
@@ -320,7 +527,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-8",
+                                    { ruleLabel = dmnWithId "row-506282952-8", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -340,7 +547,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-9",
+                                    { ruleLabel = dmnWithId "row-506282952-9", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -360,7 +567,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-10",
+                                    { ruleLabel = dmnWithId "row-506282952-10", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -380,7 +587,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-11",
+                                    { ruleLabel = dmnWithId "row-506282952-11", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -400,7 +607,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-12",
+                                    { ruleLabel = dmnWithId "row-506282952-12", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -442,12 +649,13 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_040j91i",
+                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [],
                               dtHitPolicy = HP_Unique,
                               dtInput =
                                 [ TableInput
                                     { tinpName = dmnWithId "InputClause_0bbq1z8",
-                                      tinpLabel = ColumnLabel {columnLabel = "Season"},
+                                      tinpLabel = Just ColumnLabel {columnLabel = "Season"},
+                                      tinpValues = Nothing,
                                       tinpExpr =
                                         InputExpression
                                           ( TLiteralExpression
@@ -463,7 +671,8 @@ simulationDmn =
                                     },
                                   TableInput
                                     { tinpName = dmnWithId "InputClause_0pcbpc9",
-                                      tinpLabel = ColumnLabel {columnLabel = "How many guests"},
+                                      tinpLabel = Just ColumnLabel {columnLabel = "How many guests"},
+                                      tinpValues = Nothing,
                                       tinpExpr =
                                         InputExpression
                                           ( TLiteralExpression
@@ -481,13 +690,15 @@ simulationDmn =
                               dtOutput =
                                 [ TableOutput
                                     { toutName = dmnLabeled "OutputClause_0lfar1z" "desiredDish",
-                                      toutLabel = ColumnLabel {columnLabel = "Dish"},
-                                      toutTypeRef = TypeRef {typeRef = "string"}
+                                      toutLabel = Just ColumnLabel {columnLabel = "Dish"},
+                                      toutTypeRef = Just TypeRef {typeRef = "string"},
+                                      toutValues = Nothing,
+                                      toutDefault = Nothing
                                     }
                                 ],
                               dtRules =
                                 [ Rule
-                                    { ruleLabel = dmnWithId "row-884555325-1",
+                                    { ruleLabel = dmnWithId "row-884555325-1", ruleAnnotations = [],
                                       ruleDescription = Just (Description {description = "Default value"}),
                                       ruleInputEntry =
                                         [ InputEntry
@@ -507,7 +718,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-1",
+                                    { ruleLabel = dmnWithId "row-506282952-1", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -527,7 +738,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-2",
+                                    { ruleLabel = dmnWithId "row-506282952-2", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -547,7 +758,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-3",
+                                    { ruleLabel = dmnWithId "row-506282952-3", ruleAnnotations = [],
                                       ruleDescription = Nothing,
                                       ruleInputEntry =
                                         [ InputEntry
@@ -567,7 +778,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-4",
+                                    { ruleLabel = dmnWithId "row-506282952-4", ruleAnnotations = [],
                                       ruleDescription = Just (Description {description = "Save money"}),
                                       ruleInputEntry =
                                         [ InputEntry
@@ -587,7 +798,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-5",
+                                    { ruleLabel = dmnWithId "row-506282952-5", ruleAnnotations = [],
                                       ruleDescription = Just (Description {description = "Less effort"}),
                                       ruleInputEntry =
                                         [ InputEntry
@@ -607,7 +818,7 @@ simulationDmn =
                                         ]
                                     },
                                   Rule
-                                    { ruleLabel = dmnWithId "row-506282952-6",
+                                    { ruleLabel = dmnWithId "row-506282952-6", ruleAnnotations = [],
                                       ruleDescription = Just (Description {description = "Hey, why not?"}),
                                       ruleInputEntry =
                                         [ InputEntry
@@ -634,12 +845,12 @@ simulationDmn =
           ],
         defDrgElems =
           [ DrgInpData
-              (InputData {inpLabel = dmnNamed' "InputData_0rin549" "Season"}),
+              (InputData {inpLabel = dmnNamed' "InputData_0rin549" "Season", inpVariable = Nothing}),
             DrgInpData
-              ( InputData {inpLabel = dmnNamed' "InputData_1axnom3" "Number of Guests"}
+              ( InputData {inpLabel = dmnNamed' "InputData_1axnom3" "Number of Guests", inpVariable = Nothing}
               ),
             DrgInpData
-              ( InputData {inpLabel = dmnNamed' "InputData_0pgvdj9" "Guests with children?"}
+              ( InputData {inpLabel = dmnNamed' "InputData_0pgvdj9" "Guests with children?", inpVariable = Nothing}
               ),
             DrgKS
               ( KnowledgeSource

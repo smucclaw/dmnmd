@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="hireDate" name="Hire Date"
+             namespace="https://example.org/dmnmd/test/hireDate">
+  <inputData id="InputData_hired" name="Hired"/>
+  <decision id="Decision_vesting" name="Vesting">
+    <decisionTable id="DecisionTable_vesting" hitPolicy="FIRST">
+      <input id="Input_hired" label="Hired">
+        <inputExpression id="InputExpression_hired" typeRef="date">
+          <text>hired</text>
+        </inputExpression>
+      </input>
+      <output id="Output_vested" name="vested" label="Vested" typeRef="string"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>&lt; date("2020-01-01")</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"fully"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>-</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"partly"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
