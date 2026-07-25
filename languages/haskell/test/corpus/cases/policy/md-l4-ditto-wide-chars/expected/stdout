@@ -1,0 +1,10 @@
+GIVEN Merchant IS A STRING
+      Guests   IS A NUMBER
+GIVETH A NUMBER
+Wide Merchant Guests MEANS
+  BRANCH
+    IF Merchant EQUALS "中村⌚" AND Guests <= 8 THEN 10
+    IF ^        ^      ^        ^   ^      >  ^ THEN 20
+    IF ^        ^      "Ac❤"    ^   ^      ^  ^ THEN 30
+    OTHERWISE 40
+

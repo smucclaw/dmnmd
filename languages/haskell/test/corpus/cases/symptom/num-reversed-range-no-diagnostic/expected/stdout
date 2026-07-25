@@ -1,0 +1,9 @@
+export function ReversedRange ( Age : number ) {
+  if ((8.0 <= Age && Age <= 5.0)) { // 1
+    return {"Band":"inrange"};
+  }
+  else if ("default") { // 2
+    return {"Band":"other"};
+  }
+}
+

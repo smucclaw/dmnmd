@@ -1,0 +1,10 @@
+export function Dish ( season : string ) {
+  if ((season === "not(\"Fall\"" || season === "\"Winter\"" || season === "\"Spring\"" || season === "\"Summer\")")) { // 1
+    return {"Dish":"Instant Soup"};
+    // Default value
+  }
+  else if (season === "Fall") { // 2
+    return {"Dish":"Spareribs"};
+  }
+}
+

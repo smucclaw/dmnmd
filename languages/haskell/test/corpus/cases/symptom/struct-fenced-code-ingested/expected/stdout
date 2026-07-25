@@ -1,0 +1,6 @@
+export function Documentation ( Bad : string ) {
+  if (Bad === "x") { // 1
+    return {"Wrong":true};
+  }
+}
+

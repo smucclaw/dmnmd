@@ -1,0 +1,1 @@
+input.dmn: warning: table "Band": the <annotation> column names ("why", "source") are dropped. Each rule's <annotationEntry> text is kept, as a row comment, but dmnmd has no place to record which annotation column it came from.

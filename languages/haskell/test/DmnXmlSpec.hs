@@ -349,7 +349,12 @@ convertedSimulation =
                 -- reconstruct the negation.
                 --
                 -- Fixing that is the cell-language redesign, deliberately out of
-                -- scope here. What is in scope is that dmnmd now *says so*: the
+                -- scope here. The same defect is recorded, with its full stdout /
+                -- stderr / exit-status behaviour, at
+                --   test/corpus/cases/symptom/xml-comma-split-negation
+                -- and the expectation below is expected to change when that corpus
+                -- case changes. See test/corpus/README.md for the symptom/policy
+                -- distinction. What is in scope here is that dmnmd now *says so*: the
                 -- reader emits a warning naming the table, column and rule and
                 -- stating that the text is kept verbatim and comma-split. The
                 -- quotes below are therefore intact — a previous attempt stripped

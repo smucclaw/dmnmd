@@ -1,0 +1,12 @@
+export function Declared ( Season : string, Member : boolean ) {
+  if (Season === "Fall" && Member === true) { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if (Season === "Fall" && Member === false) { // 2
+    return {"Dish":"Stew"};
+  }
+  else if (Season === "Winter") { // 3
+    return {"Dish":"Roastbeef"};
+  }
+}
+

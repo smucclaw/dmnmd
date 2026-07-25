@@ -1,0 +1,3 @@
+# policy/xml-baseline-13/input.dmn with one extra namespace declaration
+# (xmlns:camunda) added to <definitions>. Everything else is identical, so the
+# expected stdout must match that case's byte for byte.

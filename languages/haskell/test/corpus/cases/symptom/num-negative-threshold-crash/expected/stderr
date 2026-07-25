@@ -1,0 +1,12 @@
+dmnmd: error: parsing suspected function expression >= -5: 1:1:
+  |
+1 | >= -5
+  | ^^^^^
+unexpected ">= -5"
+expecting "False", "True", "false", "no", "true", "yes", '"', '(', 'f', 'n', 't', 'y', digit, or letter
+
+CallStack (from HasCallStack):
+  error, called at src/DMN/DecisionTable.hs:121:28 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:121:28 in dmnmd:DMN.DecisionTable
+
+

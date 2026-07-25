@@ -1,0 +1,12 @@
+export function Wildcards ( Season : string, Guests : number ) {
+  if (Season === "Fall" && Guests <= 8.0) { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if (Season === "Winter") { // 2
+    return {"Dish":"Soup"};
+  }
+  else if ("default") { // 3
+    return {"Dish":"Takeaway"};
+  }
+}
+

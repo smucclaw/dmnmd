@@ -1,0 +1,8 @@
+def PyBackend ( Season, Guests ) :
+  if (Season == "Fall" and Guests <= 8.0): # 1
+    return {"Dish":"Spareribs"};
+
+  elif ("default"): # 2
+    return {"Dish":"Takeaway"};
+
+

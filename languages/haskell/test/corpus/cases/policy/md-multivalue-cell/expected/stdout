@@ -1,0 +1,9 @@
+export function MultiValue ( Season : string ) {
+  if ((Season === "Fall" || Season === "Winter")) { // 1
+    return {"Dish":"Roastbeef"};
+  }
+  else if ((Season === "Spring" || Season === "Summer")) { // 2
+    return {"Dish":"Salad"};
+  }
+}
+

@@ -1,0 +1,2 @@
+# policy/xml-baseline-13/input.dmn with the self-closing <inputData/> expanded
+# to carry a child <variable> element.

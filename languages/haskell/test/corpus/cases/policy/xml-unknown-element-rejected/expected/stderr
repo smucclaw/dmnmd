@@ -1,0 +1,5 @@
+dmnmd: input.dmn: dmnmd could not read this DMN 1.3 document.
+xpCheckEmptyContents: unprocessed XML content detected
+context:    element "{https://www.omg.org/spec/DMN/20191111/MODEL/}decisionTable"
+contents:   <sparkline id="Nope_1"/><rule id="Rule_1"><description>children</description><in...
+

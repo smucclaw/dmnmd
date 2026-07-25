@@ -1,0 +1,9 @@
+export function BooleanYesNo ( Smokes : boolean ) {
+  if (Smokes === true) { // 1
+    return {"Premium":200.0};
+  }
+  else if (Smokes === false) { // 2
+    return {"Premium":100.0};
+  }
+}
+

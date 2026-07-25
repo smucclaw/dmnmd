@@ -1,0 +1,6 @@
+
+error: "input.dmn" (line 5, column 15):
+unexpected illegal end tag </definitions> found, </decisionTable> expected
+
+dmnmd: input.dmn: no XML root element found (the file is missing, empty, or not well-formed XML).
+

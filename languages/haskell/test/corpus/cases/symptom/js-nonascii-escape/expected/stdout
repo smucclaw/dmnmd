@@ -1,0 +1,9 @@
+export function NonAscii ( Dish : string ) {
+  if (Dish === "Fish & Chips") { // 1
+    return {"Verdict":"ok"};
+  }
+  else if (Dish === "n/a (see \167\&5)") { // 2
+    return {"Verdict":"unknown"};
+  }
+}
+

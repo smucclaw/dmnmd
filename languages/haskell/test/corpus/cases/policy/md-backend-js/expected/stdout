@@ -1,0 +1,9 @@
+export function JsBackend ( props ) {
+  if (props["Season"] === "Fall" && props["Guests"] <= 8.0) { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if ("default") { // 2
+    return {"Dish":"Takeaway"};
+  }
+}
+

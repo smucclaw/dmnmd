@@ -1,0 +1,9 @@
+export function ProductCode ( Code : number ) {
+  if (Code === 7.0) { // 1
+    return {"Price":100.0};
+  }
+  else if (Code === 42.0) { // 2
+    return {"Price":200.0};
+  }
+}
+

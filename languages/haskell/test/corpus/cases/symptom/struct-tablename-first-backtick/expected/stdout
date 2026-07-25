@@ -1,0 +1,12 @@
+export function F ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Stew"};
+  }
+}
+
+export function README.md ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Cost":10.0};
+  }
+}
+

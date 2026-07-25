@@ -1,0 +1,7 @@
+export function Ann ( Season : string, Guest_Count : number ) {
+  if (Season === "Fall" && Guest_Count > 8.0) { // 1
+    return {"Dish":"Stew"};
+    // why not
+  }
+}
+

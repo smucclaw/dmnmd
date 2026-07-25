@@ -1,0 +1,9 @@
+export function DupRightmost ( Dish : string ) {
+  if (Dish === "Stew") { // 1
+    return {"Season":"Fall", "Season":"Wet"};
+  }
+  else if (Dish === "Roast") { // 2
+    return {"Season":"Winter", "Season":"Dry"};
+  }
+}
+

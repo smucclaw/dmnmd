@@ -1,0 +1,9 @@
+export function DeclaredString ( Guest_Count : string ) {
+  if (Guest_Count === "<= 8") { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if (Guest_Count === "> 8") { // 2
+    return {"Dish":"Stew"};
+  }
+}
+

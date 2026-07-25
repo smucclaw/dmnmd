@@ -1,0 +1,9 @@
+export function VersionSupport ( Version : number ) {
+  if (Version === 1.1) { // 1
+    return {"Status":"ended"};
+  }
+  else if (Version === 1.1) { // 2
+    return {"Status":"active"};
+  }
+}
+

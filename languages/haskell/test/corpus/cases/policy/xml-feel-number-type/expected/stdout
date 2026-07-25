@@ -1,0 +1,13 @@
+export function Band ( age : number ) {
+  if (age < 18.0) { // 1
+    return {"Premium":100.0};
+    // children
+  }
+  else if ((18.0 <= age && age <= 65.0)) { // 2
+    return {"Premium":200.0};
+  }
+  else if (age > 65.0) { // 3
+    return {"Premium":150.0};
+  }
+}
+

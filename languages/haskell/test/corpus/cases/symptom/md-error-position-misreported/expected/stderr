@@ -1,0 +1,8 @@
+error: input.md: parser failure in grepMarkdown: 9:1:
+  |
+9 | | U | Season | Dish (out) |
+  | ^
+unexpected '|'
+expecting End of line or end of input
+
+dmnmd: 1 decision table(s) in input.md could not be read

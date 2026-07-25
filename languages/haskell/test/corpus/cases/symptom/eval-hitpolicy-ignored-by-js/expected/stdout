@@ -1,0 +1,9 @@
+export function CollectSum ( Age : number ) {
+  if ("default") { // 1
+    return {"Fee":10.0};
+  }
+  if (Age < 18.0) { // 2
+    return {"Fee":5.0};
+  }
+}
+

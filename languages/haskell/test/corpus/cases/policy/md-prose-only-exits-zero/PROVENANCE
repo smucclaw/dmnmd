@@ -1,0 +1,7 @@
+# copied from languages/haskell/test/golden/README.md.
+#
+# It used to be read in place, via ARGS='--to=ts test/golden/README.md' and
+# WORKDIR='pkg'. That made it the only case in the corpus coupled to a file
+# somebody else might edit, contradicting the self-containment rule in
+# ../../../README.md. Editing test/golden/README.md would have silently moved a
+# POLICY recording.

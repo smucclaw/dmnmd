@@ -1,3 +1,29 @@
+.PHONY: ghcid-tests tests-watch ghcid sync-golden corpus corpus-policy corpus-list corpus-record
+
+# ---------------------------------------------------------------- behavioural corpus
+#
+# test/corpus/ records what dmnmd actually does today, one small input per verified
+# defect, classified symptom (should change) or policy (must not). See
+# test/corpus/README.md. It shells out to the built binary and does NOT build, so
+# `cabal build` first. It is deliberately not part of `cabal test`; the README says
+# why.
+#
+#   make corpus         every case; nonzero only on a POLICY divergence
+#   make corpus-policy  just the regression net — the one to put in CI
+#   make corpus-list    what is in there
+#   make corpus-record  re-record expectations. Read the diff before you do this.
+
+corpus:
+	./test/corpus/run-corpus.sh
+
+corpus-policy:
+	./test/corpus/run-corpus.sh --class policy
+
+corpus-list:
+	./test/corpus/run-corpus.sh --list
+
+corpus-record:
+	./test/corpus/run-corpus.sh --record
 
 ghcid-tests:
 	ghcid --command "stack ghci dmnmd:lib dmnmd:test:dmnmd-test --ghci-options=-fobject-code" --allow-eval --test main

@@ -1,0 +1,1 @@
+input.dmn: warning: table "Dish": input column "season": rule "Rule_1": "not(\"Fall\", \"Winter\", \"Spring\", \"Summer\")" is not a FEEL string literal, nor a comma-separated list of them. dmnmd keeps the text as written — quotes included — and splits it on commas, which is wrong for anything more structured than a literal.

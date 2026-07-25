@@ -1,0 +1,9 @@
+GIVEN Season IS A STRING
+      Guests IS A NUMBER
+GIVETH A STRING
+L4Backend Season Guests MEANS
+  BRANCH
+    IF Season EQUALS "Fall" AND Guests <= 8 THEN "Spareribs"
+    IF ^      ^      ^      ^   ^      >  ^ THEN "Stew"
+    OTHERWISE "Takeaway"
+
