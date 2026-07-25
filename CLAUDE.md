@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Latitude
+
+Per the author: dmnmd was written in a matter of weeks and **has never run in anger**. Bugs and
+bitrot are expected rather than surprising, and rearchitecting, redesigning and refactoring are
+explicitly welcome — do not contort a fix to preserve an existing shape that was never load-bearing.
+Fix root causes rather than patching symptoms.
+
+Two things this does *not* license, both from `BUILD-SPEC-dmnmd-extensions.md` §6: do not extend the
+**markdown format** speculatively (every extension must survive "would a lawyer still recognise this
+as a table?"), and this is not becoming a general DMN implementation. The latitude is about the
+implementation, not the language surface.
+
 ## What this is
 
 `dmnmd` is a CLI that reads DMN decision tables written as Markdown pipe tables and
@@ -125,13 +137,48 @@ the hand-written `test/golden/miles-card.l4`. Without that binary those examples
 regression. `l4 run` exits 0 even on a failed assertion, so the test greps stdout for
 `assertion satisfied` / `assertion failed`.
 
+## Diagnostics and exit status
+
+One rule governs both readers:
+
+> Anything we parse but do not yet honour must produce a loud, located diagnostic. Never
+> silently discard. Accepting input and quietly giving a different answer is strictly worse
+> than rejecting it.
+
+So `DMN.XML.XmlToDmnmd` returns `([Diagnostic], [DecisionTable])` rather than calling
+`error`. A `Warning` means something was dropped and says what (`<defaultOutputEntry>`, the
+`<annotation>` column names, a cell that is not a plain FEEL literal). An `Error` means a
+table could not be represented faithfully — a temporal `typeRef`, a rule whose entry count
+disagrees with the column count, a cell that cannot be built at the column's type — and
+that table is **not emitted**, because a table that can never match, or one whose rules have
+been silently widened, is a wrong answer that exits 0.
+
+The exit status answers exactly one question: *did something we were asked to read fail to
+read?*
+
+| input | status |
+|---|---|
+| valid DMN 1.3 with decision tables | 0 |
+| valid DMN 1.3 with no `<decision>` (`test/simple.dmn`) | 0 |
+| markdown with decision tables | 0 |
+| markdown with no decision tables — prose, or prose pipe tables (`test/golden/README.md`) | 0 |
+| malformed XML, or DMN 1.1/1.2 | 1 |
+| a table refused by the converter | 1 |
+| markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
+
+A pipe table whose top-left cell is not a hit policy is prose, not a broken decision table:
+`ParseMarkdown.isDecisionTable` asks `parseHitPolicy` itself, skips the chunk, and says so
+on stderr as a `note:`. That is why a README full of documentation tables exits 0.
+
 ## Known-broken, don't be surprised
 
 `BUILD-SPEC-dmnmd-extensions.md` §1 records probes against the current tree:
 
-- **XML is aspirational.** `--from=xml` parses but imports 0 tables; `--to=xml` is not
-  implemented at all, despite `Xml` existing in `FileFormat` and `DMN.XML.*` existing in
-  the library. Treat any claim that dmnmd "supports DMN XML" as unverified.
+- **`--from=xml` reads DMN 1.3 only; `--to=xml` is not implemented at all**, despite `Xml`
+  existing in `FileFormat`. The reader is deliberately strict — an element or attribute the
+  vendored `xsd/DMN13.xsd` does not allow in that position is an error, and a DMN 1.1/1.2
+  document is refused by namespace with a message naming the version. Fixtures live in
+  `test/dmn13/`; its README says which refusal each one exercises.
 - **Multi-table Markdown works — `test/safe.md` is a bad fixture, not a chunking limit.**
   Its file-level failure is a **missing final newline** (the last byte is `|`); append one
   and `grepMarkdown` succeeds and 3 of its 13 tables import. Also, the reported position is
@@ -140,8 +187,6 @@ regression. `l4 run` exits 0 even on a failed assertion, so the test greps stdou
   parser some lines earlier. **Check for a final newline before trusting a `grepMarkdown`
   position.** The 10 tables that still fail after the fix are one-column tables that the
   grammar has no construct for; that is a separate, open gap.
-- The `~/.local/bin/dmnmd` shim on this machine is broken (`libpcre.1.dylib` not loaded);
-  run the cabal/stack build output directly.
 - **CI was red from 2025-06-29 until the `feat/translate-l4` CI fixes.** Two stacked
   causes, both environmental: the workflow never installed `libpcre3-dev`/`pkg-config` (so
   `regex-pcre` failed to configure before any project code compiled), and the deprecated

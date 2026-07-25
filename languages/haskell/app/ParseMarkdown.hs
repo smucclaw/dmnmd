@@ -10,11 +10,13 @@ import Data.Maybe ( catMaybes, fromMaybe )
 
 -- import Debug.Trace
 
+import Data.Either (isRight)
+
 import DMN.Types ( DecisionTable )
-import DMN.ParseTable ( parseTable )
+import DMN.ParseTable ( parseTable, parseHitPolicy, pipeSeparator )
 
 import Text.Megaparsec
-    ( MonadParsec(try, eof), satisfy, manyTill, many, (<?>), (<|>) )
+    ( MonadParsec(try, eof), takeRest, satisfy, manyTill, many, (<?>), (<|>) )
 import Text.Megaparsec.Char ( char )
 import DMN.ParsingUtils
     ( Parser,
@@ -30,23 +32,30 @@ import DMN.ParsingUtils
 import qualified Data.Text as T
 
 import Options ( ArgOptions(input, verbose) )
-import Data.Foldable (Foldable(toList))
-
--- | monadic concatMap.
--- TODO: Use ListT or this thing
-concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
-concatMapM f xs = fmap concat $ mapM f xs
 
 -- | parse input markdown file.
-parseMarkdown :: ArgOptions -> IO [DecisionTable]
+--
+-- Returns the parse errors alongside the tables. They used to go to stderr and
+-- nowhere else, so a file that failed to parse was indistinguishable from a file
+-- with nothing in it, and @dmnmd@ exited 0 either way. Printing them is now the
+-- caller's job — this function printing them too is what made every failure
+-- appear twice.
+--
+-- A returned error means a decision table did not parse. It does not mean "no
+-- decision tables here": a prose document, with or without pipe tables in it,
+-- is a perfectly good input that happens to contain nothing to transpile, and
+-- comes back as @([], [])@.
+parseMarkdown :: ArgOptions -> IO ([String], [DecisionTable])
 parseMarkdown opts1 = do
   let infiles = input opts1
-  mydtchunks <- concatMapM (fileChunks opts1) (zip [1..] infiles)
-  mydtables <- concatMapM (parseChunk opts1) mydtchunks
-  return mydtables
+  chunkResults <- mapM (fileChunks opts1) (zip [1..] infiles)
+  let (chunkErrs, mydtchunks) = (concatMap fst chunkResults, concatMap snd chunkResults)
+  tableResults <- mapM (parseChunk opts1) mydtchunks
+  let (tableErrs, mydtables) = (concatMap fst tableResults, concatMap snd tableResults)
+  return (chunkErrs ++ tableErrs, mydtables)
 
   where
-    fileChunks :: ArgOptions -> (Int, FilePath) -> IO InputChunks
+    fileChunks :: ArgOptions -> (Int, FilePath) -> IO ([String], [(FilePath, InputChunk)])
     fileChunks opts (inum,infile) = do
       mylog opts $ "* opening file: " ++ infile
       -- NOTE: Lazy IO
@@ -54,9 +63,10 @@ parseMarkdown opts1 = do
       inlines <- if infile == "-" then getContents else readFile infile
       let rawchunksEither = parseOnly (grepMarkdown ("f"++show inum) <?> "grepMarkdown") (T.pack inlines)
 
-      whenLeft rawchunksEither 
-        (\errstr -> myerr opts $ "** parser failure in grepMarkdown: " ++ errstr)
-      return $ either (const []) id rawchunksEither
+      case rawchunksEither of
+        Left errstr ->
+          pure ([infile ++ ": parser failure in grepMarkdown: " ++ errstr], [])
+        Right chunks -> pure ([], [(infile, c) | c <- chunks])
 
     myerr :: ArgOptions -> String -> IO ()
     myerr _ = hPutStrLn stderr
@@ -64,24 +74,47 @@ parseMarkdown opts1 = do
     mylog :: ArgOptions -> String -> IO ()
     mylog opts msg = when (verbose opts) $ myerr opts msg
 
-    parseChunk :: ArgOptions -> InputChunk -> IO [DecisionTable]
-    parseChunk opts mychunk
-     | chunkLines mychunk == ["|]"] = pure [] -- special case, sometimes |] closes a quasiquotation block
+    parseChunk :: ArgOptions -> (FilePath, InputChunk) -> IO ([String], [DecisionTable])
+    parseChunk opts (infile, mychunk)
+     | chunkLines mychunk == ["|]"] = pure ([], []) -- special case, sometimes |] closes a quasiquotation block
+     -- A pipe table whose top-left cell is not a hit policy is not a decision
+     -- table; markdown files are full of ordinary prose tables. Skipping one is
+     -- not an error — but it is not silent either, or a typo'd hit policy would
+     -- make a real table vanish without a word.
+     | not (isDecisionTable mychunk) = do
+         myerr opts $ "note: " ++ infile ++ ": skipping the pipe table under "
+           ++ show (chunkName mychunk)
+           ++ ": its top-left cell is not a DMN hit policy (one of U A P F O R C),"
+           ++ " so this is prose rather than a decision table."
+         pure ([], [])
      | otherwise = do
       let parseResult = parseOnly (parseTable (chunkName mychunk) <?> "parseTable")
             $ T.pack $ unlines $ chunkLines mychunk
-      let printParseError myPTfail =
-            myerr opts $
-              "** failed to parse table " ++ chunkName mychunk ++ "   :ERROR:\nat " ++ myPTfail
+      case parseResult of
+        Left myPTfail ->
+          pure ([infile ++ ": failed to parse table " ++ chunkName mychunk ++ " at " ++ myPTfail], [])
+        Right t -> pure ([], [t])
 
-      whenLeft parseResult printParseError
-      pure $ toList parseResult
-
-whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
-whenLeft val onLeft =
-      case val of
-        Left e -> onLeft e
-        Right _ -> return ()
+-- | Does this chunk claim to be a decision table?
+--
+-- Asked of the real parser, not of a lookalike: the top-left cell of a dmnmd
+-- decision table is its hit policy, so we run 'parseHitPolicy' at exactly the
+-- position 'parseHeaderRow' would. Nothing here inspects characters by hand.
+-- | Is this pipe-table chunk a decision table, or prose that happens to be tabular?
+--
+-- The test is the FIRST TWO TOKENS OF 'parseHeaderRow' ITSELF — @pipeSeparator@,
+-- @parseHitPolicy@, @pipeSeparator@ — so a chunk is classified by the real grammar
+-- rather than by a proxy for it. The closing 'pipeSeparator' is the load-bearing
+-- part: 'parseHitPolicy' consumes a SINGLE character, so without it the test
+-- accepts any first cell that merely STARTS with a hit-policy letter, and
+-- @| file | role | provenance |@ (a documentation table in test/golden/README.md)
+-- is read as an @F@ table on the \"f\" of \"file\".
+isDecisionTable :: InputChunk -> Bool
+isDecisionTable mychunk = case chunkLines mychunk of
+  (firstline : _) ->
+    isRight $ parseOnly (pipeSeparator *> parseHitPolicy <* pipeSeparator <* takeRest)
+                        (T.pack firstline)
+  [] -> False
 
 -- * parsing support
 -- | the markdown parser deals with InputChunks, which tracks the chunk name and lines
@@ -95,9 +128,14 @@ data InputChunk = InputChunk
 -- in future, consider grabbing the tables out of Pandoc -- maybe this would be better off as a JSON filter?
 
 -- | look for relevant table sections in the markdown file
+--
+-- @many@, not @many1@: a markdown file with no pipe tables in it at all is a
+-- well-formed document that happens to contain nothing for us, not a parse
+-- failure. Requiring at least one table is what made every prose file in this
+-- repo exit 1.
 grepMarkdown :: String -> Parser InputChunks
 grepMarkdown defaultName = do
-  mytables <- many1 (try (grepTable defaultName) <?> "grepTable")
+  mytables <- many (try (grepTable defaultName) <?> "grepTable")
   (many irrelevantLine >> eof)
   return $ catMaybes mytables
 
