@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, LambdaCase #-}
 
 {-| Tests for the DMN -> L4 backend ("DMN.Translate.L4").
 
@@ -24,7 +24,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.List (isInfixOf)
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, findExecutable)
+import System.Environment (lookupEnv)
 import System.Process (readProcessWithExitCode)
 import Test.Hspec
 import Text.RawString.QQ
@@ -173,8 +174,24 @@ milesOpts = L4Opts
   , emitAsserts   = False
   }
 
-l4bin :: FilePath
-l4bin = "/Users/mengwong/.local/bin/l4"
+-- | Locate the external @l4@ toolchain that backs the semantic gate. Honours
+-- @$L4_BIN@ first (so a non-PATH build can be pointed at explicitly), else looks
+-- @l4@ up on @PATH@.
+findL4 :: IO (Maybe FilePath)
+findL4 = lookupEnv "L4_BIN" >>= \case
+  Just p  -> pure (Just p)
+  Nothing -> findExecutable "l4"
+
+-- | Run an example that needs the @l4@ toolchain, or mark it pending when the
+-- binary is absent. l4 is NOT a build dependency of dmnmd (the emitter is a pure
+-- @DecisionTable -> String@ function), and it does not exist on the CI runner, so
+-- a missing toolchain must not be reported as an emitter regression. Everything
+-- else in this module is pure and always runs.
+withL4 :: (FilePath -> Expectation) -> Expectation
+withL4 act = findL4 >>= \case
+  Just l4bin -> act l4bin
+  Nothing    -> pendingWith
+    "no l4 toolchain found: set $L4_BIN or put `l4` on PATH to run the semantic gate"
 
 goldenInput :: FilePath
 goldenInput = "test/golden/miles-card-dmn.md"
@@ -346,7 +363,7 @@ l4Spec = do
       (T.pack "THEN \"HIGH\"" `T.isInfixOf` beforeLow) `shouldBe` True
 
   describe "DMN.Translate.L4.toL4 — wide-character ditto alignment (bug 4)" $
-    it "a CJK guard value keeps the ^ grid aligned so unmatched input returns the catch-all" $ do
+    it "a CJK guard value keeps the ^ grid aligned so unmatched input returns the catch-all" $ withL4 $ \l4bin -> do
       let emitted = "§ `t`\n\nIMPORT prelude\n\n"
                  ++ toL4 milesOpts (parse "t" cjkTable)
                  ++ "\n#EVAL t \"\x4e2d\" 999 \"zzz\"\n"
@@ -361,7 +378,7 @@ l4Spec = do
       runLog `shouldSatisfy` (not . ("\"b\"" `isInfixOf`)) -- the miscopied arm must NOT fire
 
   describe "dmnmd --to=l4 golden (Option A — semantic, not byte-exact)" $
-    it "miles-card emitter output typechecks and the golden #ASSERTs all pass" $ do
+    it "miles-card emitter output typechecks and the golden #ASSERTs all pass" $ withL4 $ \l4bin -> do
       md <- TIO.readFile goldenInput
       let blocks = pipeBlocks md
       length blocks `shouldSatisfy` (>= 2)

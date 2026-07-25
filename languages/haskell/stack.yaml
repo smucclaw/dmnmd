@@ -46,6 +46,14 @@ packages:
 # - MissingH-1.4.3.0
 # - fadno-xml-1.1.3@sha256:2f097d297a85db5e607467fd5d08c314e8e3297d4feb78a736745855418a362c,1391
 
+extra-deps:
+# DMN.Translate.L4 imports Text.Megaparsec.Unicode (isWideChar) to measure the
+# ditto grid in the SAME column units the L4 lexer uses. That module first
+# appears in megaparsec 9.7.0; lts-20.12 pins 9.2.2, so the L4 backend does not
+# compile under the bare resolver. Keep this pin in step with whatever version
+# the cabal build resolves.
+- megaparsec-9.7.0
+
 # Override default flag values for local packages and extra-deps
 # flags: {}
 
