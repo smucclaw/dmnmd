@@ -32,6 +32,7 @@ import DMN.DecisionTable
     ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF )
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
+import DMN.Translate.L4 ( toL4, L4Opts(..), defaultL4Opts )
 import DMN.Translate.FEELhelpers ( showFeels )
 import DMN.XML.ParseDMN (parseDMN)
 import DMN.XML.XmlToDmnmd (convertAll)
@@ -40,7 +41,7 @@ import Options
     ( ArgOptions(propstyle, verbose, out, pick, query, informat, input,
                  outformat),
       parseOptions,
-      FileFormat(Py, Md, Xml, Js, Ts) )
+      FileFormat(Py, Md, Xml, Js, Ts, L4) )
 import ParseMarkdown (parseMarkdown)
 
 -- | read DMN ASCII tables out of a Markdown file, and do useful things with it:
@@ -149,8 +150,9 @@ outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
 outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts))  dtable
-outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype 
-                                   ++ ".\nSupported output formats are 'ts', 'js' and 'py'"
+outputTo h L4 _opts dtable = hPutStrLn h $ toL4 defaultL4Opts dtable
+outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype
+                                   ++ ".\nSupported output formats are 'ts', 'js', 'py' and 'l4'"
 
 myOutHandle :: FilePath -> IO Handle
 myOutHandle h = if h == "-" then return stdout else openFile h WriteMode

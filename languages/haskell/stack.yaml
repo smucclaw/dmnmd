@@ -17,7 +17,11 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-20.12
+# lts-24.20 == GHC 9.10.3 + megaparsec 9.7.0, matching what the cabal build
+# already resolves. DMN.Translate.L4 needs Text.Megaparsec.Unicode (isWideChar),
+# which first appears in megaparsec 9.7.0; the previous lts-20.12 pinned 9.2.2,
+# so the L4 backend simply did not compile under stack.
+resolver: lts-24.20
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.

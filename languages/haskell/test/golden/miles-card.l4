@@ -1,0 +1,230 @@
+§ `Miles-Card Routing — golden L4 reference`
+
+-- Hand-written golden OUTPUT for the dmnmd `--to=l4` transpiler.
+-- Source of truth (test INPUT): docs/miles-card-dmn.md — two DMN decision tables.
+-- Demonstrates BRANCH (First-hit decision → arm order + OTHERWISE) and the
+-- ditto operator `^` (copies the token in the same column on the line above).
+--
+-- Transpiler mapping, for reference:
+--   decision table          -> GIVEN/GIVETH function
+--   each rule               -> one BRANCH arm, in table order (hit policy F)
+--   `-` (wildcard) column   -> condition omitted from the arm
+--   multi-value cell A,B,C   -> membership predicate (ditto-flattened OR-chain)
+--   numeric `> 0` / `<= 0`  -> GREATER THAN 0 / AT MOST 0
+--   the final `-` catch-all -> OTHERWISE
+
+IMPORT prelude
+
+§§ `Domain`
+
+DECLARE Category IS ONE OF
+    `GroceriesPhysical`
+    `GroceriesOnline`
+    `foodpanda`
+    `Shopee`
+    `OtherOnline`
+    `Dining`
+    `ContactlessTap`
+    `SimplyGo`
+    `TeslaCharging`
+    `RideHailing`
+    `Streaming`
+    `FastFood`
+    `MYR`
+    `StarHub`
+    `Other`
+
+DECLARE PaymentMethod IS ONE OF
+    `Online`
+    `MobileWallet`
+    `PhysicalContactless`
+    `Amaze`
+
+DECLARE Card IS ONE OF
+    `DBS yuu`
+    `PAssion Debit`
+    `Woman's World`
+    `HSBC Revolution`
+    `UOB Preferred`
+    `Citi Rewards`
+    `SC Smart`
+    `PRVI`
+
+DECLARE Recommendation HAS
+    card IS A Card
+    mpd  IS A STRING
+
+GIVEN theCard IS A Card
+      theMpd  IS A STRING
+GIVETH A Recommendation
+mkRec theCard theMpd MEANS Recommendation WITH
+    card IS theCard
+    mpd  IS theMpd
+
+§§ `Merchant groups (ditto-flattened membership)`
+
+GIVEN merchant IS A STRING
+GIVETH A BOOLEAN
+`is a yuu grocer` merchant MEANS
+       merchant EQUALS "Cold Storage"
+   OR  ^        ^      "CS Fresh"
+   OR  ^        ^      "Jasons"
+   OR  ^        ^      "Giant"
+
+GIVEN merchant IS A STRING
+GIVETH A BOOLEAN
+`is a streaming service` merchant MEANS
+       merchant EQUALS "Netflix"
+   OR  ^        ^      "Disney+"
+   OR  ^        ^      "Spotify"
+   OR  ^        ^      "Viu"
+
+GIVEN merchant IS A STRING
+GIVETH A BOOLEAN
+`is a fast food chain` merchant MEANS
+       merchant EQUALS "McDonald's"
+   OR  ^        ^      "KFC"
+   OR  ^        ^      "Starbucks"
+   OR  ^        ^      "Ya Kun"
+
+§§ `Category groups (ditto-flattened membership)`
+
+GIVEN category IS A Category
+GIVETH A BOOLEAN
+`is yuu eligible` category MEANS
+       category EQUALS `GroceriesPhysical`
+   OR  ^        ^      `foodpanda`
+   OR  ^        ^      `SimplyGo`
+   OR  ^        ^      `TeslaCharging`
+
+GIVEN category IS A Category
+GIVETH A BOOLEAN
+`is yuu food` category MEANS
+       category EQUALS `GroceriesPhysical`
+   OR  ^        ^      `foodpanda`
+
+GIVEN category IS A Category
+GIVETH A BOOLEAN
+`is online four-mpd` category MEANS
+       category EQUALS `GroceriesOnline`
+   OR  ^        ^      `Shopee`
+   OR  ^        ^      `OtherOnline`
+   OR  ^        ^      `StarHub`
+
+GIVEN category IS A Category
+GIVETH A BOOLEAN
+`is dining or ride` category MEANS
+       category EQUALS `Dining`
+   OR  ^        ^      `RideHailing`
+
+GIVEN category IS A Category
+GIVETH A BOOLEAN
+`is streaming or fast food` category MEANS
+       category EQUALS `Streaming`
+   OR  ^        ^      `FastFood`
+
+GIVEN paymentMethod IS A PaymentMethod
+GIVETH A BOOLEAN
+`is wallet or online` paymentMethod MEANS
+       paymentMethod EQUALS `Online`
+   OR  ^             ^      `MobileWallet`
+
+§§ `Categorize  (DMN First-hit → BRANCH; ditto on the merchant runs)`
+
+GIVEN merchant IS A STRING
+      mcc      IS A NUMBER
+      channel  IS A STRING
+      currency IS A STRING
+GIVETH A Category
+`categorize` merchant mcc channel currency MEANS
+  BRANCH
+    IF   currency EQUALS "MYR"                                    THEN `MYR`
+    IF   `is a yuu grocer` merchant  AND  channel EQUALS "inPerson"
+                                                                 THEN `GroceriesPhysical`
+    IF   merchant EQUALS "foodpanda"                              THEN `foodpanda`
+    IF   ^        ^      "Charge+"                                THEN `TeslaCharging`
+    IF   ^        ^      "SimplyGo"                               THEN `SimplyGo`
+    IF   mcc EQUALS 4111  OR  mcc EQUALS 4112                     THEN `SimplyGo`
+    IF   `is a streaming service` merchant                        THEN `Streaming`
+    IF   (mcc EQUALS 4899 OR mcc EQUALS 5815)  AND  channel EQUALS "online"
+                                                                 THEN `Streaming`
+    IF   `is a fast food chain` merchant                          THEN `FastFood`
+    IF   mcc EQUALS 5814                                          THEN `FastFood`
+    IF   mcc EQUALS 5812  OR  mcc EQUALS 5813                     THEN `Dining`
+    IF   mcc EQUALS 4121                                          THEN `RideHailing`
+    IF   merchant EQUALS "RedMart"                                THEN `GroceriesOnline`
+    IF   mcc EQUALS 5411  AND  channel EQUALS "online"            THEN `GroceriesOnline`
+    IF   merchant EQUALS "Shopee"                                 THEN `Shopee`
+    IF   ^        ^      "StarHub"                                THEN `StarHub`
+    IF   channel EQUALS "online"                                  THEN `OtherOnline`
+    IF   (mcc EQUALS 5311 OR mcc EQUALS 5411 OR mcc EQUALS 5611 OR mcc EQUALS 5651)  AND  channel EQUALS "inPerson"
+                                                                 THEN `ContactlessTap`
+    OTHERWISE `Other`
+
+§§ `CardToUse  (DMN First-hit → BRANCH)`
+
+GIVEN category         IS A Category
+      paymentMethod    IS A PaymentMethod
+      yuuRemaining     IS A NUMBER
+      passionRemaining IS A NUMBER
+      fourMpdRemaining IS A NUMBER
+GIVETH A Recommendation
+`card to use` category paymentMethod yuuRemaining passionRemaining fourMpdRemaining MEANS
+  BRANCH
+    IF   `is yuu eligible` category  AND  yuuRemaining GREATER THAN 0
+         THEN mkRec `DBS yuu` "10"
+    IF   `is yuu eligible` category  AND  yuuRemaining AT MOST 0
+                                     AND  passionRemaining GREATER THAN 0
+         THEN mkRec `PAssion Debit` "5"
+    IF   `is yuu food` category      AND  `is wallet or online` paymentMethod
+                                     AND  fourMpdRemaining GREATER THAN 0
+         THEN mkRec `Woman's World` "4"
+    IF   category EQUALS `SimplyGo`
+         THEN mkRec `SC Smart` "6% cb"
+    IF   `is yuu food` category  OR  category EQUALS `TeslaCharging`
+         THEN mkRec `PRVI` "1.4"
+    IF   `is online four-mpd` category  AND  fourMpdRemaining GREATER THAN 0
+         THEN mkRec `Woman's World` "4"
+    IF   `is dining or ride` category   AND  fourMpdRemaining GREATER THAN 0
+         THEN mkRec `HSBC Revolution` "4"
+    IF   category EQUALS `ContactlessTap`  AND  paymentMethod EQUALS `MobileWallet`
+                                           AND  fourMpdRemaining GREATER THAN 0
+         THEN mkRec `UOB Preferred` "4"
+    IF   category EQUALS `ContactlessTap`  AND  paymentMethod EQUALS `PhysicalContactless`
+                                           AND  fourMpdRemaining GREATER THAN 0
+         THEN mkRec `HSBC Revolution` "4"
+    IF   category EQUALS `ContactlessTap`  AND  paymentMethod EQUALS `Amaze`
+                                           AND  fourMpdRemaining GREATER THAN 0
+         THEN mkRec `Citi Rewards` "4"
+    IF   `is streaming or fast food` category
+         THEN mkRec `SC Smart` "6% cb"
+    IF   category EQUALS `MYR`  AND  passionRemaining GREATER THAN 0
+         THEN mkRec `PAssion Debit` "~4.5"
+    IF   category EQUALS `MYR`  AND  passionRemaining AT MOST 0
+         THEN mkRec `PRVI` "2.4"
+    IF   category EQUALS `Other`
+         THEN mkRec `PRVI` "1.4 / 2.4"
+    OTHERWISE mkRec `PRVI` "1.4"
+
+§§ `Tests`
+
+#EVAL `categorize` "Cold Storage" 5411 "inPerson" "SGD"
+#ASSERT (`categorize` "Cold Storage" 5411 "inPerson" "SGD") EQUALS `GroceriesPhysical`
+#ASSERT (`categorize` "foodpanda"    0    "online"   "SGD") EQUALS `foodpanda`
+#ASSERT (`categorize` "Anyone"       4121 "inPerson" "SGD") EQUALS `RideHailing`
+#ASSERT (`categorize` "Anyone"       0    "inPerson" "MYR") EQUALS `MYR`
+
+-- yuu pool has room → DBS yuu at 10
+#ASSERT (`card to use` `GroceriesPhysical` `MobileWallet` 800 500 1000)'s card EQUALS `DBS yuu`
+-- yuu spent, passion has room → PAssion at 5
+#ASSERT (`card to use` `GroceriesPhysical` `MobileWallet` 0 500 1000)'s card EQUALS `PAssion Debit`
+-- yuu + passion spent, wallet, 4-mpd room → Woman's World
+#ASSERT (`card to use` `GroceriesPhysical` `MobileWallet` 0 0 1000)'s card EQUALS `Woman's World`
+-- physical-contactless grocery overflow → PRVI (no in-person 4-mpd earner)
+#ASSERT (`card to use` `GroceriesPhysical` `PhysicalContactless` 0 0 1000)'s card EQUALS `PRVI`
+-- in-person tap resolves by rail
+#ASSERT (`card to use` `ContactlessTap` `MobileWallet`        0 0 1000)'s card EQUALS `UOB Preferred`
+#ASSERT (`card to use` `ContactlessTap` `PhysicalContactless` 0 0 1000)'s card EQUALS `HSBC Revolution`
+#ASSERT (`card to use` `ContactlessTap` `Amaze`               0 0 1000)'s card EQUALS `Citi Rewards`
+-- streaming → SC Smart regardless of meters
+#ASSERT (`card to use` `Streaming` `Online` 0 0 0)'s card EQUALS `SC Smart`

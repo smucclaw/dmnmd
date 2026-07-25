@@ -77,3 +77,5 @@ tests:
     # - -Wall
     dependencies:
     - dmnmd
+    - directory   # TranslateL4Spec: createDirectoryIfMissing for test/golden/.out
+    - process     # TranslateL4Spec: readProcessWithExitCode to shell out to l4

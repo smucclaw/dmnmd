@@ -131,7 +131,24 @@ maybeHeaderLines = do
 maybeHeaderLine :: Parser (Maybe String)
 maybeHeaderLine = do
   foundLine <- try orgNameLine <|> try (headerLine <?> "header line") <|> (irrelevantLine <?> "irrelevant line")
-  return $ Data.List.takeWhile (/=':') <$> foundLine
+  return $ cleanTableName <$> foundLine
+
+-- | Reduce a markdown heading to a clean table name. Headings in the wild look
+-- like @`Categorize` — hit policy `F`@; the table name is the first backticked
+-- token (@Categorize@). Falls back to the text before the first @:@ (org-style
+-- @#+NAME:@ payloads and plain headings) when there are no backticks.
+cleanTableName :: String -> String
+cleanTableName s =
+  case betweenBackticks s of
+    Just name -> name
+    Nothing   -> trimSpaces (Data.List.takeWhile (/= ':') s)
+  where
+    betweenBackticks str = case dropWhile (/= '`') str of
+      ('`':rest) -> case span (/= '`') rest of
+                      (name, '`':_) | not (null (trimSpaces name)) -> Just (trimSpaces name)
+                      _                                            -> Nothing
+      _ -> Nothing
+    trimSpaces = f . f where f = reverse . dropWhile (`elem` (" \t" :: String))
 
 -- | deal with a header line
 headerLine :: Parser (Maybe String)

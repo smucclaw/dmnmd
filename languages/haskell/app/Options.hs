@@ -55,7 +55,7 @@ detectInformat :: ArgOptions -> ArgOptions
 detectInformat opts = opts { informat = detectFormat (input opts) (informat opts)}
 
 -- | supported formats include typescriot and python
-data FileFormat = Ts | Js | Py | Xml | Md | Unknown
+data FileFormat = Ts | Js | Py | Xml | Md | L4 | Unknown
   deriving (Show, Eq)
 
 -- | A file format option
@@ -70,7 +70,8 @@ parseFileFormat = OA.eitherReader $ \case
     "py" -> return Py
     "md" -> return Md
     "xml" -> return Xml
-    _    -> Left "Accepted file types are 'ts', 'js', 'py', 'xml', and 'md'."
+    "l4" -> return L4
+    _    -> Left "Accepted file types are 'ts', 'js', 'py', 'xml', 'md', and 'l4'."
 
 -- | from file extension string to internal types
 fileExtensionMappings :: [(String, FileFormat)]
@@ -80,6 +81,7 @@ fileExtensionMappings =
   , (".py", Py)
   , (".dmn", Xml)
   , (".md", Md)
+  , (".l4", L4)
   ]
 
 -- | opposite direction
