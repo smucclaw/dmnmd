@@ -109,7 +109,10 @@ entry in `app/Options.hs`; an `outputTo` clause in `app/Main.hs`; the module und
 
 The newest and most constrained backend. `BUILD-SPEC-dmnmd-to-l4.md` is its design source
 of truth and the code's comments cite its sections (§1.2, §3, §9.6…) — read the spec section
-before changing behaviour it pins.
+before changing behaviour it pins. That spec is **discharged**: it is retained because the
+section numbers are load-bearing in `L4.hs`'s comments, not because anything in it is still
+to be done. Its imperative sections 4 and 5 describe work already completed. It carries a
+status header saying so.
 
 - Emits `GIVEN`/`GIVETH` + a first-match `BRANCH` closed by a synthesized `OTHERWISE`.
   Multi-output tables get a `DECLARE` record plus a `mk<Name>` constructor.
@@ -224,7 +227,9 @@ baseline. `--record` checks them all before writing anything.
 
 ## Known-broken, don't be surprised
 
-`BUILD-SPEC-dmnmd-extensions.md` §1 records probes against the current tree:
+`BUILD-SPEC-dmnmd-extensions.md` §1 recorded probes against the tree **as of 2026-07-25**, and
+PR #17 has since moved several of them — treat it as history, not as current behaviour, and
+prefer `test/corpus/`, which is machine-checked. The items below are current:
 
 - **`--from=xml` reads DMN 1.3 only; `--to=xml` is not implemented at all**, despite `Xml`
   existing in `FileFormat`. The reader is deliberately strict — an element or attribute the

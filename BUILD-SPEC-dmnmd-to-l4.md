@@ -1,6 +1,30 @@
 # BUILD SPEC — `dmnmd --to=l4` (BRANCH + ditto) and the l4-ide ditto codegen tweak
 
-Status: design / build plan. Two coordinated deliverables across two repos.
+> ## Status: **DISCHARGED — retained as reference, not as a plan**
+>
+> Both parts shipped. Part A is `languages/haskell/src/DMN/Translate/L4.hs` (merged in PR #15);
+> Part B is `jl4-core/src/L4/Print/Columnar.hs` in `legalese/l4-ide`. The golden round-trip of
+> §7 exists as `languages/haskell/test/TranslateL4Spec.hs`.
+>
+> **This document is kept because the code cites it.** `L4.hs` refers to numbered sections of
+> this spec in more than twenty comments (§1.2, §1.4, §3, §8, §9.6 …), so the section numbers
+> are load-bearing: deleting the file orphans those references, and renumbering breaks them.
+> Read the cited section before changing behaviour it pins.
+>
+> **Do not read the imperative voice below as current intent.** Where it says "CREATE",
+> "MODIFY" or "wired into `stack test`", that describes work already done, and in one case
+> done differently: the test suite now runs under `cabal test`, dmnmd having become
+> cabal-only. Sections 4 and 5 are a record of how the code got its shape, not a to-do list.
+>
+> Known drift, not worth rewriting the body for:
+> - §4.4 says to modify `dmnmd.cabal`; that is now correct, but was not while the file was
+>   generated from `package.yaml` by hpack.
+> - §7's `stack test` is `cabal test`.
+> - §1.6 defers Collect to "v1.1". It is still deferred, and deliberately: `L4.hs` `error`s on
+>   the list-valued hit policies rather than collapsing them to a scalar `BRANCH`, which is
+>   pinned by `test/corpus/cases/policy/md-l4-refuses-collect`.
+
+Two coordinated deliverables across two repos.
 
 - **Part A — dmnmd:** a new `--to=l4` backend that transpiles a DMN decision table to L4
   source text, emitting a `BRANCH` expression with column-aligned **ditto (`^`)**.
