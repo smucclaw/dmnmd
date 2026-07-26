@@ -1,0 +1,6 @@
+export function HexLiteral ( Code : number ) {
+  if (Code === 16.0) { // 1
+    return {"Name":"sixteen"};
+  }
+}
+

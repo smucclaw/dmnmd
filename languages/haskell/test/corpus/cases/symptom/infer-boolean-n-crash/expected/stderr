@@ -1,0 +1,6 @@
+dmnmd: unable to parse an alleged boolean: n
+CallStack (from HasCallStack):
+  error, called at src/DMN/DecisionTable.hs:143:26 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:143:26 in dmnmd:DMN.DecisionTable
+
+

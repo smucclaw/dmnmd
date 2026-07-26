@@ -54,3 +54,25 @@ jobs:
       run: |
         stack test
       working-directory: languages/haskell
+
+    # The behavioural corpus (test/corpus/) is the regression net for the
+    # cell-language rewrite. It records what dmnmd actually does today — stdout,
+    # stderr and exit status — one small input per verified defect, and labels every
+    # case 'policy' (behaviour we have declared correct; a diff is a regression) or
+    # 'symptom' (behaviour that is wrong and should change; a diff is progress).
+    #
+    # It sits outside `stack test` on purpose — test/corpus/README.md gives the
+    # reasons — which means that without this step nothing automated would ever
+    # notice a policy regression, and the net would only fire when somebody
+    # remembered to run it by hand.
+    #
+    # `make corpus` runs every case but exits nonzero only for a policy regression or
+    # a case with no recording. Symptom diffs are printed and are expected to appear
+    # here as the grammar is replaced; they are information, not failure.
+    #
+    # The runner does not build. `stack build` above populates stack's local install
+    # root, which is the third entry in the runner's binary search order.
+    - name: Behavioural corpus
+      run: |
+        make corpus
+      working-directory: languages/haskell

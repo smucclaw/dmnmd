@@ -1,0 +1,9 @@
+export function Arithmetic ( Age : number ) {
+  if (Age < 18.0) { // 1
+    return {"Fee":(Age * 2.0)};
+  }
+  else if ("default") { // 2
+    return {"Fee":(Age * 10.0)};
+  }
+}
+

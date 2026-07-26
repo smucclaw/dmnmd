@@ -1,0 +1,9 @@
+export function ExplicitNumber ( Age : number ) {
+  if (Age <= 8.0) { // 1
+    return {"Band":"small"};
+  }
+  else if ("default") { // 2
+    return {"Band":"large"};
+  }
+}
+

@@ -429,6 +429,30 @@ spec3 = do
     it "should handle a variable times a number"
       $ ("age * 2.0" :: Text) ~> (parseFNumFunction) `shouldParse` (FNF3 (FNF1 "age") (FNMul) (FNF0 $ VN 2))
 
+  -- ======================== KNOWN DEFECT (part of this block) ========================
+  -- Several expectations below encode CURRENT behaviour that is wrong, not desired
+  -- behaviour. They are expected to change when the S-FEEL cell grammar lands; do not
+  -- read a green run of this block as evidence that inference is right.
+  --
+  --   * The four "should infer … as a Number" cases pass because 'inferType' matches
+  --     its cell against the UNANCHORED PCRE list ["^\d+(\.\d+)?$", "\.\.", ">", "<",
+  --     "="]. Any occurrence of ".." or ">" or "<" or "=" ANYWHERE in the text wins,
+  --     so ordinary prose is typed Number and then fails to read. Corpus cases:
+  --       test/corpus/cases/symptom/infer-prose-with-dots-crash
+  --       test/corpus/cases/symptom/infer-prose-with-angle-crash
+  --
+  --   * Note also what is NOT here: a negative number. '-5' infers String, which
+  --     poisons its whole column. Corpus case:
+  --       test/corpus/cases/symptom/infer-negative-poisons-column
+  --
+  --   * "should infer \"no\" as a Boolean" passes "yes", not "no" — a copy-paste in
+  --     the test itself. It is left as-is deliberately: fixing the test is a
+  --     behaviour-visible change and belongs with the rewrite, not before it.
+  --     The real n/no asymmetry is recorded at
+  --       test/corpus/cases/symptom/infer-boolean-n-crash
+  --
+  -- See test/corpus/README.md for the symptom/policy distinction.
+  -- ==================================================================================
   describe "type inference" $ do
     it "should infer [1..2] as a Number"    $ inferType (mkF (Just DMN_String) "[1..2]") `shouldBe` Just DMN_Number
     it "should infer 123 as a Number"       $ inferType (mkF (Just DMN_String) "123")    `shouldBe` Just DMN_Number

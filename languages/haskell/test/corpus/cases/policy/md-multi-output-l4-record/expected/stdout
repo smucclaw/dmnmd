@@ -1,0 +1,18 @@
+DECLARE MultiOut HAS
+    Dish IS A STRING
+    Fee  IS A NUMBER
+
+GIVEN v1 IS A STRING
+      v2 IS A NUMBER
+GIVETH A MultiOut
+mkMultiOut v1 v2 MEANS MultiOut WITH
+    Dish IS v1
+    Fee  IS v2
+
+GIVEN Guests IS A NUMBER
+GIVETH A MultiOut
+MultiOut Guests MEANS
+  BRANCH
+    IF Guests <= 8 THEN mkMultiOut "Spareribs" 10
+    OTHERWISE mkMultiOut "Stew" 20
+

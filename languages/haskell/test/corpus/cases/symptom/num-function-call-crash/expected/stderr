@@ -1,0 +1,12 @@
+dmnmd: error: parsing suspected function expression floor(Amount / 5): 1:2:
+  |
+1 | floor(Amount / 5)
+  |  ^
+unexpected 'l'
+expecting end of input
+
+CallStack (from HasCallStack):
+  error, called at src/DMN/DecisionTable.hs:121:28 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:121:28 in dmnmd:DMN.DecisionTable
+
+

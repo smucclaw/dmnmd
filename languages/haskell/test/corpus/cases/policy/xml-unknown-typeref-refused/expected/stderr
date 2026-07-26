@@ -1,0 +1,2 @@
+input.dmn: error: table "Band": output column "Band": unknown typeRef "tuple<number>". dmnmd does not model this type, and inferring one from the cells risks turning every guard in this column into a string comparison that can never match. Refusing to convert this table. Known types are: number integer int long short double float decimal string boolean bool.
+dmnmd: input.dmn: one or more decision tables were refused (see the errors above); nothing was emitted for them.

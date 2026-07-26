@@ -1,0 +1,9 @@
+export function BigSpender ( Spend : number ) {
+  if ((Spend === 1.0 || Spend === 0.0)) { // 1
+    return {"Tier":"gold"};
+  }
+  else if (Spend === 500.0) { // 2
+    return {"Tier":"silver"};
+  }
+}
+

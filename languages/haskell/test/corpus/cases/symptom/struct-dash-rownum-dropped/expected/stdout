@@ -1,0 +1,9 @@
+export function DashRow ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Stew"};
+  }
+  else if (Season === "Spring") { // 3
+    return {"Dish":"Salad"};
+  }
+}
+

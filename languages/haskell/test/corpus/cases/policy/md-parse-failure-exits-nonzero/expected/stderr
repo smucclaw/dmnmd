@@ -1,0 +1,8 @@
+error: input.md: failed to parse table BadType at 1:13:
+  |
+1 | | U | Age : Integer | Dish (out) |
+  |             ^^^^^^^
+unexpected "Integer"
+expecting Horizontal space, boolean type, inside list, number type, or string type
+
+dmnmd: 1 decision table(s) in input.md could not be read

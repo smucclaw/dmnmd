@@ -1,0 +1,9 @@
+export function OneCol ( Dish : string ) {
+  if (Dish === "Stew") { // 1
+    return {};
+  }
+  else if (Dish === "Roast") { // 2
+    return {};
+  }
+}
+

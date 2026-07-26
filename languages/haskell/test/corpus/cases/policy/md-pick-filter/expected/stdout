@@ -1,0 +1,6 @@
+export function Second ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Soup"};
+  }
+}
+

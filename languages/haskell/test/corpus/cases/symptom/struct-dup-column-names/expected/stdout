@@ -1,0 +1,9 @@
+export function DupCols ( Season : string, Season : string ) {
+  if (Season === "Fall" && Season === "Wet") { // 1
+    return {"Dish":"Stew"};
+  }
+  else if (Season === "Winter" && Season === "Dry") { // 2
+    return {"Dish":"Roast"};
+  }
+}
+

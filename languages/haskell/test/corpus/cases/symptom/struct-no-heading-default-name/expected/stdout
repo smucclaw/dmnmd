@@ -1,0 +1,12 @@
+export function First ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Stew"};
+  }
+}
+
+export function f1 ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Soup"};
+  }
+}
+

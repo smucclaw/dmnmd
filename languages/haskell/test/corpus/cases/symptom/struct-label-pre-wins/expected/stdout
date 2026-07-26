@@ -1,0 +1,6 @@
+export function Contradictory ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Stew", "Cost":10.0};
+  }
+}
+

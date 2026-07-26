@@ -1,0 +1,2 @@
+input.dmn: error: table "Vesting": input column "hired": typeRef "date" is a FEEL temporal type. dmnmd has no temporal column type, and reading it as a string would turn every guard in this column into a string comparison that can never match. Refusing to convert this table.
+dmnmd: input.dmn: one or more decision tables were refused (see the errors above); nothing was emitted for them.

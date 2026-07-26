@@ -1,0 +1,11 @@
+export function WithComment ( Guests : number ) {
+  if (Guests <= 8.0) { // 1
+    return {"Dish":"Spareribs"};
+    // small party
+  }
+  else if ("default") { // 2
+    return {"Dish":"Stew"};
+    // large party
+  }
+}
+

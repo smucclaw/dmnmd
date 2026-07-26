@@ -1,0 +1,9 @@
+export function MultiOut ( Guests : number ) {
+  if (Guests <= 8.0) { // 1
+    return {"Dish":"Spareribs", "Fee":10.0};
+  }
+  else if ("default") { // 2
+    return {"Dish":"Stew", "Fee":20.0};
+  }
+}
+

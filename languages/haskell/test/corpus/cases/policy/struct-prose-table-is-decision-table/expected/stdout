@@ -1,0 +1,9 @@
+export function SI_base_units ( Symbol : string ) {
+  if (Symbol === "m") { // 1
+    return {"Quantity":"length"};
+  }
+  else if (Symbol === "s") { // 2
+    return {"Quantity":"time"};
+  }
+}
+

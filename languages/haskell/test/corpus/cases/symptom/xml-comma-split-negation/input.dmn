@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="seasonDish" name="Season Dish"
+             namespace="https://example.org/dmnmd/test/seasonDish">
+  <inputData id="InputData_season" name="Season"/>
+  <decision id="Decision_dish" name="Dish">
+    <informationRequirement id="InformationRequirement_season">
+      <requiredInput href="#InputData_season"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_dish" hitPolicy="FIRST">
+      <input id="Input_season" label="Season">
+        <inputExpression id="InputExpression_season" typeRef="string">
+          <text>season</text>
+        </inputExpression>
+      </input>
+      <output id="Output_dish" name="dish" label="Dish" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>Default value</description>
+        <inputEntry id="UnaryTests_1"><text>not("Fall", "Winter", "Spring", "Summer")</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"Instant Soup"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"Fall"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"Spareribs"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

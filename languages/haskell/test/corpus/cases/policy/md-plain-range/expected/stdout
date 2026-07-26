@@ -1,0 +1,9 @@
+export function PlainRange ( Guests : number ) {
+  if ((5.0 <= Guests && Guests <= 8.0)) { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if ("default") { // 2
+    return {"Dish":"Takeaway"};
+  }
+}
+

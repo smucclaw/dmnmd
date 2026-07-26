@@ -1,0 +1,1 @@
+note: input.md: skipping the pipe table under "test/golden/": its top-left cell is not a DMN hit policy (one of U A P F O R C), so this is prose rather than a decision table.

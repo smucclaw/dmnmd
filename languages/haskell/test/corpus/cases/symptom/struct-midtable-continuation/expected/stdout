@@ -1,0 +1,9 @@
+export function MidTableBlank ( Season : string ) {
+  if (Season === "Fall Winter") { // 1
+    return {"Dish":"Stew Roast"};
+  }
+  else if (Season === "Spring") { // 3
+    return {"Dish":"Salad"};
+  }
+}
+

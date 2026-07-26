@@ -170,6 +170,58 @@ A pipe table whose top-left cell is not a hit policy is prose, not a broken deci
 `ParseMarkdown.isDecisionTable` asks `parseHitPolicy` itself, skips the chunk, and says so
 on stderr as a `note:`. That is why a README full of documentation tables exits 0.
 
+## The behavioural corpus (`languages/haskell/test/corpus/`)
+
+The hspec suite **cannot** certify a change to the cell layer, because parts of it
+assert the bugs as expected behaviour — `DmnXmlSpec.hs` expects `FNullary (VS "not(\"Fall\"")`,
+which is the comma-split defect frozen into an expectation, and the `type inference` block in
+`Spec.hs` passes *because* the inference regexes are unanchored. A green suite therefore cannot
+distinguish "I preserved the behaviour" from "I preserved the bug".
+
+`test/corpus/` exists to make that distinction. It records what the binary actually does
+today — stdout, stderr **and** exit status — one small input per verified defect, and puts
+every case in one of two directories:
+
+- **`cases/policy/`** — behaviour that is right and must not change. A diff is a **regression**;
+  fix the code, not the recording.
+- **`cases/symptom/`** — behaviour that is wrong and should change. A diff is **progress**;
+  read it, re-record, and `git mv` the case into `cases/policy/` once it is correct rather than
+  merely different. A fixed symptom left in `cases/symptom/` is unprotected.
+
+```
+cd languages/haskell && cabal build     # the runner does not build
+make corpus            # everything; exits nonzero only on a policy regression
+make corpus-policy     # just the regression net
+make corpus-list       # what is in there
+make corpus-record     # re-record. Read the diff first — always.
+```
+
+CI runs `make corpus` as its own step. Read `test/corpus/README.md` before adding or
+reclassifying a case; the classification is the entire value of the directory, and the two ways
+to get it wrong are asymmetric but both bad. A real bug filed under `policy` makes a correct fix
+look like a regression; intended behaviour filed under `symptom` lets a real regression through
+in silence.
+
+Three things there are easy to get wrong on sight:
+
+- **The package unit id is normalised away, and must be.** A `CallStack` frame names the unit
+  that raised it, and the two build tools spell it differently for identical source: cabal writes
+  `dmnmd-0.1.0.2-inplace`, stack writes a content hash over the dependency closure. Since CI
+  builds with stack and most local work here is cabal, without this rule the corpus is red on
+  whichever toolchain did not record it — 14 recordings, zero behavioural content.
+- **Source positions are kept, not normalised.** `DecisionTable.hs:121` is `mkFs` and `:143` is
+  `mkF`, and several cells produce byte-identical message text down both paths, so the line
+  number is the only discriminator. Instead of stripping them, a diff consisting of *nothing but*
+  moved positions is reported as `cosmetic` and does not fail the run.
+- **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
+  tests whatever you last `stack install`ed. It warns when it does this; read the
+  `corpus: using …` line before believing a failure.
+
+The runner fails closed: a missing `STDIN_FILE`, unparseable `ARGS`, a `case.conf` that does not
+source, a case in an unrecognised class directory, a bad `WORKDIR`, or a `--only` glob matching
+nothing are all refused rather than passed. Each was a real path to a green run against a wrong
+baseline. `--record` checks them all before writing anything.
+
 ## Known-broken, don't be surprised
 
 `BUILD-SPEC-dmnmd-extensions.md` §1 records probes against the current tree:

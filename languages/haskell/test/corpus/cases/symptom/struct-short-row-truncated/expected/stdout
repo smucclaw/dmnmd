@@ -1,0 +1,12 @@
+export function ShortRow ( Season : string, Guests : number ) {
+  if (Season === "Fall" && Guests <= 8.0) { // 1
+    return {"Dish":"Stew"};
+  }
+  else if (Season === "Winter") { // 2
+    return {};
+  }
+  else if (Season === "Spring" && Guests <= 4.0) { // 3
+    return {"Dish":"Salad"};
+  }
+}
+
