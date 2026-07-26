@@ -11,18 +11,24 @@
 > are load-bearing: deleting the file orphans those references, and renumbering breaks them.
 > Read the cited section before changing behaviour it pins.
 >
-> **Do not read the imperative voice below as current intent.** Where it says "CREATE",
-> "MODIFY" or "wired into `stack test`", that describes work already done, and in one case
-> done differently: the test suite now runs under `cabal test`, dmnmd having become
-> cabal-only. Sections 4 and 5 are a record of how the code got its shape, not a to-do list.
+> **Do not read the imperative voice below as current intent.** Where it says "CREATE" or
+> "MODIFY", that describes work already done. Sections 4 and 5 are a record of how the code
+> got its shape, not a to-do list.
 >
 > Known drift, not worth rewriting the body for:
-> - §4.4 says to modify `dmnmd.cabal`; that is now correct, but was not while the file was
->   generated from `package.yaml` by hpack.
-> - §7's `stack test` is `cabal test`.
+> - §4.4 says to modify `dmnmd.cabal` directly. Do **not**: that file is generated from
+>   `package.yaml` by hpack, and a hand-edit is overwritten. (A move to cabal-only, which
+>   would make §4.4 correct, is proposed but has **not** landed.)
+> - §7's "wired into `stack test`" is accurate today — the suite runs under both `stack test`
+>   and `cabal test`.
 > - §1.6 defers Collect to "v1.1". It is still deferred, and deliberately: `L4.hs` `error`s on
 >   the list-valued hit policies rather than collapsing them to a scalar `BRANCH`, which is
 >   pinned by `test/corpus/cases/policy/md-l4-refuses-collect`.
+> - §1.4 carried a **false** claim — that inline one-line record literals do not parse — which
+>   was load-bearing, since it was the stated reason for the constructor helper. It is
+>   corrected in place as a dated erratum rather than silently rewritten. The emitter is
+>   unaffected: it already uses the constructor helper, which still stands on drafting
+>   grounds. See `policy/md-multi-output-l4-record` for what it actually emits.
 
 Two coordinated deliverables across two repos.
 
