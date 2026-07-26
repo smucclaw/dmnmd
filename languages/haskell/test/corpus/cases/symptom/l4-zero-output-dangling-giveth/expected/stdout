@@ -1,0 +1,8 @@
+GIVEN Dish IS A STRING
+GIVETH A OneCol
+OneCol Dish MEANS
+  BRANCH
+    IF Dish EQUALS "Stew"  THEN ""
+    IF ^    ^      "Roast" THEN ""
+    OTHERWISE ""
+

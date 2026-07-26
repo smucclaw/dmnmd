@@ -1,0 +1,1 @@
+input.dmn: warning: decision "Shout": its decision logic is a <literalExpression>, not a <decisionTable>; skipped.

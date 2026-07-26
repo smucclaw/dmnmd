@@ -1,0 +1,2 @@
+input.dmn: error: table "Fee": rule "Rule_A" has 2 <inputEntry> elements but the table declares 1 column. DMN requires one entry per column.
+dmnmd: input.dmn: one or more decision tables were refused (see the errors above); nothing was emitted for them.

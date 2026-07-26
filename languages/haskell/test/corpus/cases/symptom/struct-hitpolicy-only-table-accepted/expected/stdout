@@ -1,0 +1,6 @@
+export function Bare (  ) {
+  if ("default") { // 1
+    return {};
+  }
+}
+

@@ -1,0 +1,8 @@
+GIVEN `GIVEN` IS A STRING
+      `THEN`  IS A NUMBER
+GIVETH A STRING
+Reserved `GIVEN` `THEN` MEANS
+  BRANCH
+    IF `GIVEN` EQUALS "Fall" AND `THEN` <= 8 THEN "Stew"
+    OTHERWISE "Takeaway"
+
