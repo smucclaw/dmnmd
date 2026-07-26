@@ -186,9 +186,10 @@ recordings rather than stripped.
 
 The runner finds the binary in this order: `$DMNMD`, `cabal list-bin exe:dmnmd`
 (cheap, does not build), the newest `dist-newstyle` build product, stack's local
-install root, `dmnmd` on `PATH`. It never hardcodes an absolute path.
-(`test/TranslateL4Spec.hs` does hardcode one, to an external `l4`; that was a
-mistake and this does not repeat it.)
+install root, `dmnmd` on `PATH`. It never hardcodes an absolute path — and neither
+does `test/TranslateL4Spec.hs`, which honours `$L4_BIN` and then falls back to
+`findExecutable "l4"`, marking its examples *pending* rather than failed when no
+toolchain is present.
 
 That last fallback is a trap, so the runner warns loudly when it takes it. If you
 have ever run `stack install` or `cabal install`, there is a `dmnmd` in

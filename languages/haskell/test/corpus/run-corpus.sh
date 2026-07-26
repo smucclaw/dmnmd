@@ -55,8 +55,7 @@ fi
 
 # ---------------------------------------------------------------- the binary
 #
-# Deliberately NOT a hardcoded absolute path (test/TranslateL4Spec.hs hardcodes
-# one; that was a mistake and this does not repeat it). Search order:
+# Deliberately NOT a hardcoded absolute path. Search order:
 #   1. $DMNMD, if the caller set it
 #   2. `cabal list-bin` — cheap, does not build
 #   3. any dist-newstyle build product, newest first
@@ -93,10 +92,19 @@ find_binary() {
 # verbatim: those are repo-relative, meaningful, and exactly what we want to
 # notice changing. Trailing whitespace is stripped so an editor cannot cause a
 # spurious diff.
+# The unit-id character class must include the hyphen. A cabal project has one unit
+# per component, and only the library's is the bare `dmnmd-0.1.0.2-inplace` — the
+# executable is `dmnmd-0.1.0.2-inplace-dmnmd` and the test-suite
+# `dmnmd-0.1.0.2-inplace-dmnmd-test` (see dist-newstyle/cache/plan.json). Without the
+# hyphen the class stops at the first one and those two never match. No recording
+# contains one today, because the only app/ frame in the corpus is a GHC
+# "Non-exhaustive patterns" message, which carries a source span but no unit id — so
+# this is a latent gap, not a live failure. It is one character to close and it would
+# otherwise surface as an unreproducible recording on somebody else's toolchain.
 normalize() {
   sed -e '/^HasCallStack backtrace:$/d' \
       -e '\#libraries/#d' \
-      -e 's/ in dmnmd-[0-9.]*-[A-Za-z0-9]*:/ in dmnmd:/' \
+      -e 's/ in dmnmd-[0-9.]*-[A-Za-z0-9-]*:/ in dmnmd:/' \
       -e 's/[[:space:]]*$//'
 }
 
