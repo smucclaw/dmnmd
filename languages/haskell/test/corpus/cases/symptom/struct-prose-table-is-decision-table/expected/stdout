@@ -1,6 +1,0 @@
-export function Comparison_of_options ( B : number ) {
-  if (B === 2.0) { // 1
-    return {};
-  }
-}
-
