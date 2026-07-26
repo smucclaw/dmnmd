@@ -1,6 +1,36 @@
 # BUILD SPEC — `dmnmd --to=l4` (BRANCH + ditto) and the l4-ide ditto codegen tweak
 
-Status: design / build plan. Two coordinated deliverables across two repos.
+> ## Status: **DISCHARGED — retained as reference, not as a plan**
+>
+> Both parts shipped. Part A is `languages/haskell/src/DMN/Translate/L4.hs` (merged in PR #15);
+> Part B is `jl4-core/src/L4/Print/Columnar.hs` in `legalese/l4-ide`. The golden round-trip of
+> §7 exists as `languages/haskell/test/TranslateL4Spec.hs`.
+>
+> **This document is kept because the code cites it.** `L4.hs` refers to numbered sections of
+> this spec in more than twenty comments (§1.2, §1.4, §3, §8, §9.6 …), so the section numbers
+> are load-bearing: deleting the file orphans those references, and renumbering breaks them.
+> Read the cited section before changing behaviour it pins.
+>
+> **Do not read the imperative voice below as current intent.** Where it says "CREATE" or
+> "MODIFY", that describes work already done. Sections 4 and 5 are a record of how the code
+> got its shape, not a to-do list.
+>
+> Known drift, not worth rewriting the body for:
+> - §4.4 says to modify `dmnmd.cabal` directly. Do **not**: that file is generated from
+>   `package.yaml` by hpack, and a hand-edit is overwritten. (A move to cabal-only, which
+>   would make §4.4 correct, is proposed but has **not** landed.)
+> - §7's "wired into `stack test`" is accurate today — the suite runs under both `stack test`
+>   and `cabal test`.
+> - §1.6 defers Collect to "v1.1". It is still deferred, and deliberately: `L4.hs` `error`s on
+>   the list-valued hit policies rather than collapsing them to a scalar `BRANCH`, which is
+>   pinned by `test/corpus/cases/policy/md-l4-refuses-collect`.
+> - §1.4 carried a **false** claim — that inline one-line record literals do not parse — which
+>   was load-bearing, since it was the stated reason for the constructor helper. It is
+>   corrected in place as a dated erratum rather than silently rewritten. The emitter is
+>   unaffected: it already uses the constructor helper, which still stands on drafting
+>   grounds. See `policy/md-multi-output-l4-record` for what it actually emits.
+
+Two coordinated deliverables across two repos.
 
 - **Part A — dmnmd:** a new `--to=l4` backend that transpiles a DMN decision table to L4
   source text, emitting a `BRANCH` expression with column-aligned **ditto (`^`)**.
@@ -138,18 +168,32 @@ round-trip is a **semantic** equivalence check, not a byte-exact one (see §7).
 
 - **One output column:** `GIVETH A <type>`; each arm’s `THEN`/`OTHERWISE` returns the bare value.
 - **Multiple output columns:** emit a `DECLARE <Name> HAS f1 IS A <t1> …` record and `GIVETH A <Name>`.
-  **Inline multi-field record literals on one line do NOT parse — L4 record literals are
-  layout-sensitive.** Each arm (and the `OTHERWISE`) must therefore return the record in one of two
-  forms:
+
+  > **Erratum (2026-07-26).** This section previously asserted that _"inline multi-field record
+  > literals on one line do NOT parse — L4 record literals are layout-sensitive."_ **That is
+  > false.** A record literal's fields are a comma-separated `NamedExpr` list (`Parser.hs:2082`),
+  > and the one-line form parses and evaluates — ``Rec WITH `a` IS 1, `b` IS "hi"`` gives
+  > `Check succeeded.` and evaluates to `Rec OF 1, "hi"` (verified by execution). The guidance
+  > below still stands on its own merits — see the note at the end of this section — but not for
+  > the stated reason.
+
+  Each arm (and the `OTHERWISE`) may return the record in any of three forms:
+
+  - **inline one-line literal** — `<Name> WITH f1 IS v1, f2 IS v2`. Parses; simplest for a
+    generator emitting one arm per line;
   - **multi-line `WITH` block** — `<Name> WITH` followed by each `fN IS vN` on its own indented line; or
   - **constructor helper (recommended)** — synthesize one `mk<Name> v1 v2 …` function and have every
     arm call it. The golden uses this form: it declares `mkRec theCard theMpd` (whose body is itself a
     multi-line `Recommendation WITH` block) and every arm / `OTHERWISE` returns
     `` mkRec `PRVI` "1.4" `` etc. on a single line.
 
-  Prefer the constructor helper: it keeps each BRANCH arm on one line, which is what the ditto grid
-  (§3) needs to collapse. The multi-line `WITH` block is also valid but forces multi-line arms the
-  ditto pass cannot align.
+  Prefer the constructor helper, but for a **drafting** reason rather than a parsing one: it gives
+  each arm's value a name, and in a legal encoding that name should carry the citation. The
+  Charities corpus does exactly this — ``THEN JUST `the penalty under Article 21(10) —
+  contravening (1), (3) or (5)` `` — so the arm reads as the statute rather than as a tuple of
+  field assignments. The inline one-line literal parses and is fine for machine-generated output;
+  the multi-line `WITH` block is also valid but forces multi-line arms the ditto pass (§3) cannot
+  align.
 
 ### 1.5 First/Unique/Priority → BRANCH + OTHERWISE
 

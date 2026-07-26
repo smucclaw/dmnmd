@@ -1,5 +1,31 @@
 # BUILD SPEC — dmnmd extensions for L4 interop
 
+> ## Status: **PARTLY DISCHARGED — live plan, but §1 is a dated snapshot**
+>
+> Against the sequencing table in §4:
+>
+> | step | state |
+> |---|---|
+> | **E0a**, **E0b** | **shipped** — PR #17. The DMN 1.3 reader is conformant, a vendor `xmlns` and an `<inputData><variable/></inputData>` are accepted, and failures are visible instead of silent. Pinned by `test/corpus/cases/policy/xml-*`. |
+> | **X** (hygiene) | **partly.** PR #19 added `test/corpus/`, a 105-case behavioural record, which is the "stop the next six-year gap" half. The error-position bug and `parseFNumFunction`'s `error` are **recorded as symptom cases, deliberately not fixed** — see `symptom/md-error-position-misreported` and `symptom/num-function-call-crash`. |
+> | **E4** (temporal types) | open. This is the "`date` is unmodelled" item; today an unmodelled `typeRef` is refused outright, which `policy/xml-temporal-typeref-refused` pins. |
+> | **E2, E3, E6, E1** | open, in that dependency order. E3 still must not ship before E4. |
+>
+> **§1 "Verified current state" was true on 2026-07-25 and is now partly false.** PR #17 moved
+> several of the behaviours it reports. Do not quote §1 as evidence of how dmnmd behaves —
+> run the binary, or read `test/corpus/`, which is a machine-checked record rather than prose.
+> The specific trap already sprung once: an earlier draft claimed "fixing E0a alone changes
+> nothing observable", which was false, and cost a wasted pass.
+>
+> §§2–7 (the gaps, the designs, the sequencing, acceptance, non-goals, and the exporter
+> contract) remain current and are the reason this file is still here.
+>
+> **When the remaining steps land, delete this file** rather than archiving it. Its durable
+> content belongs in three places that cannot go stale the same way: decisions in `CLAUDE.md`,
+> verified behaviour in `test/corpus/`, and rationale in commit messages. The one exception is
+> §6 Non-goals, which is a standing constraint and should move to `CLAUDE.md` first — it is
+> already quoted there.
+
 _Scoped 2026-07-25. Requirements source: the L4 DMN exporter (Track D1 of the Lexipedia-superset
 programme, `legalese/l4-ide`). Companion to [`BUILD-SPEC-dmnmd-to-l4.md`](./BUILD-SPEC-dmnmd-to-l4.md),
 which specifies the opposite direction (`dmnmd --to=l4`)._
