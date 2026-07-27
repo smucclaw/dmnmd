@@ -81,6 +81,23 @@ xpIgnoredElem :: String -> PU ()
 xpIgnoredElem name =
   xpElemNS xmlns_dmn "" name . xpFilterAttr none . xpFilterCont none $ xpUnit
 
+-- | Consume a run of elements we do not model, keeping ONE attribute so the
+-- caller can name what it dropped. Everything else about them is discarded, so
+-- this is as permissive as 'xpIgnoredElem' and cannot reject a document that
+-- parses today.
+--
+-- 'hasNameWith' on the local part, never 'hasName': HXT's 'hasName' compares the
+-- QUALIFIED name, so against a prefix-qualified document — which the DMN
+-- specification's own Chapter 11 example is, and it is checked in under
+-- @test/examples/@ — a bare 'hasName' silently matches nothing.
+xpPeekedElems :: String -> String -> PU [Maybe String]
+xpPeekedElems name attr =
+  xpList $
+    xpElemNS xmlns_dmn "" name
+      . xpFilterAttr (hasNameWith ((== attr) . localPart))
+      . xpFilterCont none
+      $ xpOption (xpAttr attr xpText)
+
 -- | @minOccurs="0" maxOccurs="1"@ version of 'xpIgnoredElem'.
 xpIgnoredElemOpt :: String -> PU ()
 xpIgnoredElemOpt name =
@@ -793,6 +810,13 @@ instance XmlPickler DrgElems where
 data Definitions = Definitions
   { defLabel :: DmnNamed,
     defsNamespace :: Namespace,
+    defItemDefNames :: [Maybe String],
+    -- ^ the @name@ of every @\<itemDefinition\>@, and nothing else about it.
+    -- DMN's data model — where @allowedValues@ (an enum domain), @isCollection@
+    -- (a list type) and @itemComponent@ (a structured type) are declared — is
+    -- not modelled yet, and used to be dropped by @xpIgnoredElems@ WITHOUT A
+    -- WORD. Keeping the names is the minimum that lets the converter obey this
+    -- repo's rule: anything we parse but do not honour must say so.
     defInputData :: [InputData],
     defsDescisions :: [Decision],
     defDrgElems :: [DrgElems],
@@ -837,19 +861,21 @@ dmnPickler :: PU XDMN
 dmnPickler =
   xpDMNElem "definitions" _Definitions
     . xpIgnoredAttrs ["label", "expressionLanguage", "typeLanguage", "exporter", "exporterVersion"]
-    $ xp6Tuple
+    $ xp7Tuple
         xpickle                                  -- id / name attributes
         xpickle                                  -- namespace attribute
-        (xpSeq' definitionsPrelude xpickle)      -- [InputData]
+        (xpSeq' definitionsPrelude
+           (xpPeekedElems "itemDefinition" "name"))  -- names only; see defItemDefNames
+        xpickle                                  -- [InputData]
         xpickle                                  -- [Decision]
         xpickle                                  -- [DrgElems]
         (xpSeq' definitionsEpilogue xpickle)     -- Maybe DMNDI
   where
     definitionsPrelude =
-      xpWrap (const (), const ((), ((), ()))) $
+      xpWrap (const (), const ((), ())) $
         xpPair
           xpDmnAnnotations
-          (xpPair (xpIgnoredElems "import") (xpIgnoredElems "itemDefinition"))
+          (xpIgnoredElems "import")
     definitionsEpilogue =
       xpIgnoredElemsOf
         [ "association", "textAnnotation"          -- artifact

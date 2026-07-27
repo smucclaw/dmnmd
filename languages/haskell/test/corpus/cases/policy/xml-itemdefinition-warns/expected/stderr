@@ -1,0 +1,2 @@
+input.dmn: warning: <itemDefinition> "tRouting": dmnmd does not model DMN's data model, so its <allowedValues>, isCollection and <itemComponent> are dropped. A column whose typeRef names it will be reported as an unknown type.
+input.dmn: warning: <itemDefinition> "tScores": dmnmd does not model DMN's data model, so its <allowedValues>, isCollection and <itemComponent> are dropped. A column whose typeRef names it will be reported as an unknown type.
