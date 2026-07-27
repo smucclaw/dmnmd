@@ -1,0 +1,6 @@
+export function Routing ( score : number ) {
+  if (score < 100.0) { // 1
+    return {"Routing":"DECLINE"};
+  }
+}
+

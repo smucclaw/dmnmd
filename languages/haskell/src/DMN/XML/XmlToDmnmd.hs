@@ -53,7 +53,30 @@ convertAll :: [XDMN] -> ([Diagnostic], [T.DecisionTable])
 convertAll = mconcat . map convertIt
 
 convertIt :: X.XDMN -> ([Diagnostic], [T.DecisionTable])
-convertIt d = mconcat (map convdec (allDecisions d))
+convertIt d = (itemDefDiags d, []) <> mconcat (map convdec (allDecisions d))
+
+-- | DMN's data model is @\<itemDefinition\>@: it is where @allowedValues@ (an
+-- enum domain), @isCollection@ (a list type) and @itemComponent@ (a structured
+-- type) are declared. dmnmd models none of it, and until now discarded the whole
+-- section without a word — this module's own header says that is exactly what we
+-- must not do.
+--
+-- A Warning, not an Error, and the distinction is the usual one: nothing is
+-- being read WRONGLY. A table using such a type still fails loudly later, at
+-- 'convertType', because the @typeRef@ naming it is unknown. What was missing
+-- was the connection between the two — a reader told a @typeRef@ is unknown had
+-- no way to learn that the document declares it and we dropped it.
+--
+-- Honouring them is BUILD-SPEC-dmnmd-l4-sumtype.md Part B tiers 1-2, and is
+-- where @isCollection@ finally answers what a domain on a list column means.
+itemDefDiags :: X.XDMN -> [Diagnostic]
+itemDefDiags d =
+  [ warnAt $
+      "<itemDefinition> " ++ maybe "(unnamed)" show nm
+        ++ ": dmnmd does not model DMN's data model, so its <allowedValues>,"
+        ++ " isCollection and <itemComponent> are dropped."
+        ++ " A column whose typeRef names it will be reported as an unknown type."
+  | nm <- X.defItemDefNames d ]
 
 -- | Every @<decision>@ in the file. 'X.defsDescisions' only holds the leading
 -- run of them: a file that interleaves @<inputData>@ with @<decision>@ puts the
