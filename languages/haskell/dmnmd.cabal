@@ -9,12 +9,13 @@ version:        0.1.0.2
 synopsis:       CLI to inter-convert DMN tables from Markdown format to JS, and more
 description:    Decision Model & Notation format conversion and code generation. Please see the README on GitHub at <https://github.com/smucclaw/complaw/dmnmd>
 category:       Code Generation
-homepage:       https://github.com/smucclaw/complaw#readme
-bug-reports:    https://github.com/smucclaw/complaw/issues
+homepage:       https://github.com/smucclaw/dmnmd#readme
+bug-reports:    https://github.com/smucclaw/dmnmd/issues
 author:         Meng Weng Wong
 maintainer:     mwwong@smu.edu.sg
 copyright:      2022 Singapore Management University
-license:        BSD3
+license:        Apache-2.0
+license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
@@ -22,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/smucclaw/complaw
+  location: https://github.com/smucclaw/dmnmd
 
 library
   exposed-modules:
