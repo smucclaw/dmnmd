@@ -19,9 +19,10 @@
 --   Emitting a table that quietly never matches is worse than emitting none.
 -- * A construct we parse but drop gets a warning naming the table, the column
 --   and what was lost.
-module DMN.XML.XmlToDmnmd where
+module DMN.XML.XmlToDmnmd (module DMN.Diagnostic, module DMN.XML.XmlToDmnmd) where
 
 import DMN.XML.ParseDMN as X
+import DMN.Diagnostic
 import qualified DMN.Types as T
 import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
@@ -38,33 +39,11 @@ import Text.Megaparsec.Char (char, space, hexDigitChar)
 -- $> convertIt =<< dmnThings
 
 -- * Diagnostics
-
-data Severity = Warning | Error
-  deriving (Show, Eq)
-
--- | A complaint about the document, attributed to the table (and where
--- possible the column and rule) it came from.
-data Diagnostic = Diagnostic
-  { diagSeverity :: Severity
-  , diagMessage :: String
-  }
-  deriving (Show, Eq)
-
-warnAt :: String -> Diagnostic
-warnAt = Diagnostic Warning
-
-errorAt :: String -> Diagnostic
-errorAt = Diagnostic Error
-
-isError :: Diagnostic -> Bool
-isError = (== Error) . diagSeverity
-
-anyErrors :: [Diagnostic] -> Bool
-anyErrors = any isError
-
-renderDiagnostic :: Diagnostic -> String
-renderDiagnostic (Diagnostic Warning m) = "warning: " ++ m
-renderDiagnostic (Diagnostic Error m) = "error: " ++ m
+--
+-- Moved to "DMN.Diagnostic" when the L4 backend needed them too — a transpiler
+-- importing the XML reader for a two-constructor type is backwards. Re-exported
+-- here so every existing @import DMN.XML.XmlToDmnmd (Diagnostic(..), ...)@ still
+-- resolves.
 
 -- * Conversion
 
