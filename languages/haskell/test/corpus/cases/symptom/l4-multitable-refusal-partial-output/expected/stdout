@@ -1,7 +1,0 @@
-GIVEN season IS A STRING
-GIVETH A STRING
-Good season MEANS
-  BRANCH
-    IF season EQUALS "Fall" THEN "Stew"
-    OTHERWISE ""
-

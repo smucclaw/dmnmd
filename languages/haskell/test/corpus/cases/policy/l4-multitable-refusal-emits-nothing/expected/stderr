@@ -1,2 +1,2 @@
-dmnmd: error: table "CollectL4": Collect hit policy not yet supported by the L4 backend
+dmnmd: error: table "Bad": Collect hit policy not yet supported by the L4 backend
 dmnmd: nothing was emitted for any table, because a partial L4 file is indistinguishable from a complete one.
