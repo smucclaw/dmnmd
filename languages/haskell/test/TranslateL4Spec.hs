@@ -352,15 +352,21 @@ l4Spec = do
         `shouldThrow` anyErrorCall
 
   describe "DMN.Translate.L4.toL4 — Priority orders arms by output priority, not row order (HP_Priority)" $ do
+    -- The arm results are `JUST \`HIGH\`` rather than `"HIGH"` because prioTable's
+    -- output column declares a domain, so it now emits a real L4 sum type, and
+    -- Priority hardwires catchAll = Nothing so the result is MAYBE-wrapped.
+    -- Only the spelling moved; what this block tests — that the higher-priority
+    -- arm is emitted FIRST, so a first-match BRANCH agrees with evalTable's
+    -- outputOrder — is unchanged.
     let out = toL4 defaultL4Opts (parse "prio" prioTable)
-        (beforeLow, _) = T.breakOn (T.pack "THEN \"LOW\"") (T.pack out)
+        (beforeLow, _) = T.breakOn (T.pack "THEN JUST `LOW`") (T.pack out)
     it "emits both matching arms" $ do
-      out `shouldContain` "THEN \"HIGH\""
-      out `shouldContain` "THEN \"LOW\""
+      out `shouldContain` "THEN JUST `HIGH`"
+      out `shouldContain` "THEN JUST `LOW`"
     it "emits the higher-priority HIGH arm before LOW (rows LOW-first; enums rank HIGH above LOW)" $
       -- first-match BRANCH over priority-sorted arms == evalTable's outputOrder:
       -- an input matching both rows must resolve to HIGH, so HIGH must emit first.
-      (T.pack "THEN \"HIGH\"" `T.isInfixOf` beforeLow) `shouldBe` True
+      (T.pack "THEN JUST `HIGH`" `T.isInfixOf` beforeLow) `shouldBe` True
 
   describe "DMN.Translate.L4.toL4 — wide-character ditto alignment (bug 4)" $
     it "a CJK guard value keeps the ^ grid aligned so unmatched input returns the catch-all" $ withL4 $ \l4bin -> do
