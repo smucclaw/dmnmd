@@ -1,7 +1,8 @@
 name:                dmnmd
 version:             0.1.0.2
-github:              "smucclaw/complaw"
-license:             BSD3
+github:              "smucclaw/dmnmd"
+license:             Apache-2.0
+license-file:        LICENSE
 author:              "Meng Weng Wong"
 maintainer:          "mwwong@smu.edu.sg"
 copyright:           "2022 Singapore Management University"
