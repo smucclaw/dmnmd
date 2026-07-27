@@ -21,38 +21,43 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y pkg-config libpcre3-dev
 
-    # haskell/actions/setup has been unmaintained since 2023-09-09 and its
-    # 'latest' resolved to stack 2.11.1, whose bundled Hackage TUF keys can no
-    # longer validate the current root.json ("does not have enough signatures
-    # signed with the appropriate keys"), so any package fetch died. Use the
-    # maintained action, which resolves a current stack.
+    # haskell/actions/setup has been unmaintained since 2023-09-09; use the
+    # maintained fork. The GHC version is pinned to `tested-with` in
+    # languages/haskell/dmnmd.cabal — keep the two in step. It used to also be
+    # pinned by stack.yaml's resolver (lts-24.20), which is gone: dmnmd is
+    # cabal-only, matching legalese/l4-ide.
     - uses: haskell-actions/setup@v2
+      id: setup
       with:
-        enable-stack: true
-        stack-version: 'latest'
+        ghc-version: '9.10.3'
+        cabal-version: 'latest'
 
     - uses: actions/cache@v4
-      name: Cache ~/.stack
+      name: Cache cabal store and build products
       with:
-        path: ~/.stack
-        # stack.yaml itself belongs in the key: the resolver lives there, so
-        # without it a snapshot bump silently reuses the previous snapshot's cache.
-        key: ${{ runner.os }}-stack-${{ hashFiles('languages/haskell/stack.yaml','languages/haskell/stack.yaml.lock','languages/haskell/package.yaml') }}
-        restore-keys: ${{ runner.os }}-stack-
+        path: |
+          ${{ steps.setup.outputs.cabal-store }}
+          languages/haskell/dist-newstyle
+        # dmnmd.cabal belongs in the key: the dependency set and the megaparsec
+        # lower bound live there, so without it a bump silently reuses a store
+        # resolved against the previous constraints.
+        key: ${{ runner.os }}-cabal-${{ steps.setup.outputs.ghc-version }}-${{ hashFiles('languages/haskell/dmnmd.cabal') }}
+        restore-keys: ${{ runner.os }}-cabal-${{ steps.setup.outputs.ghc-version }}-
 
     - name: Install dependencies
       run: |
-        stack build --only-dependencies
+        cabal update
+        cabal build --only-dependencies --enable-tests
       working-directory: languages/haskell
 
     - name: Build
       run: |
-        stack build --test --bench --no-run-tests --no-run-benchmarks
+        cabal build --enable-tests
       working-directory: languages/haskell
 
     - name: Test
       run: |
-        stack test
+        cabal test
       working-directory: languages/haskell
 
     # The behavioural corpus (test/corpus/) is the regression net for the
@@ -61,7 +66,7 @@ jobs:
     # case 'policy' (behaviour we have declared correct; a diff is a regression) or
     # 'symptom' (behaviour that is wrong and should change; a diff is progress).
     #
-    # It sits outside `stack test` on purpose — test/corpus/README.md gives the
+    # It sits outside `cabal test` on purpose — test/corpus/README.md gives the
     # reasons — which means that without this step nothing automated would ever
     # notice a policy regression, and the net would only fire when somebody
     # remembered to run it by hand.
@@ -70,8 +75,9 @@ jobs:
     # a case with no recording. Symptom diffs are printed and are expected to appear
     # here as the grammar is replaced; they are information, not failure.
     #
-    # The runner does not build. `stack build` above populates stack's local install
-    # root, which is the third entry in the runner's binary search order.
+    # The runner does not build. The `cabal build` above is what makes the binary
+    # current: `cabal list-bin` is the runner's second search entry, and it resolves
+    # to the dist-newstyle product that step produced.
     - name: Behavioural corpus
       run: |
         make corpus

@@ -25,16 +25,35 @@ corpus-list:
 corpus-record:
 	./test/corpus/run-corpus.sh --record
 
-ghcid-tests:
-	ghcid --command "stack ghci dmnmd:lib dmnmd:test:dmnmd-test --ghci-options=-fobject-code" --allow-eval --test main
+# ---------------------------------------------------------------- watch loops
+#
+# These were `stack ghci` / `stack build --file-watch` before the cabal-only
+# move. cabal has no --file-watch, so all three go through ghcid, and the
+# component split matters:
+#
+#   `cabal repl test:dmnmd-test` does NOT load src/ — the library arrives as a
+#   built dependency, so editing a module under src/ changes nothing in the
+#   session. Verified: `:show modules` lists 0 files under src/ there, and 13
+#   under --enable-multi-repl. That is why ghcid-tests uses multi-repl and
+#   tests-watch uses --restart=src.
 
+# Typechecks the library and the test suite together, so a change under src/
+# reloads the tests. Cannot RUN them: GHC's multi-component repl rejects :main
+# ("Command is not supported (yet) in multi-mode").
+ghcid-tests:
+	ghcid --command "cabal repl --enable-multi-repl lib:dmnmd test:dmnmd-test" --allow-eval
+
+# Runs the suite on every change, failures first. Single-component, so a src/
+# edit cannot hot-reload — --restart tears the session down and lets cabal
+# rebuild the library, which is slower but correct.
 tests-watch:
-	# stack test --ta "--fail-fast" --file-watch
-	stack build --file-watch --test --test-arguments '--rerun --failure-report=TESTREPORT --rerun-all-on-success'
+	ghcid --command "cabal repl test:dmnmd-test" \
+	  --restart=src --restart=dmnmd.cabal \
+	  --test ':main --rerun --failure-report=TESTREPORT --rerun-all-on-success'
 
 # Gives very quick iteration, especially when used with -- $> command
 ghcid:
-	ghcid --command "stack ghci dmnmd:lib" --allow-eval
+	ghcid --command "cabal repl lib:dmnmd" --allow-eval
 
 # Refresh the DMN->L4 golden fixtures (test/golden/) from the canonical homelab
 # sources. Committed copies are used because the homelab repo is not guaranteed

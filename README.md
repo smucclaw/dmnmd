@@ -24,21 +24,31 @@ The interface is CLI. No mouse needed!
 
 At the moment, `dmnmd` is an executable program written in Haskell. In future it may switch to Python.
 
+You need GHC and cabal — [ghcup](https://www.haskell.org/ghcup/) is the usual way to get both —
+plus `pcre`, which `regex-pcre` links against and finds through `pkg-config`.
+
 OS X:
 
-    brew install haskell-stack pkg-config pcre; stack upgrade
-    
+    brew install pkg-config pcre
+
 Linux:
 
-    { yum, apt-get, ... } install haskell-stack pkg-config libpcre3-dev; stack upgrade
+    { yum, apt-get, ... } install pkg-config libpcre3-dev
 
 Both:
 
     git clone git@github.com:smucclaw/dmnmd.git
     cd dmnmd/languages/haskell
-    stack test
-    stack build
-    stack install
+    cabal build
+    cabal test
+    cabal install exe:dmnmd --overwrite-policy=always \
+      --install-method=copy --installdir=$HOME/.local/bin
+
+That last line puts `dmnmd` on your `PATH`, which is what the transcripts below assume.
+`languages/haskell/shell.nix` supplies the two native packages if you use nix.
+
+dmnmd builds with **cabal only**; there is no `stack.yaml` and no hpack `package.yaml`.
+`languages/haskell/dmnmd.cabal` is hand-maintained and is the single source of truth.
 
 In future packaged binaries will be made available.
 
@@ -175,7 +185,7 @@ Options:
 
 **--props** Normally, functions expect as many parameters as there are input columns. with `--props`, functions expect input in a single `props` object; a "Props" type is generated.
 
-    % stack exec -- dmnmd README.md --to=ts --pick="Example 2" -r
+    % dmnmd README.md --to=ts --pick="Example 2" -r
     type Props_Example_2 = {
         "Season" : string;
         "Guest Count" : number;
@@ -211,7 +221,7 @@ We use "props" here as a synonym for the more proper term "context".
 
 This works today, modulo full support for hit policies.
 
-    % stack exec -- dmnmd README.md --pick="Example 2" --to=js
+    % dmnmd README.md --pick="Example 2" --to=js
     export function Example_2 ( Season, Guest_Count ) {
       if (Season==="Fall" && Guest_Count <=8.0) { // 1
         return {"Dish":"Spareribs"};

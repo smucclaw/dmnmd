@@ -59,8 +59,10 @@ fi
 #   1. $DMNMD, if the caller set it
 #   2. `cabal list-bin` — cheap, does not build
 #   3. any dist-newstyle build product, newest first
-#   4. stack's local install root
-#   5. dmnmd on PATH
+#   4. dmnmd on PATH
+#
+# There used to be a fourth entry ahead of PATH, `stack path --local-install-root`.
+# It went when the package became cabal-only.
 
 BIN_SOURCE=''
 
@@ -73,9 +75,6 @@ find_binary() {
 
   b="$( ls -t "$PKG_ROOT"/dist-newstyle/build/*/ghc-*/dmnmd-*/x/dmnmd/build/dmnmd/dmnmd 2>/dev/null | head -1 )"
   if [ -n "$b" ] && [ -x "$b" ]; then BIN_SOURCE='dist-newstyle'; printf '%s\n' "$b"; return; fi
-
-  b="$( cd "$PKG_ROOT" && stack path --local-install-root 2>/dev/null )/bin/dmnmd"
-  if [ -x "$b" ]; then BIN_SOURCE='stack'; printf '%s\n' "$b"; return; fi
 
   b="$(command -v dmnmd 2>/dev/null)"
   if [ -n "$b" ]; then BIN_SOURCE='PATH'; printf '%s\n' "$b"; return; fi
@@ -241,12 +240,12 @@ fi
 
 echo "corpus: using $BIN"
 
-# The PATH fallback is a trap worth shouting about. An old `stack install`d or
-# `cabal install`d dmnmd sitting in ~/.local/bin will be picked up silently, and
-# then every divergence you see is against a binary from weeks ago rather than
-# against your working tree. It has already happened once during development of
-# this script. The other four sources are all tied to this package, so only this
-# one warrants the warning.
+# The PATH fallback is a trap worth shouting about. An old `cabal install`d
+# dmnmd sitting in ~/.local/bin will be picked up silently, and then every
+# divergence you see is against a binary from weeks ago rather than against your
+# working tree. It has already happened once during development of this script.
+# The other three sources are all tied to this package, so only this one
+# warrants the warning.
 if [ "$BIN_SOURCE" = PATH ]; then
   cat >&2 <<EOF
 corpus: WARNING — no build product was found under $PKG_ROOT, so this fell back

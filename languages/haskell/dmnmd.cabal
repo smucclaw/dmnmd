@@ -1,8 +1,16 @@
-cabal-version: 1.12
+cabal-version:  2.4
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file is HAND-MAINTAINED and is the single source of truth for the build.
 --
--- see: https://github.com/sol/hpack
+-- It used to be generated from package.yaml by hpack, and carried a banner saying
+-- so. It no longer is: package.yaml, stack.yaml and stack.yaml.lock were removed
+-- when dmnmd moved to cabal-only, to match legalese/l4-ide. Edit this file
+-- directly. If you find a package.yaml, someone has reintroduced hpack and this
+-- comment is stale.
+--
+-- One consequence to know about: hpack auto-discovered modules, and this file
+-- does not. Adding a module under src/ means adding it to exposed-modules below,
+-- or it silently will not be compiled into the library.
 
 name:           dmnmd
 version:        0.1.0.2
@@ -17,6 +25,7 @@ copyright:      2022 Singapore Management University
 license:        Apache-2.0
 license-file:   LICENSE
 build-type:     Simple
+tested-with:    GHC == 9.10.3
 extra-source-files:
     README.md
     ChangeLog.md
@@ -25,7 +34,46 @@ source-repository head
   type: git
   location: https://github.com/smucclaw/dmnmd
 
+-- The dependency set every component shares. Before the cabal-only move this
+-- list was triplicated across the three stanzas below, because hpack expands a
+-- single `dependencies:` block into each component; the three copies could not
+-- drift apart then and must not now.
+--
+-- Native dependency: regex-pcre links against libpcre and locates it with
+-- pkg-config. See shell.nix, and the install lines in ../../README.md.
+common deps
+  build-depends:
+      MissingH
+    , attoparsec
+    , base >=4.7 && <5
+    , containers
+    , haskeline
+    , hspec
+    , hspec-attoparsec
+    , hspec-golden
+    , hspec-megaparsec
+    , hxt
+    -- a more convenient Iso for the XML pickling
+    , lens
+    -- >= 9.7.0 is load-bearing, not hygiene: DMN.Translate.L4 imports
+    -- Text.Megaparsec.Unicode (isWideChar), which does not exist before it.
+    -- The L4 ditto grid resolves `^` by absolute source column and must measure
+    -- widths with the same table the L4 lexer uses.
+    , megaparsec >=9.7.0
+    , optparse-applicative
+    , parser-combinators
+    , pretty-simple
+    , raw-strings-qq
+    , regex-pcre
+    -- number parsing
+    , scientific
+    , split
+    , text
+  default-language: Haskell2010
+
 library
+  import:          deps
+  hs-source-dirs:  src
   exposed-modules:
       DMN.DecisionTable
       DMN.ParseFEEL
@@ -40,103 +88,39 @@ library
       DMN.XML.ParseDMN
       DMN.XML.PickleHelpers
       DMN.XML.XmlToDmnmd
-  other-modules:
-      Paths_dmnmd
-  hs-source-dirs:
-      src
-  ghc-options: -Wno-unused-matches -fwrite-ide-info -hiedir=.hie
-  build-depends:
-      MissingH
-    , attoparsec
-    , base >=4.7 && <5
-    , containers
-    , haskeline
-    , hspec
-    , hspec-attoparsec
-    , hspec-golden
-    , hspec-megaparsec
-    , hxt
-    , lens
-    , megaparsec
-    , optparse-applicative
-    , parser-combinators
-    , pretty-simple
-    , raw-strings-qq
-    , regex-pcre
-    , scientific
-    , split
-    , text
-  default-language: Haskell2010
+  ghc-options:
+      -Wno-unused-matches
+      -- both consumed by stan, the static analyser
+      -fwrite-ide-info
+      -hiedir=.hie
 
 executable dmnmd
-  main-is: Main.hs
+  import:          deps
+  hs-source-dirs:  app
+  main-is:         Main.hs
   other-modules:
       Options
       ParseMarkdown
-      Paths_dmnmd
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      MissingH
-    , attoparsec
-    , base >=4.7 && <5
-    , containers
-    , dmnmd
+      dmnmd
     , filepath
-    , haskeline
-    , hspec
-    , hspec-attoparsec
-    , hspec-golden
-    , hspec-megaparsec
-    , hxt
-    , lens
-    , megaparsec
-    , optparse-applicative
-    , parser-combinators
-    , pretty-simple
-    , raw-strings-qq
-    , regex-pcre
-    , scientific
-    , split
-    , text
-  default-language: Haskell2010
+  ghc-options:     -threaded -rtsopts -with-rtsopts=-N
 
 test-suite dmnmd-test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  import:          deps
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  test
+  main-is:         Spec.hs
   other-modules:
       DmnXmlSpec
       ParseFEELSpec
       ParserSpecHelpers
       SFeelGrammar
       TranslateL4Spec
-      Paths_dmnmd
-  hs-source-dirs:
-      test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      MissingH
-    , attoparsec
-    , base >=4.7 && <5
-    , containers
+      dmnmd
+    -- TranslateL4Spec: createDirectoryIfMissing for test/golden/.out
     , directory
-    , dmnmd
-    , haskeline
-    , hspec
-    , hspec-attoparsec
-    , hspec-golden
-    , hspec-megaparsec
-    , hxt
-    , lens
-    , megaparsec
-    , optparse-applicative
-    , parser-combinators
-    , pretty-simple
+    -- TranslateL4Spec: readProcessWithExitCode, to shell out to the l4 binary
     , process
-    , raw-strings-qq
-    , regex-pcre
-    , scientific
-    , split
-    , text
-  default-language: Haskell2010
+  ghc-options:     -threaded -rtsopts -with-rtsopts=-N
