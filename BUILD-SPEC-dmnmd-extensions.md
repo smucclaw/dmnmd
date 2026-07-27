@@ -8,9 +8,10 @@
 > |---|---|
 > | **E0a**, **E0b** | **shipped** — PR #17. The DMN 1.3 reader is conformant, a vendor `xmlns` and an `<inputData><variable/></inputData>` are accepted, and failures are visible instead of silent. Pinned by `test/corpus/cases/policy/xml-*`. |
 > | **X** (hygiene) | **partly.** PR #19 added `test/corpus/`, a 105-case behavioural record, which is the "stop the next six-year gap" half. The error-position bug and `parseFNumFunction`'s `error` are **recorded as symptom cases, deliberately not fixed** — see `symptom/md-error-position-misreported` and `symptom/num-function-call-crash`. |
-> | **E4** (`DMN_Enum` + `DMN_FEEL`) | open, and the next thing being built. See §3's "E4" heading and `src/DMN/Types.hs:38-49`. |
+> | **E4** (`DMN_Enum` + `DMN_FEEL`) | **shipped, but not as specified.** Declared domains are now checked and quoted strings are unwrapped, with **no new markdown syntax and no new `DMNType` constructor** — the sub-header row already was the domain syntax. `DMN_FEEL` was **rejected**: it does not fix its own motivating example, because `parseFNF3` is non-associative. See `BUILD-SPEC-dmnmd-e4.md`, whose §13 records where its own design was wrong. **E8 shipped with it.** |
 > | **E2, E3, E6, E1** | open, in that dependency order. E3 still must not ship before E4. |
-> | **E7, E8** | open. E7 **crashes, it does not misparse** — §2.1 predicted the wrong failure mode; see the erratum there. E8 folds into E4, which is where a declared enum domain gets a home. |
+> | **E7** | open. It **crashes, it does not misparse** — §2.1 predicted the wrong failure mode; see the erratum there. Its real fix is folding `parseFNumFunction` left with precedence, which belongs in row X, not in a type. |
+> | **E8** | **shipped with E4.** A declared enum domain now has a home, and is checked. |
 >
 > **Correction, 2026-07-27.** An earlier version of this table called E4 "temporal types" and
 > pointed at `policy/xml-temporal-typeref-refused`. That was wrong, and wrong in the way this

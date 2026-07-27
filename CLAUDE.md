@@ -105,6 +105,20 @@ Things that are only apparent across several files:
   before the first `:`. `--pick` matches those names.
 - **Hit policy is the top-left cell** (`U A P F O R C`, `mkHitPolicy_` in `ParseTable.hs`);
   `evalTable` implements all of them, but the transpilers do not.
+- **The sub-header row is a checked domain, and it goes *below* the `|---|`.** A row whose
+  first cell is blank, before the first numbered row, declares what its columns may hold
+  (`README.md` Example 3; DMN 1.3 fig 8.19). `DecisionTable.domainErrors` refuses a table
+  whose plain-value cells fall outside it — but a *test* (`< 18`, `[18..65]`, `-`) is exempt,
+  because a test selects a subset of the domain rather than naming a member. Membership is
+  decided by `fEval`, the same function that decides run-time matching, so the check cannot
+  drift from it and a declared numeric range constrains numeric cells for free. Both readers
+  share it; the XML reader calls it directly because `convTable` bypasses `mkDTable` on
+  purpose. Above the `|---|`, GFM does not render a table at all.
+- **A double-quoted cell is a string literal**, unwrapped **all-or-nothing per cell**
+  (`unquoteCell`). Per-fragment unquoting has been tried and reverted — `mkFsEither` splits on
+  commas first, so `not("Fall", …)` arrives shredded and unquoting the well-formed fragments
+  yields something that is neither the source text nor a parse of it. Pinned from both sides by
+  `policy/md-quoted-literal-all-or-nothing` and `symptom/xml-comma-split-negation`.
 - **The parser is megaparsec.** `DMN/ParsingUtils.hs` holds attoparsec-shaped shims
   (`many1`, `anyChar`, `notChar`, `parseOnly`) left over from an atto→mega migration.
 
@@ -185,6 +199,7 @@ read?*
 | markdown with no decision tables — prose, or prose pipe tables (`test/golden/README.md`) | 0 |
 | malformed XML, or DMN 1.1/1.2 | 1 |
 | a table refused by the converter | 1 |
+| a table whose cell violates its own declared domain — either reader | 1 |
 | markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
 
 A pipe table whose top-left cell is not a hit policy is prose, not a broken decision table:
