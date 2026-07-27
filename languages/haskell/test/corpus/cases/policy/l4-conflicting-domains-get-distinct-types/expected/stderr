@@ -1,0 +1,1 @@
+dmnmd: warning: two columns named "Category" declare different domains, so their L4 types cannot be the same type. The second is emitted as "Category_2". Merging them would silently widen both domains, which l4 cannot see and would accept.
