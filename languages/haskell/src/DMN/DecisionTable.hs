@@ -306,7 +306,7 @@ mkDTable origname orighp origchs origdtrows =
     -- locate the failure and refuse only the offending table.
     case domainErrors built of
       []   -> built
-      errs -> error (intercalate "\n" errs)
+      errs -> error (intercalate "\n" ((("error: table " ++ show origname ++ ": ") ++) <$> errs))
                          
 -- | Every way a table's cells violate the domains its sub-header row declares.
 --
@@ -343,9 +343,13 @@ domainErrors dt =
   , not (fEvals cell domain)
   ]
   where
+    -- No table name and no "error:" prefix: each reader frames this its own
+    -- way. The markdown path prepends `error: table "X": ` on its way to
+    -- @error@; the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt' through
+    -- that module's own `inTable`, which also knows the rule id. One rule, two
+    -- framings — rather than one rule and two implementations.
     msg ch rn cell = concat
-      [ "error: table ", show (tableName dt)
-      , ": column ", show (varname ch)
+      [ "column ", show (varname ch)
       , maybe "" (\n -> ": row " ++ show n) rn
       , ": value outside the column's declared domain {"
       , intercalate ", " (showDomainMember <$> fromJust (enums ch))

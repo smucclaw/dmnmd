@@ -131,6 +131,12 @@ You can also prefix output columns with a `>` character.
 
 Columns are optionally typed using a colon. You will see `Column Name : String`, `Column Name : Number`, and `Column Name : Boolean`. If you omit the type definition, `dmnmd` will attempt to infer the type.
 
+Inside a string column, a cell wrapped in double quotes is a string **literal**: `"Fall"` means
+the four characters `Fall`, and the quotes are not part of the value. This is how DMN XML writes
+strings, so a table imported from XML reads the same as one written by hand. A cell that is not
+a well-formed literal is kept exactly as written, so `Non-Participating` and `5' 10"` are
+unaffected.
+
 In some decision tables, the input and outputs are enumerated in a sort of sub-header row. The order matters.
 
 This implementation only supports vertical layout. Horizontal and crosstab layouts may appear in a future version if there is demand.
@@ -142,6 +148,21 @@ The above is perhaps best explained by an example; see figure 8.19 of the DMN 1.
 For hit policy "O", the order of results in the output is determined by the order of the column enums.
 
 The column enums are giving in a subhead row between the top row and body data row "1".
+
+The subhead row goes **below** the `|---|` rule, not above it. Markdown requires the `|---|`
+immediately after the header row, so a table with the enums above it does not render as a table
+at all.
+
+Those enums are a **declared domain**: they say what the column is allowed to hold, and `dmnmd`
+checks them. A plain value that is not one of the listed values is an error and the table is
+refused — a misspelled `HIHG` in a column declared `LOW, MEDIUM, HIGH` is a typo, not a fourth
+risk category. Cells holding a *test* rather than a value (`< 18`, `[18..65]`, `-`, or an
+arithmetic expression) are not checked against the list, because a test does not name a member
+of the domain, it selects a subset of it. Where the domain is itself a numeric range
+(`[0..150]`), plain numbers are checked to lie inside it.
+
+The same applies to tables read from DMN XML, where the domain is written as `<inputValues>`
+and `<outputValues>`.
 
 | O | Age | Risk Category     | Debt Review :Boolean | > Routing              | > Review level         | Reason (out)                |
 |---|-----|-------------------|----------------------|------------------------|------------------------|-----------------------------|
