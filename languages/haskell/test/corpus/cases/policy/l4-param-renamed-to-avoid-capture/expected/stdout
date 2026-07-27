@@ -1,0 +1,18 @@
+DECLARE Route
+  IS ONE OF
+    `Route`
+    `Grab`
+
+DECLARE Card
+  IS ONE OF
+    `PRVI`
+    `Amex`
+
+GIVEN Route_ IS A Route
+GIVETH A MAYBE Card
+Categorize Route_ MEANS
+  BRANCH
+    IF Route_ EQUALS `Route` THEN JUST `PRVI`
+    IF ^      ^      `Grab`  THEN JUST `Amex`
+    OTHERWISE NOTHING
+

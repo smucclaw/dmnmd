@@ -296,27 +296,41 @@ l4Spec = do
       let out = toL4 defaultL4Opts { useElem = True } (parse "dish" dishTable)
       out `shouldContain` "elem Season (LIST \"Spring\", \"Summer\")"
 
+  -- NOTE THE `tier_` IN EVERY EXPECTATION BELOW. The fixture table is named
+  -- `tier` and its first input column is ALSO named `tier`, so 'renameParams'
+  -- appends an underscore to the parameter.
+  --
+  -- These expectations used to say `tier`, and that emission does not typecheck:
+  -- `tier tier cat MEANS` is exit 1 in the real l4 ("the names in a type
+  -- signature must match those in the definition"). So the tests were pinning
+  -- broken output, and the rename fixed a defect they had frozen rather than
+  -- breaking behaviour they were protecting. Verified by hand: the renamed form
+  -- is check exit 0 with its #ASSERT satisfied.
+  --
+  -- The one-column shift in the `^` positions is a consequence of the longer
+  -- parameter, not a ditto regression — the grid is measured from the emitted
+  -- token, so it moves with it.
   describe "DMN.Translate.L4.renderDittoGrid — emitDitto on vs off (BUILD-SPEC §3)" $ do
     let dt  = parse "tier" tierTable
         off = toL4 defaultL4Opts { emitDitto = False } dt
         on  = toL4 defaultL4Opts { emitDitto = True  } dt
     it "off mode spells out every guard at the same column layout (no carets)" $ do
       off `shouldNotContain` "^"
-      off `shouldContain` "IF tier EQUALS \"platinum\" AND cat EQUALS \"travel\" THEN 8"
+      off `shouldContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"travel\" THEN 8"
     it "on mode keeps the first arm fully spelled (nothing to copy above)" $
-      on `shouldContain` "IF tier EQUALS \"platinum\" AND cat EQUALS \"dining\" THEN 10"
+      on `shouldContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"dining\" THEN 10"
     it "on mode collapses repeated guard tokens to column-aligned ^" $ do
       on `shouldContain` "^"
       -- arm 2: field, op and the platinum value all match the arm above -> ^^^;
       -- only the changed cat value ("travel") is re-typed.
-      on `shouldContain` "IF ^    ^      ^          ^   ^   ^      \"travel\" THEN 8"
+      on `shouldContain` "IF ^     ^      ^          ^   ^   ^      \"travel\" THEN 8"
       -- the spelled-out form of arm 2 must NOT survive (it was dittoed away).
-      on `shouldNotContain` "IF tier EQUALS \"platinum\" AND cat EQUALS \"travel\""
+      on `shouldNotContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"travel\""
     it "on mode re-types a changed value and never dittos across a dropped conjunct" $
       -- arm 4 changes tier to gold (re-typed), but its AND/cat/EQUALS/value are
       -- spelled out because arm 3 dropped the cat conjunct (a Nothing above is
       -- not copyable) — the load-bearing transitive-with-gap case.
-      on `shouldContain` "IF ^    ^      \"gold\"     AND cat EQUALS \"dining\" THEN 6"
+      on `shouldContain` "IF ^     ^      \"gold\"     AND cat EQUALS \"dining\" THEN 6"
 
   describe "DMN.Translate.L4.toL4 — OTHERWISE synthesis (bug 1/6)" $ do
     let out = toL4 defaultL4Opts (parse "FirstNoCatch" noCatchTable)
