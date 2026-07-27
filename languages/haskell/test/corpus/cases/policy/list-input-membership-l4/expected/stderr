@@ -1,0 +1,1 @@
+warning: table "Scores": hit policy U (Unique) with collection input column(s) "tags": membership tests over disjoint values still overlap — a collection holding two of them matches both rules — so this table can report multiple matches on input a DMN validator would accept.

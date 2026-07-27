@@ -11,7 +11,7 @@ import System.IO
       openFile,
       stdout,
       IOMode(WriteMode) )
-import Control.Monad ( when, unless )
+import Control.Monad ( when, unless, forM_, zipWithM )
 import System.Exit ( exitFailure )
 import Data.List.Split (splitOn)
 import Data.List (intercalate, nub)
@@ -31,7 +31,8 @@ import DMN.Types
       DMNType,
       ColHeader(vartype) )
 import DMN.DecisionTable
-    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF )
+    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkInputValue, splitArgs,
+      tableWarnings )
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
 import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
@@ -63,6 +64,13 @@ main = do
   when (null pickedTables) $ mylog opts $ "available tablenames were " ++ show (tableName <$> mydtables)
   mylog opts "shall we output them or go interactive?"
 
+  -- Things worth saying out loud that are not grounds for refusal. Exit status
+  -- is untouched: it answers only "did something we were asked to read fail to
+  -- read?". The XML reader routes the same list through 'warnAt'.
+  forM_ pickedTables $ \dt ->
+    mapM_ (hPutStrLn stderr . (("warning: table " ++ show (tableName dt) ++ ": ") ++))
+          (tableWarnings dt)
+
     -- are we talking to console or receiving input from STDIN?
     -- is the input coming in JSON format?
     -- which tables shall we run eval against? maybe the user gave a --pick. Maybe they didn't. if they didn't, run against all tables.
@@ -82,7 +90,9 @@ main = do
         Nothing -> return ()
         Just "quit" -> return ()
         Just inputCmd -> do
-          let splitInput = trim <$> splitOn "," inputCmd
+          -- Bracket-aware, so `[1,2,3]` stays ONE argument. A plain
+          -- splitOn "," predates types and shredded it into three.
+          let splitInput = trim <$> splitArgs inputCmd
           if length splitInput /= length expecting
             then outputStrLn ("error: expected " ++ show (length expecting) ++ " arguments, got " ++ show (length splitInput) ++
                               "; arguments should be " ++ show expecting)
@@ -94,7 +104,7 @@ main = do
                     (\errstr -> outputStrLn $ "problem running " ++ inputCmd ++ " against table " ++ tableName dtable ++ ": " ++ errstr)
                     (outputStr . unlines . map (\resultrow ->
                                                    tableName dtable ++ ": " ++ intercalate ", " (showToJSON (outformat opts) dtable resultrow)))
-                    (evalTable dtable (zipWith mkF expecting splitInput))
+                    (evalTable dtable =<< zipWithM mkInputValue expecting splitInput)
                 ) dtables
           outputStrLn ""
           loop opts dtables

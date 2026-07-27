@@ -137,6 +137,39 @@ strings, so a table imported from XML reads the same as one written by hand. A c
 a well-formed literal is kept exactly as written, so `Non-Participating` and `5' 10"` are
 unaffected.
 
+#### Collection columns
+
+A column can hold a **collection**, written `Column Name : [String]`. This is DMN's
+`isCollection="true"`, so a `<itemDefinition isCollection="true">` imported from XML becomes one
+of these.
+
+In a collection column a cell means **membership** — does the collection contain this value:
+
+| F | roles : [String] | grant (out) |
+|---|------------------|-------------|
+| 1 | admin            | full        |
+| 2 | clerk, teller    | read        |
+| 3 | -                | none        |
+
+Rule 1 fires when `roles` contains `admin`. The comma keeps its usual meaning of "any of these",
+at the element level, so rule 2 fires when `roles` contains either `clerk` or `teller`. The
+wildcard `-` matches any collection, including the empty one, and the empty collection contains
+nothing, so it matches no membership rule.
+
+An **output** cell in a collection column is a value rather than a test: `fries, slaw` is the
+two-element collection, and `-` is the empty one.
+
+A cell that is **not** a plain member — a comparison like `> 3`, a range, an arithmetic
+expression — is **refused**, with a message naming the row and the column. This is deliberate.
+"Some element is over 3" and "every element is over 3" are different rules, nothing in the table
+says which, and DMN gives the comparison no meaning at all. Rather than guess, `dmnmd` asks you to
+aggregate the collection to a scalar before the table, or split the column. FEEL constructs that
+`dmnmd` does not implement — `not(...)`, `list contains(...)`, a `[a, b]` literal — are refused
+for the same reason.
+
+At the `-q` prompt a collection is written the way FEEL writes one, `[admin, clerk]`, with `[]`
+for the empty collection.
+
 In some decision tables, the input and outputs are enumerated in a sort of sub-header row. The order matters.
 
 This implementation only supports vertical layout. Horizontal and crosstab layouts may appear in a future version if there is demand.

@@ -114,6 +114,19 @@ Things that are only apparent across several files:
   drift from it and a declared numeric range constrains numeric cells for free. Both readers
   share it; the XML reader calls it directly because `convTable` bypasses `mkDTable` on
   purpose. Above the `|---|`, GFM does not render a table at all.
+- **A collection column's cell means membership, and the ambiguous shapes are refused.**
+  `tags : [Number]` is DMN's `isCollection`. `mkFEither` parses such a cell at the *element*
+  type (`elemType`, which does **not** recurse — nested `[[T]]` is refused), so `FEELexp`
+  gains nothing and the list-ness lives in the column type where every backend can see it.
+  A plain value means "the collection contains this"; a comparison, range or arithmetic
+  expression is refused, because "some element > 3" and "every element > 3" are different
+  rules and DMN gives the construct no meaning. **The refusals live in
+  `DecisionTable.structuralErrors`, which walks `allrows`** — not in `mkFEither`, which
+  cannot tell an input cell from an output cell from a sub-header domain member, since
+  `ParseTable` builds `enums` through the same `mkFs`. Putting them there would make a range
+  domain `[0..150]` unwritable, and `mkFs = either error id` would crash ordinary tables.
+  A runtime *value* is a different thing from a cell and is parsed by `mkInputValue`, the
+  sole producer of `DMNVal`'s `VL`.
 - **A double-quoted cell is a string literal**, unwrapped **all-or-nothing per cell**
   (`unquoteCell`). Per-fragment unquoting has been tried and reverted — `mkFsEither` splits on
   commas first, so `not("Fall", …)` arrives shredded and unquoting the well-formed fragments
@@ -267,6 +280,9 @@ baseline. `--record` checks them all before writing anything.
 PR #17 has since moved several of them — treat it as history, not as current behaviour, and
 prefer `test/corpus/`, which is machine-checked. The items below are current:
 
+- **The executable is not covered by `-Werror=incomplete-patterns`.** The flag is on the
+  `library` stanza only, so `app/`'s partial functions still fail at run time — `showToJSON`
+  is the live example, recorded as `symptom/cli-showtojson-*`.
 - **`--from=xml` reads DMN 1.3 only; `--to=xml` is not implemented at all**, despite `Xml`
   existing in `FileFormat`. The reader is deliberately strict — an element or attribute the
   vendored `xsd/DMN13.xsd` does not allow in that position is an error, and a DMN 1.1/1.2

@@ -1,0 +1,9 @@
+export function Sides ( season : string ) {
+  if (season === "Fall") { // 1
+    return {"sides":["fries","slaw"]};
+  }
+  else if (season === "Spring") { // 2
+    return {"sides":["soup"]};
+  }
+}
+

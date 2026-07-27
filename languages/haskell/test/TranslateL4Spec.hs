@@ -158,6 +158,18 @@ prioTable = T.pack $ dropWhile (== '\n') [r|
 | 2 | > 0        | HIGH                  |
 |]
 
+-- | A collection INPUT column and a collection OUTPUT column in one table, so
+-- one @l4 check@ covers both the membership helper and the list literal.
+-- Hit policy @F@ so that @admin, clerk@ resolves to the first matching arm.
+listTable :: Text
+listTable = T.pack $ dropWhile (== '\n') [r|
+| F | roles : [String] | grants : [String] (out) |
+|---+------------------+-------------------------|
+| 1 | admin            | full, audit             |
+| 2 | clerk, teller    | read                    |
+| 3 | -                | -                       |
+|]
+
 parse :: String -> Text -> DecisionTable
 parse name = either error id . parseOnly (parseTable name)
 
@@ -291,10 +303,21 @@ l4Spec = do
     it "carries row comments as trailing -- comments" $
       out `shouldContain` "-- seasonal pick"
 
+  -- This expectation used to be `elem Season (LIST …)`, and that emission does
+  -- not typecheck. `elem` is a PRELUDE name — it is defined, at
+  -- jl4-core/libraries/prelude.l4:448, with exactly the signature dmnmd wants —
+  -- but the emitter never wrote an `IMPORT prelude`, so `l4 check` reported "I
+  -- could not find a definition for the identifier elem" and exited 1. The test
+  -- was pinning output that could not be used.
+  --
+  -- Rather than emit the IMPORT, the backend now emits its own nine-line
+  -- helper: an IMPORT drags ~100 prelude names into scope where they can collide
+  -- with column and table names taken from the author's markdown, and an IMPORT
+  -- that fails to resolve breaks the whole file rather than one guard.
   describe "DMN.Translate.L4.toL4 — useElem option" $
-    it "renders multi-value cells as elem … (LIST …) when useElem is set" $ do
+    it "renders multi-value cells through the self-contained membership helper" $ do
       let out = toL4 defaultL4Opts { useElem = True } (parse "dish" dishTable)
-      out `shouldContain` "elem Season (LIST \"Spring\", \"Summer\")"
+      out `shouldContain` "`dmnmd list contains` Season (LIST \"Spring\", \"Summer\")"
 
   -- NOTE THE `tier_` IN EVERY EXPECTATION BELOW. The fixture table is named
   -- `tier` and its first input column is ALSO named `tier`, so 'renameParams'
@@ -396,6 +419,40 @@ l4Spec = do
       let runLog = rOut ++ rErr
       runLog `shouldSatisfy` ("\"d\"" `isInfixOf`)       -- catch-all wins for non-matching input
       runLog `shouldSatisfy` (not . ("\"b\"" `isInfixOf`)) -- the miscopied arm must NOT fire
+
+  -- The semantic gate for collection columns. A byte-comparison would not tell
+  -- us the thing we actually care about — that the emitted membership helper
+  -- typechecks and computes membership — so this runs the real toolchain, and
+  -- marks itself pending when no `l4` is on PATH.
+  describe "DMN.Translate.L4.toL4 — collection columns (tier 2)" $ do
+    let out = toL4 defaultL4Opts (parse "Access" listTable)
+    it "emits the self-contained membership helper, and no IMPORT prelude" $ do
+      out `shouldContain` "`dmnmd list contains` xs x MEANS"
+      out `shouldNotContain` "IMPORT prelude"
+    it "guards a collection input column by membership, not equality" $ do
+      out `shouldContain` "`dmnmd list contains` roles \"admin\""
+      out `shouldNotContain` "roles EQUALS"
+    it "renders a collection output cell as a whole list, and a wildcard as EMPTY" $ do
+      out `shouldContain` "THEN LIST \"full\", \"audit\""
+      out `shouldContain` "OTHERWISE EMPTY"
+    it "typechecks and computes membership under the real l4" $ withL4 $ \l4bin -> do
+      let emitted = out
+                 ++ "\n#EVAL Access (LIST \"admin\")"
+                 ++ "\n#EVAL Access (LIST \"teller\")"
+                 ++ "\n#EVAL Access EMPTY\n"
+          listOut = outDir ++ "/list.l4"
+      createDirectoryIfMissing True outDir
+      writeFile listOut emitted
+      (_cc, cOut, cErr) <- readProcessWithExitCode l4bin ["check", listOut] ""
+      (cOut ++ cErr) `shouldSatisfy` ("Check succeeded" `isInfixOf`)
+      (_rc, rOut, rErr) <- readProcessWithExitCode l4bin ["run", listOut] ""
+      let runLog = rOut ++ rErr
+      -- membership hits on a one-element list, on a later member of a
+      -- multi-value cell, and misses on the empty list.
+      runLog `shouldSatisfy` ("\"full\""  `isInfixOf`)
+      runLog `shouldSatisfy` ("\"audit\"" `isInfixOf`)
+      runLog `shouldSatisfy` ("\"read\""  `isInfixOf`)
+      runLog `shouldSatisfy` ("EMPTY"     `isInfixOf`)
 
   describe "dmnmd --to=l4 golden (Option A — semantic, not byte-exact)" $
     it "miles-card emitter output typechecks and the golden #ASSERTs all pass" $ withL4 $ \l4bin -> do

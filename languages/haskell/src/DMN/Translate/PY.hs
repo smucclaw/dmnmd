@@ -86,7 +86,17 @@ annotationsAsComments chs dtrow =
   unlines $ ("    # "++) <$> (if length unprefixed > 1 then prefixedComments else unprefixed)
 
 fexp2js :: PYOpts -> ColHeader -> [FEELexp] -> String
-fexp2js jsopts ch fexps = wrapParen " or " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
+fexp2js jsopts ch fexps
+  -- See the twin in "DMN.Translate.JS": a collection column's cell is a
+  -- membership test, and the comma still means OR.
+  | isListCol ch = wrapParen " or " (memberPy (showVarname jsopts ch) <$> fexps)
+  | otherwise    = wrapParen " or " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
+  where
+    memberPy lhs (FNullary v) = "(" ++ showFeel "py" (FNullary v) ++ " in " ++ lhs ++ ")"
+    memberPy lhs FAnything    = wrapParen " or " ["True", lhs]
+    memberPy _   fexp = error $ unwords
+      [ "fexp2py: a collection column reached the emitter holding", show fexp
+      , "-- structuralErrors should have refused this table" ]
 
 showVarname :: PYOpts -> ColHeader -> String
 showVarname jsopts ch
@@ -112,7 +122,12 @@ comment_headers = filter ((DTCH_Comment==).label)
 
 
 feel2pyIn :: String -> FEELexp -> String
-feel2pyIn lhs  FAnything = wrapParen "or" ["True",lhs]
+-- @" or "@, not @"or"@. Python needs the spaces: the unspaced form emitted
+-- @(Trueorroles)@, one undefined name, a NameError at import time. The JS twin
+-- got away with @"||"@ because JS punctuation does not need separating. Reached
+-- only from a cell that MIXES @-@ with values (@RED, -@), because 'nonBlankCols'
+-- drops a cell that is wholly @FAnything@.
+feel2pyIn lhs  FAnything = wrapParen " or " ["True",lhs]
 feel2pyIn lhs (FSection Feq (VB rhs))  = lhs ++ showFNComp "py" FNEq  ++ capitalize (toLower <$> show rhs)
 feel2pyIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "py" FNEq  ++ show rhs
 feel2pyIn lhs (FSection Feq (VS rhs))  = lhs ++ showFNComp "py" FNEq  ++ show rhs
@@ -122,6 +137,13 @@ feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "py" FNGt  ++ show rh
 feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "py" FNGeq ++ show rhs
 feel2pyIn lhs (FInRange lower upper)   = wrapParen (showFNLog "py" FNAnd) [show lower ++ showFNComp "py" FNLeq ++ lhs, lhs ++ showFNComp "py" FNLeq ++ show upper]
 feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
+-- This arm was MISSING while 'DMN.Translate.JS.feel2jsIn' had it (JS.hs:152), so
+-- an arithmetic input cell was a runtime @Non-exhaustive patterns@ in --to=py and
+-- fine in --to=js. Found by -Werror=incomplete-patterns, not by a test.
+feel2pyIn _   o@(FFunction _)          = showFeel "py" o
+-- Ordering comparisons against a non-numeric value; see 'showFeel's own catch-all.
+feel2pyIn lhs fexp = error $ unwords
+  [ "feel2pyIn: no rendering for", show fexp, "as a guard on", show lhs ]
 
 -- TODO:
 -- let's extend FEEL with support for PCRE lol

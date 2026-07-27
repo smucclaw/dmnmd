@@ -1,0 +1,17 @@
+GIVEN a IS A TYPE
+      xs IS A LIST OF a
+      x IS AN a
+GIVETH A BOOLEAN
+`dmnmd list contains` xs x MEANS
+  CONSIDER xs
+  WHEN EMPTY THEN FALSE
+  WHEN y FOLLOWED BY ys THEN x EQUALS y OR `dmnmd list contains` ys x
+
+GIVEN tags IS A LIST OF NUMBER
+GIVETH A STRING
+Scores tags MEANS
+  BRANCH
+    IF `dmnmd list contains` tags 5   THEN "pass"
+    IF `dmnmd list contains` tags 7   THEN "fail"
+    OTHERWISE ""
+

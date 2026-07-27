@@ -9,6 +9,7 @@ module DMN.Types where
 import Prelude hiding (takeWhile)
 import qualified Data.Map as Map
 import Data.List.Utils (replace)
+import Data.Maybe (isJust)
 
 -- | We implement DMN Hit Policies.
 data HitPolicy = HP_Unique
@@ -54,11 +55,28 @@ data DMNType = DMN_String         -- no need to double quote; we use this for en
              | DMN_Boolean
              | DMN_List DMNType
              deriving (Show, Eq)
--- | what is the underlying base type? e.g. a list of @something@ has the base type @something@
-baseType :: Maybe DMNType -> Maybe DMNType
-baseType Nothing = Just DMN_String
-baseType (Just (DMN_List x)) = baseType (Just x)
-baseType (Just x) = Just x
+-- | The __element__ type of a column type: 'Just' for a collection, 'Nothing'
+-- for a scalar. Ask @isListType@ if all you want is the yes/no.
+--
+-- This replaced @baseType@, which recursed to the innermost scalar and coerced
+-- @Nothing@ to @Just DMN_String@ on the way. Neither behaviour is wanted here:
+--
+--  * a nested @[[T]]@ is __refused__, so flattening it would paper over the
+--    refusal and hand a @[[Number]]@ column the cell layer of a @Number@ one;
+--  * the @Nothing -> Just DMN_String@ coercion had no dependant. Its only
+--    caller was @mkFEither@'s list arm, and @mkFEither Nothing@ already returns
+--    @FNullary (VS (trim arg))@ by itself.
+elemType :: Maybe DMNType -> Maybe DMNType
+elemType (Just (DMN_List t)) = Just t
+elemType _                   = Nothing
+
+-- | Is this column type a collection?
+isListType :: Maybe DMNType -> Bool
+isListType = isJust . elemType
+
+-- | Is this column a collection? The form almost every caller wants.
+isListCol :: ColHeader -> Bool
+isListCol = isListType . vartype
 
 type DTvar = String
 
@@ -183,5 +201,17 @@ data FNComp = FNEq
 data DMNVal = VS String
             | VN Float
             | VB Bool
+            -- | A collection, and __only ever a runtime argument__.
+            --
+            -- A 'VL' cannot appear in a decision table cell:
+            -- 'DMN.DecisionTable.mkFEither' has no way to build one, because a
+            -- cell in a collection column is parsed at the ELEMENT type. It is
+            -- produced solely by 'Main.mkInputValue', which parses a VALUE
+            -- supplied at the prompt, as opposed to a TEST written in a table.
+            --
+            -- That distinction is the point. A cell is a test, a runtime
+            -- argument is a value, and conflating them is why the @-q@ REPL
+            -- used to accept @>= 5@ as an "input".
+            | VL [DMNVal]
             deriving (Show, Eq)
 

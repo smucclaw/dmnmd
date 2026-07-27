@@ -1,6 +1,6 @@
 # BUILD SPEC — L4 sum types for domained columns, and the DMN data model
 
-> ## Status: **PARTLY LANDED.** Per step, as of 2026-07-27:
+> ## Status: **LANDED.** Per step, as of 2026-07-28:
 >
 > | step | what | state |
 > |---|---|---|
@@ -8,11 +8,11 @@
 > | A.8 2 | `toL4File` + `outputToAll` | **landed** — PR #33. Went further than "behaviour-preserving": refusals became `Diagnostic`s decided for the whole file *before* rendering, because the old per-table emission leaked 4KB of a refused run to stdout above the 2048-char buffer chunk |
 > | A.8 3 | `DECLARE` + backticked constructors, outputs only | **landed** — `d882a43` |
 > | A.8 4 | `MAYBE`/`JUST`/`NOTHING`, subsuming `wrapMaybe` | **landed** — `2d3acbb` |
-> | A.8 5 | input columns | **not landed.** Read the `MEASURED` blocks in §A.4 and §A.7 first — both sections were refuted |
-> | A.8 6 | file-level dedup + the avoid-set | **dedup landed** (PR #35, `assignEnumNames`). The **avoid-set has not**, and only step 5 needs it |
+> | A.8 5 | input columns | **landed** — PR #37. Read the `MEASURED` blocks in §A.4 and §A.7 first: both sections were refuted by measurement, and the shipped design is not the one written below |
+> | A.8 6 | file-level dedup + the avoid-set | **landed** — dedup in PR #35 (`assignEnumNames`), the avoid-set with step 5 in PR #37 (`renameParams`) |
 > | B.5 0 | a Warning naming each discarded `<itemDefinition>` | **landed** — `0f06b77` |
 > | B.5 1 | `allowedValues` as an inherited named domain | **landed** — PR #34 |
-> | B.5 2 | `isCollection` → `DMN_List` | **not landed, and §B.3's "small" verdict was WRONG** — see the `MEASURED` block at §B.3 |
+> | B.5 2 | `isCollection` → `DMN_List` | **landed** — but NOT as one line. §B.3's "small" verdict was wrong, and the `MEASURED 2026-07-27` block there explains why; the `LANDED 2026-07-28` block below it records what was actually built |
 > | B.5 3 | structured `itemComponent` | **out of scope**, deliberately |
 >
 > **Read the body as the design's voice, not as a description of the tree.** It was written
@@ -389,6 +389,55 @@ what `<inputValues>` has imposed since E4 — both are `tUnaryTests`.
 > Real tier 2 is: make a list column's cells be **list tests**. In DMN an `inputEntry` on a
 > collection is a membership or quantified test, not an equality — so this belongs with the S-FEEL
 > grammar work, not here.
+
+> ### LANDED 2026-07-28 — what tier 2 turned out to be
+>
+> The block above is right that tier 2 is not one line, and wrong about where it belongs. It does
+> **not** need S-FEEL grammar work: S-FEEL has no list type, no `in`, no function invocation and
+> no quantifier, and `SFeelGrammar.hs` is not wired into the pipeline at all. What it needed was a
+> decision about **meaning**, and then plumbing.
+>
+> **The meaning: a plain cell in a collection column is MEMBERSHIP, and every other shape is
+> refused.** Not an existential lift, and not an explicit `some`/`every` keyword. Both were
+> designed in full and both were rejected:
+>
+> * An existential lift has to pick ∃ over ∀ for `> 3` with nothing in the table to justify it,
+>   and pays for the choice four times over — a hardcoded lambda binder that captures user
+>   identifiers in three backends with no freshening, and Python silently substring-matching a
+>   scalar string through `any(… for x in …)`.
+> * A mandatory quantifier keyword cannot be met from the XML side at all: a DMN `<inputEntry>` is
+>   `tUnaryTests`, one `<text>`, with no quantifier slot. Requiring the keyword in markdown would
+>   make `--from=xml` able to accept nothing but `-`.
+>
+> Refusing the ambiguous shapes designs both problems out. There is no lambda to bind and no
+> quantifier to guess, and `.includes` / ` in ` / `` `dmnmd list contains` `` are all simple calls.
+>
+> **Why refusing is not a cop-out here.** The cell being refused is not merely unimplemented; DMN
+> gives it no meaning. §10.3.2.10 defines input-entry satisfaction by reduction to `FEEL(e in (t))`
+> and Table 54 defines `<`/`>` over scalars, so a conformant engine yields null and never matches.
+> And what it replaced was measurably worse than never-matching: `tags > 3` against a `number[]`
+> emitted `if (tags > 3.0)`, and in node `[5] > 3` is **true**, `[10] > 3` is **true**, `[1,2] > 3`
+> is **false** — JS stringifies the array and coerces. A test suite over single-element lists would
+> have passed.
+>
+> **What shipped**, over seven commits:
+>
+> | | |
+> |---|---|
+> | `-Werror=incomplete-patterns` | it found a missing `FFunction` arm in `feel2pyIn` within minutes, and a missing `DMNVal` arm in code written later the same day |
+> | `elemType`, replacing `baseType` | one level, no flattening, no `Nothing -> String` coercion |
+> | `structuralErrors` | eight refusals + warnings, at TABLE level walking `allrows` — **not** in `mkFEither`, which cannot tell an input cell from an output cell from a sub-header domain member |
+> | membership in four backends | `.includes` / ` in ` / a self-contained L4 helper, **no `IMPORT prelude`** |
+> | `DMNVal`'s `VL`, and `mkInputValue` | a cell is a TEST, a runtime argument is a VALUE — conflating them is why `-q` used to accept `>= 5` as an input |
+> | `isCollectionOf` in `resolveTypeRef` | the wrap happens after the recursive resolve, so a collection of a named base composes |
+>
+> Verified by execution, not by reading: the emitted JS in node, the emitted Python in python3, the
+> emitted L4 through `l4 run`, and the `-q` interpreter, all agree on the same six inputs.
+>
+> The one thing the block above got exactly right is the warning that a one-line
+> `isCollection → DMN_List` would trade a loud refusal for a silent wrong answer. That refusal is
+> preserved, moved from the type down to the cell: R3 refuses a collection cell that is not a plain
+> member, per rule id, so `list contains(?, "RED")` from a DMN file is still refused by name.
 
 ## B.4 The blocker the review found
 
