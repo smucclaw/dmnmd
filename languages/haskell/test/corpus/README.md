@@ -185,19 +185,19 @@ policy case. See "Normalisation" below for why the positions are kept in the
 recordings rather than stripped.
 
 The runner finds the binary in this order: `$DMNMD`, `cabal list-bin exe:dmnmd`
-(cheap, does not build), the newest `dist-newstyle` build product, stack's local
-install root, `dmnmd` on `PATH`. It never hardcodes an absolute path — and neither
-does `test/TranslateL4Spec.hs`, which honours `$L4_BIN` and then falls back to
+(cheap, does not build), the newest `dist-newstyle` build product, `dmnmd` on
+`PATH`. It never hardcodes an absolute path — and neither does
+`test/TranslateL4Spec.hs`, which honours `$L4_BIN` and then falls back to
 `findExecutable "l4"`, marking its examples *pending* rather than failed when no
 toolchain is present.
 
 That last fallback is a trap, so the runner warns loudly when it takes it. If you
-have ever run `stack install` or `cabal install`, there is a `dmnmd` in
-`~/.local/bin` that is as old as the day you installed it; running the corpus from a
-tree with no build product will silently test *that* binary and report a screenful
-of regressions that say nothing about your working tree. This happened while the
-script was being written. Always `cabal build` first, and read the `corpus: using …`
-line before believing a failure.
+have ever run `cabal install`, there is a `dmnmd` in `~/.local/bin` that is as old
+as the day you installed it; running the corpus from a tree with no build product
+will silently test *that* binary and report a screenful of regressions that say
+nothing about your working tree. This happened while the script was being written.
+Always `cabal build` first, and read the `corpus: using …` line before believing a
+failure.
 
 ## Re-recording after an intentional change
 
@@ -249,17 +249,23 @@ claimed to protect, teaching whoever sees it that the right response to red is
 `--record` rather than reading.
 
 **The package's unit id is normalised away**, and it has to be. A `CallStack` frame
-names the unit that raised it, and the two build tools spell that differently for the
-*same source*: cabal writes `dmnmd-0.1.0.2-inplace`, stack writes a content hash over
-the dependency closure, `dmnmd-0.1.0.2-Lh7ThTCGA728GOI7Am8Gmj`, which changes whenever
-the closure changes. Both become ` in dmnmd:`.
+names the unit that raised it, and that spelling is a property of how the package was
+built, not of what the code does. An in-place cabal build writes
+`dmnmd-0.1.0.2-inplace`; an *installed* build writes a content hash over the
+dependency closure, `dmnmd-0.1.0.2-Lh7ThTCGA728GOI7Am8Gmj`, which changes whenever the
+closure changes — and search entry 4 will happily run exactly such a binary off
+`PATH`. Both become ` in dmnmd:`.
 
-Without that rule the corpus is red on whichever toolchain did not record it — and
-since CI builds with stack while most local work here is cabal, that meant **CI red on
-its first run**, on 14 recordings, for a difference with no behavioural content
-whatsoever. It was caught by an adversarial audit rather than by CI, which is luck; it
-would have arrived as a wall of `REGRESSION` lines inviting exactly the blanket
-`--record` this file spends two paragraphs warning against.
+Without that rule a recording only reproduces under the build that made it. The
+concrete failure was **CI red on its first run**, on 14 recordings, for a difference
+with no behavioural content whatsoever: CI built with stack then, and stack spells the
+unit id the hashed way. Stack is gone, but the rule is not stack-specific and stays —
+its standing job is portability across machines, and the evidence that it works is
+Linux CI reproducing recordings made on macOS arm64.
+
+That first failure was caught by an adversarial audit rather than by CI, which is
+luck; it would have arrived as a wall of `REGRESSION` lines inviting exactly the
+blanket `--record` this file spends two paragraphs warning against.
 
 A **GHC upgrade** may still move the reported source spans in `app/Main.hs:(175,1)-…`
 style messages — those are handled by the cosmetic rule above.
@@ -278,8 +284,8 @@ Deliberately. Three reasons:
    `cabal test` is the expensive cycle that discourages that.
 
 Outside `cabal test`, but **not** outside CI. `.github/workflows/haskell.yml` runs
-`make corpus` as its own step after `stack test`, which is where the binary-vs-source
-staleness problem above goes away: `stack build` has already run in that job, so the
+`make corpus` as its own step after `cabal test`, which is where the binary-vs-source
+staleness problem above goes away: `cabal build` has already run in that job, so the
 binary is current by construction.
 
 CI runs the whole corpus rather than `--class policy`, deliberately. Both fail only

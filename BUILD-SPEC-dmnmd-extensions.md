@@ -8,8 +8,19 @@
 > |---|---|
 > | **E0a**, **E0b** | **shipped** — PR #17. The DMN 1.3 reader is conformant, a vendor `xmlns` and an `<inputData><variable/></inputData>` are accepted, and failures are visible instead of silent. Pinned by `test/corpus/cases/policy/xml-*`. |
 > | **X** (hygiene) | **partly.** PR #19 added `test/corpus/`, a 105-case behavioural record, which is the "stop the next six-year gap" half. The error-position bug and `parseFNumFunction`'s `error` are **recorded as symptom cases, deliberately not fixed** — see `symptom/md-error-position-misreported` and `symptom/num-function-call-crash`. |
-> | **E4** (temporal types) | open. This is the "`date` is unmodelled" item; today an unmodelled `typeRef` is refused outright, which `policy/xml-temporal-typeref-refused` pins. |
+> | **E4** (`DMN_Enum` + `DMN_FEEL`) | open, and the next thing being built. See §3's "E4" heading and `src/DMN/Types.hs:38-49`. |
 > | **E2, E3, E6, E1** | open, in that dependency order. E3 still must not ship before E4. |
+> | **E7, E8** | open. E7 (a negative number is misparsed, not rejected) is the worst defect listed here — see §2.1. E8 folds into E4, which is where a declared enum domain gets a home. |
+>
+> **Correction, 2026-07-27.** An earlier version of this table called E4 "temporal types" and
+> pointed at `policy/xml-temporal-typeref-refused`. That was wrong, and wrong in the way this
+> repo keeps getting caught by: it conflated two separate items. **E4 is `DMN_Enum` and
+> `DMN_FEEL`** (§3, and the author's own proposal at `src/DMN/Types.hs:38-49`). Temporal
+> `typeRef`s — `date`, `time`, `date and time`, the two durations — are the **tail of E0a**,
+> which §3 asks to "map the temporal types too, or degrade them to `DMN_String` with a warning".
+> That half of E0a did not ship: an unmodelled `typeRef` is still refused outright, which is
+> what `policy/xml-temporal-typeref-refused` actually pins, and which is safe and loud rather
+> than wrong. It remains open, and is **not** E4.
 >
 > **§1 "Verified current state" was true on 2026-07-25 and is now partly false.** PR #17 moved
 > several of the behaviours it reports. Do not quote §1 as evidence of how dmnmd behaves —

@@ -32,36 +32,45 @@ removed — it was self-contained and nothing depended on it. The root README's
 All build/test commands run from `languages/haskell/`.
 
 ```
-stack build
-stack test
-stack run -- --to=l4 path/to/table.md      # or: stack exec -- dmnmd README.md --to=ts -r
-stack install                               # puts dmnmd on PATH
+cabal build
+cabal test
+cabal run -- dmnmd --to=l4 path/to/table.md     # or: cabal run -- dmnmd README.md --to=ts -r
+cabal install exe:dmnmd --overwrite-policy=always \
+  --install-method=copy --installdir=$HOME/.local/bin   # puts dmnmd on PATH
 ```
 
-Both stack (`stack.yaml`, lts-24.20) and cabal (`dist-newstyle/`) are used in practice, and
-both are on **GHC 9.10.3 with megaparsec 9.7.0** — keep them aligned. `DMN.Translate.L4`
-imports `Text.Megaparsec.Unicode (isWideChar)`, which does not exist before megaparsec
-9.7.0, so an older resolver silently makes the L4 backend uncompilable under stack while
-cabal keeps working. CI runs `stack test`.
+**dmnmd is cabal-only.** `stack.yaml`, `stack.yaml.lock` and `package.yaml` were removed to
+match `legalese/l4-ide`, which builds with cabal and no stack. So **`dmnmd.cabal` is
+hand-maintained and is the single source of truth** — edit it directly. There is no hpack
+step, and nothing regenerates it. The one thing hpack did that nothing does now is
+auto-discover modules: a new module under `src/` must be added to `exposed-modules` by hand,
+or it is silently not compiled into the library.
 
-The cabal file is generated from `package.yaml` by hpack — **edit `package.yaml`**, not
-`dmnmd.cabal` (stack regenerates it; a hand-edit to the `.cabal` will be overwritten).
+GHC 9.10.3 (recorded in `tested-with`, and pinned in CI) with **megaparsec ≥ 9.7.0**, which
+is a real lower bound in `dmnmd.cabal` rather than a convention: `DMN.Translate.L4` imports
+`Text.Megaparsec.Unicode (isWideChar)`, which does not exist before it. CI runs
+`cabal test` and then `make corpus`.
 
 macOS needs `brew install pkg-config pcre` for `regex-pcre` (Linux: `libpcre3-dev`).
-`stack.yaml` also carries a `nix: pure: true` stanza supplying those.
+`languages/haskell/shell.nix` carries the same two for nix users; it replaced the
+`nix: pure: true` stanza that used to live in `stack.yaml`.
 
-Single test / focused runs (hspec, via `--test-arguments`):
+Single test / focused runs (hspec, via `--test-options`):
 
 ```
-stack test --ta '--match "renders FInRange"'
-stack test --ta '--match "/DMN.Translate.L4.toL4/"'   # a whole describe block
+cabal test --test-options='--match "renders FInRange"'
+cabal test --test-options='--match "/DMN.Translate.L4.toL4/"'   # a whole describe block
 ```
 
-Watch loops and fixture refresh live in the `Makefile`:
+Watch loops and fixture refresh live in the `Makefile`. cabal has no `--file-watch`, so all
+three go through `ghcid`, and the component split matters — `cabal repl test:dmnmd-test` does
+**not** load `src/` (the library arrives as a built dependency), which is why one target uses
+`--enable-multi-repl` and the other uses `--restart=src`:
 
 ```
 make ghcid          # ghcid over the library
-make tests-watch    # stack build --file-watch --test, rerunning failures first
+make ghcid-tests    # library + test suite together; typecheck only, :main is unsupported there
+make tests-watch    # runs the suite on every change, failures first
 make sync-golden    # re-copy test/golden/ fixtures from the homelab repo
 ```
 
@@ -103,7 +112,8 @@ Things that are only apparent across several files:
 
 Four places: a `FileFormat` constructor + `parseFileFormat` case + `fileExtensionMappings`
 entry in `app/Options.hs`; an `outputTo` clause in `app/Main.hs`; the module under
-`src/DMN/Translate/`; and `exposed-modules` in `package.yaml`.
+`src/DMN/Translate/`; and `exposed-modules` in `dmnmd.cabal`. That last one is easy to forget
+and fails late — nothing auto-discovers modules since hpack went.
 
 ## The L4 backend (`src/DMN/Translate/L4.hs`)
 
@@ -216,16 +226,19 @@ in silence.
 Three things there are easy to get wrong on sight:
 
 - **The package unit id is normalised away, and must be.** A `CallStack` frame names the unit
-  that raised it, and the two build tools spell it differently for identical source: cabal writes
-  `dmnmd-0.1.0.2-inplace`, stack writes a content hash over the dependency closure. Since CI
-  builds with stack and most local work here is cabal, without this rule the corpus is red on
-  whichever toolchain did not record it — 14 recordings, zero behavioural content.
+  that raised it, and that spelling is a property of how the package was built: an in-place
+  build writes `dmnmd-0.1.0.2-inplace`, an *installed* one writes a content hash over the
+  dependency closure — and the runner's `PATH` fallback will happily run such a binary. Without
+  the rule a recording only reproduces under the build that made it. It first bit as 14 red
+  recordings with zero behavioural content, back when CI built with stack; stack is gone but
+  the rule is not stack-specific, and Linux CI reproducing macOS arm64 recordings is the
+  evidence it earns its place.
 - **Source positions are kept, not normalised.** `DecisionTable.hs:121` is `mkFs` and `:143` is
   `mkF`, and several cells produce byte-identical message text down both paths, so the line
   number is the only discriminator. Instead of stripping them, a diff consisting of *nothing but*
   moved positions is reported as `cosmetic` and does not fail the run.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
-  tests whatever you last `stack install`ed. It warns when it does this; read the
+  tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
 
 The runner fails closed: a missing `STDIN_FILE`, unparseable `ARGS`, a `case.conf` that does not

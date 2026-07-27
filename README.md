@@ -24,21 +24,31 @@ The interface is CLI. No mouse needed!
 
 At the moment, `dmnmd` is an executable program written in Haskell. In future it may switch to Python.
 
+You need GHC and cabal — [ghcup](https://www.haskell.org/ghcup/) is the usual way to get both —
+plus `pcre`, which `regex-pcre` links against and finds through `pkg-config`.
+
 OS X:
 
-    brew install haskell-stack pkg-config pcre; stack upgrade
-    
+    brew install pkg-config pcre
+
 Linux:
 
-    { yum, apt-get, ... } install haskell-stack pkg-config libpcre3-dev; stack upgrade
+    { yum, apt-get, ... } install pkg-config libpcre3-dev
 
 Both:
 
     git clone git@github.com:smucclaw/dmnmd.git
     cd dmnmd/languages/haskell
-    stack test
-    stack build
-    stack install
+    cabal build
+    cabal test
+    cabal install exe:dmnmd --overwrite-policy=always \
+      --install-method=copy --installdir=$HOME/.local/bin
+
+That last line puts `dmnmd` on your `PATH`, which is what the transcripts below assume.
+`languages/haskell/shell.nix` supplies the two native packages if you use nix.
+
+dmnmd builds with **cabal only**; there is no `stack.yaml` and no hpack `package.yaml`.
+`languages/haskell/dmnmd.cabal` is hand-maintained and is the single source of truth.
 
 In future packaged binaries will be made available.
 
@@ -175,7 +185,7 @@ Options:
 
 **--props** Normally, functions expect as many parameters as there are input columns. with `--props`, functions expect input in a single `props` object; a "Props" type is generated.
 
-    % stack exec -- dmnmd README.md --to=ts --pick="Example 2" -r
+    % dmnmd README.md --to=ts --pick="Example 2" -r
     type Props_Example_2 = {
         "Season" : string;
         "Guest Count" : number;
@@ -184,22 +194,22 @@ Options:
         "Dish" : string;
     }
     export function Example_2 ( props : Props_Example_2 ) : Return_Example_2 {
-      if (props["Season"]==="Fall" && props["Guest Count"] <=8.0) { // 1
+      if (props["Season"] === "Fall" && props["Guest Count"] <= 8.0) { // 1
         return {"Dish":"Spareribs"};
       }
-      else if (props["Season"]==="Winter" && props["Guest Count"] <=8.0) { // 2
+      else if (props["Season"] === "Winter" && props["Guest Count"] <= 8.0) { // 2
         return {"Dish":"Roastbeef"};
       }
-      else if (props["Season"]==="Spring" && props["Guest Count"] <=4.0) { // 3
+      else if (props["Season"] === "Spring" && props["Guest Count"] <= 4.0) { // 3
         return {"Dish":"Dry Aged Gourmet Steak"};
       }
-      else if (props["Season"]==="Spring" && (5.0<=props["Guest Count"] && props["Guest Count"]<=8.0)) { // 4
+      else if (props["Season"] === "Spring" && (5.0 <= props["Guest Count"] && props["Guest Count"] <= 8.0)) { // 4
         return {"Dish":"Steak"};
       }
-      else if ((props["Season"]==="Fall" || props["Season"]==="Winter" || props["Season"]==="Spring") && props["Guest Count"] > 8.0) { // 5
+      else if ((props["Season"] === "Fall" || props["Season"] === "Winter" || props["Season"] === "Spring") && props["Guest Count"] > 8.0) { // 5
         return {"Dish":"Stew"};
       }
-      else if (props["Season"]==="Summer") { // 6
+      else if (props["Season"] === "Summer") { // 6
         return {"Dish":"Light Salad and a nice Steak"};
         // Hey, why not?
       }
@@ -211,24 +221,24 @@ We use "props" here as a synonym for the more proper term "context".
 
 This works today, modulo full support for hit policies.
 
-    % stack exec -- dmnmd README.md --pick="Example 2" --to=js
+    % dmnmd README.md --pick="Example 2" --to=js
     export function Example_2 ( Season, Guest_Count ) {
-      if (Season==="Fall" && Guest_Count <=8.0) { // 1
+      if (Season === "Fall" && Guest_Count <= 8.0) { // 1
         return {"Dish":"Spareribs"};
       }
-      else if (Season==="Winter" && Guest_Count <=8.0) { // 2
+      else if (Season === "Winter" && Guest_Count <= 8.0) { // 2
         return {"Dish":"Roastbeef"};
       }
-      else if (Season==="Spring" && Guest_Count <=4.0) { // 3
+      else if (Season === "Spring" && Guest_Count <= 4.0) { // 3
         return {"Dish":"Dry Aged Gourmet Steak"};
       }
-      else if (Season==="Spring" && (5.0<=Guest_Count && Guest_Count<=8.0)) { // 4
+      else if (Season === "Spring" && (5.0 <= Guest_Count && Guest_Count <= 8.0)) { // 4
         return {"Dish":"Steak"};
       }
-      else if ((Season==="Fall" || Season==="Winter" || Season==="Spring") && Guest_Count > 8.0) { // 5
+      else if ((Season === "Fall" || Season === "Winter" || Season === "Spring") && Guest_Count > 8.0) { // 5
         return {"Dish":"Stew"};
       }
-      else if (Season==="Summer") { // 6
+      else if (Season === "Summer") { // 6
         return {"Dish":"Light Salad and a nice Steak"};
         // Hey, why not?
       }
@@ -248,6 +258,35 @@ The vision: after you `npm i --save dmnmd`, you can define a function `dinner` b
     `)
 
 You should then be able to call `dinner({Season:"Fall"})` and get back `{Dish:"Spareribs"}`.
+
+### to L4
+
+Works today. [L4](https://github.com/legalese/l4-ide) is a language for law; this backend emits a
+`BRANCH` expression with column-aligned **ditto** (`^`), where each `^` repeats the guard token
+directly above it. Reading down a column is how a lawyer checks that a condition really is the
+same across several rules.
+
+    % dmnmd README.md --pick="Example 2" --to=l4
+    GIVEN Season        IS A STRING
+          `Guest Count` IS A NUMBER
+    GIVETH A STRING
+    `Example 2` Season `Guest Count` MEANS
+      BRANCH
+        IF Season                                                                     EQUALS "Fall"   AND `Guest Count`                               <= 8 THEN "Spareribs"
+        IF ^                                                                          ^      "Winter" ^   `Guest Count`                               ^  ^ THEN "Roastbeef"
+        IF ^                                                                          ^      "Spring" ^   `Guest Count`                               ^  4 THEN "Dry Aged Gourmet Steak"
+        IF ^                                                                          ^      ^        ^   (`Guest Count` >= 5 AND `Guest Count` <= 8)      THEN "Steak"
+        IF (Season EQUALS "Fall" OR Season EQUALS "Winter" OR Season EQUALS "Spring")                 ^   `Guest Count`                               >  8 THEN "Stew"
+        IF Season                                                                     EQUALS "Summer"                                                      THEN "Light Salad and a nice Steak"  -- Hey, why not?
+        OTHERWISE ""
+
+The alignment is not cosmetic: L4 resolves `^` by absolute source column, so the emitter measures
+every token's display width — including East Asian wide characters — against the same table the L4
+lexer uses. A one-column drift would make a caret silently copy the wrong token.
+
+Unlike the other backends, this one **refuses** the list-valued hit policies (`C`, `A`, `O`, `R`)
+rather than approximating them: a scalar first-match `BRANCH` would return one row and quietly drop
+the rest.
 
 ### to Haxe
 
@@ -302,9 +341,29 @@ What to do about rows that contain FEEL expressions? For lack of a better place,
 
 ### to Python
 
-On the roadmap.
+Works today, modulo full support for hit policies — same caveat as the Javascript backend.
+Note the flag is `--to=py`; `--to=python` is rejected.
 
-    $ dmnmd README.md --to=python
+    % dmnmd README.md --pick="Example 2" --to=py
+    def Example_2 ( Season, Guest_Count ) :
+      if (Season == "Fall" and Guest_Count <= 8.0): # 1
+        return {"Dish":"Spareribs"};
+
+      elif (Season == "Winter" and Guest_Count <= 8.0): # 2
+        return {"Dish":"Roastbeef"};
+
+      elif (Season == "Spring" and Guest_Count <= 4.0): # 3
+        return {"Dish":"Dry Aged Gourmet Steak"};
+
+      elif (Season == "Spring" and (5.0 <= Guest_Count and Guest_Count <= 8.0)): # 4
+        return {"Dish":"Steak"};
+
+      elif ((Season == "Fall" or Season == "Winter" or Season == "Spring") and Guest_Count > 8.0): # 5
+        return {"Dish":"Stew"};
+
+      elif (Season == "Summer"): # 6
+        return {"Dish":"Light Salad and a nice Steak"};
+        # Hey, why not?
 
 ### to Natural Language
 
@@ -384,6 +443,13 @@ Your IDE may need a plugin to work with Markdown tables.
 ## Evaluation
 
 A decision table is basically a function. Let's run it.
+
+> **This transcript does not work today.** `dmnmd -q` crashes on the first successful query with
+> `Non-exhaustive patterns in function showToJSON` (`app/Main.hs`). It is a known defect, recorded
+> as `languages/haskell/test/corpus/cases/symptom/cli-showtojson-unknown-format`, and the transcript
+> below is what it is *supposed* to print. The evaluator itself is fine — `evalTable` is the
+> semantic oracle the whole test suite is written against; it is the printing of the answer that
+> falls over.
 
 Interactively, on the command line:
 

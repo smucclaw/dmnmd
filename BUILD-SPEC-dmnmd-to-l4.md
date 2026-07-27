@@ -16,11 +16,14 @@
 > got its shape, not a to-do list.
 >
 > Known drift, not worth rewriting the body for:
-> - §4.4 says to modify `dmnmd.cabal` directly. Do **not**: that file is generated from
->   `package.yaml` by hpack, and a hand-edit is overwritten. (A move to cabal-only, which
->   would make §4.4 correct, is proposed but has **not** landed.)
-> - §7's "wired into `stack test`" is accurate today — the suite runs under both `stack test`
->   and `cabal test`.
+> - §4.4 says to modify `dmnmd.cabal` directly. That is now **correct advice**: the cabal-only
+>   move has landed, `package.yaml` is gone, and `dmnmd.cabal` is hand-maintained. This bullet
+>   previously said the opposite, and did so accurately at the time.
+> - Every `stack` command in the body — §7.1's heading, the build recipe in §9, the §7.1
+>   invocation — is **stale as written**. Read `stack test` as `cabal test`, `stack build` as
+>   `cabal build`, and `stack run -- --to=l4 F` as `cabal run -- dmnmd --to=l4 F`. The golden
+>   round-trip itself is unaffected: it lives in `test/TranslateL4Spec.hs` and runs under
+>   `cabal test`.
 > - §1.6 defers Collect to "v1.1". It is still deferred, and deliberately: `L4.hs` `error`s on
 >   the list-valued hit policies rather than collapsing them to a scalar `BRANCH`, which is
 >   pinned by `test/corpus/cases/policy/md-l4-refuses-collect`.
@@ -47,7 +50,7 @@ dmnmd --to=l4 /Users/mengwong/src/mengwong/homelab/docs/miles-card-dmn.md
    ==  /Users/mengwong/src/mengwong/homelab/docs/miles-card.l4   (hand-written golden)
 ```
 
-wired into `stack test`.
+wired into `stack test` (read: `cabal test` — see the status header).
 
 ---
 
@@ -375,9 +378,15 @@ lines so the generated `.l4` self-checks against DMN semantics.
   emission.
 
 ### 4.4 MODIFY `dmnmd.cabal`
-Add `DMN.Translate.L4` to library `exposed-modules` (after `DMN.Translate.JS`, line 35). Keep
+Add `DMN.Translate.L4` to library `exposed-modules` (after `DMN.Translate.JS`, line 35). ~~Keep
 `package.yaml`/`dmnmd.cabal` in sync — regenerate with `hpack` if available (modules are
-auto-discovered from `source-dirs`, but the checked-in `.cabal` lists them explicitly).
+auto-discovered from `source-dirs`, but the checked-in `.cabal` lists them explicitly).~~
+
+> **Erratum, 2026-07-27.** The struck sentence is obsolete: dmnmd is cabal-only and
+> `package.yaml` no longer exists, so there is nothing to keep in sync and no hpack step.
+> Editing `dmnmd.cabal` — which the heading already said to do — is now the whole of it.
+> Nothing auto-discovers modules any more, which makes the `exposed-modules` edit
+> load-bearing rather than cosmetic: omit it and the module is silently not compiled.
 
 ### 4.5 CREATE test module + fixtures (see §7)
 - `test/TranslateL4Spec.hs` (registered in `test/Spec.hs` `forM_` list and in `dmnmd.cabal` test

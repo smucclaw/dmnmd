@@ -1,3 +1,6 @@
+# Kept even though dmnmd is cabal-only: an old .stack-work/ is 220MB of .o files,
+# and un-ignoring it to make a stray stack run visible in `git status` just risks
+# committing them. (Tried that for about a minute.)
 .stack-work/
 dist-newstyle/
 .hie/
