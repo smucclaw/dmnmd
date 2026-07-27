@@ -9,7 +9,7 @@ import Prelude hiding (takeWhile)
 import DMN.ParseFEEL ( parseFNumFunction )
 import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
 import Data.List.Split ( splitOn )
-import Data.Maybe ( catMaybes, fromJust )
+import Data.Maybe ( catMaybes, fromJust, listToMaybe )
 import Text.Regex.PCRE ( (=~) )
 import Data.Char (toLower)
 import Text.Read (readMaybe)
@@ -288,7 +288,7 @@ mkDTable origname orighp origchs origdtrows =
 --  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
                                      (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      typedchs = if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs
+      typedchs = retypeEnums <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
            --             "newchs = " ++ show(newchs) ++ "\n" )
@@ -299,6 +299,33 @@ mkDTable origname orighp origchs origdtrows =
                         (reprocessRows (getOutputHeaders typedchs) ro)
                         rc)) <$> origdtrows)
                          
+-- | Rebuild a column's declared domain at the type inference settled on.
+--
+-- 'DMN.ParseTable.parseTable' builds @enums@ from the sub-header row using the
+-- type __as literally written in the header__, which for an undeclared column is
+-- 'Nothing' — so the domain becomes a list of strings. Inference then runs here,
+-- in 'mkDTable', and 'reprocessRows' re-types only the data cells. The domain
+-- was never revisited, so a table like
+--
+-- > | O | Age | > Score (out) |
+-- > |---|-----|---------------|
+-- > |   |     | 30, 10, 20    |
+--
+-- ended up comparing numeric cells against string domain members. Nothing ever
+-- matched, 'elemIndex' returned 'Nothing' for every value, and hit policy @O@
+-- silently degraded to row order — recorded as
+-- @test\/corpus\/cases\/symptom\/struct-outputorder-enum-untyped@.
+--
+-- This reuses 'reprocessRows' rather than repeating its logic, so the domain and
+-- the cells are re-typed by the same code under the same guard: a domain is only
+-- rebuilt when every member is still an unconverted @FNullary (VS _)@. A domain
+-- on a column whose type stays 'Nothing' is left alone, as are @FAnything@ and
+-- anything already converted.
+retypeEnums :: ColHeader -> ColHeader
+retypeEnums ch = case enums ch of
+  Nothing -> ch
+  Just es -> ch { enums = listToMaybe (reprocessRows [ch] [es]) }
+
 reprocessRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
 reprocessRows = 
   -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
