@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<semantic:definitions xmlns:semantic="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="d1" name="Demo" namespace="http://example.com/demo">
+  <semantic:itemDefinition name="tRouting">
+    <semantic:typeRef>string</semantic:typeRef>
+    <semantic:allowedValues>
+      <semantic:text>"DECLINE","REFER","ACCEPT"</semantic:text>
+    </semantic:allowedValues>
+  </semantic:itemDefinition>
+  <semantic:decision id="dR" name="Routing">
+    <semantic:decisionTable id="dtR" hitPolicy="FIRST">
+      <semantic:input id="iS" label="score">
+        <semantic:inputExpression id="ieS" typeRef="number"><semantic:text>score</semantic:text></semantic:inputExpression>
+      </semantic:input>
+      <semantic:output id="oR" name="Routing" label="Routing" typeRef="tRouting"/>
+      <semantic:rule id="r1">
+        <semantic:inputEntry id="ie1"><semantic:text>&lt; 100</semantic:text></semantic:inputEntry>
+        <semantic:outputEntry id="oe1"><semantic:text>"DECLINE"</semantic:text></semantic:outputEntry>
+      </semantic:rule>
+      <semantic:rule id="r2">
+        <semantic:inputEntry id="ie2"><semantic:text>&gt;= 100</semantic:text></semantic:inputEntry>
+        <semantic:outputEntry id="oe2"><semantic:text>"ACCEPT"</semantic:text></semantic:outputEntry>
+      </semantic:rule>
+    </semantic:decisionTable>
+  </semantic:decision>
+</semantic:definitions>

@@ -1,0 +1,3 @@
+input.dmn: warning: <itemDefinition> "tRouting": it is a structured type (<itemComponent> "code", "reason"). dmnmd's decision table columns are scalars, so there is nothing to map a record onto. A column whose typeRef names this is refused.
+input.dmn: error: table "Routing": output column "Routing": typeRef "tRouting" names an <itemDefinition> dmnmd cannot use: it is a structured type (<itemComponent> "code", "reason"). dmnmd's decision table columns are scalars, so there is nothing to map a record onto. A column whose typeRef names this is refused. Refusing to convert this table.
+dmnmd: input.dmn: one or more decision tables were refused (see the errors above); nothing was emitted for them.

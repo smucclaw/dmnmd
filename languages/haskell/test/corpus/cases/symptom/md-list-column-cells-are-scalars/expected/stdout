@@ -1,0 +1,8 @@
+GIVEN tags IS A LIST OF NUMBER
+GIVETH A STRING
+Scores tags MEANS
+  BRANCH
+    IF tags EQUALS 5 THEN "pass"
+    IF ^    ^      7 THEN "fail"
+    OTHERWISE ""
+
