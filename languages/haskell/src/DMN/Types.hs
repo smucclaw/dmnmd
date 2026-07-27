@@ -9,6 +9,7 @@ module DMN.Types where
 import Prelude hiding (takeWhile)
 import qualified Data.Map as Map
 import Data.List.Utils (replace)
+import Data.Maybe (isJust)
 
 -- | We implement DMN Hit Policies.
 data HitPolicy = HP_Unique
@@ -54,11 +55,28 @@ data DMNType = DMN_String         -- no need to double quote; we use this for en
              | DMN_Boolean
              | DMN_List DMNType
              deriving (Show, Eq)
--- | what is the underlying base type? e.g. a list of @something@ has the base type @something@
-baseType :: Maybe DMNType -> Maybe DMNType
-baseType Nothing = Just DMN_String
-baseType (Just (DMN_List x)) = baseType (Just x)
-baseType (Just x) = Just x
+-- | The __element__ type of a column type: 'Just' for a collection, 'Nothing'
+-- for a scalar. Ask @isListType@ if all you want is the yes/no.
+--
+-- This replaced @baseType@, which recursed to the innermost scalar and coerced
+-- @Nothing@ to @Just DMN_String@ on the way. Neither behaviour is wanted here:
+--
+--  * a nested @[[T]]@ is __refused__, so flattening it would paper over the
+--    refusal and hand a @[[Number]]@ column the cell layer of a @Number@ one;
+--  * the @Nothing -> Just DMN_String@ coercion had no dependant. Its only
+--    caller was @mkFEither@'s list arm, and @mkFEither Nothing@ already returns
+--    @FNullary (VS (trim arg))@ by itself.
+elemType :: Maybe DMNType -> Maybe DMNType
+elemType (Just (DMN_List t)) = Just t
+elemType _                   = Nothing
+
+-- | Is this column type a collection?
+isListType :: Maybe DMNType -> Bool
+isListType = isJust . elemType
+
+-- | Is this column a collection? The form almost every caller wants.
+isListCol :: ColHeader -> Bool
+isListCol = isListType . vartype
 
 type DTvar = String
 

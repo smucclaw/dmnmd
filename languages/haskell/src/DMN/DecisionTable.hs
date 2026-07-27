@@ -154,7 +154,20 @@ mkFEither _ ""  = Right FAnything
 mkFEither _ "_" = Right FAnything
 mkFEither _ "-" = Right FAnything
 -- in a numeric column, an FFunction is detected by the presence of an numeric operator
-mkFEither t@(Just (DMN_List _)) x  = mkFEither (baseType t) x
+-- A collection column's cell is parsed at its ELEMENT type: `5` in a
+-- @[Number]@ column is the same 'FNullary' it would be in a @Number@ column.
+-- What differs is what that cell MEANS — membership rather than equality —
+-- and that lives in the column type, which every consumer can already see. So
+-- 'FEELexp' gains nothing here.
+--
+-- __Do not turn this arm into a 'Left'.__ It is the obvious way to make an
+-- ambiguous list cell refuse, and it crashes on ordinary tables:
+-- 'reprocessRows' calls @mkF (vartype ch)@ with the FULL column type on two
+-- live paths — a list-typed OUTPUT column's cells, and 'retypeEnums' rebuilding
+-- a declared domain — and @mkFs = either error id@. Refusals belong in
+-- 'structuralErrors', which walks 'allrows' and can therefore see which row,
+-- which column, and whether the cell is an input, an output or a domain member.
+mkFEither (Just (DMN_List t)) x    = mkFEither (Just t) x
 mkFEither Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type inference should have found some type for this column. coercing to string: " ++ arg1)
   Right (FNullary (VS (trim arg1)))
 
