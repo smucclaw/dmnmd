@@ -3,7 +3,7 @@ export function Sides ( season : string ) {
     return {"sides":["fries","slaw"]};
   }
   else if ("default") { // 2
-    return {"sides":[undefined]};
+    return {"sides":[]};
   }
 }
 

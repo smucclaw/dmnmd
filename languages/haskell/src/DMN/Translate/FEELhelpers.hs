@@ -23,11 +23,17 @@ wrapArray :: String -> [String] -> String
 wrapArray myop xs = "[" ++ intercalate myop xs ++ "]"
 
 showFeels optform ch fexps = "\"" ++ varname ch ++ "\":" ++ if squash
-                                                    then showFeel optform  $ head fexps
-                                                    else wrapArray "," (showFeel optform <$> fexps)
-  where squash = maybe True (\case
-                                DMN_List _ -> False
-                                _          -> True) (vartype ch)
+                                                    then squashed
+                                                    else wrapArray "," (showFeel optform <$> members)
+  where squash = not (isListCol ch)
+        -- A wildcard OUTPUT cell in a collection column is the EMPTY list, not
+        -- a one-element list holding a wildcard. Before this, `-` rendered as
+        -- `{"sides":[undefined]}`: length 1 in JS where it should be 0, and a
+        -- NameError in Python, since `undefined` is not a Python name.
+        members = filter (/= FAnything) fexps
+        squashed = case fexps of
+          (f:_) -> showFeel optform f
+          []    -> error $ "showFeels: empty cell for column " ++ show (varname ch)
           
 showFeel :: String -> FEELexp -> String
 showFeel _ (FNullary (VS str))  = show str

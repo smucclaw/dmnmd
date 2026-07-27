@@ -1,8 +1,8 @@
 export function Scores ( tags : number[] ) {
-  if (tags === 5.0) { // 1
+  if (tags.includes(5.0)) { // 1
     return {"grade":"pass"};
   }
-  else if (tags === 7.0) { // 2
+  else if (tags.includes(7.0)) { // 2
     return {"grade":"fail"};
   }
 }

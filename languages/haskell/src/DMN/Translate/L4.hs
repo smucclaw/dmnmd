@@ -97,7 +97,7 @@ toL4File opts dts
 
     env      = assignEnumNames [ (enumRawName o, ms) | dt <- dts, (o, ms) <- enumColsOf dt ]
     optsEnv  = opts { enumEnv = Just env }
-    preamble = unlines (concatMap declareEnum env)
+    preamble = unlines (containsHelperFor dts ++ concatMap declareEnum env)
     body     = concatMap (\dt -> toL4 optsEnv dt ++ "\n") dts
 
     -- A rename means two columns spelled the same declare DIFFERENT domains, so
@@ -258,7 +258,8 @@ toL4 opts dt =
     -- repeating them here is precisely the duplicate-definition bug.
     enumDecls = case enumEnv opts of
       Just _  -> []
-      Nothing -> concat [ declareEnum ((raw, ms), raw)
+      Nothing -> containsHelperFor [dt]
+              ++ concat [ declareEnum ((raw, ms), raw)
                         | (o, ms) <- nubOn (enumRawName . fst) (enumInsOf dt ++ enumOuts)
                         , let raw = enumRawName o ]
       where nubOn f = foldr (\x acc -> x : filter ((/= f x) . f) acc) []
@@ -544,11 +545,57 @@ feel2l4In :: L4Opts -> ColHeader -> [FEELexp] -> Maybe String
 feel2l4In opts ch cell =
   case filter (/= FAnything) cell of
     []   -> Nothing
+    -- A collection column's cell is MEMBERSHIP, whatever the arity. The comma
+    -- still means OR, so `clerk, teller` is "contains either".
+    fxs | isListCol ch ->
+            Just (parenIf (length fxs > 1)
+                    (intercalate " OR " (map (contains field . feelValL4 ch) fxs)))
     [fx] -> Just (oneFeel ch field fx)
     fxs
-      | useElem opts -> Just ("elem " ++ field ++ " (LIST " ++ intercalate ", " (map (feelValL4 ch) fxs) ++ ")")
+      -- Was a bare `elem`, which is a prelude name and does not resolve without
+      -- an IMPORT the emitter never wrote. Points at the self-contained helper
+      -- instead, so the option stops emitting something that cannot typecheck.
+      | useElem opts -> Just (contains field ("(LIST " ++ intercalate ", " (map (feelValL4 ch) fxs) ++ ")"))
       | otherwise    -> Just ("(" ++ intercalate " OR " (map (oneFeel ch field) fxs) ++ ")")
-  where field = quoteVar (varname ch)
+  where
+    field = quoteVar (varname ch)
+    contains xs x = containsFn ++ " " ++ xs ++ " " ++ x
+    parenIf True  s = "(" ++ s ++ ")"
+    parenIf False s = s
+
+-- | The membership predicate emitted for collection columns.
+--
+-- __Self-contained, deliberately: no @IMPORT prelude@.__ l4's prelude does
+-- define @elem@, but importing it drags ~100 names into scope, any of which can
+-- collide with a column or table name taken from the author's markdown — and an
+-- @IMPORT@ that fails to resolve makes every emitted file unusable rather than
+-- just this guard. A nine-line definition costs nothing and cannot break.
+--
+-- Argument order is __FEEL's__ (@list contains(list, element)@), not prelude
+-- @elem@'s reversed one, so a DMN reader reads the emitted guard forwards.
+containsHelper :: [String]
+containsHelper =
+  [ "GIVEN a IS A TYPE"
+  , "      xs IS A LIST OF a"
+  , "      x IS AN a"
+  , "GIVETH A BOOLEAN"
+  , containsFn ++ " xs x MEANS"
+  , "  CONSIDER xs"
+  , "  WHEN EMPTY THEN FALSE"
+  , "  WHEN y FOLLOWED BY ys THEN x EQUALS y OR " ++ containsFn ++ " ys x"
+  , ""
+  ]
+
+-- | Backticked because it contains spaces; that also keeps it clear of every
+-- identifier a markdown table could produce.
+containsFn :: String
+containsFn = "`dmnmd list contains`"
+
+-- | The helper, but only when some table actually needs it.
+containsHelperFor :: [DecisionTable] -> [String]
+containsHelperFor dts
+  | any (any isListCol . getInputHeaders . header) dts = containsHelper
+  | otherwise                                          = []
 
 -- | A single (non-multi) FEEL guard atom against a named field.
 oneFeel :: ColHeader -> String -> FEELexp -> String
@@ -647,11 +694,23 @@ conjSubCells :: L4Opts -> ColHeader -> [FEELexp] -> [Maybe Cell]
 conjSubCells opts ch cell =
   case filter (/= FAnything) cell of
     []                                            -> [Nothing, Nothing, Nothing]
+    -- A collection column never takes the three-token split. Its guard is a
+    -- CALL, `\`dmnmd list contains\` roles "admin"`, whose pieces are not a
+    -- (field, operator, value) triple — splitting it would put the helper name
+    -- in the operator column and misalign every other row. Going through
+    -- 'feel2l4In' keeps the whole call in the field slot.
+    --
+    -- The cost is that collection guards never ditto: a `^` copies exactly one
+    -- token and this is three. That is the accepted trade — ditto is a
+    -- nice-to-have, and a wrong emission to preserve it would not be.
+    _ | isListCol ch                              -> whole
     [fx] | Just (f, o, v) <- oneFeelCells ch field fx -> [Just f, Just o, Just v]
-    _    -> case feel2l4In opts ch cell of
-              Just whole -> [Just whole, Nothing, Nothing]
-              Nothing    -> [Nothing, Nothing, Nothing]
-  where field = quoteVar (varname ch)
+    _                                             -> whole
+  where
+    field = quoteVar (varname ch)
+    whole = case feel2l4In opts ch cell of
+      Just w  -> [Just w, Nothing, Nothing]
+      Nothing -> [Nothing, Nothing, Nothing]
 
 -- | Split a simple guard atom into its (field, operator, value) tokens. 'Nothing'
 -- for anything that is not a single field-op-value comparison (a range or wildcard
@@ -701,6 +760,12 @@ resultExpr multiOut mkName outs routs
 renderOutCell :: ColHeader -> [FEELexp] -> String
 renderOutCell col = \case
   []      -> typeDefaultScalar (vartype col)
+  -- A collection OUTPUT cell is a VALUE — the whole comma-separated list, not
+  -- its head. This arm must come BEFORE the enum arm below, which is head-only
+  -- and would otherwise win and silently drop every member after the first.
+  cells | isListCol col -> case filter (/= FAnything) cells of
+            []  -> "EMPTY"
+            fxs -> "LIST " ++ intercalate ", " (map (showFeelL4 (elemType (vartype col))) fxs)
   -- A domained column's values are constructors of its own sum type, not
   -- strings. Everything else about the column renders as before.
   (FNullary (VS s) : _) | Just ms <- enumCtorsOf col, s `elem` ms -> ctorL4 s
@@ -730,6 +795,8 @@ typeDefaultScalar :: Maybe DMNType -> String
 typeDefaultScalar = \case
   Just DMN_Number  -> "0"
   Just DMN_Boolean -> "FALSE"
+  -- The empty list, not @""@, which is ill-typed under @GIVETH A LIST OF …@.
+  Just (DMN_List _) -> "EMPTY"
   _                -> "\"\""
 
 -- * Arithmetic (BUILD-SPEC §1.2 output side)

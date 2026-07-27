@@ -86,7 +86,17 @@ annotationsAsComments chs dtrow =
   unlines $ ("    # "++) <$> (if length unprefixed > 1 then prefixedComments else unprefixed)
 
 fexp2js :: PYOpts -> ColHeader -> [FEELexp] -> String
-fexp2js jsopts ch fexps = wrapParen " or " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
+fexp2js jsopts ch fexps
+  -- See the twin in "DMN.Translate.JS": a collection column's cell is a
+  -- membership test, and the comma still means OR.
+  | isListCol ch = wrapParen " or " (memberPy (showVarname jsopts ch) <$> fexps)
+  | otherwise    = wrapParen " or " (feel2pyIn ( showVarname jsopts ch) <$> fexps)
+  where
+    memberPy lhs (FNullary v) = "(" ++ showFeel "py" (FNullary v) ++ " in " ++ lhs ++ ")"
+    memberPy lhs FAnything    = wrapParen " or " ["True", lhs]
+    memberPy _   fexp = error $ unwords
+      [ "fexp2py: a collection column reached the emitter holding", show fexp
+      , "-- structuralErrors should have refused this table" ]
 
 showVarname :: PYOpts -> ColHeader -> String
 showVarname jsopts ch

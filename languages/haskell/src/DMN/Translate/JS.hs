@@ -114,7 +114,24 @@ annotationsAsComments chs dtrow =
   unlines $ ("    // "++) <$> (if length unprefixed > 1 then prefixedComments else unprefixed)
 
 fexp2js :: JSOpts -> ColHeader -> [FEELexp] -> String
-fexp2js jsopts ch fexps = wrapParen " || " (feel2jsIn ( showVarname jsopts ch) <$> fexps)
+fexp2js jsopts ch fexps
+  -- A cell in a collection column is a MEMBERSHIP test, not an equality: the
+  -- column holds a list, and `admin` asks whether the list contains it. The
+  -- comma keeps meaning OR, so `admin, clerk` is "contains either".
+  | isListCol ch = wrapParen " || " (memberJs (showVarname jsopts ch) <$> fexps)
+  | otherwise    = wrapParen " || " (feel2jsIn ( showVarname jsopts ch) <$> fexps)
+  where
+    -- `.includes` uses SameValueZero, so `[10].includes(10.0)` is true.
+    memberJs lhs (FNullary v) = lhs ++ ".includes(" ++ showFeel "ts" (FNullary v) ++ ")"
+    -- Only reachable from a cell that is wholly `-`, which `nonBlankCols` has
+    -- already dropped; a cell MIXING `-` with values is refused upstream (R4).
+    memberJs lhs FAnything    = wrapParen " || " ["true", lhs]
+    -- 'DMN.DecisionTable.structuralErrors' refuses every other shape in a
+    -- collection column before emission, so this names the broken invariant
+    -- rather than emitting something that would quietly not work.
+    memberJs _   fexp = error $ unwords
+      [ "fexp2js: a collection column reached the emitter holding", show fexp
+      , "-- structuralErrors should have refused this table" ]
 
 showVarname :: JSOpts -> ColHeader -> String
 showVarname jsopts ch

@@ -1,8 +1,0 @@
-GIVEN season IS A STRING
-GIVETH A LIST OF STRING
-Sides season MEANS
-  BRANCH
-    IF season EQUALS "Fall"   THEN "fries"
-    IF ^      ^      "Spring" THEN "soup"
-    OTHERWISE ""
-
