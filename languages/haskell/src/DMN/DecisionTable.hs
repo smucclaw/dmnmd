@@ -331,18 +331,60 @@ mkDTable origname orighp origchs origdtrows =
 -- error. That is why this matches 'FNullary' and lets every other constructor
 -- through.
 domainErrors :: DecisionTable -> [String]
-domainErrors dt =
-  [ msg ch rn cell
-  | r@DTrow{} <- allrows dt
-  , let rn = row_number r
-  , (ch, cells) <- zip (getInputHeaders  (header dt)) (row_inputs  r)
-                ++ zip (getOutputHeaders (header dt)) (row_outputs r)
-  , domain <- maybe [] pure (enums ch)
-  , not (null domain)
-  , cell@(FNullary _) <- cells
-  , not (fEvals cell domain)
-  ]
+domainErrors dt = malformedDomains ++ violations
   where
+    -- Columns whose declared domain is itself broken. Checked FIRST and
+    -- separately, because such a domain silently disables the check below
+    -- rather than failing it — see 'emptyMemberMsg'.
+    malformedDomains =
+      [ emptyMemberMsg ch
+      | ch <- getInputHeaders (header dt) ++ getOutputHeaders (header dt)
+      , Just domain <- [enums ch]
+      , length domain > 1
+      , any (== FAnything) domain
+      ]
+
+    violations =
+      [ msg ch rn cell
+      | r@DTrow{} <- allrows dt
+      , let rn = row_number r
+      , (ch, cells) <- zip (getInputHeaders  (header dt)) (row_inputs  r)
+                    ++ zip (getOutputHeaders (header dt)) (row_outputs r)
+      , domain <- maybe [] pure (enums ch)
+      , not (null domain)
+      , not (any (== FAnything) domain)   -- already reported as malformed
+      , cell@(FNullary _) <- cells
+      , not (fEvals cell domain)
+      ]
+
+    -- | A domain with a wildcard member among real ones constrains NOTHING, and
+    -- does so silently: 'fEval' 'FAnything' matches anything, so 'fEvals'
+    -- returns True for every cell and the whole column stops being checked.
+    --
+    -- The usual cause is a one-character typo. @Dining, Grocery,@ and
+    -- @Dining,, Grocery@ both split (in 'mkFsEither') to a fragment that is the
+    -- empty string, and @mkFEither _ "" = Right FAnything@ turns that into a
+    -- wildcard. Measured before the fix, three inputs differing by one comma:
+    --
+    -- > Dining, Grocery    TOTALLY BOGUS   exit 1, refused
+    -- > Dining, Grocery,   TOTALLY BOGUS   exit 0, accepted
+    -- > Dining,, Grocery   TOTALLY BOGUS   exit 0, accepted
+    --
+    -- So a stray comma bought silent acceptance — which is the exact failure
+    -- class E4 exists to remove, reintroduced by E4 itself. Refusing is right
+    -- rather than dropping the wildcard and checking the rest, because we cannot
+    -- tell a typo from a deliberate "anything goes" and the two want opposite
+    -- treatment; making the author say which costs them one character.
+    --
+    -- A domain of ONLY @-@ is not this case and never reaches here:
+    -- 'DMN.ParseTable.parseTable' already turns a wholly-@FAnything@ sub-header
+    -- cell into @enums = Nothing@, i.e. no declared domain. Hence @length > 1@.
+    emptyMemberMsg ch = concat
+      [ "column ", show (varname ch)
+      , ": the declared domain has a wildcard member, so it constrains nothing"
+      , " — check for a stray or doubled comma in the sub-header row"
+      ]
+
     -- No table name and no "error:" prefix: each reader frames this its own
     -- way. The markdown path prepends `error: table "X": ` on its way to
     -- @error@; the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt' through
