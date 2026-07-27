@@ -34,46 +34,46 @@ source-repository head
   type: git
   location: https://github.com/smucclaw/dmnmd
 
--- The dependency set every component shares. Before the cabal-only move this
--- list was triplicated across the three stanzas below, because hpack expands a
--- single `dependencies:` block into each component; the three copies could not
--- drift apart then and must not now.
---
--- Native dependency: regex-pcre links against libpcre and locates it with
--- pkg-config. See shell.nix, and the install lines in ../../README.md.
-common deps
+-- Only what all three components genuinely import. hpack expanded one
+-- `dependencies:` block into every stanza, so until the cabal-only move each
+-- component claimed the union of all three — the executable pulled in the whole
+-- test framework, and the test suite pulled in hxt and regex-pcre. The lists
+-- below were derived from the actual import graph and are checked by the build.
+common shared
   build-depends:
-      MissingH
-    , attoparsec
-    , base >=4.7 && <5
-    , containers
-    , haskeline
-    , hspec
-    , hspec-attoparsec
-    , hspec-golden
-    , hspec-megaparsec
-    , hxt
-    -- a more convenient Iso for the XML pickling
-    , lens
+      base >=4.7 && <5
     -- >= 9.7.0 is load-bearing, not hygiene: DMN.Translate.L4 imports
     -- Text.Megaparsec.Unicode (isWideChar), which does not exist before it.
     -- The L4 ditto grid resolves `^` by absolute source column and must measure
     -- widths with the same table the L4 lexer uses.
     , megaparsec >=9.7.0
-    , optparse-applicative
-    , parser-combinators
-    , pretty-simple
-    , raw-strings-qq
-    , regex-pcre
-    -- number parsing
-    , scientific
-    , split
     , text
   default-language: Haskell2010
 
 library
-  import:          deps
+  import:          shared
   hs-source-dirs:  src
+  build-depends:
+      containers
+    -- Data.List.Utils
+    , MissingH
+    , hxt
+    -- a more convenient Iso for the XML pickling
+    , lens
+    , optparse-applicative
+    -- Control.Monad.Combinators.Expr
+    , parser-combinators
+    -- NOT dead. DMN/XML/ParseDMN.hs ends in a `-- $>` block that does
+    -- `:m + Text.Pretty.Simple`, which `make ghcid` evaluates for real
+    -- (ghcid --allow-eval). Drop this and that dev loop breaks, with nothing
+    -- in CI to notice.
+    , pretty-simple
+    -- links against libpcre, located with pkg-config. See shell.nix and the
+    -- install lines in ../../README.md.
+    , regex-pcre
+    -- number parsing
+    , scientific
+    , split
   exposed-modules:
       DMN.DecisionTable
       DMN.ParseFEEL
@@ -95,7 +95,7 @@ library
       -hiedir=.hie
 
 executable dmnmd
-  import:          deps
+  import:          shared
   hs-source-dirs:  app
   main-is:         Main.hs
   other-modules:
@@ -103,11 +103,17 @@ executable dmnmd
       ParseMarkdown
   build-depends:
       dmnmd
+    -- System.FilePath
     , filepath
+    -- the -q eval REPL
+    , haskeline
+    , optparse-applicative
+    -- Data.List.Split
+    , split
   ghc-options:     -threaded -rtsopts -with-rtsopts=-N
 
 test-suite dmnmd-test
-  import:          deps
+  import:          shared
   type:            exitcode-stdio-1.0
   hs-source-dirs:  test
   main-is:         Spec.hs
@@ -121,6 +127,10 @@ test-suite dmnmd-test
       dmnmd
     -- TranslateL4Spec: createDirectoryIfMissing for test/golden/.out
     , directory
+    , hspec
+    , hspec-golden
+    , hspec-megaparsec
     -- TranslateL4Spec: readProcessWithExitCode, to shell out to the l4 binary
     , process
+    , raw-strings-qq
   ghc-options:     -threaded -rtsopts -with-rtsopts=-N
