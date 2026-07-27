@@ -1,0 +1,14 @@
+DECLARE Card
+  IS ONE OF
+    `PRVI`
+    `Woman's World`
+
+GIVEN cat IS A STRING
+      pm  IS A STRING
+GIVETH A Card
+Route cat pm MEANS
+  BRANCH
+    IF cat EQUALS "Dining" AND pm EQUALS "Online" THEN `PRVI`
+    IF ^   ^      ^        ^   ^  ^      "Wallet" THEN `Woman's World`
+    OTHERWISE `PRVI`
+

@@ -19,7 +19,7 @@ import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, 
 import DMN.Types
 import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate)
-import Data.Maybe (catMaybes, mapMaybe)
+import Data.Maybe (isJust, catMaybes, mapMaybe)
 import Numeric (floatToDigits)
 import Text.Megaparsec.Unicode (isWideChar)
 
@@ -67,13 +67,55 @@ toL4 opts dt =
     multiOut    = length outs > 1
     recName     = pascal (tableName dt)
     mkName      = "mk" ++ recName
+
+    -- Output columns that get a real L4 sum type instead of STRING.
+    --
+    -- Deliberately narrow for this milestone, and both conditions are about the
+    -- OTHERWISE rather than about the type:
+    --
+    --  * the table must have an explicit catch-all row, so the synthesized
+    --    OTHERWISE reuses a real result. A sum type has no natural zero, and
+    --    `OTHERWISE ""` against a sum-typed GIVETH is a *check error* — verified,
+    --    not assumed. The `MAYBE`/`NOTHING` answer to that is the next step.
+    --  * no cell in the column may be a wildcard, since `-` would render through
+    --    'typeDefaultScalar' to the same ill-typed `""`.
+    --
+    -- Both are properties of the whole column, so this is computed once here
+    -- rather than per cell.
+    enumOuts =
+      [ (o, ms)
+      | (i, o) <- zip [0 :: Int ..] outs
+      , Just ms <- [enumCtorsOf o]
+      , isJust catchAll
+      , let cells = [ concat (drop i (take (i+1) (row_outputs r))) | r@DTrow{} <- allrows dt ]
+      , not (any (elem FAnything) cells)
+      , not (any null cells)
+      ]
+
+    -- The gate is applied ONCE, here, by blanking 'enums' on every output column
+    -- that did not qualify. Everything downstream — 'renderOutCell',
+    -- 'declareRecord', 'ctorHelper' — then asks 'enumCtorsOf' and gets the right
+    -- answer without needing to know the gate exists.
+    --
+    -- The first version of this passed the gate to the DECLARE and the GIVETH but
+    -- not to the cell renderer, which consults 'enumCtorsOf' directly. The result
+    -- was `GIVETH A STRING` with arms returning `Stew` — a mixture that does not
+    -- typecheck, caught by policy/l4-priority-reorders-arms.
+    outs' = [ if o `elem` map fst enumOuts then o else o { enums = Nothing } | o <- outs ]
+
+    enumDecls = concat
+      [ [ "DECLARE " ++ enumTypeNameOf o
+        , "  IS ONE OF"
+        ] ++ map (("    " ++) . ctorL4) ms ++ [""]
+      | (o, ms) <- enumOuts ]
+
     recordDecls
-      | multiOut  = declareRecord recName outs ++ [""] ++ ctorHelper recName mkName outs ++ [""]
-      | otherwise = []
+      | multiOut  = enumDecls ++ declareRecord recName outs' ++ [""] ++ ctorHelper recName mkName outs' ++ [""]
+      | otherwise = enumDecls
 
     -- The function's GIVETH type: scalar for one output column, else the record.
-    baseGiveth = case outs of
-      [o] -> type2l4 (vartype o)
+    baseGiveth = case outs' of
+      [o] -> colTypeL4 o
       _   -> recName
     givethType
       | wrapMaybe opts = "MAYBE " ++ baseGiveth
@@ -106,7 +148,7 @@ toL4 opts dt =
     guardLines = renderDittoGrid opts grid
     armLines   = zipWith mkArm guardLines armRows
     mkArm gl row =
-      "    IF " ++ trueIfBlank gl ++ " THEN " ++ armResult opts multiOut mkName outs (row_outputs row)
+      "    IF " ++ trueIfBlank gl ++ " THEN " ++ armResult opts multiOut mkName outs' (row_outputs row)
                 ++ commentSuffix (row_comments row)
 
     -- A vacuously-true guard (every input cell a wildcard — e.g. a non-trailing
@@ -116,7 +158,7 @@ toL4 opts dt =
       | all (== ' ') gl = rpad (length gl) "TRUE"
       | otherwise       = gl
 
-    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr opts multiOut mkName outs defaultRow defaultResultStr
+    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr opts multiOut mkName outs' defaultRow defaultResultStr
     -- The synthesized OTHERWISE only ever returns an EXPLICIT catch-all row's
     -- output (the all-wildcard row, when present). With NO catch-all row the table
     -- says nothing about unmatched inputs, so we must NOT fabricate a value from a
@@ -127,6 +169,50 @@ toL4 opts dt =
     defaultResultStr = defaultResult opts
 
 -- | A data row is a catch-all when every input cell is the wildcard @-@.
+-- * Sum types for domained columns (BUILD-SPEC-dmnmd-l4-sumtype.md Part A)
+
+-- | The constructors of a column that qualifies for an L4 sum type, else
+-- 'Nothing'.
+--
+-- The boundary is narrow on purpose and it is airtight rather than merely
+-- cautious: @mkFEither (Just DMN_String)@ ('DMN.DecisionTable') gives a String
+-- column only @FNullary (VS _)@ cells, and only @FAnything@ besides. No
+-- @FSection@ / @FInRange@ / @FFunction@ can appear on a candidate column, so
+-- "what does @< 18@ become under an enum" cannot arise.
+--
+-- Numeric domains are excluded by l4, not by preference:
+-- @DECLARE Bucket IS ONE OF 1, 2, 3@ is a parse error there.
+enumCtorsOf :: ColHeader -> Maybe [String]
+enumCtorsOf ch = case (vartype ch, enums ch) of
+  (Just DMN_String, Just ms@(_:_)) -> traverse asVS ms
+  _                                -> Nothing
+  where
+    asVS (FNullary (VS s)) = Just s
+    asVS _                 = Nothing
+
+-- | The L4 type name for a domained column: the column name in PascalCase.
+--
+-- Named after the column rather than after the DMN type because dmnmd has no
+-- DMN type to name it after yet — @\<itemDefinition\>@ is still discarded
+-- (BUILD-SPEC-dmnmd-l4-sumtype.md Part B). When that lands this should prefer
+-- the author's own type name.
+enumTypeNameOf :: ColHeader -> String
+enumTypeNameOf = quoteVar . pascal . varname
+
+-- | A domain member, as an L4 constructor. __Always backticked, never
+-- 'quoteVar'__, and that is load-bearing twice over.
+--
+-- Firstly it keeps the ditto grid byte-identical: @\"Dining\"@ and
+-- @`Dining`@ are both 8 display columns, whereas a bare @Dining@ is 6.
+-- 'renderDittoGrid' resolves @^@ by __absolute source column__, so a width
+-- change there makes a caret silently copy the wrong token — the failure this
+-- whole backend is most careful about.
+--
+-- Secondly, domain members routinely are not identifiers: @README.md@'s own
+-- Example 3 declares @LEVEL 2, LEVEL 1, NONE@.
+ctorL4 :: String -> String
+ctorL4 s = "`" ++ s ++ "`"
+
 isCatchAll :: DTrow -> Bool
 isCatchAll row = all (all (== FAnything)) (row_inputs row)
 
@@ -153,11 +239,17 @@ type2l4 Nothing             = "STRING"
 
 -- * Result records (BUILD-SPEC §1.4)
 
+-- | A column's L4 type: its sum type if it has a usable declared domain, else
+-- the plain scalar mapping. Used by the record declaration and its constructor
+-- helper so a multi-output table's field types agree with its GIVETH.
+colTypeL4 :: ColHeader -> String
+colTypeL4 h = maybe (type2l4 (vartype h)) (const (enumTypeNameOf h)) (enumCtorsOf h)
+
 -- | @DECLARE <Name> HAS f1 IS A t1 …@
 declareRecord :: String -> [ColHeader] -> [String]
 declareRecord recName outs =
   ("DECLARE " ++ recName ++ " HAS")
-  : map (\h -> "    " ++ rpad fw (fieldName h) ++ " IS A " ++ type2l4 (vartype h)) outs
+  : map (\h -> "    " ++ rpad fw (fieldName h) ++ " IS A " ++ colTypeL4 h) outs
   where fw = maximum (0 : map (length . fieldName) outs)
 
 -- | The constructor helper: @mk<Name> v1 v2 … MEANS <Name> WITH …@ as a layout-sensitive block.
@@ -170,7 +262,7 @@ ctorHelper recName mkName outs =
   where
     params = ["v" ++ show i | i <- [1 .. length outs]]
     fw     = maximum (0 : map (length . fieldName) outs)
-    tw     = maximum (0 : map (length . type2l4 . vartype) outs)
+    tw     = maximum (0 : map (length . colTypeL4) outs)
     givens = case zip outs params of
       []            -> []
       ((h0,p0):rest) -> ("GIVEN " ++ pdecl h0 p0) : map (\(h,p) -> "      " ++ pdecl h p) rest
@@ -360,6 +452,9 @@ resultExpr multiOut mkName outs routs
 renderOutCell :: ColHeader -> [FEELexp] -> String
 renderOutCell col = \case
   []      -> typeDefaultScalar (vartype col)
+  -- A domained column's values are constructors of its own sum type, not
+  -- strings. Everything else about the column renders as before.
+  (FNullary (VS s) : _) | Just ms <- enumCtorsOf col, s `elem` ms -> ctorL4 s
   (fx:_)  -> showFeelL4 (vartype col) fx
 
 -- | Render an output-side FEEL expression to an L4 literal / arithmetic expr.
