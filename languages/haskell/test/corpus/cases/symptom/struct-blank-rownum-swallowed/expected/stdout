@@ -1,9 +1,0 @@
-export function BlankRowNum ( Season : string ) {
-  if (Season === "Winter") { // 2
-    return {"Dish":"Roast"};
-  }
-  else if (Season === "Spring") { // 3
-    return {"Dish":"Salad"};
-  }
-}
-

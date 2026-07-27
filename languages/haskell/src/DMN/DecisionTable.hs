@@ -7,7 +7,7 @@ module DMN.DecisionTable where
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
 import DMN.ParseFEEL ( parseFNumFunction )
-import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
+import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
 import Text.Regex.PCRE ( (=~) )
@@ -289,16 +289,79 @@ mkDTable origname orighp origchs origdtrows =
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
                                      (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
       typedchs = retypeEnums <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
+      built = DTable origname orighp typedchs
+              ((\case
+                   (DTrow rn ri ro rc) -> (DTrow rn
+                                  (reprocessRows (getInputHeaders typedchs)  ri)
+                                  (reprocessRows (getOutputHeaders typedchs) ro)
+                                  rc)) <$> origdtrows)
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
            --             "newchs = " ++ show(newchs) ++ "\n" )
-    DTable origname orighp typedchs
-    ((\case
-         (DTrow rn ri ro rc) -> (DTrow rn
-                        (reprocessRows (getInputHeaders typedchs)  ri)
-                        (reprocessRows (getOutputHeaders typedchs) ro)
-                        rc)) <$> origdtrows)
+    -- A cell outside the domain its own sub-header row declares is a typo, not
+    -- a new domain member, and a rule built from it can never match. Emitting it
+    -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
+    -- §8. Reported by @error@ because that is how this path already reports a
+    -- bad cell ('mkFs'); the XML reader calls 'domainErrors' directly so it can
+    -- locate the failure and refuse only the offending table.
+    case domainErrors built of
+      []   -> built
+      errs -> error (intercalate "\n" errs)
                          
+-- | Every way a table's cells violate the domains its sub-header row declares.
+--
+-- Empty means the table is consistent with what it says about itself. Returned
+-- rather than thrown so both readers can use it: 'mkDTable' turns it into an
+-- @error@, which is how the markdown path already reports a bad cell, and the
+-- XML reader can turn the same list into located 'DMN.XML.XmlToDmnmd.Diagnostic's
+-- and refuse just the one table. Do not grow a second copy of this rule
+-- anywhere — a validator that drifts from the constructor is worse than none.
+--
+-- __Membership is decided by 'fEval', deliberately.__ A domain member is a cell
+-- like any other, so @LOW@ is @FNullary (VS "LOW")@ and @[0..150]@ is
+-- @FInRange 0 150@, and asking "is this value in the domain" is exactly asking
+-- "would a rule written with that domain member match this value". Reusing the
+-- evaluator means a declared numeric range constrains numeric cells for free,
+-- and — more importantly — the check can never disagree with what matching
+-- actually does at run time.
+--
+-- Only __plain values__ are checked. A cell holding a test (@< 18@, @[18..65]@,
+-- @-@, an arithmetic expression) is not a member of the domain; it selects a
+-- subset of it, so checking it against a list of values would be a category
+-- error. That is why this matches 'FNullary' and lets every other constructor
+-- through.
+domainErrors :: DecisionTable -> [String]
+domainErrors dt =
+  [ msg ch rn cell
+  | r@DTrow{} <- allrows dt
+  , let rn = row_number r
+  , (ch, cells) <- zip (getInputHeaders  (header dt)) (row_inputs  r)
+                ++ zip (getOutputHeaders (header dt)) (row_outputs r)
+  , domain <- maybe [] pure (enums ch)
+  , not (null domain)
+  , cell@(FNullary _) <- cells
+  , not (fEvals cell domain)
+  ]
+  where
+    msg ch rn cell = concat
+      [ "error: table ", show (tableName dt)
+      , ": column ", show (varname ch)
+      , maybe "" (\n -> ": row " ++ show n) rn
+      , ": value outside the column's declared domain {"
+      , intercalate ", " (showDomainMember <$> fromJust (enums ch))
+      , "} — the cell reads ", showDomainMember cell
+      ]
+
+-- | A domain member or cell, as it would have been written in the table.
+-- Only used to build the diagnostic in 'domainErrors'.
+showDomainMember :: FEELexp -> String
+showDomainMember (FNullary (VS s)) = s
+showDomainMember (FNullary (VN n)) = show n
+showDomainMember (FNullary (VB b)) = toLower <$> show b
+showDomainMember (FInRange lo hi)  = "[" ++ show lo ++ ".." ++ show hi ++ "]"
+showDomainMember  FAnything        = "-"
+showDomainMember  e                = show e
+
 -- | Rebuild a column's declared domain at the type inference settled on.
 --
 -- 'DMN.ParseTable.parseTable' builds @enums@ from the sub-header row using the
