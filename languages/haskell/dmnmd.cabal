@@ -97,6 +97,13 @@ library
       DMN.XML.XmlToDmnmd
   ghc-options:
       -Wno-unused-matches
+      -- A non-exhaustive case over FEELexp or DMNVal is a bomb with a delay
+      -- fuse: it compiles, ships, and dies at run time on the one input that
+      -- reaches the missing arm. feel2pyIn was ALREADY missing its FFunction
+      -- arm while the JS twin had one. Not bare -Wall, which would bury this
+      -- signal under unused-import noise.
+      -Wincomplete-patterns
+      -Werror=incomplete-patterns
       -- both consumed by stan, the static analyser
       -fwrite-ide-info
       -hiedir=.hie

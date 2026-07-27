@@ -87,6 +87,13 @@ mkHeaderLabel _ (Just "(comment)") = DTCH_Comment
 mkHeaderLabel _ (Just "(out)")     = DTCH_Out
 mkHeaderLabel _ (Just "(in)")      = DTCH_In
 mkHeaderLabel _  Nothing           = DTCH_In
+-- 'parseLabelPre' and 'parseLabelPost' are the only producers, and each is an
+-- alternation over exactly the literals matched above, so this is unreachable
+-- unless one of those alternations grows a case this function was not told
+-- about. Naming the pair beats a bare @Non-exhaustive patterns@.
+mkHeaderLabel pre post = error $ unwords
+  [ "mkHeaderLabel: unrecognised column label", show pre, show post
+  , "-- parseLabelPre/parseLabelPost gained a literal this function does not handle" ]
 
 parseLabelPre :: Parser (Maybe Text)
 parseLabelPre  = Mega.optional $ lexeme ("//" <|> "#" <|> "<" <|> ">")
@@ -116,6 +123,11 @@ mkHitPolicy_ 'P' = HP_Priority
 mkHitPolicy_ 'F' = HP_First
 mkHitPolicy_ 'O' = HP_OutputOrder
 mkHitPolicy_ 'R' = HP_RuleOrder
+-- Guarded by @satisfy (inClass "UAPFOR")@ in 'parseHitPolicy'; unreachable
+-- unless that character class and this function drift apart.
+mkHitPolicy_ c   = error $ unwords
+  [ "mkHitPolicy_: not a hit policy:", show c
+  , "-- parseHitPolicy's character class and this function disagree" ]
 
 mkHitPolicy_C :: Char -> HitPolicy
 mkHitPolicy_C 'A' = HP_Collect Collect_All
@@ -123,6 +135,10 @@ mkHitPolicy_C '#' = HP_Collect Collect_Cnt
 mkHitPolicy_C '<' = HP_Collect Collect_Min
 mkHitPolicy_C '>' = HP_Collect Collect_Max
 mkHitPolicy_C '+' = HP_Collect Collect_Sum
+-- Guarded by @satisfy (inClass "#<>+A")@ in 'parseHitPolicy'; same invariant.
+mkHitPolicy_C c   = error $ unwords
+  [ "mkHitPolicy_C: not a collect operator:", show c
+  , "-- parseHitPolicy's character class and this function disagree" ]
 
 -- TODO: consider allowing spaces in variable names
 

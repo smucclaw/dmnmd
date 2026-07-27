@@ -150,6 +150,9 @@ feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ show rh
 feel2jsIn lhs (FInRange lower upper)   = wrapParen (showFNLog "ts" FNAnd) [show lower ++ showFNComp "ts" FNLeq ++ lhs, lhs ++ showFNComp "ts" FNLeq ++ show upper]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
 feel2jsIn lhs o@(FFunction fnunf)      = showFeel "ts" o
+-- Ordering comparisons against a non-numeric value; see 'showFeel's own catch-all.
+feel2jsIn lhs fexp = error $ unwords
+  [ "feel2jsIn: no rendering for", show fexp, "as a guard on", show lhs ]
 
 -- TODO:
 -- let's extend FEEL with support for PCRE lol
