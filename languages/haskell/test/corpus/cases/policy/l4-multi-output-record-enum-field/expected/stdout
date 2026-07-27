@@ -1,0 +1,23 @@
+DECLARE Dish
+  IS ONE OF
+    `Stew`
+    `Salad`
+
+DECLARE Plan HAS
+    dish  IS A Dish
+    drink IS A STRING
+
+GIVEN v1 IS A Dish
+      v2 IS A STRING
+GIVETH A Plan
+mkPlan v1 v2 MEANS Plan WITH
+    dish  IS v1
+    drink IS v2
+
+GIVEN age IS A NUMBER
+GIVETH A Plan
+Plan age MEANS
+  BRANCH
+    IF age < 18 THEN mkPlan `Stew` "Milk"
+    OTHERWISE mkPlan `Salad` "Wine"
+
