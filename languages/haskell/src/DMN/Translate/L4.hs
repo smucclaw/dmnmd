@@ -16,6 +16,7 @@ model is in "DMN.Types"; the catch-all/output-header helpers come from
 module DMN.Translate.L4 where
 
 import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder)
+import DMN.Diagnostic
 import DMN.Types
 import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate)
@@ -42,23 +43,77 @@ defaultL4Opts = L4Opts
   , emitAsserts   = False
   }
 
--- * Entry point
+-- * Entry points
+
+-- | Transpile every table of one input file to a single L4 source text.
+--
+-- __The file, not the table, is the unit a correct L4 emitter works in.__ L4's
+-- top-level scope is the whole file and is order-independent, so a @DECLARE@ one
+-- table emits is visible to — and can collide with — every other table's. Two
+-- tables that both declare a @category@ column over the same domain each emit
+-- their own @DECLARE Category@, and @l4 check@ rejects the pair with
+-- /multiple definitions for the identifier/ while @dmnmd@ exits 0
+-- (@symptom\/l4-duplicate-declare-across-tables@).
+--
+-- 'toL4' is kept for a single table on its own — @TranslateL4Spec@ calls it in
+-- 14 places, and a one-table file is exactly @toL4File@ over a singleton.
+--
+-- __Refusals are checked for the whole file before anything is emitted__, and a
+-- single refused table suppresses the output of every other table. That is not
+-- caution, it is the only way to keep a promise the single-table refusal cases
+-- already make: @policy\/l4-refuses-outputorder@ pins that a refusal "emits
+-- nothing whatsoever on stdout, so a redirect cannot leave a half-written file
+-- behind". Emitting table by table cannot keep it, and did not — see
+-- @symptom\/l4-multitable-refusal-partial-output-large@, where 4KB of a refused
+-- run reached stdout. It was quiet only for outputs under one 2048-char buffer
+-- chunk, which is a promise that holds for toy tables and breaks for real ones.
+--
+-- Hoisting the @DECLARE@s into one deduplicated preamble is the next step
+-- (BUILD-SPEC-dmnmd-l4-sumtype.md §A.6) and needs this entry point to exist
+-- first; today the emitted text is otherwise byte-identical to
+-- @mapM_ (hPutStrLn h . toL4 opts)@.
+toL4File :: L4Opts -> [DecisionTable] -> ([Diagnostic], String)
+toL4File opts dts
+  | not (null refusals) = (refusals, "")
+  | otherwise           = ([], concatMap (\dt -> toL4 opts dt ++ "\n") dts)
+  where
+    refusals =
+      [ errorAt ("table " ++ show (tableName dt) ++ ": " ++ why)
+      | dt <- dts
+      , Just why <- [l4Refusal dt] ]
+
+-- | Why the L4 backend cannot emit this table, or 'Nothing' if it can.
+--
+-- All four refusals are the same cardinality mismatch: these hit policies are
+-- list-valued (they return ALL matching rows, aggregated or ordered), and a
+-- first-match @BRANCH@ returns a single scalar, so every match after the first
+-- would be silently dropped. Refusing beats answering wrongly (BUILD-SPEC §1.6,
+-- §9 #4); the gate lifts when a @LIST OF@ result exists.
+--
+-- Split out of 'toL4' so 'toL4File' can ask the question __without__ evaluating
+-- the emission. The refusal used to be an @error@ raised part-way through
+-- rendering, which meant the only way to find out a table was refused was to
+-- start printing it.
+l4Refusal :: DecisionTable -> Maybe String
+l4Refusal dt = case hitpolicy dt of
+  HP_Collect _   -> Just "Collect hit policy not yet supported by the L4 backend"
+  HP_Aggregate   -> Just "Aggregate hit policy not yet supported by the L4 backend"
+  HP_OutputOrder -> Just "OutputOrder hit policy not supported by the L4 backend (list-valued: returns all matches, not a single BRANCH result)"
+  HP_RuleOrder   -> Just "RuleOrder hit policy not supported by the L4 backend (list-valued: returns all matches, not a single BRANCH result)"
+  _              -> Nothing
 
 -- | Transpile one decision table to L4 source text. First/Unique/Priority hit
--- policies map to a first-match @BRANCH@; Collect/Aggregate fail loudly
+-- policies map to a first-match @BRANCH@; the list-valued policies fail loudly
 -- (BUILD-SPEC §1.6).
+--
+-- Still @error@s on a refusal, because it returns a bare 'String' and has no
+-- other way to say no. Callers that can report a diagnostic should use
+-- 'toL4File', which asks 'l4Refusal' first and never reaches this.
 toL4 :: L4Opts -> DecisionTable -> String
 toL4 opts dt =
-  case hitpolicy dt of
-    HP_Collect _   -> error "DMN.Translate.L4: Collect hit policy not yet supported"
-    HP_Aggregate   -> error "DMN.Translate.L4: Aggregate hit policy not yet supported"
-    -- OutputOrder/RuleOrder are list-valued (they return ALL matching rows, in a
-    -- particular order). A first-match BRANCH returns a single scalar, so it would
-    -- silently drop every match after the first — a cardinality mismatch. Gate them
-    -- loudly until a LIST OF result is implemented (BUILD-SPEC §9 #4).
-    HP_OutputOrder -> error "DMN.Translate.L4: OutputOrder hit policy not supported (list-valued: returns all matches, not a single BRANCH result)"
-    HP_RuleOrder   -> error "DMN.Translate.L4: RuleOrder hit policy not supported (list-valued: returns all matches, not a single BRANCH result)"
-    _              -> unlines (recordDecls ++ [givenBlock ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
+  case l4Refusal dt of
+    Just why -> error ("DMN.Translate.L4: " ++ why)
+    Nothing  -> unlines (recordDecls ++ [givenBlock ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
   where
     ins  = getInputHeaders  (header dt)
     outs = getOutputHeaders (header dt)

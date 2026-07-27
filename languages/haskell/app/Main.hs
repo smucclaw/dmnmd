@@ -4,6 +4,7 @@ module Main (main) where
 
 import System.IO
     ( stderr,
+      hPutStr,
       hPutStrLn,
       Handle,
       hClose,
@@ -33,7 +34,7 @@ import DMN.DecisionTable
     ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF )
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
-import DMN.Translate.L4 ( toL4, L4Opts(..), defaultL4Opts )
+import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
 import DMN.Translate.FEELhelpers ( showFeels )
 import DMN.XML.ParseDMN (parseDMNEither)
 import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError)
@@ -67,7 +68,7 @@ main = do
     -- which tables shall we run eval against? maybe the user gave a --pick. Maybe they didn't. if they didn't, run against all tables.
     -- if the tables have different input types, die. because our plan is to run the same input against all the different tables.
 
-  if | not $ query opts              -> mapM_ (outputTo myouthandle (outformat opts) opts) pickedTables
+  if | not $ query opts              -> outputToAll myouthandle (outformat opts) opts pickedTables
      | differentlyTyped pickedTables -> fail $ "tables " ++ show (tableName <$> pickedTables) ++ " have different types; can't query. use --pick to choose one"
      | query opts                    -> runInputT defaultSettings (loop opts pickedTables)
   hClose myouthandle
@@ -178,12 +179,38 @@ showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") (
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
+-- | Emit every picked table to one handle.
+--
+-- L4 goes through 'toL4File' rather than table-by-table, because L4's top-level
+-- scope is the whole file: a @DECLARE@ one table emits collides with an
+-- identical one from the next (@symptom\/l4-duplicate-declare-across-tables@).
+-- No other backend has file-level scope — a JS/PY/TS file is a sequence of
+-- independent function definitions — so they stay per-table.
+--
+-- Byte-identical to the previous @mapM_ (outputTo …)@ for every format,
+-- including L4: 'toL4File' currently just concatenates.
+outputToAll :: Handle -> FileFormat -> ArgOptions -> [DecisionTable] -> IO ()
+outputToAll h L4 _opts dtables = do
+  let (diags, src) = toL4File defaultL4Opts dtables
+  mapM_ (hPutStrLn stderr . ("dmnmd: " ++) . renderDiagnostic) diags
+  when (any isError diags) $ do
+    hPutStrLn stderr $
+      "dmnmd: nothing was emitted for any table, because a partial L4 file is"
+        ++ " indistinguishable from a complete one."
+    exitFailure
+  hPutStr h src
+outputToAll h fmt opts dtables = mapM_ (outputTo h fmt opts) dtables
+
 -- | print to a file handle
 outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
 outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts))  dtable
-outputTo h L4 _opts dtable = hPutStrLn h $ toL4 defaultL4Opts dtable
+-- L4 is emitted per FILE, not per table: 'outputToAll' intercepts it before
+-- this function is reached. Kept as a loud invariant rather than deleted,
+-- because a second emission path is exactly how the duplicate-DECLARE bug would
+-- come back.
+outputTo _ L4 _opts _dtable = crash "outputTo: L4 is emitted per file by outputToAll, not per table"
 outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype
                                    ++ ".\nSupported output formats are 'ts', 'js', 'py' and 'l4'"
 
