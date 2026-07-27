@@ -1,0 +1,9 @@
+export function Scores ( tags : number[] ) {
+  if (tags > 3.0) { // 1
+    return {"grade":"pass"};
+  }
+  else if (tags === 7.0) { // 2
+    return {"grade":"fail"};
+  }
+}
+
