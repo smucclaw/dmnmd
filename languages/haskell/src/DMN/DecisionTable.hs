@@ -130,7 +130,7 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 -- it can report on. Do not reintroduce a second copy of these guards elsewhere:
 -- a validator that drifts from the constructor is worse than no validator.
 mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
-mkFsEither dmntype args = traverse (mkFEither dmntype) (trim <$> splitOn "," args)
+mkFsEither dmntype args = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
 
 
 -- TODO: add a state monad to allow type inference to span all input rows;
@@ -187,6 +187,55 @@ mkFEither (Just DMN_Number)  arg1
         mkVN x = maybe (Left $ "expected a number, but this column is typed Number and the cell reads " ++ show arg2)
                        (Right . VN)
                        (readMaybe x :: Maybe Float)
+
+-- | Unwrap S-FEEL string literals across a whole cell, __all or nothing__.
+--
+-- @"Fall"@ denotes the four-character value @Fall@; the quotes are not part of
+-- it. This matters well beyond hand-written markdown, because DMN XML writes
+-- every string quoted — @\<text\>"adult"\<\/text\>@ — so before this, any table
+-- arriving through @-f xml@ acquired cells that compiled to a comparison
+-- against the quote characters, and could only match input that literally
+-- contained quotes. Silent, and exit 0. See BUILD-SPEC-dmnmd-e4.md §2.2.
+--
+-- __Why all-or-nothing, and do not change this to per-fragment.__ 'mkFsEither'
+-- splits a cell on commas before anything looks at what the cell means, so the
+-- single FEEL negation @not("Fall", "Winter", "Spring", "Summer")@ arrives here
+-- already shredded into four fragments, of which the middle two happen to be
+-- well-formed literals and the outer two carry unbalanced quotes and
+-- parentheses. Unquoting each fragment on its own merits yields
+-- @not("Fall@ \/ @Winter@ \/ @Spring@ \/ @"Summer")@ — a mixture that is
+-- neither the source text nor a parse of it, and that reads as half-parsed.
+--
+-- That has been tried and reverted once already; the warning is recorded at
+-- @test\/DmnXmlSpec.hs@ above the frozen expectation for that very cell. So a
+-- cell is unquoted only when __every__ fragment is a well-formed literal, which
+-- keeps the honest cases (@"Fall"@, and a genuine multi-value @"Fall", "Winter"@)
+-- and leaves a shredded one verbatim. Fixing the shred is the comma-split
+-- defect, recorded at @test\/corpus\/cases\/symptom\/xml-comma-split-negation@.
+--
+-- 'isSFeelLiteral' is deliberately conservative, since it sees every cell:
+--
+--  * @5' 10"@ ends with a quote but does not start with one.
+--  * @\"a\" and \"b\"@ starts and ends with a quote but is not one literal, so
+--    the interior-quote test rejects it rather than yielding @a" and "b@.
+--  * a lone @\"@ is length 1. ('inferType' does classify it as DMN_String,
+--    since its @head == last@ test is satisfied by the same character, so this
+--    case is reachable.)
+--  * @\"\"@ is the empty string, which is correct.
+--
+-- Escape sequences are not interpreted; a cell containing @\\\"@ keeps it. That
+-- is a gap, not a decision — it needs the real S-FEEL grammar, not a special
+-- case here.
+unquoteCell :: [String] -> [String]
+unquoteCell frags
+  | not (null frags), all isSFeelLiteral frags = unquote <$> frags
+  | otherwise                                  = frags
+  where
+    unquote s = drop 1 (init s)
+
+isSFeelLiteral :: String -> Bool
+isSFeelLiteral s =
+  length s >= 2 && head s == '"' && last s == '"' && '"' `notElem` drop 1 (init s)
 
 fromVN :: DMNVal -> Float
 fromVN (VN n) = n
@@ -255,7 +304,16 @@ reprocessRows =
   -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
-               if notElem (vartype ch) [Nothing, Just DMN_String] && (length [ x | FNullary (VS x) <- cells] == length cells)
+               -- DMN_String used to be excluded here alongside Nothing, because
+               -- re-running a string cell at DMN_String was a no-op: both the
+               -- Nothing arm and the DMN_String arm of mkFEither produced
+               -- FNullary (VS (trim arg)). Since 'unquoteSFeel' it is no longer
+               -- a no-op, and this is the pass where an inferred string column
+               -- gets its quotes stripped — inferType classifies "Fall" as
+               -- DMN_String, but nothing re-ran the cell at that type.
+               -- Idempotent for an explicitly-declared : String column, whose
+               -- cells were already unquoted in pass 1.
+               if vartype ch /= Nothing && (length [ x | FNullary (VS x) <- cells] == length cells)
                then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
                     [ mkF (vartype ch) x | FNullary (VS x) <- cells ]
                else cells)

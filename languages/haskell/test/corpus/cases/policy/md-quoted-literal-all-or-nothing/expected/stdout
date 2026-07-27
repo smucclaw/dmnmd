@@ -1,0 +1,15 @@
+export function Q ( Season ) {
+  if ((Season === "Fall" || Season === "Winter")) { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if (Season === "Spring") { // 2
+    return {"Dish":"Steak"};
+  }
+  else if (Season === "5' 10\"") { // 3
+    return {"Dish":"Tall"};
+  }
+  else if (Season === "Non-Participating") { // 4
+    return {"Dish":"Nothing"};
+  }
+}
+

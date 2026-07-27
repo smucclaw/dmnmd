@@ -162,6 +162,18 @@ recognised, as today, by its **blank first cell** appearing before the first num
 No annotation gates this. Requiring `: FEEL` on every column imported from XML would be the
 opposite of legible.
 
+> **All or nothing per cell — do not make this per-fragment.** `mkFsEither` splits on commas
+> before anything looks at what a cell means, so `not("Fall", "Winter", "Spring", "Summer")`
+> arrives already shredded into four fragments, of which the middle two happen to be
+> well-formed literals. Unquoting each on its own merits gives
+> `not("Fall` / `Winter` / `Spring` / `"Summer")` — neither the source text nor a parse of it.
+>
+> **This was tried and reverted once before**, and the warning is recorded in
+> `test/DmnXmlSpec.hs` above the frozen expectation for that cell. It was found only by reading
+> that comment after a first implementation attempt broke the test. So a cell is unquoted only
+> when **every** fragment is a well-formed literal, which keeps `"Fall"` and a genuine
+> multi-value `"Fall", "Winter"` while leaving a shredded cell verbatim.
+
 ### 2.3 Worked examples
 
 All four render as tables on GitHub; all four keep the delimiter in position 2.
@@ -409,7 +421,7 @@ Baseline: **127 cases, 62 policy / 65 symptom, 127 unchanged.**
 
 | case | why it moves |
 |---|---|
-| `md-quoted-string-cell-literal` | emits `Season === "Fall"`. Correct, not merely different. |
+| `md-quoted-string-cell-literal` | emits `Season === "Fall"`. Correct, not merely different. Renamed `md-quoted-string-literal-unwrapped` on promotion, since the old slug named the defect. |
 | `struct-outputorder-enum-untyped` | `O` returns domain order, not row order. Confirmed reachable today by hand-declaring the types. |
 
 ### symptom → symptom (re-record, **stays** symptom)
