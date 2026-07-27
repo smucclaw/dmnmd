@@ -1,0 +1,2 @@
+input.dmn: error: table "Routing": output column "Routing": typeRef "tRouting" is circular: tRouting -> tOther -> tRouting. Refusing to convert this table.
+dmnmd: input.dmn: one or more decision tables were refused (see the errors above); nothing was emitted for them.

@@ -29,7 +29,7 @@ xmlSpec = do
                          -- no <itemDefinition> in this document; the field records
                          -- the NAME of each one so the converter can warn that
                          -- DMN's data model is dropped.
-                         defItemDefNames = [],
+                         defItemDefs = [],
                          defsDescisions = [],
                          defInputData = [],
                          defDrgElems = [],
@@ -455,7 +455,7 @@ simulationDmn =
   [ Definitions
       { defLabel = dmnNamed' "dinnerDecisions" "Dinner Decisions",
         defsNamespace = Namespace {namespace = "http://camunda.org/schema/1.0/dmn"},
-        defItemDefNames = [],
+        defItemDefs = [],
         defInputData = [],
         defsDescisions =
           [ Decision

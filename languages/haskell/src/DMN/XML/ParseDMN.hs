@@ -477,6 +477,113 @@ makePrisms ''OutputValues
 instance XmlPickler OutputValues where
   xpickle = xpDMNElem "outputValues" _OutputValues xpickle
 
+-- | @tItemDefinition/allowedValues@ — the declared domain of a NAMED type.
+--
+-- The third @tUnaryTests@ user, and byte-identical in shape to the two above.
+-- That is the whole point: an @\<allowedValues\>@ is an @\<inputValues\>@ that
+-- has been given a name and can be referred to from more than one column.
+newtype AllowedValues = AllowedValues UnaryTestsBody
+  deriving (Show, Eq)
+
+makePrisms ''AllowedValues
+
+instance XmlPickler AllowedValues where
+  xpickle = xpDMNElem "allowedValues" _AllowedValues xpickle
+
+unAllowedValues :: AllowedValues -> UnaryTestsBody
+unAllowedValues (AllowedValues b) = b
+
+-- | The text of @\<itemDefinition\>\<typeRef\>@. Note this is an ELEMENT here,
+-- unlike the @typeRef@ ATTRIBUTE that 'TypeRef' models on a column — same name,
+-- different XSD position, so they cannot share a pickler.
+newtype ItemTypeRef = ItemTypeRef String
+  deriving (Show, Eq)
+
+makePrisms ''ItemTypeRef
+
+instance XmlPickler ItemTypeRef where
+  xpickle = xpDMNElem "typeRef" _ItemTypeRef xpText0
+
+unItemTypeRef :: ItemTypeRef -> String
+unItemTypeRef (ItemTypeRef s) = s
+
+-- | @tItemDefinition@ (XSD lines 232-247) — DMN's data model, and the thing a
+-- column's @typeRef@ can name.
+--
+-- The XSD body is a @\<xsd:choice\>@ of three shapes, and knowing that is what
+-- makes the diagnostics precise rather than generic:
+--
+--  1. @typeRef@ (required) + @allowedValues?@ — a simple type, optionally with a
+--     domain. This is the one dmnmd honours.
+--  2. @itemComponent*@ — a structured (record) type. Out of scope, and refused
+--     by name rather than silently.
+--  3. @functionItem?@ — a function type. Likewise.
+--
+-- __Modelled shallowly and filtered, not modelled fully.__ The choice looked
+-- binary — stay totally permissive, or model every attribute and reject anything
+-- unmodelled — but 'xpFilterAttr' and 'xpFilterCont' take an ARROW rather than a
+-- boolean, so a NAME FILTER deletes everything except what is listed. @id@,
+-- @label@, @typeLanguage@, @\<description\>@, @\<extensionElements\>@ and
+-- foreign attributes are dropped exactly as they were when the whole element was
+-- 'xpIgnoredElems'. So this cannot reject a document that parses today; the only
+-- place strictness rises is inside @\<allowedValues\>@, where it becomes
+-- identical to what @\<inputValues\>@ has imposed since E4 — both are
+-- @tUnaryTests@.
+--
+-- The three optional children are picked as a SEQUENCE rather than as an
+-- @xpAlt@ over the choice, which accepts some combinations the XSD forbids
+-- (a @typeRef@ and an @itemComponent@ together). Being more permissive than the
+-- schema cannot reject a valid document; being less permissive can.
+data ItemDefinition = ItemDefinition
+  { itdName :: Maybe String
+    -- ^ @name@. Optional in the XSD (via @tNamedElement@), and an unnamed
+    -- itemDefinition is unreferenceable — so it is reported, not resolved.
+  , itdIsCollection :: Maybe String
+    -- ^ @isCollection@, raw. Tier 2 turns this into 'DMN.Types.DMN_List'.
+  , itdTypeRef :: Maybe ItemTypeRef
+  , itdAllowedValues :: Maybe AllowedValues
+  , itdComponents :: [Maybe String]
+    -- ^ the @name@ of each @\<itemComponent\>@, and nothing else about it — the
+    -- element is recursive, and peeking the name is enough to say what was
+    -- refused.
+  , itdFunctionItem :: ()
+    -- ^ present-or-absent is not recoverable from @()@; a @\<functionItem\>@
+    -- itemDefinition simply has no @typeRef@, which is how the converter reports
+    -- it. Consumed rather than filtered out so that keeping it in the content
+    -- filter stays honest.
+  }
+  deriving (Show, Eq)
+
+makePrisms ''ItemDefinition
+
+instance XmlPickler ItemDefinition where
+  xpickle =
+    xpDMNElem "itemDefinition" _ItemDefinition
+      . xpFilterAttr (hasNameWith ((`elem` itemDefAttrs) . localPart))
+      . xpFilterCont (hasNameWith ((`elem` itemDefElems) . localPart))
+      $ xp6Tuple
+          (xpOption (xpAttr "name" xpText))
+          (xpOption (xpAttr "isCollection" xpText))
+          (xpOption xpickle)
+          (xpOption xpickle)
+          (xpPeekedElems "itemComponent" "name")
+          (xpIgnoredElemOpt "functionItem")
+
+-- | The attributes and child elements 'ItemDefinition' keeps. __Every name test
+-- here goes through @hasNameWith (… . localPart)@, never @hasName@__: HXT's
+-- 'hasName' compares the QUALIFIED name, prefix included, so against
+-- @\<semantic:typeRef\>@ it matches nothing and the filter deletes the very
+-- children this exists to read. That is not exotic — the DMN specification's own
+-- Chapter 11 example is prefix-qualified and is checked in under
+-- @test\/examples\/@. The failure was silent and self-contradicting: the
+-- itemDefinition parsed as empty and the diagnostic then said it declared no
+-- @typeRef@ while the file had one on the next line.
+itemDefAttrs :: [String]
+itemDefAttrs = ["name", "isCollection"]
+
+itemDefElems :: [String]
+itemDefElems = ["typeRef", "allowedValues", "itemComponent", "functionItem"]
+
 -- | @tOutputClause/defaultOutputEntry@ — the value taken when no rule matches.
 newtype DefaultOutputEntry = DefaultOutputEntry TLiteralExpression
   deriving (Show, Eq)
@@ -810,13 +917,12 @@ instance XmlPickler DrgElems where
 data Definitions = Definitions
   { defLabel :: DmnNamed,
     defsNamespace :: Namespace,
-    defItemDefNames :: [Maybe String],
-    -- ^ the @name@ of every @\<itemDefinition\>@, and nothing else about it.
-    -- DMN's data model — where @allowedValues@ (an enum domain), @isCollection@
-    -- (a list type) and @itemComponent@ (a structured type) are declared — is
-    -- not modelled yet, and used to be dropped by @xpIgnoredElems@ WITHOUT A
-    -- WORD. Keeping the names is the minimum that lets the converter obey this
-    -- repo's rule: anything we parse but do not honour must say so.
+    defItemDefs :: [ItemDefinition],
+    -- ^ DMN's data model. This was @xpIgnoredElems@ — the whole section dropped
+    -- WITHOUT A WORD — then a name-only peek so the converter could at least say
+    -- what it had thrown away, and is now modelled far enough to honour the case
+    -- that matters: a named simple type with an @\<allowedValues\>@ domain,
+    -- which a column's @typeRef@ inherits.
     defInputData :: [InputData],
     defsDescisions :: [Decision],
     defDrgElems :: [DrgElems],
@@ -864,8 +970,7 @@ dmnPickler =
     $ xp7Tuple
         xpickle                                  -- id / name attributes
         xpickle                                  -- namespace attribute
-        (xpSeq' definitionsPrelude
-           (xpPeekedElems "itemDefinition" "name"))  -- names only; see defItemDefNames
+        (xpSeq' definitionsPrelude xpickle)       -- [ItemDefinition]; see defItemDefs
         xpickle                                  -- [InputData]
         xpickle                                  -- [Decision]
         xpickle                                  -- [DrgElems]

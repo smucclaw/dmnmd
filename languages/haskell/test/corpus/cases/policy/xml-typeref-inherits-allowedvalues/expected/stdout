@@ -1,0 +1,14 @@
+DECLARE Routing
+  IS ONE OF
+    `DECLINE`
+    `REFER`
+    `ACCEPT`
+
+GIVEN score IS A NUMBER
+GIVETH A MAYBE Routing
+Routing score MEANS
+  BRANCH
+    IF score <  100 THEN JUST `DECLINE`
+    IF ^     >= ^   THEN JUST `ACCEPT`
+    OTHERWISE NOTHING
+

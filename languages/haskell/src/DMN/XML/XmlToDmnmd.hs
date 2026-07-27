@@ -26,7 +26,7 @@ import DMN.Diagnostic
 import qualified DMN.Types as T
 import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
-import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, domainErrors)
+import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, domainErrors, trim)
 import DMN.ParsingUtils (Parser, parseOnly)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as M
@@ -53,30 +53,87 @@ convertAll :: [XDMN] -> ([Diagnostic], [T.DecisionTable])
 convertAll = mconcat . map convertIt
 
 convertIt :: X.XDMN -> ([Diagnostic], [T.DecisionTable])
-convertIt d = (itemDefDiags d, []) <> mconcat (map convdec (allDecisions d))
+convertIt d = (itemDefDiags (X.defItemDefs d), []) <> mconcat (map (convdec env) (allDecisions d))
+  where env = typeEnvOf d
 
--- | DMN's data model is @\<itemDefinition\>@: it is where @allowedValues@ (an
--- enum domain), @isCollection@ (a list type) and @itemComponent@ (a structured
--- type) are declared. dmnmd models none of it, and until now discarded the whole
--- section without a word — this module's own header says that is exactly what we
--- must not do.
+-- * DMN's data model (@\<itemDefinition\>@)
+
+-- | Every NAMED @\<itemDefinition\>@ in the document, in document order.
 --
--- A Warning, not an Error, and the distinction is the usual one: nothing is
--- being read WRONGLY. A table using such a type still fails loudly later, at
--- 'convertType', because the @typeRef@ naming it is unknown. What was missing
--- was the connection between the two — a reader told a @typeRef@ is unknown had
--- no way to learn that the document declares it and we dropped it.
+-- An association list rather than a Map: a document has a handful of these, and
+-- keeping duplicates visible is the point — 'itemDefDiags' reports them, and
+-- 'lookup' taking the first is then a stated rule rather than an accident of
+-- which one @fromList@ happened to keep.
+type TypeEnv = [(String, X.ItemDefinition)]
+
+typeEnvOf :: X.XDMN -> TypeEnv
+typeEnvOf d = [ (nm, itd) | itd <- X.defItemDefs d, Just nm <- [X.itdName itd] ]
+
+-- | Complaints about the data model itself, independent of whether any column
+-- refers to it.
 --
--- Honouring them is BUILD-SPEC-dmnmd-l4-sumtype.md Part B tiers 1-2, and is
--- where @isCollection@ finally answers what a domain on a list column means.
-itemDefDiags :: X.XDMN -> [Diagnostic]
-itemDefDiags d =
-  [ warnAt $
-      "<itemDefinition> " ++ maybe "(unnamed)" show nm
-        ++ ": dmnmd does not model DMN's data model, so its <allowedValues>,"
-        ++ " isCollection and <itemComponent> are dropped."
-        ++ " A column whose typeRef names it will be reported as an unknown type."
-  | nm <- X.defItemDefNames d ]
+-- Only about what we CANNOT honour. A named simple type — @\<typeRef\>@ plus an
+-- optional @\<allowedValues\>@ — is now read and used ('resolveTypeRef'), so it
+-- is silent. Before tier 1 every itemDefinition warned, because every one of
+-- them was being discarded.
+--
+-- All Warnings: nothing is being read wrongly here. A table that actually USES
+-- an unhonourable type fails loudly at its column instead, and says so there.
+-- The point of warning at the document level too is the connection between the
+-- two — a reader told "unknown typeRef" needs to be able to learn that the
+-- document declares that name and we could not use it.
+itemDefDiags :: [X.ItemDefinition] -> [Diagnostic]
+itemDefDiags itds = concatMap one itds ++ dups
+  where
+    one itd = case X.itdName itd of
+      Nothing ->
+        [ warnAt $ "<itemDefinition> without a name: it cannot be referred to by any"
+            ++ " typeRef, so it is dropped." ]
+      Just nm -> case unusable itd of
+        Nothing  -> []
+        Just why -> [ warnAt $ "<itemDefinition> " ++ show nm ++ ": " ++ why ]
+
+    dups =
+      [ warnAt $ "<itemDefinition> " ++ show nm ++ " is declared " ++ show n
+          ++ " times; the first is used and the rest are dropped."
+      | (nm, n) <- counts, n > (1 :: Int) ]
+    counts = [ (nm, length g)
+             | nm <- nubOrd names, let g = filter (== nm) names ]
+    names = [ nm | Just nm <- map X.itdName itds ]
+    nubOrd = foldr (\x acc -> x : filter (/= x) acc) []
+
+-- | Why this @\<itemDefinition\>@ cannot be honoured, or 'Nothing' if it can.
+--
+-- The XSD body is a three-way choice (typeRef+allowedValues | itemComponent* |
+-- functionItem?), so these are not arbitrary rejections — they are the two
+-- branches of that choice dmnmd has no representation for.
+unusable :: X.ItemDefinition -> Maybe String
+unusable itd
+  | isCollection =
+      Just $ "it is isCollection=\"true\", a list type. dmnmd has a 'DMN_List' type"
+        ++ " but its CELL layer does not honour it: 'DMN.DecisionTable.mkFEither'"
+        ++ " delegates a list type straight to its base type, so every cell in the"
+        ++ " column is read as a scalar. A markdown column declared '[Number]'"
+        ++ " already shows what that produces — L4 'GIVEN tags IS A LIST OF NUMBER'"
+        ++ " with a guard 'tags EQUALS 5', which does not typecheck, and TypeScript"
+        ++ " 'tags: number[]' compared with '=== 5.0', which is never true"
+        ++ " (symptom/md-list-column-cells-are-scalars). Mapping isCollection onto"
+        ++ " that would turn this refusal into a silent wrong answer, so the column"
+        ++ " is refused instead."
+  | not (null (X.itdComponents itd)) =
+      Just $ "it is a structured type (<itemComponent> "
+        ++ intercalate ", " [maybe "(unnamed)" show c | c <- X.itdComponents itd]
+        ++ "). dmnmd's decision table columns are scalars, so there is nothing to"
+        ++ " map a record onto. A column whose typeRef names this is refused."
+  | Nothing <- X.itdTypeRef itd =
+      Just $ "it declares no <typeRef>, so it is either a <functionItem> type or"
+        ++ " empty. dmnmd has neither. A column whose typeRef names this is refused."
+  | otherwise = Nothing
+  where
+    -- The XSD gives isCollection a default of "false", and DMN's own examples
+    -- write it out explicitly on non-collections, so an absent attribute and an
+    -- explicit "false" must read the same.
+    isCollection = maybe False ((== "true") . map toLower . trim) (X.itdIsCollection itd)
 
 -- | Every @<decision>@ in the file. 'X.defsDescisions' only holds the leading
 -- run of them: a file that interleaves @<inputData>@ with @<decision>@ puts the
@@ -84,9 +141,9 @@ itemDefDiags d =
 allDecisions :: X.XDMN -> [X.Decision]
 allDecisions d = X.defsDescisions d ++ [dec | X.DrgDec dec <- X.defDrgElems d]
 
-convdec :: X.Decision -> ([Diagnostic], [T.DecisionTable])
-convdec dec = case X.decDTable dec of
-    Just (X.ExprDTable tabl) -> convTable decisionName tabl
+convdec :: TypeEnv -> X.Decision -> ([Diagnostic], [T.DecisionTable])
+convdec env dec = case X.decDTable dec of
+    Just (X.ExprDTable tabl) -> convTable env decisionName tabl
     Just (X.ExprLiteral _)   ->
       ([ warnAt $ "decision " ++ show decisionName
           ++ ": its decision logic is a <literalExpression>, not a <decisionTable>; skipped." ], [])
@@ -113,8 +170,8 @@ data Col = Col
 -- no middle setting: a table whose guards can never fire, or whose rules have
 -- been silently widened by a dropped entry, is not a lesser version of the
 -- right answer — it is a wrong answer that exits 0.
-convTable :: String -> X.DecisionTable -> ([Diagnostic], [T.DecisionTable])
-convTable name X.DecisionTable
+convTable :: TypeEnv -> String -> X.DecisionTable -> ([Diagnostic], [T.DecisionTable])
+convTable env name X.DecisionTable
   { X.dtHitPolicy
   , X.dtInput
   , X.dtOutput
@@ -143,8 +200,8 @@ convTable name X.DecisionTable
     inTable msg = "table " ++ show name ++ ": " ++ msg
 
     -- ---- columns -------------------------------------------------------
-    (inColDiags,  inCols)  = unzip' (zipWith (convInputCol  inTable) [1 ..] dtInput)
-    (outColDiags, outCols) = unzip' (zipWith (convOutputCol inTable) [1 ..] dtOutput)
+    (inColDiags,  inCols)  = unzip' (zipWith (convInputCol  env inTable) [1 ..] dtInput)
+    (outColDiags, outCols) = unzip' (zipWith (convOutputCol env inTable) [1 ..] dtOutput)
 
     nIn = length dtInput
     nOut = length dtOutput
@@ -235,13 +292,13 @@ convTable name X.DecisionTable
 -- | @<input>@ → column descriptor. The variable name is the FEEL text of the
 -- @<inputExpression>@; the display label and a positional name are fallbacks,
 -- rather than the old literal @"I don't know?"@.
-convInputCol :: (String -> String) -> Int -> TableInput -> (Diagnostics, Col)
-convInputCol inTable ix TableInput { tinpLabel, tinpExpr = InputExpression inpexpr, tinpValues } =
-    ( diags
+convInputCol :: TypeEnv -> (String -> String) -> Int -> TableInput -> (Diagnostics, Col)
+convInputCol env inTable ix TableInput { tinpLabel, tinpExpr = InputExpression inpexpr, tinpValues } =
+    ( diags ++ domDiags
     , Col { colKind = T.DTCH_In
           , colName = nm
           , colDeclared = ty
-          , colValuesText = fmap (innerText . utText . unInputValues) tinpValues
+          , colValuesText = domain
           }
     )
   where
@@ -250,18 +307,21 @@ convInputCol inTable ix TableInput { tinpLabel, tinpExpr = InputExpression inpex
       , maybe "" columnLabel tinpLabel
       , "input" ++ show ix
       ]
-    (diags, ty) = resolveType (inTable . (("input column " ++ show nm ++ ": ") ++))
-                              (exprTypeRef (tleExpr inpexpr))
+    locate = inTable . (("input column " ++ show nm ++ ": ") ++)
+    (diags, ty, inherited) = resolveType env locate (exprTypeRef (tleExpr inpexpr))
+    (domDiags, domain) =
+      pickDomain locate "<inputValues>"
+        (fmap (innerText . utText . unInputValues) tinpValues) inherited
 
 -- | @<output>@ → column descriptor. DMN 1.3 makes @label@, @name@ and
 -- @typeRef@ all optional on @<output>@, so none can be assumed present.
-convOutputCol :: (String -> String) -> Int -> TableOutput -> (Diagnostics, Col)
-convOutputCol inTable ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
-    ( diags ++ defaultDiags
+convOutputCol :: TypeEnv -> (String -> String) -> Int -> TableOutput -> (Diagnostics, Col)
+convOutputCol env inTable ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
+    ( diags ++ domDiags ++ defaultDiags
     , Col { colKind = T.DTCH_Out
           , colName = nm
           , colDeclared = ty
-          , colValuesText = fmap (innerText . utText . unOutputValues) toutValues
+          , colValuesText = domain
           }
     )
   where
@@ -270,7 +330,11 @@ convOutputCol inTable ix TableOutput { toutName, toutLabel, toutTypeRef, toutVal
       , maybe "" id (dmnLabel toutName)
       , "output" ++ show ix
       ]
-    (diags, ty) = resolveType (inTable . (("output column " ++ show nm ++ ": ") ++)) toutTypeRef
+    locate = inTable . (("output column " ++ show nm ++ ": ") ++)
+    (diags, ty, inherited) = resolveType env locate toutTypeRef
+    (domDiags, domain) =
+      pickDomain locate "<outputValues>"
+        (fmap (innerText . utText . unOutputValues) toutValues) inherited
 
     -- <defaultOutputEntry> is the value the table takes when no rule matches.
     -- dmnmd's DecisionTable has no slot for it — the L4 backend's own
@@ -413,12 +477,120 @@ feelEscape = M.choice
 
 -- * Types
 
--- | Resolve a @typeRef@, attributing any complaint to the column it came from.
-resolveType :: (String -> String) -> Maybe TypeRef -> (Diagnostics, Maybe T.DMNType)
-resolveType _ Nothing = ([], Nothing)
-resolveType locate (Just tr) =
-  let (ds, ty) = convertType tr
-  in (map (\d -> d { diagMessage = locate (diagMessage d) }) ds, ty)
+-- | Resolve a @typeRef@ against the document's data model and then the FEEL
+-- built-ins, attributing any complaint to the column it came from.
+--
+-- Returns the column's type AND the domain it inherits from a named type, if
+-- any. Those two travel together because they come from the same
+-- @\<itemDefinition\>@, and splitting them would mean looking it up twice with
+-- two chances to disagree.
+resolveType :: TypeEnv -> (String -> String) -> Maybe TypeRef -> (Diagnostics, Maybe T.DMNType, Maybe String)
+resolveType _ _ Nothing = ([], Nothing, Nothing)
+resolveType env locate (Just (TypeRef raw)) =
+  let (ds, ty, dom) = resolveTypeRef env raw
+  in (map (\d -> d { diagMessage = locate (diagMessage d) }) ds, ty, dom)
+
+-- | The named-type lookup, and the FEEL built-in fallback behind it.
+--
+-- A @typeRef@ naming an @\<itemDefinition\>@ resolves to THAT type's own
+-- @\<typeRef\>@ — which may itself be another itemDefinition, so this follows
+-- the chain — and inherits the NEAREST @\<allowedValues\>@ along it. Nearest
+-- rather than merged: DMN lets a derived type restrict its base, so the one the
+-- column actually names is the tighter statement, and merging two domains could
+-- only ever widen one of them.
+--
+-- The cycle guard is not defensive programming. @\<itemDefinition\>@ is
+-- recursive by construction and nothing in the XSD forbids @A@ deriving from
+-- @B@ deriving from @A@; without the visited set that document hangs the
+-- converter instead of being reported.
+resolveTypeRef :: TypeEnv -> String -> (Diagnostics, Maybe T.DMNType, Maybe String)
+resolveTypeRef env = go []
+  where
+    go seen raw = case lookupItemDef env raw of
+      Nothing ->
+        -- Not a declared type, so it must be a FEEL built-in. If it is not, the
+        -- existing "unknown typeRef" error stands — but it can now say whether
+        -- the document DECLARED that name and we refused it, which is the whole
+        -- point of the document-level warnings above.
+        let (ds, ty) = convertType (TypeRef raw)
+        in (map (enrich raw) ds, ty, Nothing)
+      Just (nm, itd)
+        | nm `elem` seen ->
+            ( [ errorAt $ "typeRef " ++ show raw ++ " is circular: "
+                  ++ intercalate " -> " (reverse seen) ++ " -> " ++ nm
+                  ++ ". Refusing to convert this table." ]
+            , Nothing, Nothing )
+        | Just why <- unusable itd ->
+            ( [ errorAt $ "typeRef " ++ show raw ++ " names an <itemDefinition> dmnmd"
+                  ++ " cannot use: " ++ why ++ " Refusing to convert this table." ]
+            , Nothing, Nothing )
+        | otherwise ->
+            let base = maybe "" X.unItemTypeRef (X.itdTypeRef itd)
+                (ds, ty, inherited) = go (nm : seen) base
+            in (ds, ty, allowedValuesText itd `orElse` inherited)
+
+    orElse a b = maybe b Just a
+
+    -- Say more when the unknown name IS in the document. Without this the
+    -- reader is told a type is unknown while the file declares it three lines
+    -- up, which is exactly the self-contradicting diagnostic tier 1 exists to
+    -- remove.
+    enrich raw d
+      | diagSeverity d == Error, Just why <- declaredButUnusable raw =
+          d { diagMessage = diagMessage d ++ " (This document DOES declare "
+                ++ show raw ++ ", but " ++ why ++ ")" }
+      | otherwise = d
+
+    declaredButUnusable raw = lookupItemDef env raw >>= unusable . snd
+
+-- | Look a @typeRef@ up in the data model, exactly first and then with any
+-- namespace prefix stripped.
+--
+-- Prefix-stripped as a fallback because a @typeRef@ pointing at a type declared
+-- in the same file is routinely written @tns:Category@ while the
+-- @\<itemDefinition name=\"Category\"\>@ carries no prefix. Exact first, so a
+-- type genuinely named with a colon still wins over the stripped reading.
+lookupItemDef :: TypeEnv -> String -> Maybe (String, X.ItemDefinition)
+lookupItemDef env raw =
+  case lookup key env of
+    Just itd -> Just (key, itd)
+    Nothing  -> (,) stripped <$> lookup stripped env
+  where
+    key = trim raw
+    stripped = reverse (takeWhile (/= ':') (reverse key))
+
+-- | The FEEL text of an @\<itemDefinition\>@'s @\<allowedValues\>@.
+allowedValuesText :: X.ItemDefinition -> Maybe String
+allowedValuesText = fmap (innerText . utText . X.unAllowedValues) . X.itdAllowedValues
+
+-- | Choose between the domain a column declares for itself and the one it
+-- inherits from its named type.
+--
+-- The column's own wins. DMN's model is that a derived type RESTRICTS its base,
+-- and @\<inputValues\>@ on the column is the most derived statement there is —
+-- so taking the inherited one instead could only widen what the column accepts,
+-- and widening a declared domain is the defect 'domainErrors' exists to catch.
+--
+-- When the two disagree it warns rather than refusing. A refusal here would
+-- reject documents that convert cleanly today, since before tier 1 the inherited
+-- domain did not exist at all and could not conflict with anything. Whether a
+-- column's own domain must be a SUBSET of its type's is a real check and a
+-- deliberately separate one: it needs the two to be compared as parsed FEEL
+-- rather than as text, which is 'DMN.DecisionTable.domainErrors' territory.
+pickDomain :: (String -> String) -> String -> Maybe String -> Maybe String -> (Diagnostics, Maybe String)
+pickDomain locate what own inherited = case (own, inherited) of
+  (Nothing, inh)     -> ([], inh)
+  (Just o,  Nothing) -> ([], Just o)
+  (Just o,  Just i)
+    | trim o == trim i -> ([], Just o)
+    | otherwise ->
+        ( [ warnAt . locate $
+              "its " ++ what ++ " declares " ++ show o ++ " while its typeRef's"
+                ++ " <allowedValues> declares " ++ show i ++ ". The column's own"
+                ++ " list is used, because a derived declaration restricts rather"
+                ++ " than widens — but dmnmd does not check that it actually is a"
+                ++ " subset." ]
+        , Just o )
 
 -- | Map a DMN @typeRef@ onto a dmnmd column type.
 --
