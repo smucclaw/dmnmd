@@ -130,15 +130,23 @@ status header saying so.
   dittoed.
 - Column/table/field names that are L4 keywords get backtick-quoted (`reservedWordsL4`).
 
-### The golden test needs an external binary
+### The golden test shells out to an external binary
 
-`test/TranslateL4Spec.hs` shells out to a **hardcoded absolute path**,
-`/Users/mengwong/.local/bin/l4`, to `l4 check` and `l4 run` the emitted output — the golden
-gate is semantic (does it typecheck, do the `#ASSERT`s pass), not a byte-exact diff against
-the hand-written `test/golden/miles-card.l4`. Without that binary those examples fail; a
-`stack test` failure in `TranslateL4Spec` on another machine is usually this, not a
-regression. `l4 run` exits 0 even on a failed assertion, so the test greps stdout for
-`assertion satisfied` / `assertion failed`.
+`test/TranslateL4Spec.hs` runs `l4 check` and `l4 run` over the emitted output, because the
+golden gate is **semantic** — does it typecheck, do the `#ASSERT`s pass — rather than a
+byte-exact diff against the hand-written `test/golden/miles-card.l4`. `l4 run` exits 0 even
+on a failed assertion, so the test greps stdout for `assertion satisfied` / `assertion failed`.
+
+It finds `l4` via `$L4_BIN`, else `findExecutable "l4"` on `PATH`, and when neither yields
+anything it marks those examples **pending** rather than failing them — `l4` is not a build
+dependency of dmnmd (the emitter is a pure `DecisionTable -> String` function) and does not
+exist on the CI runner, so a missing toolchain must not be reported as an emitter regression.
+
+This paragraph used to say the path was hardcoded to `/Users/mengwong/.local/bin/l4`. That was
+true until `58a5f49`, which added the lookup; the doc was not updated, and the stale claim was
+then copied into two more places before anyone read `findL4`. If a `TranslateL4Spec` example
+fails on another machine it is a real failure, not a missing binary — a missing binary is
+pending, and says so.
 
 ## Diagnostics and exit status
 

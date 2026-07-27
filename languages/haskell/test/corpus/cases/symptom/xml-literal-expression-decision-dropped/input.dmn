@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="mixed" name="Mixed"
+             namespace="https://example.org/dmnmd/test/mixed">
+  <inputData id="InputData_season" name="Season"/>
+  <decision id="Decision_shout" name="Shout">
+    <literalExpression id="LiteralExpression_shout" typeRef="string">
+      <text>upper case(season)</text>
+    </literalExpression>
+  </decision>
+  <decision id="Decision_dish" name="Dish">
+    <decisionTable id="DecisionTable_dish" hitPolicy="FIRST">
+      <input id="Input_season" label="Season">
+        <inputExpression id="InputExpression_season" typeRef="string">
+          <text>season</text>
+        </inputExpression>
+      </input>
+      <output id="Output_dish" name="dish" label="Dish" typeRef="string"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"Winter"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"Roastbeef"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

@@ -1,0 +1,15 @@
+export function Dish ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Stew"};
+  }
+  else if (Season === "Winter") { // 2
+    return {"Dish":"Roast"};
+  }
+}
+
+export function Dessert ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dessert":"Pie"};
+  }
+}
+

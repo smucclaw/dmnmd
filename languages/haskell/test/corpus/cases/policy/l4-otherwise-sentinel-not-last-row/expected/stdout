@@ -1,0 +1,8 @@
+GIVEN Age IS A NUMBER
+GIVETH A NUMBER
+NoCatchAll Age MEANS
+  BRANCH
+    IF Age < 18 THEN 5
+    IF ^   > 60 THEN 20
+    OTHERWISE 0
+

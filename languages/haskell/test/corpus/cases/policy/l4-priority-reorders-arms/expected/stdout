@@ -1,0 +1,9 @@
+GIVEN Guests IS A NUMBER
+GIVETH A STRING
+Priority Guests MEANS
+  BRANCH
+    IF TRUE        THEN "Stew"
+    IF Guests <= 8 THEN "Spareribs"
+    IF ^      ^  4 THEN "kids"
+    OTHERWISE ""
+

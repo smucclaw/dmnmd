@@ -1,0 +1,6 @@
+dmnmd: DMN.Translate.L4: OutputOrder hit policy not supported (list-valued: returns all matches, not a single BRANCH result)
+CallStack (from HasCallStack):
+  error, called at src/DMN/Translate/L4.hs:59:23 in dmnmd:DMN.Translate.L4
+  error, called at src/DMN/Translate/L4.hs:59:23 in dmnmd:DMN.Translate.L4
+
+
