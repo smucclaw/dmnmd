@@ -95,7 +95,7 @@ toL4File opts dts
       | dt <- dts
       , Just why <- [l4Refusal dt] ]
 
-    env      = assignEnumNames [ (enumRawName o, ms) | dt <- dts, (o, ms) <- enumOutsOf dt ]
+    env      = assignEnumNames [ (enumRawName o, ms) | dt <- dts, (o, ms) <- enumColsOf dt ]
     optsEnv  = opts { enumEnv = Just env }
     preamble = unlines (concatMap declareEnum env)
     body     = concatMap (\dt -> toL4 optsEnv dt ++ "\n") dts
@@ -170,6 +170,22 @@ enumOutsOf dt =
   , not (any null cells)
   ]
 
+-- | The INPUT columns of a table that get a real L4 sum type, with their
+-- members.
+--
+-- No cell gate, unlike 'enumOutsOf', and the asymmetry is real rather than an
+-- oversight. An output wildcard has to render as SOMETHING and
+-- 'typeDefaultScalar' gives it @""@, which is ill-typed under a sum-typed
+-- GIVETH. An input wildcard renders as nothing at all — 'feel2l4In' drops the
+-- conjunct — so it cannot be ill-typed. Every other cell on a @Just DMN_String@
+-- column is an @FNullary (VS _)@ (§A.2), which is exactly a constructor.
+enumInsOf :: DecisionTable -> [(ColHeader, [String])]
+enumInsOf dt = [ (i, ms) | i <- getInputHeaders (header dt), Just ms <- [enumCtorsOf i] ]
+
+-- | Every domained column of a table, inputs and outputs.
+enumColsOf :: DecisionTable -> [(ColHeader, [String])]
+enumColsOf dt = enumInsOf dt ++ enumOutsOf dt
+
 -- | Why the L4 backend cannot emit this table, or 'Nothing' if it can.
 --
 -- All four refusals are the same cardinality mismatch: these hit policies are
@@ -201,9 +217,13 @@ toL4 :: L4Opts -> DecisionTable -> String
 toL4 opts dt =
   case l4Refusal dt of
     Just why -> error ("DMN.Translate.L4: " ++ why)
-    Nothing  -> unlines (recordDecls ++ [givenBlock ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
+    Nothing  -> unlines (recordDecls ++ [givenBlock opts ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
   where
-    ins  = getInputHeaders  (header dt)
+    -- Parameters are renamed where they would capture a constructor. See
+    -- 'renameParams' — this is the ONE place it happens, so everything
+    -- downstream (the GIVEN block, every guard's field token, the ditto grid's
+    -- widths) reads the renamed header and cannot disagree with itself.
+    ins  = renameParams (ctorNames opts dt) (tableName dt) (getInputHeaders (header dt))
     outs = getOutputHeaders (header dt)
 
     -- Multiple output columns => a DECLAREd result record + a mk<Name> helper.
@@ -238,7 +258,10 @@ toL4 opts dt =
     -- repeating them here is precisely the duplicate-definition bug.
     enumDecls = case enumEnv opts of
       Just _  -> []
-      Nothing -> concat [ declareEnum ((enumRawName o, ms), enumRawName o) | (o, ms) <- enumOuts ]
+      Nothing -> concat [ declareEnum ((raw, ms), raw)
+                        | (o, ms) <- nubOn (enumRawName . fst) (enumInsOf dt ++ enumOuts)
+                        , let raw = enumRawName o ]
+      where nubOn f = foldr (\x acc -> x : filter ((/= f x) . f) acc) []
 
     recordDecls
       | multiOut  = enumDecls ++ declareRecord opts recName outs' ++ [""] ++ ctorHelper opts recName mkName outs' ++ [""]
@@ -374,6 +397,50 @@ enumTypeNameOf opts ch = quoteVar (emitted (enumRawName ch))
 enumRawName :: ColHeader -> String
 enumRawName = pascal . varname
 
+-- | Every domain member visible in this file, as l4 sees the name.
+--
+-- File-wide under 'toL4File', because l4's top level is; a table on its own can
+-- only be captured by its own members.
+ctorNames :: L4Opts -> DecisionTable -> [String]
+ctorNames opts dt = case enumEnv opts of
+  Just env -> concat [ ms | ((_, ms), _) <- env ]
+  Nothing  -> concat [ ms | (_, ms) <- enumColsOf dt ]
+
+-- | Rename input parameters that would capture a constructor (or each other, or
+-- the function) by appending underscores until fresh.
+--
+-- __This is the only defence against the worst failure this backend has.__ A
+-- @GIVEN@ parameter spelled like a constructor silently shadows it: the emitted
+-- guard @IF Route EQUALS \`Route\`@ becomes a TAUTOLOGY, because both sides
+-- resolve to the parameter, so the first arm fires for every input.
+-- @l4 check@ exits 0 and says nothing. Measured — the design had claimed l4
+-- catches this when the types differ, and it does not: NUMBER, STRING and an
+-- unrelated sum type all typecheck clean and give the wrong answer, because
+-- after capture there are no longer two things to disagree about.
+--
+-- The PARAMETER is renamed, never the constructor: a domain member is the
+-- author's word and appears in their source document, while a parameter is a
+-- binder we invented from the column name.
+--
+-- Compared on the RAW name, not the emitted token, because __backticks are
+-- purely lexical in l4__ (measured: all four quoting combinations behave
+-- identically). So bare @Dining@ and @\`Dining\`@ are the same identifier, and
+-- comparing emitted tokens would miss exactly the collisions that matter.
+--
+-- A single underscore is not enough: a domain member literally named @cat_@
+-- re-creates the capture, and @cat__@ defeats two. Hence a loop rather than a
+-- suffix. Members are the author's words and can be anything.
+renameParams :: [String] -> String -> [ColHeader] -> [ColHeader]
+renameParams ctors fnName = go (fnName : ctors)
+  where
+    go _ [] = []
+    go used (h:hs) =
+      let nm = fresh used (varname h)
+      in h { varname = nm } : go (nm : used) hs
+    fresh used nm
+      | nm `notElem` used = nm
+      | otherwise         = fresh used (nm ++ "_")
+
 -- | A domain member, as an L4 constructor. __Always backticked, never
 -- 'quoteVar'__, and that is load-bearing twice over.
 --
@@ -395,11 +462,11 @@ isCatchAll row = all (all (== FAnything)) (row_inputs row)
 
 -- | Emit the @GIVEN … IS A <type>@ lines plus the @GIVETH@ line. The GIVETH
 -- type is computed by the caller (it needs the record name for multi-output).
-givenBlock :: [ColHeader] -> String -> String
-givenBlock ins givethType = intercalate "\n" (givens ++ ["GIVETH A " ++ givethType])
+givenBlock :: L4Opts -> [ColHeader] -> String -> String
+givenBlock opts ins givethType = intercalate "\n" (givens ++ ["GIVETH A " ++ givethType])
   where
     nameW = maximum (0 : map (length . quoteVar . varname) ins)
-    line lead h = lead ++ rpad nameW (quoteVar (varname h)) ++ " IS A " ++ type2l4 (vartype h)
+    line lead h = lead ++ rpad nameW (quoteVar (varname h)) ++ " IS A " ++ colTypeL4 opts h
     givens = case ins of
       []       -> []
       (h0:hs)  -> line "GIVEN " h0 : map (line "      ") hs
@@ -441,7 +508,14 @@ ctorHelper opts recName mkName outs =
     givens = case zip outs params of
       []            -> []
       ((h0,p0):rest) -> ("GIVEN " ++ pdecl h0 p0) : map (\(h,p) -> "      " ++ pdecl h p) rest
-    pdecl h p = rpad pw p ++ " IS A " ++ type2l4 (vartype h)
+    -- colTypeL4, NOT type2l4: the parameter types must agree with the FIELD
+    -- types that 'declareRecord' emitted, and a domained column's field is its
+    -- sum type. Emitting STRING here produced `GIVEN v1 IS A STRING` against
+    -- `dish IS A Dish`, and l4 reported the mismatch as an AMBIGUITY on the
+    -- record name rather than as a type error — because `Plan` names both the
+    -- record constructor and the decision function, and with the parameter types
+    -- wrong neither candidate fits, so l4 could not say which was meant.
+    pdecl h p = rpad pw p ++ " IS A " ++ colTypeL4 opts h
     pw = maximum (0 : map length params)
 
 -- | A record field name sanitized to a bare L4 identifier, then backtick-quoted
@@ -470,33 +544,33 @@ feel2l4In :: L4Opts -> ColHeader -> [FEELexp] -> Maybe String
 feel2l4In opts ch cell =
   case filter (/= FAnything) cell of
     []   -> Nothing
-    [fx] -> Just (oneFeel field fx)
+    [fx] -> Just (oneFeel ch field fx)
     fxs
-      | useElem opts -> Just ("elem " ++ field ++ " (LIST " ++ intercalate ", " (map feelValL4 fxs) ++ ")")
-      | otherwise    -> Just ("(" ++ intercalate " OR " (map (oneFeel field) fxs) ++ ")")
+      | useElem opts -> Just ("elem " ++ field ++ " (LIST " ++ intercalate ", " (map (feelValL4 ch) fxs) ++ ")")
+      | otherwise    -> Just ("(" ++ intercalate " OR " (map (oneFeel ch field) fxs) ++ ")")
   where field = quoteVar (varname ch)
 
 -- | A single (non-multi) FEEL guard atom against a named field.
-oneFeel :: String -> FEELexp -> String
-oneFeel field = \case
-  FSection Feq  v      -> field ++ " EQUALS " ++ showValL4 v
+oneFeel :: ColHeader -> String -> FEELexp -> String
+oneFeel ch field = \case
+  FSection Feq  v      -> field ++ " EQUALS " ++ showValIn ch v
   FSection Flt  (VN n) -> field ++ " < "  ++ showNumL4 n
   FSection Flte (VN n) -> field ++ " <= " ++ showNumL4 n
   FSection Fgt  (VN n) -> field ++ " > "  ++ showNumL4 n
   FSection Fgte (VN n) -> field ++ " >= " ++ showNumL4 n
-  FSection op   v      -> field ++ " EQUALS " ++ showValL4 v   -- non-numeric comparison: best-effort
+  FSection op   v      -> field ++ " EQUALS " ++ showValIn ch v   -- non-numeric comparison: best-effort
   FInRange lo hi       -> "(" ++ field ++ " >= " ++ showNumL4 lo ++ " AND " ++ field ++ " <= " ++ showNumL4 hi ++ ")"
-  FNullary v           -> field ++ " EQUALS " ++ showValL4 v
+  FNullary v           -> field ++ " EQUALS " ++ showValIn ch v
   FFunction fnf        -> field ++ " EQUALS " ++ fnf2l4 fnf
   FAnything            -> "TRUE"
 
 -- | The bare value used inside an @elem … (LIST …)@ membership list.
-feelValL4 :: FEELexp -> String
-feelValL4 = \case
-  FNullary v      -> showValL4 v
-  FSection Feq v  -> showValL4 v
+feelValL4 :: ColHeader -> FEELexp -> String
+feelValL4 ch = \case
+  FNullary v      -> showValIn ch v
+  FSection Feq v  -> showValIn ch v
   FFunction fnf   -> fnf2l4 fnf
-  other           -> oneFeel "?" other
+  other           -> oneFeel ch "?" other
 
 -- * The ditto grid (BUILD-SPEC §3)
 
@@ -573,7 +647,7 @@ conjSubCells :: L4Opts -> ColHeader -> [FEELexp] -> [Maybe Cell]
 conjSubCells opts ch cell =
   case filter (/= FAnything) cell of
     []                                            -> [Nothing, Nothing, Nothing]
-    [fx] | Just (f, o, v) <- oneFeelCells field fx -> [Just f, Just o, Just v]
+    [fx] | Just (f, o, v) <- oneFeelCells ch field fx -> [Just f, Just o, Just v]
     _    -> case feel2l4In opts ch cell of
               Just whole -> [Just whole, Nothing, Nothing]
               Nothing    -> [Nothing, Nothing, Nothing]
@@ -582,15 +656,15 @@ conjSubCells opts ch cell =
 -- | Split a simple guard atom into its (field, operator, value) tokens. 'Nothing'
 -- for anything that is not a single field-op-value comparison (a range or wildcard
 -- is rendered whole by 'conjSubCells'). The joined tokens reproduce 'oneFeel'.
-oneFeelCells :: String -> FEELexp -> Maybe (String, String, String)
-oneFeelCells field = \case
-  FSection Feq  v      -> Just (field, "EQUALS", showValL4 v)
+oneFeelCells :: ColHeader -> String -> FEELexp -> Maybe (String, String, String)
+oneFeelCells ch field = \case
+  FSection Feq  v      -> Just (field, "EQUALS", showValIn ch v)
   FSection Flt  (VN n) -> Just (field, "<",  showNumL4 n)
   FSection Flte (VN n) -> Just (field, "<=", showNumL4 n)
   FSection Fgt  (VN n) -> Just (field, ">",  showNumL4 n)
   FSection Fgte (VN n) -> Just (field, ">=", showNumL4 n)
-  FSection _    v      -> Just (field, "EQUALS", showValL4 v)
-  FNullary v           -> Just (field, "EQUALS", showValL4 v)
+  FSection _    v      -> Just (field, "EQUALS", showValIn ch v)
+  FNullary v           -> Just (field, "EQUALS", showValIn ch v)
   FFunction fnf        -> Just (field, "EQUALS", fnf2l4 fnf)
   _                    -> Nothing
 
@@ -676,6 +750,21 @@ fnOp2l4 = \case
   FNExp   -> "^"
 
 -- * Value rendering (BUILD-SPEC §1.2)
+
+-- | Render a DMN value AS SEEN FROM a particular column: a member of that
+-- column's declared domain is a CONSTRUCTOR of its sum type, everything else is
+-- a plain literal.
+--
+-- The single place a guard value and an output value agree on what a domained
+-- cell means. 'renderOutCell' asks the same question on the output side; keeping
+-- both in terms of 'enumCtorsOf' is what stops the two sides drifting into
+-- @IF cat EQUALS \"Dining\"@ against @GIVEN cat IS A Cat@, which does not
+-- typecheck.
+showValIn :: ColHeader -> DMNVal -> String
+showValIn ch v@(VS s)
+  | Just ms <- enumCtorsOf ch, s `elem` ms = ctorL4 s
+  | otherwise                              = showValL4 v
+showValIn _ v = showValL4 v
 
 -- | Render a DMN value as an L4 literal.
 showValL4 :: DMNVal -> String

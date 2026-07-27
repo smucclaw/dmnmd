@@ -1,0 +1,9 @@
+GIVEN tier_ IS A STRING
+      cat   IS A STRING
+GIVETH A NUMBER
+tier tier_ cat MEANS
+  BRANCH
+    IF tier_ EQUALS "platinum" AND cat EQUALS "dining" THEN 10
+    IF ^     ^      "gold"     ^   ^   ^      ^        THEN 6
+    OTHERWISE 0
+

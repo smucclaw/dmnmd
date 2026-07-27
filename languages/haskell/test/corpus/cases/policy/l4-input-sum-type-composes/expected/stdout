@@ -1,0 +1,26 @@
+DECLARE Category
+  IS ONE OF
+    `Dining`
+    `Grocery`
+
+DECLARE Card
+  IS ONE OF
+    `PRVI`
+    `Amex`
+
+GIVEN merchant IS A STRING
+GIVETH A Category
+Categorize merchant MEANS
+  BRANCH
+    IF merchant EQUALS "foodpanda" THEN `Dining`
+    IF ^        ^      "nfmart"    THEN `Grocery`
+    OTHERWISE `Grocery`
+
+GIVEN category IS A Category
+GIVETH A MAYBE Card
+CardToUse category MEANS
+  BRANCH
+    IF category EQUALS `Dining`  THEN JUST `PRVI`
+    IF ^        ^      `Grocery` THEN JUST `Amex`
+    OTHERWISE NOTHING
+
