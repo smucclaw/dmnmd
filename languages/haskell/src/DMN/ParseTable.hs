@@ -5,7 +5,6 @@ module DMN.ParseTable where
 import Prelude hiding (takeWhile)
 import DMN.DecisionTable ( mkFs, trim, mkDTable )
 import DMN.ParseFEEL ( parseVarname )
-import DMN.SFeelGrammar
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
 import Data.Either (isLeft)
