@@ -1,19 +1,41 @@
 # BUILD SPEC — L4 sum types for domained columns, and the DMN data model
 
-> ## Status: **PROPOSED — not landed. No code written for either half.**
+> ## Status: **PARTLY LANDED.** Per step, as of 2026-07-27:
+>
+> | step | what | state |
+> |---|---|---|
+> | A.8 1 | `Diagnostic` into its own module | **landed** — `43b57ff` |
+> | A.8 2 | `toL4File` + `outputToAll` | **not landed.** Only its corpus guard shipped (`339cbe8`, `symptom/l4-multitable-refusal-partial-output`) — the case exists so the emitter cannot regress silently when this does land |
+> | A.8 3 | `DECLARE` + backticked constructors, outputs only | **landed** — `d882a43` |
+> | A.8 4 | `MAYBE`/`JUST`/`NOTHING`, subsuming `wrapMaybe` | **landed** — `2d3acbb` |
+> | A.8 5 | input columns | **not landed** |
+> | A.8 6 | file-level dedup + the avoid-set | **not landed** |
+> | B.5 0 | a Warning naming each discarded `<itemDefinition>` | **landed** — `0f06b77` |
+> | B.5 1 | `allowedValues` as an inherited named domain | **not landed** |
+> | B.5 2 | `isCollection` → `DMN_List` | **not landed** |
+> | B.5 3 | structured `itemComponent` | **out of scope**, deliberately |
+>
+> **Read the body as the design's voice, not as a description of the tree.** It was written
+> before any of this existed, so its present tense means "as of `3d880d4`" and its "would" means
+> "as proposed" — including for the steps that have since shipped. Where a shipped step diverged
+> from what is written here, `L4.hs`'s own comments carry the correction and are authoritative;
+> §A.7's `HP_Priority` note is the one place the divergence is material.
+>
+> This header itself was wrong for a day. It read *"PROPOSED — not landed. No code written for
+> either half"* while six of the ten steps above had shipped, the first of them **the same day
+> the header was written**. That is `CLAUDE.md`'s "never write a planned state in the present
+> tense" failing in the repo that wrote the rule — and the mirror image of the drift this spec's
+> own §B.4 is about. The fix that generalises is the table: a status expressed per step against a
+> commit cannot rot into a single sentence that is wrong about all of them at once.
 >
 > Produced 2026-07-27 against trunk `3d880d4`, answering `BUILD-SPEC-dmnmd-e4.md` §12 q2 and q3.
-> Everything in the present tense describes the tree **as it is today**; everything proposed is
-> written as "would". A sentence reading as though this shipped is a bug in this document.
 >
-> **Every L4 fragment here was run through the real `l4`** at `/Users/mengwong/.local/bin/l4`.
-> Claims carry their transcripts. Two independent designs were produced and each was attacked by
-> a reviewer who built a working prototype in-tree, measured it, and reverted. **Both designs had
-> a landing blocker found only by that attack** — §A.7 and §B.6. Neither would have survived
-> first contact without it.
->
-> **What would make it true:** the commit sequences in §A.8 and §B.5, each ending with
-> `make corpus` green and `cabal test` green.
+> **Every L4 fragment here was run through the real `l4`.** Claims carry their transcripts. Two
+> independent designs were produced and each was attacked by a reviewer who built a working
+> prototype in-tree, measured it, and reverted. **Both designs had a landing blocker found only by
+> that attack** — §A.7 and §B.4. Neither would have survived first contact without it, and both
+> blockers were real: §A.7's zero-arity collision and §B.4's `hasName`-vs-`localPart` are still
+> the two things the unlanded steps most need to get right.
 
 ---
 
