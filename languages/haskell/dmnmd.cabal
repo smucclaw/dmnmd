@@ -49,6 +49,12 @@ common shared
     , megaparsec >=9.7.0
     , text
   default-language: Haskell2010
+  -- A missing field in a record literal is a bottom waiting to be forced, never
+  -- a style choice: GHC warns by default and then compiles it anyway. Adding a
+  -- field to L4Opts turned two golden tests into a runtime RecConError that a
+  -- build log full of other warnings had already scrolled past. Fatal here, so
+  -- the compiler says it once, loudly, at the site.
+  ghc-options:      -Werror=missing-fields
 
 library
   import:          shared

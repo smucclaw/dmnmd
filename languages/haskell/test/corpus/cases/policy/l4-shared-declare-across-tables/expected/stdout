@@ -11,11 +11,6 @@ Categorize merchant MEANS
     IF ^        ^      "nfmart"    THEN JUST `Grocery`
     OTHERWISE NOTHING
 
-DECLARE Category
-  IS ONE OF
-    `Dining`
-    `Grocery`
-
 GIVEN vendor IS A STRING
 GIVETH A MAYBE Category
 Recategorize vendor MEANS

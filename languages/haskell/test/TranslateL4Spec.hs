@@ -166,7 +166,7 @@ parse name = either error id . parseOnly (parseTable name)
 -- | Emission options for the golden: ditto on, OR-of-EQUALS (no @elem@), bare
 -- @OTHERWISE@ via the @mk<Name>@ constructor (no MAYBE wrapping).
 milesOpts :: L4Opts
-milesOpts = L4Opts
+milesOpts = defaultL4Opts
   { emitDitto     = True
   , useElem       = False
   , wrapMaybe     = False

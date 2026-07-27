@@ -31,7 +31,19 @@ data L4Opts = L4Opts
   , wrapMaybe     :: Bool    -- ^ @GIVETH A MAYBE …@, arms @JUST …@, @OTHERWISE NOTHING@
   , defaultResult :: String  -- ^ rendered L4 expr emitted after @OTHERWISE@ when no catch-all row
   , emitAsserts   :: Bool    -- ^ append @#EVAL@/@#ASSERT@ lines from the evalTable oracle (TODO)
+  , enumEnv       :: Maybe EnumEnv
+    -- ^ the file's sum-type name assignment. 'Nothing' means "this table is on
+    -- its own": name types after my own columns and emit my own @DECLARE@s, which
+    -- is what 'toL4' did before 'toL4File' existed and what @TranslateL4Spec@
+    -- still exercises. 'Just' means the @DECLARE@s are already in the file
+    -- preamble and this table must use the names agreed there.
   }
+
+-- | @(column name, members) -> the L4 type name actually emitted.@
+--
+-- The key is the PAIR, not the name: two columns spelled alike with the same
+-- members are one type, and with different members are two.
+type EnumEnv = [((String, [String]), String)]
 
 -- | Default options: ditto on (BUILD-SPEC §3), no @elem@, bare-typed @OTHERWISE@, no asserts.
 defaultL4Opts :: L4Opts
@@ -41,6 +53,7 @@ defaultL4Opts = L4Opts
   , wrapMaybe     = False
   , defaultResult = ""
   , emitAsserts   = False
+  , enumEnv       = Nothing
   }
 
 -- * Entry points
@@ -68,19 +81,94 @@ defaultL4Opts = L4Opts
 -- run reached stdout. It was quiet only for outputs under one 2048-char buffer
 -- chunk, which is a promise that holds for toy tables and breaks for real ones.
 --
--- Hoisting the @DECLARE@s into one deduplicated preamble is the next step
--- (BUILD-SPEC-dmnmd-l4-sumtype.md §A.6) and needs this entry point to exist
--- first; today the emitted text is otherwise byte-identical to
--- @mapM_ (hPutStrLn h . toL4 opts)@.
+-- __Every sum type is declared ONCE, in a preamble__ ('assignEnumNames'), and
+-- tables that genuinely share a domain share the L4 type — which is the point,
+-- not a workaround: it is what makes @CardToUse (Categorize \"foodpanda\")@
+-- typecheck with the two sides related rather than being unrelated @STRING@s.
 toL4File :: L4Opts -> [DecisionTable] -> ([Diagnostic], String)
 toL4File opts dts
   | not (null refusals) = (refusals, "")
-  | otherwise           = ([], concatMap (\dt -> toL4 opts dt ++ "\n") dts)
+  | otherwise           = (renameDiags, preamble ++ body)
   where
     refusals =
       [ errorAt ("table " ++ show (tableName dt) ++ ": " ++ why)
       | dt <- dts
       , Just why <- [l4Refusal dt] ]
+
+    env      = assignEnumNames [ (enumRawName o, ms) | dt <- dts, (o, ms) <- enumOutsOf dt ]
+    optsEnv  = opts { enumEnv = Just env }
+    preamble = unlines (concatMap declareEnum env)
+    body     = concatMap (\dt -> toL4 optsEnv dt ++ "\n") dts
+
+    -- A rename means two columns spelled the same declare DIFFERENT domains, so
+    -- the reader is about to meet a type name that appears in no input file.
+    renameDiags =
+      [ warnAt $
+          "two columns named " ++ show raw ++ " declare different domains, so their"
+            ++ " L4 types cannot be the same type. The second is emitted as "
+            ++ show emitted ++ ". Merging them would silently widen both domains,"
+            ++ " which l4 cannot see and would accept."
+      | ((raw, _), emitted) <- env
+      , emitted /= raw ]
+
+-- | Give every distinct declared domain in the file a unique L4 type name.
+--
+-- Keyed on the __pair__ (name, members), so the two cases separate cleanly:
+--
+--  * same name, same members — one entry, one @DECLARE@, and both tables refer to
+--    it. Two tables sharing a domain SHOULD share a type.
+--  * same name, different members — two entries; the second is renamed
+--    @Category_2@. Verified against the real @l4@: two types with overlapping
+--    constructor names resolve type-directedly at the use site and compute the
+--    right answers.
+--
+-- __Merging the two domains into one type is not an option, and this was
+-- measured rather than assumed.__ Give table A's output domain {Dining, Grocery}
+-- and table B's input domain {Dining, Travel} a single merged type and @l4
+-- check@ passes, @l4 run@ exits 0, and B confidently accepts a @Grocery@ it
+-- declared it would not — assertion "satisfied". A widened domain is invisible to
+-- l4, because after the merge it IS the declared domain. Two distinct types fail
+-- loudly instead, naming both. That is the whole trade this backend exists to
+-- make.
+--
+-- Distinct types with overlapping constructors are fine and need no mangling:
+-- @DECLARE A IS ONE OF \`X\`, \`Y\`@ alongside @DECLARE B IS ONE OF \`X\`, \`Z\`@
+-- typechecks and both @\`X\`@s resolve correctly.
+assignEnumNames :: [(String, [String])] -> EnumEnv
+assignEnumNames = go [] . nubOrd
+  where
+    go _ [] = []
+    go used (k@(raw, _) : rest) =
+      let name = fresh used raw
+      in (k, name) : go (name : used) rest
+    fresh used raw
+      | raw `notElem` used = raw
+      | otherwise = head [ cand | n <- [2 :: Int ..], let cand = raw ++ "_" ++ show n
+                                , cand `notElem` used ]
+    nubOrd = foldr (\x acc -> x : filter (/= x) acc) []
+
+-- | One @DECLARE … IS ONE OF@ block, plus its trailing blank line.
+declareEnum :: ((String, [String]), String) -> [String]
+declareEnum ((_, ms), emitted) =
+  ["DECLARE " ++ quoteVar emitted, "  IS ONE OF"] ++ map (("    " ++) . ctorL4) ms ++ [""]
+
+-- | The output columns of a table that get a real L4 sum type, with their
+-- members.
+--
+-- Hoisted out of 'toL4' so 'toL4File' can compute the file's whole set of
+-- domains before any table is rendered. The gate is a property of the whole
+-- column and both halves of it are about the @OTHERWISE@ rather than the type:
+-- no cell may be a wildcard, since @-@ renders through 'typeDefaultScalar' to
+-- @\"\"@, which is ill-typed under a sum-typed @GIVETH@.
+enumOutsOf :: DecisionTable -> [(ColHeader, [String])]
+enumOutsOf dt =
+  [ (o, ms)
+  | (i, o) <- zip [0 :: Int ..] (getOutputHeaders (header dt))
+  , Just ms <- [enumCtorsOf o]
+  , let cells = [ concat (drop i (take (i+1) (row_outputs r))) | r@DTrow{} <- allrows dt ]
+  , not (any (elem FAnything) cells)
+  , not (any null cells)
+  ]
 
 -- | Why the L4 backend cannot emit this table, or 'Nothing' if it can.
 --
@@ -125,28 +213,15 @@ toL4 opts dt =
 
     -- Output columns that get a real L4 sum type instead of STRING.
     --
-    -- Deliberately narrow for this milestone, and both conditions are about the
-    -- OTHERWISE rather than about the type:
-    --
-    --  * no cell in the column may be a wildcard, since `-` renders through
-    --    'typeDefaultScalar' to `""`, which is ill-typed under a sum-typed
-    --    GIVETH.
-    --
     -- A table with no catch-all row used to be excluded too, because the
     -- synthesized `OTHERWISE ""` is a *check error* against a sum-typed GIVETH
     -- and omitting OTHERWISE is a *parse error*. That restriction is gone:
     -- 'derivedMaybe' below wraps the result type instead.
     --
-    -- Both are properties of the whole column, so this is computed once here
-    -- rather than per cell.
-    enumOuts =
-      [ (o, ms)
-      | (i, o) <- zip [0 :: Int ..] outs
-      , Just ms <- [enumCtorsOf o]
-      , let cells = [ concat (drop i (take (i+1) (row_outputs r))) | r@DTrow{} <- allrows dt ]
-      , not (any (elem FAnything) cells)
-      , not (any null cells)
-      ]
+    -- The gate itself lives in 'enumOutsOf', because 'toL4File' has to apply
+    -- exactly the same one when it collects the file's domains — a table whose
+    -- column did not qualify must not contribute a DECLARE to the preamble.
+    enumOuts = enumOutsOf dt
 
     -- The gate is applied ONCE, here, by blanking 'enums' on every output column
     -- that did not qualify. Everything downstream — 'renderOutCell',
@@ -159,19 +234,19 @@ toL4 opts dt =
     -- typecheck, caught by policy/l4-priority-reorders-arms.
     outs' = [ if o `elem` map fst enumOuts then o else o { enums = Nothing } | o <- outs ]
 
-    enumDecls = concat
-      [ [ "DECLARE " ++ enumTypeNameOf o
-        , "  IS ONE OF"
-        ] ++ map (("    " ++) . ctorL4) ms ++ [""]
-      | (o, ms) <- enumOuts ]
+    -- Under a file environment the DECLAREs are already in the preamble, and
+    -- repeating them here is precisely the duplicate-definition bug.
+    enumDecls = case enumEnv opts of
+      Just _  -> []
+      Nothing -> concat [ declareEnum ((enumRawName o, ms), enumRawName o) | (o, ms) <- enumOuts ]
 
     recordDecls
-      | multiOut  = enumDecls ++ declareRecord recName outs' ++ [""] ++ ctorHelper recName mkName outs' ++ [""]
+      | multiOut  = enumDecls ++ declareRecord opts recName outs' ++ [""] ++ ctorHelper opts recName mkName outs' ++ [""]
       | otherwise = enumDecls
 
     -- The function's GIVETH type: scalar for one output column, else the record.
     baseGiveth = case outs' of
-      [o] -> colTypeL4 o
+      [o] -> colTypeL4 opts o
       _   -> recName
 
     -- A sum-typed result with nothing sensible to fall back on becomes
@@ -285,8 +360,19 @@ enumCtorsOf ch = case (vartype ch, enums ch) of
 -- DMN type to name it after yet — @\<itemDefinition\>@ is still discarded
 -- (BUILD-SPEC-dmnmd-l4-sumtype.md Part B). When that lands this should prefer
 -- the author's own type name.
-enumTypeNameOf :: ColHeader -> String
-enumTypeNameOf = quoteVar . pascal . varname
+enumTypeNameOf :: L4Opts -> ColHeader -> String
+enumTypeNameOf opts ch = quoteVar (emitted (enumRawName ch))
+  where
+    -- Under a file environment the name was agreed in the preamble; look it up
+    -- by the (name, members) pair, because a same-named column with a DIFFERENT
+    -- domain is a different type and was given a different name.
+    emitted raw = case enumEnv opts of
+      Nothing  -> raw
+      Just env -> maybe raw id (lookup (raw, maybe [] id (enumCtorsOf ch)) env)
+
+-- | A domained column's type name BEFORE the file-level uniquing runs.
+enumRawName :: ColHeader -> String
+enumRawName = pascal . varname
 
 -- | A domain member, as an L4 constructor. __Always backticked, never
 -- 'quoteVar'__, and that is load-bearing twice over.
@@ -331,19 +417,19 @@ type2l4 Nothing             = "STRING"
 -- | A column's L4 type: its sum type if it has a usable declared domain, else
 -- the plain scalar mapping. Used by the record declaration and its constructor
 -- helper so a multi-output table's field types agree with its GIVETH.
-colTypeL4 :: ColHeader -> String
-colTypeL4 h = maybe (type2l4 (vartype h)) (const (enumTypeNameOf h)) (enumCtorsOf h)
+colTypeL4 :: L4Opts -> ColHeader -> String
+colTypeL4 opts h = maybe (type2l4 (vartype h)) (const (enumTypeNameOf opts h)) (enumCtorsOf h)
 
 -- | @DECLARE <Name> HAS f1 IS A t1 …@
-declareRecord :: String -> [ColHeader] -> [String]
-declareRecord recName outs =
+declareRecord :: L4Opts -> String -> [ColHeader] -> [String]
+declareRecord opts recName outs =
   ("DECLARE " ++ recName ++ " HAS")
-  : map (\h -> "    " ++ rpad fw (fieldName h) ++ " IS A " ++ colTypeL4 h) outs
+  : map (\h -> "    " ++ rpad fw (fieldName h) ++ " IS A " ++ colTypeL4 opts h) outs
   where fw = maximum (0 : map (length . fieldName) outs)
 
 -- | The constructor helper: @mk<Name> v1 v2 … MEANS <Name> WITH …@ as a layout-sensitive block.
-ctorHelper :: String -> String -> [ColHeader] -> [String]
-ctorHelper recName mkName outs =
+ctorHelper :: L4Opts -> String -> String -> [ColHeader] -> [String]
+ctorHelper opts recName mkName outs =
   givens
   ++ ["GIVETH A " ++ recName]
   ++ [mkName ++ concatMap (\p -> " " ++ p) params ++ " MEANS " ++ recName ++ " WITH"]
@@ -351,7 +437,7 @@ ctorHelper recName mkName outs =
   where
     params = ["v" ++ show i | i <- [1 .. length outs]]
     fw     = maximum (0 : map (length . fieldName) outs)
-    tw     = maximum (0 : map (length . colTypeL4) outs)
+    tw     = maximum (0 : map (length . colTypeL4 opts) outs)
     givens = case zip outs params of
       []            -> []
       ((h0,p0):rest) -> ("GIVEN " ++ pdecl h0 p0) : map (\(h,p) -> "      " ++ pdecl h p) rest

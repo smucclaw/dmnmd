@@ -1,0 +1,26 @@
+DECLARE Category
+  IS ONE OF
+    `Dining`
+    `Grocery`
+
+DECLARE Category_2
+  IS ONE OF
+    `Dining`
+    `Travel`
+
+GIVEN merchant IS A STRING
+GIVETH A MAYBE Category
+Categorize merchant MEANS
+  BRANCH
+    IF merchant EQUALS "foodpanda" THEN JUST `Dining`
+    IF ^        ^      "nfmart"    THEN JUST `Grocery`
+    OTHERWISE NOTHING
+
+GIVEN vendor IS A STRING
+GIVETH A MAYBE Category_2
+Reclassify vendor MEANS
+  BRANCH
+    IF vendor EQUALS "uber" THEN JUST `Travel`
+    IF ^      ^      "fair" THEN JUST `Dining`
+    OTHERWISE NOTHING
+

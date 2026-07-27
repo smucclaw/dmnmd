@@ -944,6 +944,7 @@ ex3 =
           InformationRequirement (dmnLabeled "c" "d") RequiredInput (Href "#url")
           ]
           Nothing],
+      defItemDefs = [],
       defInputData = [],
       defDrgElems = [],
       defDMNDI = Just DMNDI

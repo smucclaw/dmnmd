@@ -5,14 +5,14 @@
 > | step | what | state |
 > |---|---|---|
 > | A.8 1 | `Diagnostic` into its own module | **landed** — `43b57ff` |
-> | A.8 2 | `toL4File` + `outputToAll` | **not landed.** Only its corpus guard shipped (`339cbe8`, `symptom/l4-multitable-refusal-partial-output`) — the case exists so the emitter cannot regress silently when this does land |
+> | A.8 2 | `toL4File` + `outputToAll` | **landed** — PR #33. Went further than "behaviour-preserving": refusals became `Diagnostic`s decided for the whole file *before* rendering, because the old per-table emission leaked 4KB of a refused run to stdout above the 2048-char buffer chunk |
 > | A.8 3 | `DECLARE` + backticked constructors, outputs only | **landed** — `d882a43` |
 > | A.8 4 | `MAYBE`/`JUST`/`NOTHING`, subsuming `wrapMaybe` | **landed** — `2d3acbb` |
-> | A.8 5 | input columns | **not landed** |
-> | A.8 6 | file-level dedup + the avoid-set | **not landed** |
+> | A.8 5 | input columns | **not landed.** Read the `MEASURED` blocks in §A.4 and §A.7 first — both sections were refuted |
+> | A.8 6 | file-level dedup + the avoid-set | **dedup landed** (PR #35, `assignEnumNames`). The **avoid-set has not**, and only step 5 needs it |
 > | B.5 0 | a Warning naming each discarded `<itemDefinition>` | **landed** — `0f06b77` |
-> | B.5 1 | `allowedValues` as an inherited named domain | **not landed** |
-> | B.5 2 | `isCollection` → `DMN_List` | **not landed** |
+> | B.5 1 | `allowedValues` as an inherited named domain | **landed** — PR #34 |
+> | B.5 2 | `isCollection` → `DMN_List` | **not landed, and §B.3's "small" verdict was WRONG** — see the `MEASURED` block at §B.3 |
 > | B.5 3 | structured `itemComponent` | **out of scope**, deliberately |
 >
 > **Read the body as the design's voice, not as a description of the tree.** It was written
@@ -32,10 +32,19 @@
 >
 > **Every L4 fragment here was run through the real `l4`.** Claims carry their transcripts. Two
 > independent designs were produced and each was attacked by a reviewer who built a working
-> prototype in-tree, measured it, and reverted. **Both designs had a landing blocker found only by
-> that attack** — §A.7 and §B.4. Neither would have survived first contact without it, and both
-> blockers were real: §A.7's zero-arity collision and §B.4's `hasName`-vs-`localPart` are still
-> the two things the unlanded steps most need to get right.
+> prototype in-tree, measured it, and reverted. §B.4's `hasName`-vs-`localPart` blocker was real
+> and is what tier 1 was built around.
+>
+> **§A.4 and §A.7 have since been REFUTED by direct measurement** — 24 probe agents against the
+> real `l4`, recorded 2026-07-27. Both sections now carry `MEASURED` blocks. Two of the corrections
+> matter more than anything else in this document:
+>
+> - l4 resolves a name collision by the **expected type at the use site**, not by arity. The
+>   "l4 disambiguates by arity" claim is false in both directions.
+> - a `GIVEN` parameter spelled like a constructor **silently shadows it**, and the claimed
+>   protection ("l4 catches it when the types differ") does not exist in guard position. The
+>   emitted guard becomes a tautology, `l4 check` exits 0, and every input matches the first arm.
+>   This is the whole risk of step 5 and it is invisible to the typechecker.
 
 ---
 
@@ -132,6 +141,42 @@ named `Cold Storage` and a member `Cold Storage` collide — both render `` `Col
 Confirmed **not** needed in the avoid-set: record `fieldName`s (separate namespace — verified),
 and function names *when arities differ*. See §A.7 for when that last one is false.
 
+> ### MEASURED 2026-07-27 — two claims above are wrong, and the fix is under-specified
+>
+> **1. "When the types differ l4 *does* catch it" is REFUTED in guard position.** `NUMBER`,
+> `STRING` and an unrelated sum type all typecheck clean and give the wrong answer. After capture
+> *both operands are the same variable*, so there is nothing left for the typechecker to disagree
+> about. l4 only objects when the captured name lands in a **type-forced output slot** — which is
+> not the shape a guard has. So the mitigation this section leans on does not exist:
+>
+> ```
+> DECLARE Route IS ONE OF `Route`, `Dining`
+> GIVEN Route IS A Route
+> GIVETH A STRING
+> Categorize Route MEANS
+>   BRANCH
+>     IF Route EQUALS `Route` THEN "matched Route"
+>     OTHERWISE "no match"
+>
+> #EVAL Categorize `Dining`   ->  "matched Route"      <-- wrong; `Dining` is not `Route`
+> l4 check                    ->  exit 0, "Check succeeded."
+> ```
+>
+> The guard is a **tautology**: both sides resolve to the parameter, so arm 1 fires for every
+> input. No warning, no ambiguity error, no diagnostic of any kind. Proven directly by writing a
+> function whose entire body is the literal `` `Route` `` and watching it return its argument.
+>
+> **2. "Append `_` until unique" is not enough as literally written.** A domain member named
+> `cat_` re-creates the capture, and `cat__` defeats two underscores. The emitter needs a
+> **freshness loop against the constructor set**, not a fixed suffix. Members are the lawyer's
+> words and can be anything.
+>
+> Still true: record `fieldName`s are a separate namespace and need no mangling; the underscore
+> rename does work once it is fresh, bare or backticked, including inside multi-word names.
+> Newly measured: `WHERE`- and `LET`-bound names capture identically and silently, and a
+> parenthesised `OR` chain behaves no differently. Adjacent collisions that are at least *loud*
+> (exit 1): a duplicate parameter, and a parameter spelled like a function.
+
 ## A.5 The `OTHERWISE` problem → `MAYBE T` / `NOTHING`
 
 There is no natural zero, and `OTHERWISE` cannot be omitted. Measured:
@@ -173,6 +218,30 @@ toL4     :: L4Opts -> DecisionTable  -> String   -- kept; TranslateL4Spec calls 
 `src/DMN/XML/XmlToDmnmd.hs:42-67`. A transpiler importing the XML reader is backwards — move them
 to their own module and re-export.
 
+> ### MEASURED 2026-07-27 — the payoff is real, and three things about it were not known
+>
+> The shared-type composition works end to end: one `DECLARE Category` serving `Categorize`'s
+> `GIVETH` and `CardToUse`'s `GIVEN` typechecks clean, every assertion passes, and the ditto `^`
+> copies a typed constructor without incident.
+>
+> **The `MAYBE` mismatch is real and loud.** `Categorize` returns `MAYBE Category` while
+> `CardToUse` wants `Category`, so the composition is exit 1. The shortest fix is **zero glue**
+> when the upstream table has a catch-all row — its `GIVETH` is then plain `Category` and the two
+> compose directly. Otherwise it needs a two-arm `CONSIDER`, which must be multi-line and needs no
+> prelude.
+>
+> **`CONSIDER` is not exhaustiveness-checked.** A missing arm passes `l4 check` with zero
+> diagnostics and fails at *runtime* — with **exit 0**. So if dmnmd ever emits a `CONSIDER`, l4's
+> typechecker is not a safety net for it and dmnmd must guarantee totality itself.
+>
+> **`EQUALS` is the only comparison l4 permits on a sum-typed value** — every ordering operator is
+> exit 1. That matches §A.2's claim that no `FSection`/`FInRange` can reach a candidate column, but
+> now from l4's side as well as dmnmd's.
+>
+> **Typing inputs is a strict gain beyond composition.** It converts `EQUALS "Dining"` — a string
+> literal tested against a domained column — from silently compiling into a compile error. Today
+> that mistake is invisible.
+
 ## A.7 What the adversarial review broke
 
 **BLOCKER — zero-input tables.** The design claimed *"l4 disambiguates by arity"*. It disambiguates
@@ -196,6 +265,38 @@ either.
 
 This is exactly the "sharpened past its evidence" failure the repo keeps hitting: a true claim
 ("l4 disambiguates by arity") narrowed into a false one by dropping its precondition.
+
+> ### MEASURED 2026-07-27 — the mechanism is wrong, and so is the fix
+>
+> **l4 does not disambiguate by arity at all.** It disambiguates by the **expected type at the
+> use site**. The paragraph above is wrong in both directions:
+>
+> - *Differing arities do not save you.* An arity-1 function `Route` and a nullary constructor
+>   `Route` collide fatally in any position that supplies no expected type — a bare `#EVAL Route`
+>   gives `multiple definitions for the identifier Route`, exit 1. The message lists the candidates
+>   **by type**, which is l4 telling you what the rule actually is.
+> - *Equal arities are not fatal.* Two arity-0 definitions coexist happily when their **types**
+>   differ — and `GIVETH A MAYBE Category` against a constructor of type `Category` is exactly that
+>   pair. So the zero-input table this section calls a BLOCKER **is not one in the shape dmnmd
+>   actually emits**. It is ambiguous only when the arity-0 function's return type *equals* the
+>   constructor's type.
+>
+> **And mangling the type name does not fix it.** The ambiguity is on the *constructor*
+> identifier, not the type identifier; renaming `Card` changes nothing about two `Route`s. The
+> section's own recommendation would have left the bug in place.
+>
+> **Backtick quoting is purely lexical and disambiguates nothing.** All four
+> DECLARE-site/use-site quoting combinations behave identically. Backticks buy the ditto grid
+> (§A.3) and non-identifier members — not scope.
+>
+> So the real hazard for step 5 is **not** the zero-input table. It is §A.4's silent parameter
+> shadowing, which this section does not mention and which no amount of type mangling touches.
+> Only renaming the parameter, renaming the constructor, or declining to emit the sum type fixes
+> it. Since a constructor is the lawyer's word and a table name is the public API, the honest
+> option when a constructor collides with the **function** name is to leave that column a `STRING`
+> and warn — degrading to exactly today's behaviour rather than emitting something that passes
+> `l4 check` and ambushes the caller later. (Duplicate declarations with no use site do pass at
+> exit 0; l4 complains where the name is *used*.)
 
 **`needsMaybe` must subsume the existing `wrapMaybe`, not stack with it.** `L4Opts.wrapMaybe`
 (`L4.hs:30`, consumed at `:79`, `:334-335`, `:341-342`) does the same job. Composed, they emit
@@ -262,8 +363,32 @@ what `<inputValues>` has imposed since E4 — both are `tUnaryTests`.
 |---|---|---|
 | **0** | a discarded `<itemDefinition>` emits a Warning naming it | land first; needs only a two-line "peek", not the full pickler |
 | **1** | `allowedValues` on a top-level itemDefinition becomes a named domain a column's `typeRef` inherits | the direct answer to Meng's question; composes with Part A |
-| **2** | `isCollection` → `DMN_List` | small, once tier 1 exists |
+| **2** | `isCollection` → `DMN_List` | **blocked — see below.** The "small" verdict was wrong |
 | **3** | `itemComponent`, structured types | **out of scope**; recursive, and warns as unusable in tier 1 |
+
+> ### MEASURED 2026-07-27 — tier 2 is not small, and doing it would make things worse
+>
+> `DMN_List` exists in `DMN.Types`, `ParseTable` accepts a `[Number]` column header, and all three
+> backends have a `type2*` case for it. **The cell layer does not honour any of it.**
+> `DecisionTable.hs:157` sends a list type straight to `baseType`, so every cell is read as a
+> scalar while the emitted signature still says list:
+>
+> ```
+> --to=l4   GIVEN tags IS A LIST OF NUMBER … IF tags EQUALS 5    ->  l4 check exit 1
+> --to=ts   function Scores ( tags : number[] ) … tags === 5.0   ->  never true
+> ```
+>
+> The L4 is caught by l4's typechecker. The TypeScript is worse: `tsc` would reject
+> `number[] === number`, but dmnmd does not compile what it emits, so what ships is a comparison
+> that is silently always false. Recorded as `symptom/md-list-column-cells-are-scalars`.
+>
+> So the one-line `isCollection → DMN_List` change would import that into the XML reader and
+> **trade a loud refusal for a silent wrong answer** — the one trade this project does not make.
+> Tier 1 therefore *refuses* an `isCollection` type, citing the case.
+>
+> Real tier 2 is: make a list column's cells be **list tests**. In DMN an `inputEntry` on a
+> collection is a membership or quantified test, not an equality — so this belongs with the S-FEEL
+> grammar work, not here.
 
 ## B.4 The blocker the review found
 
@@ -311,3 +436,21 @@ what let B.4 through.
    payoff (§A.6) work, but widen the blast radius. **Recommendation: outputs first, per §A.8.**
 3. `useElem` emits L4 that does not typecheck today, independently of all of this. Record as a
    symptom now, fix separately.
+
+   > **MEASURED 2026-07-27 — the diagnosis was wrong, and so is the remedy.** The claim repeated
+   > in §A.7, "`elem` is not a defined identifier in l4", is false. `elem` **is** defined, in l4's
+   > own prelude (`jl4-core/libraries/prelude.l4:448`), as `elem x list` over a `LIST OF a` —
+   > exactly the shape dmnmd emits. What the emission omits is the `IMPORT prelude` line that
+   > brings it into scope. Same measurement, opposite conclusion: not "l4 lacks this", but "we
+   > forgot the import".
+   >
+   > This is the "sharpened past its evidence" pattern again — `CHECK=1 / could not find a
+   > definition for elem` supports "unbound *in this file*", and was written up as a statement
+   > about the language.
+   >
+   > Two things block a fix rather than a note. `useElem` is **not reachable from the CLI** — no
+   > flag sets it, only `TranslateL4Spec` — so the behavioural corpus, which shells out to the
+   > binary, cannot hold a case for it at all. And the fix could not be verified here: the
+   > `prelude.l4` in the l4-ide checkout uses `@infixl`, which the installed `l4` binary's lexer
+   > rejects, and `~/.local/share/jl4/libraries/` does not exist on this machine. So the emitter
+   > change (`IMPORT prelude` whenever `useElem` is set) is **stated, not made**.
