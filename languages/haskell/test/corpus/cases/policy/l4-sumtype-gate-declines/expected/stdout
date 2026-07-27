@@ -1,8 +1,0 @@
-GIVEN cat IS A STRING
-GIVETH A STRING
-NoCatchAll cat MEANS
-  BRANCH
-    IF cat EQUALS "Dining" THEN "PRVI"
-    IF ^   ^      "Petrol" THEN "Woman's World"
-    OTHERWISE ""
-

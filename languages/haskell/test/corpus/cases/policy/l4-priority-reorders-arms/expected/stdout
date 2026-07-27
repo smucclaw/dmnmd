@@ -1,9 +1,15 @@
+DECLARE Dish
+  IS ONE OF
+    `Stew`
+    `Spareribs`
+    `kids`
+
 GIVEN Guests IS A NUMBER
-GIVETH A STRING
+GIVETH A MAYBE Dish
 Priority Guests MEANS
   BRANCH
-    IF TRUE        THEN "Stew"
-    IF Guests <= 8 THEN "Spareribs"
-    IF ^      ^  4 THEN "kids"
-    OTHERWISE ""
+    IF TRUE        THEN JUST `Stew`
+    IF Guests <= 8 THEN JUST `Spareribs`
+    IF ^      ^  4 THEN JUST `kids`
+    OTHERWISE NOTHING
 

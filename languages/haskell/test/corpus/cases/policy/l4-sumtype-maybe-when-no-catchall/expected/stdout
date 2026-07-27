@@ -1,0 +1,13 @@
+DECLARE Card
+  IS ONE OF
+    `PRVI`
+    `Woman's World`
+
+GIVEN cat IS A STRING
+GIVETH A MAYBE Card
+NoCatchAll cat MEANS
+  BRANCH
+    IF cat EQUALS "Dining" THEN JUST `PRVI`
+    IF ^   ^      "Petrol" THEN JUST (`Woman's World`)
+    OTHERWISE NOTHING
+

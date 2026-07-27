@@ -19,7 +19,7 @@ import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, 
 import DMN.Types
 import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate)
-import Data.Maybe (isJust, catMaybes, mapMaybe)
+import Data.Maybe (isJust, isNothing, catMaybes, mapMaybe)
 import Numeric (floatToDigits)
 import Text.Megaparsec.Unicode (isWideChar)
 
@@ -73,12 +73,14 @@ toL4 opts dt =
     -- Deliberately narrow for this milestone, and both conditions are about the
     -- OTHERWISE rather than about the type:
     --
-    --  * the table must have an explicit catch-all row, so the synthesized
-    --    OTHERWISE reuses a real result. A sum type has no natural zero, and
-    --    `OTHERWISE ""` against a sum-typed GIVETH is a *check error* — verified,
-    --    not assumed. The `MAYBE`/`NOTHING` answer to that is the next step.
-    --  * no cell in the column may be a wildcard, since `-` would render through
-    --    'typeDefaultScalar' to the same ill-typed `""`.
+    --  * no cell in the column may be a wildcard, since `-` renders through
+    --    'typeDefaultScalar' to `""`, which is ill-typed under a sum-typed
+    --    GIVETH.
+    --
+    -- A table with no catch-all row used to be excluded too, because the
+    -- synthesized `OTHERWISE ""` is a *check error* against a sum-typed GIVETH
+    -- and omitting OTHERWISE is a *parse error*. That restriction is gone:
+    -- 'derivedMaybe' below wraps the result type instead.
     --
     -- Both are properties of the whole column, so this is computed once here
     -- rather than per cell.
@@ -86,7 +88,6 @@ toL4 opts dt =
       [ (o, ms)
       | (i, o) <- zip [0 :: Int ..] outs
       , Just ms <- [enumCtorsOf o]
-      , isJust catchAll
       , let cells = [ concat (drop i (take (i+1) (row_outputs r))) | r@DTrow{} <- allrows dt ]
       , not (any (elem FAnything) cells)
       , not (any null cells)
@@ -117,8 +118,41 @@ toL4 opts dt =
     baseGiveth = case outs' of
       [o] -> colTypeL4 o
       _   -> recName
+
+    -- A sum-typed result with nothing sensible to fall back on becomes
+    -- `MAYBE T`, so "no rule matched" is NOTHING rather than a fabricated
+    -- member. Fabricating one is forbidden by CLAUDE.md, and adding a sentinel
+    -- to the enum is worse still: where one table's output domain is another's
+    -- input domain, the sentinel silently widens the OTHER table's declared
+    -- domain.
+    --
+    -- The condition mirrors 'otherwiseExpr' exactly: MAYBE is needed precisely
+    -- when that function would fall through to 'typeDefaultL4', which is the
+    -- branch that emits the ill-typed `""`. So it keys on `catchAll` and on
+    -- `defaultResultStr`, the two things otherwiseExpr consults first.
+    --
+    -- An earlier attempt keyed on `any isCatchAll (allrows dt)` instead, to
+    -- avoid handing HP_Priority a MAYBE it arguably does not need — Priority
+    -- turns an all-wildcard row into a vacuously-true ARM, so the table is total
+    -- and its OTHERWISE is unreachable. But Priority also hardwires
+    -- catchAll = Nothing, so otherwiseExpr still took the typeDefaultL4 branch
+    -- and emitted `OTHERWISE ""` under `GIVETH A Dish`. Caught by
+    -- policy/l4-priority-reorders-arms.
+    --
+    -- The cost is that a total Priority table gets `MAYBE T`, so callers unwrap
+    -- a result that can never be NOTHING. Fixing that means feeding the dead
+    -- catch-all ARM's own result to otherwiseExpr, which changes non-enum
+    -- Priority output too and is deliberately not bundled here.
+    derivedMaybe = not (null enumOuts)
+                && isNothing catchAll
+                && null defaultResultStr
+
+    -- SUBSUMES the caller's wrapMaybe rather than stacking with it: composed,
+    -- the two emit `MAYBE MAYBE T`, whose arities do not match and which l4
+    -- rejects.
+    optsEff = opts { wrapMaybe = wrapMaybe opts || derivedMaybe }
     givethType
-      | wrapMaybe opts = "MAYBE " ++ baseGiveth
+      | wrapMaybe optsEff = "MAYBE " ++ baseGiveth
       | otherwise      = baseGiveth
 
     -- <name> <arg> <arg> ... MEANS
@@ -148,7 +182,7 @@ toL4 opts dt =
     guardLines = renderDittoGrid opts grid
     armLines   = zipWith mkArm guardLines armRows
     mkArm gl row =
-      "    IF " ++ trueIfBlank gl ++ " THEN " ++ armResult opts multiOut mkName outs' (row_outputs row)
+      "    IF " ++ trueIfBlank gl ++ " THEN " ++ armResult optsEff multiOut mkName outs' (row_outputs row)
                 ++ commentSuffix (row_comments row)
 
     -- A vacuously-true guard (every input cell a wildcard — e.g. a non-trailing
@@ -158,7 +192,7 @@ toL4 opts dt =
       | all (== ' ') gl = rpad (length gl) "TRUE"
       | otherwise       = gl
 
-    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr opts multiOut mkName outs' defaultRow defaultResultStr
+    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr optsEff multiOut mkName outs' defaultRow defaultResultStr
     -- The synthesized OTHERWISE only ever returns an EXPLICIT catch-all row's
     -- output (the all-wildcard row, when present). With NO catch-all row the table
     -- says nothing about unmatched inputs, so we must NOT fabricate a value from a
