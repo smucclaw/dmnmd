@@ -10,7 +10,7 @@
 > | **X** (hygiene) | **partly.** PR #19 added `test/corpus/`, a 105-case behavioural record, which is the "stop the next six-year gap" half. The error-position bug and `parseFNumFunction`'s `error` are **recorded as symptom cases, deliberately not fixed** — see `symptom/md-error-position-misreported` and `symptom/num-function-call-crash`. |
 > | **E4** (`DMN_Enum` + `DMN_FEEL`) | open, and the next thing being built. See §3's "E4" heading and `src/DMN/Types.hs:38-49`. |
 > | **E2, E3, E6, E1** | open, in that dependency order. E3 still must not ship before E4. |
-> | **E7, E8** | open. E7 (a negative number is misparsed, not rejected) is the worst defect listed here — see §2.1. E8 folds into E4, which is where a declared enum domain gets a home. |
+> | **E7, E8** | open. E7 **crashes, it does not misparse** — §2.1 predicted the wrong failure mode; see the erratum there. E8 folds into E4, which is where a declared enum domain gets a home. |
 >
 > **Correction, 2026-07-27.** An earlier version of this table called E4 "temporal types" and
 > pointed at `policy/xml-temporal-typeref-refused`. That was wrong, and wrong in the way this
@@ -192,6 +192,32 @@ others of the same kind.
 
 _(E7 and E8 were found by the L4 exporter's author reading dmnmd's parser source, not by exercising
 it — so E7 is inferred from the code path and has not been demonstrated end to end.)_
+
+> **Erratum, 2026-07-27 — E7 is not a misparse.** The hedge above was right to be there. Running
+> it: a negative number in a numeric cell **aborts with exit 1**, it does not produce a wrong
+> answer. Three corpus cases already pin this and were recorded before this section was re-read:
+> `symptom/num-negative-threshold-crash` (`>= -5`), `symptom/num-negative-range-crash`
+> (`[-5..5]`), `symptom/num-function-call-crash`.
+>
+> The *diagnosis* holds — `mkF` does route any cell containing `+ - * /` to the arithmetic
+> parser — but that parser then rejects a leading unary minus outright
+> (`error: parsing suspected function expression >= -5 … expecting … digit, or letter`), so the
+> run dies rather than proceeding on a wrong reading. E7 belongs in the same class as row X's
+> `parseFNumFunction` crash: loud, badly-worded, and safe.
+>
+> **The paragraph's advice survives its example.** "Audit for constructs we accept and misread"
+> is exactly right, and the audit finds real ones — just not this one. Two confirmed silent
+> misparses, both exit 0:
+>
+> | cell | emits | pinned by | why it matters |
+> |---|---|---|---|
+> | `"Fall"` | `Season === "\"Fall\""` — compares against the quote characters | `symptom/md-quoted-string-cell-literal` | **DMN XML writes every string this way**, so the XML reader walks into it |
+> | `not("Fall", "Winter")` | `Season === "not(\"Fall\"" \|\| Season === "\"Winter\")"` | `symptom/xml-comma-split-negation` | `mkFs` splits on commas *before* typing, so a function call is torn in half |
+>
+> Those are the ones that "look right, parse clean, and mean something else". The second is also
+> frozen as an *expectation* in `test/DmnXmlSpec.hs`, which is why the hspec suite cannot certify
+> a change to the cell layer — see `CLAUDE.md`. Both are E4's problem: a design that adds a
+> `: FEEL` parse mode without fixing string quoting would leave the untyped default doing this.
 
 E2 is the one that is actively dangerous rather than merely lossy: a `U` table written with a
 catch-all row is a table dmnmd would **read back with different semantics**, so the exporter
