@@ -10,8 +10,13 @@
       <semantic:text>"DECLINE","REFER","ACCEPT"</semantic:text>
     </semantic:allowedValues>
   </semantic:itemDefinition>
-  <semantic:itemDefinition name="tScores" isCollection="true">
-    <semantic:typeRef>number</semantic:typeRef>
+  <semantic:itemDefinition name="tDriver">
+    <semantic:itemComponent name="Name">
+      <semantic:typeRef>string</semantic:typeRef>
+    </semantic:itemComponent>
+    <semantic:itemComponent name="Points">
+      <semantic:typeRef>number</semantic:typeRef>
+    </semantic:itemComponent>
   </semantic:itemDefinition>
   <semantic:decision id="dR" name="Routing">
     <semantic:decisionTable id="dtR" hitPolicy="FIRST">

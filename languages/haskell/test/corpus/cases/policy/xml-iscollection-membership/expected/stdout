@@ -1,0 +1,12 @@
+export function Access ( roles : string[] ) {
+  if (roles.includes("admin")) { // 1
+    return {"Grant":"full"};
+  }
+  else if ((roles.includes("clerk") || roles.includes("teller"))) { // 2
+    return {"Grant":"read"};
+  }
+  else if ("default") { // 3
+    return {"Grant":"none"};
+  }
+}
+

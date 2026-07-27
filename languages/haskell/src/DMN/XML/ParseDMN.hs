@@ -539,7 +539,9 @@ data ItemDefinition = ItemDefinition
     -- ^ @name@. Optional in the XSD (via @tNamedElement@), and an unnamed
     -- itemDefinition is unreferenceable — so it is reported, not resolved.
   , itdIsCollection :: Maybe String
-    -- ^ @isCollection@, raw. Tier 2 turns this into 'DMN.Types.DMN_List'.
+    -- ^ @isCollection@, raw. 'DMN.XML.XmlToDmnmd.isCollectionOf' reads it (an
+    -- absent attribute and an explicit @"false"@ alike, per the XSD default) and
+    -- 'resolveTypeRef' wraps the resolved base in 'DMN.Types.DMN_List'.
   , itdTypeRef :: Maybe ItemTypeRef
   , itdAllowedValues :: Maybe AllowedValues
   , itdComponents :: [Maybe String]

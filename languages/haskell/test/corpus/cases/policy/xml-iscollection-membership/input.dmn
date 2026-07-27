@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- isCollection="true" on an <itemDefinition>, which a decision-table column
+     then names by typeRef. dmnmd reads it as a collection type, and a plain
+     <inputEntry> against it means MEMBERSHIP.
+
+     `tRoles` is deliberately a collection DERIVED FROM A NAMED BASE rather than
+     straight from a FEEL built-in, so this also covers the composition case:
+     resolveTypeRef follows tRole -> string and only then wraps in DMN_List. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="access" name="Access"
+             namespace="https://example.org/dmnmd/test/access">
+
+  <itemDefinition name="tRole" isCollection="false">
+    <typeRef>string</typeRef>
+  </itemDefinition>
+
+  <itemDefinition name="tRoles" isCollection="true">
+    <typeRef>tRole</typeRef>
+  </itemDefinition>
+
+  <inputData id="InputData_roles" name="Roles"/>
+
+  <decision id="Decision_access" name="Access">
+    <informationRequirement id="InformationRequirement_roles">
+      <requiredInput href="#InputData_roles"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_access" hitPolicy="FIRST">
+      <input id="Input_roles" label="Roles">
+        <inputExpression id="InputExpression_roles" typeRef="tRoles">
+          <text>roles</text>
+        </inputExpression>
+      </input>
+      <output id="Output_grant" name="grant" label="Grant" typeRef="string"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"admin"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"full"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"clerk", "teller"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"read"</text></outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <inputEntry id="UnaryTests_3"><text>-</text></inputEntry>
+        <outputEntry id="LiteralExpression_3"><text>"none"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

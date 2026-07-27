@@ -107,19 +107,18 @@ itemDefDiags itds = concatMap one itds ++ dups
 -- The XSD body is a three-way choice (typeRef+allowedValues | itemComponent* |
 -- functionItem?), so these are not arbitrary rejections — they are the two
 -- branches of that choice dmnmd has no representation for.
+-- This used to refuse @isCollection="true"@ outright, at length, because the
+-- cell layer read every cell of a collection column as a scalar and mapping the
+-- attribute onto that would have turned a loud refusal into a silent wrong
+-- answer. The cell layer now honours collections, so the attribute is HONOURED
+-- here — see 'isCollectionOf' — and the guarantee the old message was protecting
+-- is kept a level down instead: 'DMN.DecisionTable.structuralErrors' refuses,
+-- per rule id, every collection cell that is not a plain member. So a
+-- @\<inputEntry\>@ holding @list contains(?, "RED")@, @not(…)@ or @count(?)>0@
+-- is still refused; what changed is that the refusal is now about that cell
+-- rather than about the whole type.
 unusable :: X.ItemDefinition -> Maybe String
 unusable itd
-  | isCollection =
-      Just $ "it is isCollection=\"true\", a list type. dmnmd has a 'DMN_List' type"
-        ++ " but its CELL layer does not honour it: 'DMN.DecisionTable.mkFEither'"
-        ++ " delegates a list type straight to its base type, so every cell in the"
-        ++ " column is read as a scalar. A markdown column declared '[Number]'"
-        ++ " already shows what that produces — L4 'GIVEN tags IS A LIST OF NUMBER'"
-        ++ " with a guard 'tags EQUALS 5', which does not typecheck, and TypeScript"
-        ++ " 'tags: number[]' compared with '=== 5.0', which is never true"
-        ++ " (symptom/md-list-column-cells-are-scalars). Mapping isCollection onto"
-        ++ " that would turn this refusal into a silent wrong answer, so the column"
-        ++ " is refused instead."
   | not (null (X.itdComponents itd)) =
       Just $ "it is a structured type (<itemComponent> "
         ++ intercalate ", " [maybe "(unnamed)" show c | c <- X.itdComponents itd]
@@ -129,11 +128,14 @@ unusable itd
       Just $ "it declares no <typeRef>, so it is either a <functionItem> type or"
         ++ " empty. dmnmd has neither. A column whose typeRef names this is refused."
   | otherwise = Nothing
-  where
-    -- The XSD gives isCollection a default of "false", and DMN's own examples
-    -- write it out explicitly on non-collections, so an absent attribute and an
-    -- explicit "false" must read the same.
-    isCollection = maybe False ((== "true") . map toLower . trim) (X.itdIsCollection itd)
+
+-- | Does this @\<itemDefinition\>@ say @isCollection="true"@?
+--
+-- The XSD gives the attribute a default of @"false"@ (@xsd/DMN13.xsd:244@), and
+-- DMN's own examples write it out explicitly on non-collections, so an absent
+-- attribute and an explicit @"false"@ must read the same.
+isCollectionOf :: X.ItemDefinition -> Bool
+isCollectionOf = maybe False ((== "true") . map toLower . trim) . X.itdIsCollection
 
 -- | Every @<decision>@ in the file. 'X.defsDescisions' only holds the leading
 -- run of them: a file that interleaves @<inputData>@ with @<decision>@ puts the
@@ -444,7 +446,14 @@ mkCells locate ty text
       Right fs -> ([], fs)
       Left msg -> ([errorAt (locate msg)], [])
   where
-    isStringy = ty == Nothing || ty == Just T.DMN_String
+    -- Tests the ELEMENT type, not just the column type. A `[String]` column
+    -- whose isStringy said False would skip the FEEL string-literal parser and
+    -- fall through to the `mkFsEither` comma-split path — reinstating
+    -- symptom/xml-comma-split-negation for exactly the type this release adds,
+    -- a fresh silent shred introduced by the fix that was supposed to help.
+    isStringy = ty == Nothing
+             || ty == Just T.DMN_String
+             || T.elemType ty == Just T.DMN_String
     -- total for Nothing and DMN_String: both just keep the text
     verbatim = mkFs ty text
 
@@ -528,7 +537,13 @@ resolveTypeRef env = go []
         | otherwise ->
             let base = maybe "" X.unItemTypeRef (X.itdTypeRef itd)
                 (ds, ty, inherited) = go (nm : seen) base
-            in (ds, ty, allowedValuesText itd `orElse` inherited)
+                -- Wrap AFTER the recursive resolve, so a collection derived from
+                -- a named base composes for free. A collection OF a collection
+                -- yields [[T]], which 'structuralErrors' R1 refuses with the same
+                -- message the markdown side gives — one rule, not two.
+                ty' | isCollectionOf itd = T.DMN_List <$> ty
+                    | otherwise          = ty
+            in (ds, ty', allowedValuesText itd `orElse` inherited)
 
     orElse a b = maybe b Just a
 
