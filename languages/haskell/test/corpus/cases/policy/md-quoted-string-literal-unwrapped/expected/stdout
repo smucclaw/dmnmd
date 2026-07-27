@@ -1,5 +1,5 @@
 export function Quoted ( Season : string ) {
-  if (Season === "\"Fall\"") { // 1
+  if (Season === "Fall") { // 1
     return {"Dish":"Spareribs"};
   }
   else if ("default") { // 2

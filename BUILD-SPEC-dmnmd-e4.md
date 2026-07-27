@@ -1,15 +1,28 @@
 # BUILD SPEC — E4: honour declared domains, and read quoted strings
 
-> ## Status: **PROPOSED — not landed. No code has been written.**
+> ## Status: **IMPLEMENTED — §10 steps 1-6 all landed 2026-07-27.**
 >
-> This is a design, produced 2026-07-27 against trunk `6edea2c`. Everything below in the
-> present tense describes the tree **as it is today**; everything E4 would change is written
-> as "would" or under an explicit *Change* heading. If you find a sentence that reads as
-> though E4 has shipped, it is a bug in this document — see `CLAUDE.md`, "Never write a
-> planned state in the present tense".
+> This began as a design and is now a record of what was built. **The body below is still
+> written in the design's voice** — "would render", "would be refused" — because rewriting it
+> into the present tense would destroy the thing that makes it checkable: you can no longer
+> tell what was predicted from what was found. Read §§1-9 as the plan and this header plus §13
+> as the outcome.
 >
-> **What would make it true:** the commit sequence in §10, ending with `make corpus` showing
-> the four named cases moved and the remaining 123 unchanged, and `cabal test` green.
+> Landed, in `feat/e4-quoted-strings`:
+>
+> | step | commit | corpus |
+> |---|---|---|
+> | 1 record the multi-row join first | `c6631a6` | +1 symptom |
+> | 2 unwrap S-FEEL string literals | `9218e44` | 1 symptom → policy, +1 policy |
+> | 3 retype the domain after inference | `06f09f1` | 1 symptom → policy |
+> | 4 refuse a domain violation | `0e92e4e` | +2 policy, 2 symptoms re-recorded |
+> | 5 the DMN XML path | this branch | +1 policy |
+> | 6 README | this branch | — |
+>
+> **127 → 132 cases, 0 policy regressions throughout, `cabal test` green at every step.**
+> §12 question 1 was answered by Meng: **Error**, not Warning.
+>
+> §13 records where the design was wrong.
 >
 > **Provenance.** Three independent designs were produced from different angles, each attacked
 > by two adversarial reviewers, and this synthesises them. Where a claim is load-bearing I
@@ -161,6 +174,18 @@ recognised, as today, by its **blank first cell** appearing before the first num
 
 No annotation gates this. Requiring `: FEEL` on every column imported from XML would be the
 opposite of legible.
+
+> **All or nothing per cell — do not make this per-fragment.** `mkFsEither` splits on commas
+> before anything looks at what a cell means, so `not("Fall", "Winter", "Spring", "Summer")`
+> arrives already shredded into four fragments, of which the middle two happen to be
+> well-formed literals. Unquoting each on its own merits gives
+> `not("Fall` / `Winter` / `Spring` / `"Summer")` — neither the source text nor a parse of it.
+>
+> **This was tried and reverted once before**, and the warning is recorded in
+> `test/DmnXmlSpec.hs` above the frozen expectation for that cell. It was found only by reading
+> that comment after a first implementation attempt broke the test. So a cell is unquoted only
+> when **every** fragment is a well-formed literal, which keeps `"Fall"` and a genuine
+> multi-value `"Fall", "Winter"` while leaving a shredded cell verbatim.
 
 ### 2.3 Worked examples
 
@@ -409,7 +434,7 @@ Baseline: **127 cases, 62 policy / 65 symptom, 127 unchanged.**
 
 | case | why it moves |
 |---|---|
-| `md-quoted-string-cell-literal` | emits `Season === "Fall"`. Correct, not merely different. |
+| `md-quoted-string-cell-literal` | emits `Season === "Fall"`. Correct, not merely different. Renamed `md-quoted-string-literal-unwrapped` on promotion, since the old slug named the defect. |
 | `struct-outputorder-enum-untyped` | `O` returns domain order, not row order. Confirmed reachable today by hand-declaring the types. |
 
 ### symptom → symptom (re-record, **stays** symptom)
@@ -517,3 +542,45 @@ than being a member of it, so `< 18` in a domained column is correct input.
 3. **`DMN_List` and domains.** A `[String]` column with a domain — does the domain constrain
    the elements or the list? Nothing in the corpus or the README exercises it.
    **Recommendation: refuse the combination with a diagnostic until someone has a use case.**
+
+---
+
+## 13. Where the design was wrong
+
+Recorded because a design that is only ever compared against itself teaches nothing.
+
+**1. The `mkDTable` signature change was unnecessary.** §4 called for threading raw domain text
+through a widened `mkDTable` so the domain could also feed inference. Not needed: the domain
+members are still unconverted `FNullary (VS _)` at that point, so `reprocessRows` can rebuild
+them in place under its own existing guard. `retypeEnums` is four lines and touches no caller.
+Feeding the domain *into* inference remains undone, and is only observable for a column whose
+cells are all wildcards.
+
+**2. The design did not anticipate that unquoting would break `DmnXmlSpec`.** It did, on the
+first attempt — and the comment above the expectation it broke turned out to record that
+*someone had already tried per-fragment unquoting and reverted it*. That produced the
+all-or-nothing rule in §2.2, which is better than what was designed. **The design was improved
+by a warning left in a test file, not by any of the six agents that reviewed it.**
+
+**3. Two symptom cases moved that §9 did not predict.** `enum-domain-multirow-joined` and
+`struct-blank-rownum-swallowed` both went from silently wrong to loudly refused once domains
+became load-bearing. Predicted in the abstract by §2.1 ("raises the cost of this defect without
+addressing it"), not in the concrete. Both stay symptoms; both now carry a note that their
+diagnostic misdirects, naming a domain the author never wrote.
+
+**4. `xml-comma-split-negation` did not move, and §9 never said whether it should.** It does not,
+because of the all-or-nothing rule. Worth stating: had it moved, that would have been a
+regression dressed as progress.
+
+## 14. What E4 did not do
+
+- **Feed the declared domain into type inference** (§4 step 2). Only observable for an
+  all-wildcard column.
+- **Fix the `unwords` multi-row join**, `symptom/enum-domain-multirow-joined`. Now louder.
+- **Fix the blank-rule-number swallow**, `symptom/struct-blank-rownum-swallowed`. Now louder.
+- **Interpret escape sequences** in string literals. `\"` inside a cell is kept verbatim; that
+  needs the real S-FEEL grammar, not another special case.
+- **Gap analysis** — §1 said out of scope and it remains so. Declared domains now make it
+  *possible*, which was the point.
+- **§12 questions 2 and 3** (an L4 sum type for domained columns; `DMN_List` + domain) are still
+  open and still want a human.

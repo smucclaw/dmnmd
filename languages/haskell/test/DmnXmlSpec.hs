@@ -361,6 +361,17 @@ convertedSimulation =
                 -- them from whichever fragments happened to begin and end with
                 -- one, which produced a mixture that looked half-parsed and was
                 -- neither the source text nor a parse of it.
+                --
+                -- That warning has since been acted on rather than merely heeded.
+                -- dmnmd *does* now unwrap S-FEEL string literals, so a cell
+                -- reading "Fall" yields the four characters Fall — but
+                -- 'DMN.DecisionTable.unquoteCell' does it __all or nothing per
+                -- cell__, precisely so that this shredded cell keeps every
+                -- fragment verbatim and the mixture above cannot arise. The rule
+                -- is pinned from the other side by
+                --   test/corpus/cases/policy/md-quoted-literal-all-or-nothing
+                -- so if someone simplifies it to work per fragment, that policy
+                -- case and this expectation both move together.
                 -- ======================================================================
                 row_inputs =
                   [ [ FNullary (VS "not(\"Fall\""),

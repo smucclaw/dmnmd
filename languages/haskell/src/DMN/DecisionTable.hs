@@ -7,9 +7,9 @@ module DMN.DecisionTable where
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
 import DMN.ParseFEEL ( parseFNumFunction )
-import Data.List (dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
+import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
 import Data.List.Split ( splitOn )
-import Data.Maybe ( catMaybes, fromJust )
+import Data.Maybe ( catMaybes, fromJust, listToMaybe )
 import Text.Regex.PCRE ( (=~) )
 import Data.Char (toLower)
 import Text.Read (readMaybe)
@@ -130,7 +130,7 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 -- it can report on. Do not reintroduce a second copy of these guards elsewhere:
 -- a validator that drifts from the constructor is worse than no validator.
 mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
-mkFsEither dmntype args = traverse (mkFEither dmntype) (trim <$> splitOn "," args)
+mkFsEither dmntype args = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
 
 
 -- TODO: add a state monad to allow type inference to span all input rows;
@@ -188,6 +188,55 @@ mkFEither (Just DMN_Number)  arg1
                        (Right . VN)
                        (readMaybe x :: Maybe Float)
 
+-- | Unwrap S-FEEL string literals across a whole cell, __all or nothing__.
+--
+-- @"Fall"@ denotes the four-character value @Fall@; the quotes are not part of
+-- it. This matters well beyond hand-written markdown, because DMN XML writes
+-- every string quoted — @\<text\>"adult"\<\/text\>@ — so before this, any table
+-- arriving through @-f xml@ acquired cells that compiled to a comparison
+-- against the quote characters, and could only match input that literally
+-- contained quotes. Silent, and exit 0. See BUILD-SPEC-dmnmd-e4.md §2.2.
+--
+-- __Why all-or-nothing, and do not change this to per-fragment.__ 'mkFsEither'
+-- splits a cell on commas before anything looks at what the cell means, so the
+-- single FEEL negation @not("Fall", "Winter", "Spring", "Summer")@ arrives here
+-- already shredded into four fragments, of which the middle two happen to be
+-- well-formed literals and the outer two carry unbalanced quotes and
+-- parentheses. Unquoting each fragment on its own merits yields
+-- @not("Fall@ \/ @Winter@ \/ @Spring@ \/ @"Summer")@ — a mixture that is
+-- neither the source text nor a parse of it, and that reads as half-parsed.
+--
+-- That has been tried and reverted once already; the warning is recorded at
+-- @test\/DmnXmlSpec.hs@ above the frozen expectation for that very cell. So a
+-- cell is unquoted only when __every__ fragment is a well-formed literal, which
+-- keeps the honest cases (@"Fall"@, and a genuine multi-value @"Fall", "Winter"@)
+-- and leaves a shredded one verbatim. Fixing the shred is the comma-split
+-- defect, recorded at @test\/corpus\/cases\/symptom\/xml-comma-split-negation@.
+--
+-- 'isSFeelLiteral' is deliberately conservative, since it sees every cell:
+--
+--  * @5' 10"@ ends with a quote but does not start with one.
+--  * @\"a\" and \"b\"@ starts and ends with a quote but is not one literal, so
+--    the interior-quote test rejects it rather than yielding @a" and "b@.
+--  * a lone @\"@ is length 1. ('inferType' does classify it as DMN_String,
+--    since its @head == last@ test is satisfied by the same character, so this
+--    case is reachable.)
+--  * @\"\"@ is the empty string, which is correct.
+--
+-- Escape sequences are not interpreted; a cell containing @\\\"@ keeps it. That
+-- is a gap, not a decision — it needs the real S-FEEL grammar, not a special
+-- case here.
+unquoteCell :: [String] -> [String]
+unquoteCell frags
+  | not (null frags), all isSFeelLiteral frags = unquote <$> frags
+  | otherwise                                  = frags
+  where
+    unquote s = drop 1 (init s)
+
+isSFeelLiteral :: String -> Bool
+isSFeelLiteral s =
+  length s >= 2 && head s == '"' && last s == '"' && '"' `notElem` drop 1 (init s)
+
 fromVN :: DMNVal -> Float
 fromVN (VN n) = n
 fromVN (VB True) = 1.0
@@ -239,23 +288,126 @@ mkDTable origname orighp origchs origdtrows =
 --  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
                                      (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      typedchs = if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs
+      typedchs = retypeEnums <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
+      built = DTable origname orighp typedchs
+              ((\case
+                   (DTrow rn ri ro rc) -> (DTrow rn
+                                  (reprocessRows (getInputHeaders typedchs)  ri)
+                                  (reprocessRows (getOutputHeaders typedchs) ro)
+                                  rc)) <$> origdtrows)
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
            --             "newchs = " ++ show(newchs) ++ "\n" )
-    DTable origname orighp typedchs
-    ((\case
-         (DTrow rn ri ro rc) -> (DTrow rn
-                        (reprocessRows (getInputHeaders typedchs)  ri)
-                        (reprocessRows (getOutputHeaders typedchs) ro)
-                        rc)) <$> origdtrows)
+    -- A cell outside the domain its own sub-header row declares is a typo, not
+    -- a new domain member, and a rule built from it can never match. Emitting it
+    -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
+    -- §8. Reported by @error@ because that is how this path already reports a
+    -- bad cell ('mkFs'); the XML reader calls 'domainErrors' directly so it can
+    -- locate the failure and refuse only the offending table.
+    case domainErrors built of
+      []   -> built
+      errs -> error (intercalate "\n" ((("error: table " ++ show origname ++ ": ") ++) <$> errs))
                          
+-- | Every way a table's cells violate the domains its sub-header row declares.
+--
+-- Empty means the table is consistent with what it says about itself. Returned
+-- rather than thrown so both readers can use it: 'mkDTable' turns it into an
+-- @error@, which is how the markdown path already reports a bad cell, and the
+-- XML reader can turn the same list into located 'DMN.XML.XmlToDmnmd.Diagnostic's
+-- and refuse just the one table. Do not grow a second copy of this rule
+-- anywhere — a validator that drifts from the constructor is worse than none.
+--
+-- __Membership is decided by 'fEval', deliberately.__ A domain member is a cell
+-- like any other, so @LOW@ is @FNullary (VS "LOW")@ and @[0..150]@ is
+-- @FInRange 0 150@, and asking "is this value in the domain" is exactly asking
+-- "would a rule written with that domain member match this value". Reusing the
+-- evaluator means a declared numeric range constrains numeric cells for free,
+-- and — more importantly — the check can never disagree with what matching
+-- actually does at run time.
+--
+-- Only __plain values__ are checked. A cell holding a test (@< 18@, @[18..65]@,
+-- @-@, an arithmetic expression) is not a member of the domain; it selects a
+-- subset of it, so checking it against a list of values would be a category
+-- error. That is why this matches 'FNullary' and lets every other constructor
+-- through.
+domainErrors :: DecisionTable -> [String]
+domainErrors dt =
+  [ msg ch rn cell
+  | r@DTrow{} <- allrows dt
+  , let rn = row_number r
+  , (ch, cells) <- zip (getInputHeaders  (header dt)) (row_inputs  r)
+                ++ zip (getOutputHeaders (header dt)) (row_outputs r)
+  , domain <- maybe [] pure (enums ch)
+  , not (null domain)
+  , cell@(FNullary _) <- cells
+  , not (fEvals cell domain)
+  ]
+  where
+    -- No table name and no "error:" prefix: each reader frames this its own
+    -- way. The markdown path prepends `error: table "X": ` on its way to
+    -- @error@; the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt' through
+    -- that module's own `inTable`, which also knows the rule id. One rule, two
+    -- framings — rather than one rule and two implementations.
+    msg ch rn cell = concat
+      [ "column ", show (varname ch)
+      , maybe "" (\n -> ": row " ++ show n) rn
+      , ": value outside the column's declared domain {"
+      , intercalate ", " (showDomainMember <$> fromJust (enums ch))
+      , "} — the cell reads ", showDomainMember cell
+      ]
+
+-- | A domain member or cell, as it would have been written in the table.
+-- Only used to build the diagnostic in 'domainErrors'.
+showDomainMember :: FEELexp -> String
+showDomainMember (FNullary (VS s)) = s
+showDomainMember (FNullary (VN n)) = show n
+showDomainMember (FNullary (VB b)) = toLower <$> show b
+showDomainMember (FInRange lo hi)  = "[" ++ show lo ++ ".." ++ show hi ++ "]"
+showDomainMember  FAnything        = "-"
+showDomainMember  e                = show e
+
+-- | Rebuild a column's declared domain at the type inference settled on.
+--
+-- 'DMN.ParseTable.parseTable' builds @enums@ from the sub-header row using the
+-- type __as literally written in the header__, which for an undeclared column is
+-- 'Nothing' — so the domain becomes a list of strings. Inference then runs here,
+-- in 'mkDTable', and 'reprocessRows' re-types only the data cells. The domain
+-- was never revisited, so a table like
+--
+-- > | O | Age | > Score (out) |
+-- > |---|-----|---------------|
+-- > |   |     | 30, 10, 20    |
+--
+-- ended up comparing numeric cells against string domain members. Nothing ever
+-- matched, 'elemIndex' returned 'Nothing' for every value, and hit policy @O@
+-- silently degraded to row order — recorded as
+-- @test\/corpus\/cases\/symptom\/struct-outputorder-enum-untyped@.
+--
+-- This reuses 'reprocessRows' rather than repeating its logic, so the domain and
+-- the cells are re-typed by the same code under the same guard: a domain is only
+-- rebuilt when every member is still an unconverted @FNullary (VS _)@. A domain
+-- on a column whose type stays 'Nothing' is left alone, as are @FAnything@ and
+-- anything already converted.
+retypeEnums :: ColHeader -> ColHeader
+retypeEnums ch = case enums ch of
+  Nothing -> ch
+  Just es -> ch { enums = listToMaybe (reprocessRows [ch] [es]) }
+
 reprocessRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
 reprocessRows = 
   -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
-               if notElem (vartype ch) [Nothing, Just DMN_String] && (length [ x | FNullary (VS x) <- cells] == length cells)
+               -- DMN_String used to be excluded here alongside Nothing, because
+               -- re-running a string cell at DMN_String was a no-op: both the
+               -- Nothing arm and the DMN_String arm of mkFEither produced
+               -- FNullary (VS (trim arg)). Since 'unquoteSFeel' it is no longer
+               -- a no-op, and this is the pass where an inferred string column
+               -- gets its quotes stripped — inferType classifies "Fall" as
+               -- DMN_String, but nothing re-ran the cell at that type.
+               -- Idempotent for an explicitly-declared : String column, whose
+               -- cells were already unquoted in pass 1.
+               if vartype ch /= Nothing && (length [ x | FNullary (VS x) <- cells] == length cells)
                then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
                     [ mkF (vartype ch) x | FNullary (VS x) <- cells ]
                else cells)

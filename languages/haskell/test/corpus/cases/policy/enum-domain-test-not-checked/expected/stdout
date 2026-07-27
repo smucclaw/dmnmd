@@ -1,0 +1,12 @@
+export function Band ( Age : number, Risk_Category : string ) {
+  if (Age < 18.0) { // 1
+    return {"Routing":"DECLINE"};
+  }
+  else if ((18.0 <= Age && Age <= 65.0) && Risk_Category === "HIGH") { // 2
+    return {"Routing":"REFER"};
+  }
+  else if (Age > 65.0 && Risk_Category === "LOW") { // 3
+    return {"Routing":"ACCEPT"};
+  }
+}
+
