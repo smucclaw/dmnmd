@@ -11,7 +11,7 @@ import System.IO
       openFile,
       stdout,
       IOMode(WriteMode) )
-import Control.Monad ( when, unless )
+import Control.Monad ( when, unless, forM_ )
 import System.Exit ( exitFailure )
 import Data.List.Split (splitOn)
 import Data.List (intercalate, nub)
@@ -31,7 +31,7 @@ import DMN.Types
       DMNType,
       ColHeader(vartype) )
 import DMN.DecisionTable
-    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF )
+    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF, tableWarnings )
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
 import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
@@ -62,6 +62,13 @@ main = do
   mylog opts $ "* picked " ++ show (length pickedTables) ++ " tables from " ++ show (trim <$> splitOn "," (pick opts))
   when (null pickedTables) $ mylog opts $ "available tablenames were " ++ show (tableName <$> mydtables)
   mylog opts "shall we output them or go interactive?"
+
+  -- Things worth saying out loud that are not grounds for refusal. Exit status
+  -- is untouched: it answers only "did something we were asked to read fail to
+  -- read?". The XML reader routes the same list through 'warnAt'.
+  forM_ pickedTables $ \dt ->
+    mapM_ (hPutStrLn stderr . (("warning: table " ++ show (tableName dt) ++ ": ") ++))
+          (tableWarnings dt)
 
     -- are we talking to console or receiving input from STDIN?
     -- is the input coming in JSON format?

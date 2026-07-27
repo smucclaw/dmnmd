@@ -317,10 +317,246 @@ mkDTable origname orighp origchs origdtrows =
     -- §8. Reported by @error@ because that is how this path already reports a
     -- bad cell ('mkFs'); the XML reader calls 'domainErrors' directly so it can
     -- locate the failure and refuse only the offending table.
-    case domainErrors built of
+    case tableErrors built of
       []   -> built
       errs -> error (intercalate "\n" ((("error: table " ++ show origname ++ ": ") ++) <$> errs))
-                         
+
+-- | Every reason to refuse a table, in one place, for both readers.
+--
+-- 'structuralErrors' is about the table's SHAPE — a cell whose meaning dmnmd
+-- will not guess at. 'domainErrors' is about a cell disagreeing with the domain
+-- the table itself declares. Structural first, because a cell that has no
+-- meaning cannot meaningfully be checked against a domain.
+tableErrors :: DecisionTable -> [String]
+tableErrors dt = structuralErrors dt ++ domainErrors dt
+
+-- | Cell shapes dmnmd refuses rather than guessing at, mostly about collections.
+--
+-- __Why this lives here and not in 'mkFEither'.__ Refusing inside the cell
+-- constructor is the obvious implementation and it is wrong three times over:
+--
+--  * 'mkFEither' cannot tell an input cell from an output cell from a
+--    __sub-header domain member__ — 'DMN.ParseTable.parseTable' builds @enums@
+--    through the same 'mkFs'. A range domain @[0..150]@ on a @[Number]@ column
+--    works today; refusing tests in the constructor would make it unwritable.
+--  * it knows no row number and no column name, so the message could not locate
+--    the offending cell.
+--  * @mkFs = either error id@, and 'reprocessRows' calls it with the full column
+--    type on live paths, so a 'Left' there crashes ordinary tables.
+--
+-- Walking 'allrows' fixes all three: the sub-header row is excluded __by
+-- construction__ rather than by a special case that could rot.
+--
+-- Returned rather than thrown, exactly as 'domainErrors' is, so the markdown
+-- path can @error@ and the XML path can locate and refuse one table.
+structuralErrors :: DecisionTable -> [String]
+structuralErrors dt = concat
+  [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs ]
+  where
+    ins  = getInputHeaders  (header dt)
+    outs = getOutputHeaders (header dt)
+
+    -- R1. `isCollection` in DMN is a flag, not a depth (DMN 1.3 Table 26), and
+    -- dmnmd has no cell syntax for a list of lists. Column-level, so an
+    -- all-wildcard nested column is refused too.
+    nestedCols =
+      [ concat [ "column ", show (varname ch)
+               , ": dmnmd supports a list of scalars, not a list of lists."
+               , " DMN's isCollection is a flag, not a depth (DMN 1.3 Table 26)."
+               -- Suggest the FLATTENED form. Naming `inner` here would echo the
+               -- nested type straight back at the author as the repair.
+               , " Declare the column \": [", showType (innermost inner), "]\"." ]
+      | ch <- ins ++ outs
+      , Just (DMN_List inner@(DMN_List _)) <- [vartype ch]
+      ]
+
+    innermost (DMN_List t) = innermost t
+    innermost t            = t
+
+    listInputErrs =
+      [ msg
+      | r@DTrow{} <- allrows dt
+      , (ch, cells) <- zip ins (row_inputs r)
+      , isListCol ch
+      , not (nested ch)
+      , msg <- inputCellErrs ch (row_number r) cells
+      ]
+
+    listOutputErrs =
+      [ locate ch rn (concat
+          [ "the output cell reads ", show (showDomainMember cell)
+          , ". An output column produces a VALUE, and a collection column's value"
+          , " is a comma-separated list of members. A test is not a value." ])
+      | r@DTrow{} <- allrows dt
+      , let rn = row_number r
+      , (ch, cells) <- zip outs (row_outputs r)
+      , isListCol ch
+      , not (nested ch)
+      , cell <- cells
+      , not (isPlainOrWild cell)
+      ]
+
+    -- R2/R3/R4, per cell of a collection INPUT column.
+    inputCellErrs ch rn cells = concat
+      [ -- R4 first: a mixed cell explains the others away.
+        [ locate ch rn (concat
+            [ "this cell mixes \"-\" with values. \"-\" already matches every"
+            , " collection, so the other values cannot change the answer."
+            , " Write \"-\" alone, or drop it."
+            , " A trailing or doubled comma is the usual cause." ])
+        | any (== FAnything) cells, length cells > 1 ]
+      , [ locate ch rn (junkMsg s)
+        | length cells == 1 || not (any (== FAnything) cells)
+        , FNullary (VS s) <- cells, any (`elem` ("()[]" :: String)) s ]
+      , [ locate ch rn (ambiguousMsg ch cell)
+        | not (any (== FAnything) cells)
+        , cell <- cells, not (isPlainOrWild cell) ]
+      ]
+
+    -- R2. The one that matters. Measured in node: `[5] > 3` is true, `[10] > 3`
+    -- is true, `[1,2] > 3` is false — JS stringifies the array and coerces, so
+    -- the emitted guard fires on some qualifying lists and not others. Refusing
+    -- beats picking a quantifier, because the two readings are different rules
+    -- and DMN gives the comparison no meaning at all: §10.3.2.10 reduces
+    -- satisfaction to FEEL(e in (t)) and Table 54 defines < and > over scalars.
+    ambiguousMsg ch cell = concat
+      [ "column ", show (varname ch), " is a collection ("
+      , maybe "?" showType (vartype ch), ") and the cell reads "
+      , show (showDomainMember cell)
+      , ". A test against a collection is ambiguous — \"some element "
+      , showDomainMember cell, "\" and \"every element ", showDomainMember cell
+      , "\" are different rules — and DMN gives it no meaning, so a conformant"
+      , " engine yields null and the rule never fires. dmnmd will not guess."
+      , " A collection column's cell may be a plain value, meaning the"
+      , " collection CONTAINS it, a comma-separated list of them, meaning \"any"
+      , " of these\", or \"-\". Aggregate the collection to a scalar before the"
+      , " table, or split the column." ]
+
+    -- R3. This is the shape a FEEL construct arrives in after 'mkFsEither'
+    -- splits the cell on commas: `not("Fall", "Winter")` becomes fragments with
+    -- unbalanced parens, and `list contains(?, "RED")` and `["a","b"]` likewise.
+    -- Without this they are junk members that typecheck and never fire.
+    junkMsg s = concat
+      [ "the cell reads ", show s
+      , " — a collection column's cell must be a plain member value or \"-\"."
+      , " dmnmd does not implement FEEL function calls, negation or list"
+      , " literals in a decision-table cell, and the comma split has already"
+      , " broken this one into fragments."
+      , " If the value really is that text, quote the whole cell." ]
+
+    -- R5. Without this a collection reaches 'fNEval'/'fromVN', whose errors name
+    -- no table, column or row. Keyed on 'varname' exactly as 'evalTable' keys
+    -- its symbol table.
+    listArithErrs =
+      [ concat [ maybe "" (\n -> "row " ++ show n ++ ": ") (row_number r)
+               , "the expression refers to column ", show v
+               , ", which is a collection (", maybe "?" showType (vartype ch)
+               , "). dmnmd has no arithmetic over collections." ]
+      | r@DTrow{} <- allrows dt
+      , FFunction f <- concat (row_inputs r ++ row_outputs r)
+      , v <- fnVars f
+      , ch <- ins ++ outs
+      , varname ch == v
+      , isListCol ch
+      ]
+
+    -- R6/R7. A collection has no position in an element-level domain, so every
+    -- comparison is EQ and the ordering silently degrades to row order; and
+    -- there is no aggregate over collections, so Collect would flatten every
+    -- matching row's elements into one number with no diagnostic.
+    hitPolicyErrs = case hitpolicy dt of
+      HP_Priority    -> orderErr "Priority"
+      HP_OutputOrder -> orderErr "OutputOrder"
+      HP_Collect op | op /= Collect_All ->
+        [ concat [ "hit policy Collect ", showCollect op, " aggregates output column "
+                 , show (varname ch), ", which is a collection ("
+                 , maybe "?" showType (vartype ch)
+                 , "). dmnmd has no aggregate over collections — the elements of"
+                 , " every matching row would be flattened into one number with no"
+                 , " diagnostic. Use Collect All, or a scalar output column." ]
+        | ch <- outs, isListCol ch ]
+      _ -> []
+
+    orderErr hp =
+      [ concat [ "hit policy ", hp, " orders rows by output column "
+               , show (varname ch), "'s declared domain, but ", show (varname ch)
+               , " is a collection (", maybe "?" showType (vartype ch)
+               , ") whose domain is element-level — a collection value has no"
+               , " position in it, so every comparison is EQ and the ordering"
+               , " silently degrades to row order." ]
+      | ch <- outs, isListCol ch, Just (_:_) <- [enums ch] ]
+
+    nested ch = case vartype ch of
+      Just (DMN_List (DMN_List _)) -> True
+      _                            -> False
+
+    isPlainOrWild FAnything    = True
+    isPlainOrWild (FNullary _) = True
+    isPlainOrWild _            = False
+
+    locate ch rn body = concat
+      [ "column ", show (varname ch)
+      , maybe "" (\n -> ": row " ++ show n) rn, ": ", body ]
+
+-- | Every variable an arithmetic cell mentions.
+fnVars :: FNumFunction -> [String]
+fnVars (FNF0 _)         = []
+fnVars (FNF1 v)         = [v]
+fnVars (FNF3 l _ r)     = fnVars l ++ fnVars r
+
+-- | A column type, spelled as it would be written in a markdown header.
+showType :: DMNType -> String
+showType DMN_String     = "String"
+showType DMN_Number     = "Number"
+showType DMN_Boolean    = "Boolean"
+showType (DMN_List t)   = "[" ++ showType t ++ "]"
+
+-- | A hit policy as the author wrote it in the table's top-left cell, rather
+-- than as @show@ spells the constructor.
+showHitPolicy :: HitPolicy -> String
+showHitPolicy HP_Unique       = "U (Unique)"
+showHitPolicy HP_Any          = "A (Any)"
+showHitPolicy HP_Priority     = "P (Priority)"
+showHitPolicy HP_First        = "F (First)"
+showHitPolicy HP_OutputOrder  = "O (OutputOrder)"
+showHitPolicy HP_RuleOrder    = "R (RuleOrder)"
+showHitPolicy (HP_Collect op) = "C (Collect " ++ showCollect op ++ ")"
+-- No parser produces this: 'mkHitPolicy_' has no letter for it and
+-- 'mkHitPolicy_C' only builds HP_Collect. Kept nameable rather than partial.
+showHitPolicy HP_Aggregate    = "Aggregate"
+
+showCollect :: CollectOperator -> String
+showCollect Collect_Sum = "Sum"
+showCollect Collect_Min = "Min"
+showCollect Collect_Max = "Max"
+showCollect Collect_Cnt = "Count"
+showCollect Collect_All = "All"
+
+-- | Things worth saying out loud that are not grounds for refusal.
+--
+-- Printed on stderr; the exit status is unaffected, because it answers only
+-- "did something we were asked to read fail to read?".
+tableWarnings :: DecisionTable -> [String]
+tableWarnings dt = overlapWarn
+  where
+    ins = getInputHeaders (header dt)
+    listIns = [ varname ch | ch <- ins, isListCol ch ]
+
+    -- W2. Membership tests over DISJOINT values still overlap: rules `admin`
+    -- and `clerk` both fire on ["admin","clerk"]. So a table a DMN validator
+    -- would call fine can report "multiple rows returned" at run time.
+    overlapWarn
+      | null listIns = []
+      | hitpolicy dt `elem` [HP_Unique, HP_Any] =
+          [ concat [ "hit policy ", showHitPolicy (hitpolicy dt), " with collection input column(s) "
+                   , intercalate ", " (show <$> listIns)
+                   , ": membership tests over disjoint values still overlap — a"
+                   , " collection holding two of them matches both rules — so this"
+                   , " table can report multiple matches on input a DMN validator"
+                   , " would accept." ]
+          ]
+      | otherwise = []
+
 -- | Every way a table's cells violate the domains its sub-header row declares.
 --
 -- Empty means the table is consistent with what it says about itself. Returned
@@ -419,7 +655,32 @@ showDomainMember (FNullary (VN n)) = show n
 showDomainMember (FNullary (VB b)) = toLower <$> show b
 showDomainMember (FInRange lo hi)  = "[" ++ show lo ++ ".." ++ show hi ++ "]"
 showDomainMember  FAnything        = "-"
-showDomainMember  e                = show e
+-- A refusal quotes the cell back at the author, so these have to read like the
+-- table did — @"> 3"@, not @"FSection Fgt (VN 3.0)"@. Before 'structuralErrors'
+-- nothing but 'FNullary' and 'FInRange' could reach here, so the @show e@
+-- fallthrough was never seen; now it can be, and a diagnostic that names a
+-- Haskell constructor is a diagnostic the author cannot act on.
+showDomainMember (FSection op v)   = showBinOp op ++ " " ++ showDomainMember (FNullary v)
+showDomainMember (FFunction f)     = showFNumFunction f
+
+showBinOp :: FBinOp -> String
+showBinOp Flt  = "<"
+showBinOp Flte = "<="
+showBinOp Fgt  = ">"
+showBinOp Fgte = ">="
+showBinOp Feq  = "="
+
+showFNumFunction :: FNumFunction -> String
+showFNumFunction (FNF0 v)       = showDomainMember (FNullary v)
+showFNumFunction (FNF1 v)       = v
+showFNumFunction (FNF3 l op r)  =
+  showFNumFunction l ++ showFNOp2' op ++ showFNumFunction r
+  where
+    showFNOp2' FNMul   = " * "
+    showFNOp2' FNDiv   = " / "
+    showFNOp2' FNPlus  = " + "
+    showFNOp2' FNMinus = " - "
+    showFNOp2' FNExp   = " ** "
 
 -- | Rebuild a column's declared domain at the type inference settled on.
 --

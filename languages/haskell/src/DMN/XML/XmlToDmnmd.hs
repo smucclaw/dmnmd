@@ -26,7 +26,7 @@ import DMN.Diagnostic
 import qualified DMN.Types as T
 import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
-import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, domainErrors, trim)
+import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, tableErrors, tableWarnings, trim)
 import DMN.ParsingUtils (Parser, parseOnly)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as M
@@ -189,12 +189,13 @@ convTable env name X.DecisionTable
     -- read by nobody for input columns — parsed, not honoured, silent, which is
     -- the rule this module exists to enforce, broken inside the module itself.
     --
-    -- The rule is 'domainErrors', shared with the markdown reader rather than
+    -- The rule is 'tableErrors', shared with the markdown reader rather than
     -- reimplemented: see the standing note above 'DMN.DecisionTable.mkFsEither'
     -- about validators that drift from their constructor. Only the framing is
     -- local — `inTable` supplies the table name, matching every other
     -- diagnostic here, and an Error means this table is not emitted at all.
-    domainDiags = errorAt . inTable <$> domainErrors table
+    domainDiags = (errorAt . inTable <$> tableErrors table)
+               ++ (warnAt  . inTable <$> tableWarnings table)
 
     inTable :: String -> String
     inTable msg = "table " ++ show name ++ ": " ++ msg
