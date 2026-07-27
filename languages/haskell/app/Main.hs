@@ -11,7 +11,7 @@ import System.IO
       openFile,
       stdout,
       IOMode(WriteMode) )
-import Control.Monad ( when, unless, forM_ )
+import Control.Monad ( when, unless, forM_, zipWithM )
 import System.Exit ( exitFailure )
 import Data.List.Split (splitOn)
 import Data.List (intercalate, nub)
@@ -31,7 +31,8 @@ import DMN.Types
       DMNType,
       ColHeader(vartype) )
 import DMN.DecisionTable
-    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkF, tableWarnings )
+    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkInputValue, splitArgs,
+      tableWarnings )
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
 import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
@@ -89,7 +90,9 @@ main = do
         Nothing -> return ()
         Just "quit" -> return ()
         Just inputCmd -> do
-          let splitInput = trim <$> splitOn "," inputCmd
+          -- Bracket-aware, so `[1,2,3]` stays ONE argument. A plain
+          -- splitOn "," predates types and shredded it into three.
+          let splitInput = trim <$> splitArgs inputCmd
           if length splitInput /= length expecting
             then outputStrLn ("error: expected " ++ show (length expecting) ++ " arguments, got " ++ show (length splitInput) ++
                               "; arguments should be " ++ show expecting)
@@ -101,7 +104,7 @@ main = do
                     (\errstr -> outputStrLn $ "problem running " ++ inputCmd ++ " against table " ++ tableName dtable ++ ": " ++ errstr)
                     (outputStr . unlines . map (\resultrow ->
                                                    tableName dtable ++ ": " ++ intercalate ", " (showToJSON (outformat opts) dtable resultrow)))
-                    (evalTable dtable (zipWith mkF expecting splitInput))
+                    (evalTable dtable =<< zipWithM mkInputValue expecting splitInput)
                 ) dtables
           outputStrLn ""
           loop opts dtables

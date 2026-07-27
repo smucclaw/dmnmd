@@ -201,6 +201,59 @@ mkFEither (Just DMN_Number)  arg1
                        (Right . VN)
                        (readMaybe x :: Maybe Float)
 
+-- | Parse a runtime ARGUMENT — as opposed to a table cell, which is a TEST.
+--
+-- 'mkFEither' builds a test: @>= 5@ in a cell is a section that matches a range
+-- of values. That is exactly wrong for something typed at a prompt, where
+-- @>= 5@ is not a value at all, and the @-q@ REPL accepting it has always been
+-- a category error. This is the value-side counterpart, and it is the only
+-- producer of 'VL'.
+--
+-- A collection is written the way FEEL writes one, @[a, b, c]@, with @[]@ for
+-- the empty collection. The split is bracket-depth aware, so it does not shred
+-- a nested literal the way a bare @splitOn ","@ would.
+mkInputValue :: Maybe DMNType -> String -> Either String FEELexp
+mkInputValue ty raw = FNullary <$> go ty (trim raw)
+  where
+    go (Just (DMN_List t)) s = case stripBrackets s of
+      Just inner
+        | null (trim inner) -> Right (VL [])
+        | otherwise         -> VL <$> traverse (go (Just t)) (splitArgs inner)
+      Nothing -> Left $ concat
+        [ "this column is a collection, so its value must be written [a, b, c]"
+        , " (or [] for none) — got ", show s ]
+    go (Just DMN_Number) s =
+      maybe (Left $ "expected a number, got " ++ show s) (Right . VN)
+            (readMaybe (trim s) :: Maybe Float)
+    go (Just DMN_Boolean) s
+      | (toLower <$> trim s) `elem` ["true","yes","t","y"]  = Right (VB True)
+      | (toLower <$> trim s) `elem` ["false","no","f","n"]  = Right (VB False)
+      | otherwise = Left $ "expected a boolean, got " ++ show s
+    go _ s = Right (VS (head (unquoteCell [trim s])))
+
+-- | @[a, b]@ to @a, b@. 'Nothing' when the text is not bracketed at all.
+stripBrackets :: String -> Maybe String
+stripBrackets s = case trim s of
+  ('[':rest) | not (null rest), last rest == ']' -> Just (init rest)
+  _                                              -> Nothing
+
+-- | Split on commas at bracket depth zero.
+--
+-- The REPL's own @splitOn ","@ predates types and shreds @[1,2,3]@ into three
+-- arguments before anything knows the column is a collection. This does not.
+-- It governs the ARGUMENT split only; a table cell's comma still always means
+-- OR, and 'mkFsEither' is untouched.
+splitArgs :: String -> [String]
+splitArgs = go 0 ""
+  where
+    go :: Int -> String -> String -> [String]
+    go _ acc []       = [reverse acc]
+    go d acc (c:cs)
+      | c == ',' && d == 0 = reverse acc : go d "" cs
+      | c `elem` ("[(" :: String) = go (d + 1) (c:acc) cs
+      | c `elem` ("])" :: String) = go (d - 1) (c:acc) cs
+      | otherwise                 = go d (c:acc) cs
+
 -- | Unwrap S-FEEL string literals across a whole cell, __all or nothing__.
 --
 -- @"Fall"@ denotes the four-character value @Fall@; the quotes are not part of
@@ -271,6 +324,27 @@ fEvals arg exps = or $ (`fEval` arg) <$> exps
 -- column in table -> input parameter -> is there a match?
 fEval :: FEELexp -> FEELexp -> Bool
 fEval FAnything    _                  = True
+-- A collection ARGUMENT against a plain cell is MEMBERSHIP — the same meaning
+-- the four backends emit (`.includes`, ` in `, `dmnmd list contains`). Placed
+-- after the FAnything arm, so `-` still matches any collection including the
+-- empty one, and before every scalar arm, so a VL cannot reach the error
+-- catch-all below.
+--
+-- Membership over the empty collection is False, uniformly: node
+-- `[].includes(x)` is false, python `x in []` is False, and the emitted L4
+-- helper answers FALSE for EMPTY. There is no vacuous-truth case anywhere,
+-- because dmnmd has no universal test to have one.
+fEval (FNullary v) (FNullary (VL vs)) = v `elem` vs
+-- A collection where a scalar test expects a scalar. Loud, and naming both
+-- sides: silently answering False would be a wrong answer that exits 0.
+fEval test (FNullary (VL vs)) = error $ unwords
+  [ "type error: the value supplied is a collection,", showDomainMember (FNullary (VL vs))
+  , ", but the cell", show (showDomainMember test), "is not a membership test."
+  , "A collection argument belongs to a column declared [T]." ]
+fEval (FNullary (VL vs)) val = error $ unwords
+  [ "type error: the cell holds a collection,", showDomainMember (FNullary (VL vs))
+  , ", which cannot happen — a collection is a runtime argument, never a cell."
+  , "Supplied value was", show (showDomainMember val) ]
   -- alternative phrasing without arrows: (snd . fromJust . (find ((== f) . fst))
 fEval (FSection f    (VN rhs)) (FNullary (VN lhs)) = (find ((== f) <<< fst) >>> fromJust >>> snd)
                                                       [(Flt,(<)), (Flte,(<=)), (Fgt,(>)), (Fgte,(>=)), (Feq,(==))]
@@ -660,6 +734,11 @@ showDomainMember  FAnything        = "-"
 -- nothing but 'FNullary' and 'FInRange' could reach here, so the @show e@
 -- fallthrough was never seen; now it can be, and a diagnostic that names a
 -- Haskell constructor is a diagnostic the author cannot act on.
+-- Unreachable: a 'VL' is a runtime argument, never a cell, so it can never be a
+-- domain member. Spelled out anyway, because the alternative is Haskell
+-- constructor syntax leaking into a diagnostic.
+showDomainMember (FNullary (VL vs)) =
+  "[" ++ intercalate ", " (showDomainMember . FNullary <$> vs) ++ "]"
 showDomainMember (FSection op v)   = showBinOp op ++ " " ++ showDomainMember (FNullary v)
 showDomainMember (FFunction f)     = showFNumFunction f
 
@@ -763,6 +842,12 @@ inferTypes origch origrows = -- Debug.Trace.trace ("  infertypes: called with co
 -- initially, we let type inference work for everything except functions.
 -- in the future we may need to change the return type from Maybe DMNType to FEELexp (FNumFunction | FNullary)
 inferType :: FEELexp -> Maybe DMNType
+-- A 'VL' never reaches inference: inference runs over CELLS, and no cell can
+-- hold one. A collection column is therefore always explicitly declared —
+-- there is no `[Number]` to infer — which is also why 'inferTypes' preserving a
+-- declared list type is load-bearing rather than incidental.
+inferType (FNullary  (VL _)) = Nothing
+inferType (FSection _ (VL _)) = Nothing
 inferType (FFunction _) = Just DMN_Number
 inferType (FSection _ (VN _)) = Just DMN_Number
 inferType (FSection _ (VB _)) = Just DMN_Boolean

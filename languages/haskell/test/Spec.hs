@@ -29,7 +29,7 @@ import TranslateL4Spec (l4Spec)
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, sfeelSpec, l4Spec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, sfeelSpec, l4Spec, listSpec] $ hspec
   return ()
 
 parseHelloWorld :: Parser ()
@@ -666,3 +666,46 @@ dmn6a = T.pack $ dropWhile (=='\n') [r|
 | 3 | [21..25]     | True                   |                 1500 |
 | 4 | >25          | True                   |            age * 100 |
 |]
+
+-- | Collection semantics at the level they are decided: 'fEval' for matching,
+-- 'mkInputValue' for the runtime argument, 'splitArgs' for the argument split.
+-- Cheaper and sharper here than through the CLI.
+listSpec :: Spec
+listSpec = do
+  describe "DMN.DecisionTable.fEval — collection arguments are membership" $ do
+    it "matches when the collection contains the cell's value" $
+      fEval (FNullary (VS "admin")) (FNullary (VL [VS "admin", VS "x"])) `shouldBe` True
+    it "does not match when it does not" $
+      fEval (FNullary (VS "admin")) (FNullary (VL [VS "clerk"])) `shouldBe` False
+    it "is False over the empty collection — there is no vacuous-truth case" $
+      fEval (FNullary (VS "admin")) (FNullary (VL [])) `shouldBe` False
+    it "lets the wildcard match any collection, including the empty one" $ do
+      fEval FAnything (FNullary (VL [VS "a"])) `shouldBe` True
+      fEval FAnything (FNullary (VL []))       `shouldBe` True
+    it "matches numerically, so 5 is found in [1,5,9]" $
+      fEval (FNullary (VN 5)) (FNullary (VL [VN 1, VN 5, VN 9])) `shouldBe` True
+
+  describe "DMN.DecisionTable.mkInputValue — an argument is a VALUE, not a test" $ do
+    it "reads a collection written the way FEEL writes one" $
+      mkInputValue (Just (DMN_List DMN_String)) "[a, b]"
+        `shouldBe` Right (FNullary (VL [VS "a", VS "b"]))
+    it "reads the empty collection" $
+      mkInputValue (Just (DMN_List DMN_String)) "[]"
+        `shouldBe` Right (FNullary (VL []))
+    it "types the elements, not just the list" $
+      mkInputValue (Just (DMN_List DMN_Number)) "[1, 5]"
+        `shouldBe` Right (FNullary (VL [VN 1, VN 5]))
+    it "refuses a scalar where a collection belongs, naming the repair" $
+      case mkInputValue (Just (DMN_List DMN_String)) "admin" of
+        Left msg -> msg `shouldContain` "[a, b, c]"
+        Right v  -> expectationFailure ("expected a refusal, got " ++ show v)
+    it "refuses an element that is not of the declared element type" $
+      case mkInputValue (Just (DMN_List DMN_Number)) "[1, wat]" of
+        Left msg -> msg `shouldContain` "expected a number"
+        Right v  -> expectationFailure ("expected a refusal, got " ++ show v)
+
+  describe "DMN.DecisionTable.splitArgs — bracket-aware argument split" $ do
+    it "keeps a collection literal as ONE argument" $
+      splitArgs "[1,2,3], x" `shouldBe` ["[1,2,3]", " x"]
+    it "still splits ordinary scalar arguments" $
+      splitArgs "a, b" `shouldBe` ["a", " b"]

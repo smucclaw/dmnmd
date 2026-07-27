@@ -839,6 +839,13 @@ showValL4 = \case
   VS s -> showStrL4 s
   VN n -> showNumL4 n
   VB b -> if b then "TRUE" else "FALSE"
+  -- A 'VL' is a runtime argument to the interpreter and never reaches emission:
+  -- no cell can hold one, and a collection OUTPUT cell is a list of ELEMENT
+  -- values rendered by 'renderOutCell', not a single VL. Rendered anyway rather
+  -- than left partial, since the L4 spelling is unambiguous.
+  VL vs -> case vs of
+    [] -> "EMPTY"
+    _  -> "LIST " ++ intercalate ", " (showValL4 <$> vs)
 
 -- | Double-quote a string literal, escaping backslashes and quotes.
 showStrL4 :: String -> String

@@ -201,5 +201,17 @@ data FNComp = FNEq
 data DMNVal = VS String
             | VN Float
             | VB Bool
+            -- | A collection, and __only ever a runtime argument__.
+            --
+            -- A 'VL' cannot appear in a decision table cell:
+            -- 'DMN.DecisionTable.mkFEither' has no way to build one, because a
+            -- cell in a collection column is parsed at the ELEMENT type. It is
+            -- produced solely by 'Main.mkInputValue', which parses a VALUE
+            -- supplied at the prompt, as opposed to a TEST written in a table.
+            --
+            -- That distinction is the point. A cell is a test, a runtime
+            -- argument is a value, and conflating them is why the @-q@ REPL
+            -- used to accept @>= 5@ as an "input".
+            | VL [DMNVal]
             deriving (Show, Eq)
 
