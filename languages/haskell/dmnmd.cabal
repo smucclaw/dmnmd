@@ -76,6 +76,7 @@ library
     , split
   exposed-modules:
       DMN.DecisionTable
+      DMN.Diagnostic
       DMN.ParseFEEL
       DMN.ParseTable
       DMN.ParsingUtils

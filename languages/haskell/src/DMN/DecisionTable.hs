@@ -313,7 +313,7 @@ mkDTable origname orighp origchs origdtrows =
 -- Empty means the table is consistent with what it says about itself. Returned
 -- rather than thrown so both readers can use it: 'mkDTable' turns it into an
 -- @error@, which is how the markdown path already reports a bad cell, and the
--- XML reader can turn the same list into located 'DMN.XML.XmlToDmnmd.Diagnostic's
+-- XML reader can turn the same list into located 'DMN.Diagnostic.Diagnostic's
 -- and refuse just the one table. Do not grow a second copy of this rule
 -- anywhere — a validator that drifts from the constructor is worse than none.
 --
