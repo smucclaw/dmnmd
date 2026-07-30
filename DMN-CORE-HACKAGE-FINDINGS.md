@@ -18,10 +18,11 @@ as "shape 6" among six), one on DMN TCK conformance (which reached it independen
 "the best idea in the thread"). This is what they found, with the stale bits corrected against
 the tree as of today.
 
-**One reference will not resolve yet.** Commit `837800b`, cited throughout as the point where
-dmnmd's last system dependency was retired, is on the unmerged branch `fix/num-cell-layer` and has
-not been pushed. Everything asserted about it was verified by running it; if you want to check it
-yourself, wait for that branch to land on `trunk`.
+**Every reference here now resolves on `trunk`.** An earlier version of this paragraph warned that
+commit `837800b` — cited throughout as the point where dmnmd's last system dependency was retired —
+was on an unpushed branch. That branch landed as PR #39 on 2026-07-31, and the rebase renamed the
+commit to `36df5a9`. Both facts are recorded because a SHA that silently stops resolving is exactly
+the kind of claim this document is trying not to make.
 
 ---
 
@@ -98,7 +99,7 @@ merge permission was dmnmd-only.
 ## 2. Correction: the WASM blocker is gone, on both sides
 
 Both workflows treated `regex-pcre` as a live blocker on dmnmd's side. **It was retired on
-2026-07-30** — dmnmd `837800b`, *"build: retire regex-pcre, and with it dmnmd's last system
+2026-07-30** — dmnmd `36df5a9`, *"build: retire regex-pcre, and with it dmnmd's last system
 dependency"*.
 
 What made it removable was reading the patterns rather than replacing them. Unescaped, eight of
@@ -307,7 +308,7 @@ artefact shrinks to a ~150-line `dmn-lexical` (`renderNumber`, `feelIdentText`, 
 **Declare a neutral Hackage core the destination. Build none of it yet.**
 
 Deciding it now is free and disciplines the intermediate work in exactly the useful way: keep the
-core dependency-light (done — zero system deps as of `837800b`), keep markdown-grammar and
+core dependency-light (done — zero system deps as of `36df5a9`), keep markdown-grammar and
 L4-export concerns out of the IR, keep C bindings out. The split is already almost clean on
 dmnmd's side: `grepMarkdown` lives in `app/ParseMarkdown.hs`, **not in the library**, and
 `XmlToDmnmd` imports `DecisionTable`, never `ParseTable`.

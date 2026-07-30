@@ -16,7 +16,7 @@ price is not written down gets reopened by whoever first pays it.
 
 ## 2026-07-30 — retiring the idiosyncrasies
 
-Twelve divergences from DMN 1.3 were audited against the tree at `837800b` and ruled on. Numbering
+Twelve divergences from DMN 1.3 were audited against the tree at `36df5a9` and ruled on. Numbering
 is `D-n` and is referenced from commit messages and corpus `WHY` fields.
 
 ### D-1 — numbers become `Scientific`. **RULED: adopt.**
@@ -33,7 +33,7 @@ would buy IR similarity at the price of matching FEEL, and would still need a re
 all four backends because it renders ⅓ as `(1 / 3)`.
 
 **Why not a decimal128 binding.** Letter-perfect, and the route `dsntk` took by binding Intel's
-DFP library. It reintroduces a C dependency one commit after `837800b` removed the last one, will
+DFP library. It reintroduces a C dependency one commit after `36df5a9` removed the last one, will
 not cross-build to wasm32, and both candidate Hackage packages are dead (`decimal-arithmetic`
 2018, `deka` 2014).
 
@@ -146,7 +146,7 @@ actually modelling the graph.
 carrying a Haskell `CallStack`, while the same cell arriving through XML is a structured
 `Diagnostic` — which `XmlToDmnmd` does on purpose.
 
-Commit 6 (`176c825`) fixes the *message* — which table, column and rule number — and deliberately
+Commit 6 (`7a5e990`) fixes the *message* — which table, column and rule number — and deliberately
 keeps the mechanism, because changing both at once would make the corpus diff unreadable at exactly
 the moment it matters most. The mechanism change is its own piece of work.
 
@@ -178,7 +178,7 @@ but its own test. dmnmd has had a conformant S-FEEL vocabulary parked for years,
 part of why l4-ide had to write its own.
 
 **Two decisions above independently want what it already has:** D-1 wants `Scientific`, and the
-bracket flags added in commit 2 (`5577209`) are a re-derivation of its `IsOpen`. A third
+bracket flags added in commit 2 (`15e9f02`) are a re-derivation of its `IsOpen`. A third
 re-derivation is the moment to stop. Leaving a second, better, unused type vocabulary in the library
 is the worst of the three options — it is the shape of the mistake that produced this whole audit.
 
