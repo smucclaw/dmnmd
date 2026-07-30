@@ -287,9 +287,10 @@ mkFEither _ "-" = Right FAnything
 --
 -- __Do not turn this arm into a 'Left'.__ It is the obvious way to make an
 -- ambiguous list cell refuse, and it crashes on ordinary tables:
--- 'reprocessRows' calls @mkF (vartype ch)@ with the FULL column type on two
+-- 'reprocessRows' calls @mkFAt (vartype ch)@ with the FULL column type on two
 -- live paths — a list-typed OUTPUT column's cells, and 'retypeEnums' rebuilding
--- a declared domain — and @mkFs = either error id@. Refusals belong in
+-- a declared domain — and @mkFAt@ is @either error id@ under its location
+-- prefix, so a 'Left' there aborts rather than diagnosing. Refusals belong in
 -- 'structuralErrors', which walks 'allrows' and can therefore see which row,
 -- which column, and whether the cell is an input, an output or a domain member.
 mkFEither (Just (DMN_List t)) x    = mkFEither (Just t) x
@@ -503,7 +504,7 @@ mkDTable origname orighp origchs origdtrows =
     -- a new domain member, and a rule built from it can never match. Emitting it
     -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
     -- §8. Reported by @error@ because that is how this path already reports a
-    -- bad cell ('mkFs'); the XML reader calls 'domainErrors' directly so it can
+    -- bad cell ('mkFsAt'); the XML reader calls 'domainErrors' directly so it can
     -- locate the failure and refuse only the offending table.
     case tableErrors built of
       []   -> built
@@ -525,12 +526,13 @@ tableErrors dt = structuralErrors dt ++ domainErrors dt
 --
 --  * 'mkFEither' cannot tell an input cell from an output cell from a
 --    __sub-header domain member__ — 'DMN.ParseTable.parseTable' builds @enums@
---    through the same 'mkFs'. A range domain @[0..150]@ on a @[Number]@ column
+--    through the same 'mkFsAt'. A range domain @[0..150]@ on a @[Number]@ column
 --    works today; refusing tests in the constructor would make it unwritable.
 --  * it knows no row number and no column name, so the message could not locate
 --    the offending cell.
---  * @mkFs = either error id@, and 'reprocessRows' calls it with the full column
---    type on live paths, so a 'Left' there crashes ordinary tables.
+--  * the located wrappers are still @either error id@ underneath, and
+--    'reprocessRows' calls 'mkFAt' with the full column type on live paths, so a
+--    'Left' there crashes ordinary tables.
 --
 -- Walking 'allrows' fixes all three: the sub-header row is excluded __by
 -- construction__ rather than by a special case that could rot.
@@ -956,7 +958,7 @@ retypeEnums tbl ch = case enums ch of
 -- comes from the 'ColHeader' this already has in hand.
 reprocessRows :: String -> Maybe Int -> [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
 reprocessRows tbl rn =
-  -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
+  -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re-'mkFAt' it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
                -- DMN_String used to be excluded here alongside Nothing, because

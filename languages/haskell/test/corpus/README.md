@@ -249,7 +249,16 @@ crash from one to the other becomes invisible.
 
 (No line numbers are quoted in this file, or in the runner, on purpose. They are the
 part that goes stale: this paragraph spent several commits asserting `:121` and
-`:143` after both had moved, and `:143` had never been right at all.)
+`:143` after both had moved.
+
+An earlier version of this parenthesis went further and said `:143` "had never been
+right at all". **That was false, and it is retracted.** At `a670657` — the commit that
+wrote the original sentence — `:121` was `mkFs`'s body and `:143` was `mkF`'s, and six
+recordings cited `:143` while eight cited `:121`. Both numbers were exact when written.
+They went stale, which is the entire argument for not quoting them, and is a *smaller*
+claim than "never right" — so the correction made the paragraph more confident and less
+true at the same time. Checkable in one command:
+`git show a670657:languages/haskell/src/DMN/DecisionTable.hs | sed -n '121p;143p'`.)
 
 So the positions stay, and the *comparison* is what gives ground: a diff consisting
 of nothing but moved positions is classified `cosmetic` and does not fail the run.
