@@ -111,6 +111,10 @@ wrapParen myop xs
 wrapArray :: String -> [String] -> String
 wrapArray myop xs = "[" ++ intercalate myop xs ++ "]"
 
+leqOf :: Bound -> FNComp
+leqOf BClosed = FNLeq
+leqOf BOpen   = FNLt
+
 nonBlankCols :: a -> [FEELexp] -> Maybe (a, [FEELexp])
 nonBlankCols chs dtrows = if dtrows /= [FAnything] then Just (chs, dtrows) else Nothing
 
@@ -135,7 +139,9 @@ feel2pyIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "py" FNLt  ++ show rh
 feel2pyIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "py" FNLeq ++ show rhs
 feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "py" FNGt  ++ show rhs
 feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "py" FNGeq ++ show rhs
-feel2pyIn lhs (FInRange lower upper)   = wrapParen (showFNLog "py" FNAnd) [show lower ++ showFNComp "py" FNLeq ++ lhs, lhs ++ showFNComp "py" FNLeq ++ show upper]
+feel2pyIn lhs (FInRange lk lower upper rk) = wrapParen (showFNLog "py" FNAnd)
+  [ show lower ++ showFNComp "py" (leqOf lk) ++ lhs
+  , lhs ++ showFNComp "py" (leqOf rk) ++ show upper ]
 feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
 -- This arm was MISSING while 'DMN.Translate.JS.feel2jsIn' had it (JS.hs:152), so
 -- an arithmetic input cell was a runtime @Non-exhaustive patterns@ in --to=py and

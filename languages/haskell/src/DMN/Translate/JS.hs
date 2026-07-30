@@ -146,6 +146,11 @@ wrapParen myop xs
 --wrapArray :: String -> [String] -> String
 --wrapArray myop xs = "[" ++ intercalate myop xs ++ "]"
 
+-- | A bound as the comparison that includes or excludes it.
+leqOf :: Bound -> FNComp
+leqOf BClosed = FNLeq
+leqOf BOpen   = FNLt
+
 nonBlankCols :: a -> [FEELexp] -> Maybe (a, [FEELexp])
 nonBlankCols chs dtrows = if dtrows /= [FAnything] then Just (chs, dtrows) else Nothing
 
@@ -164,7 +169,9 @@ feel2jsIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "ts" FNLt  ++ show rh
 feel2jsIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "ts" FNLeq ++ show rhs
 feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "ts" FNGt  ++ show rhs
 feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ show rhs
-feel2jsIn lhs (FInRange lower upper)   = wrapParen (showFNLog "ts" FNAnd) [show lower ++ showFNComp "ts" FNLeq ++ lhs, lhs ++ showFNComp "ts" FNLeq ++ show upper]
+feel2jsIn lhs (FInRange lk lower upper rk) = wrapParen (showFNLog "ts" FNAnd)
+  [ show lower ++ showFNComp "ts" (leqOf lk) ++ lhs
+  , lhs ++ showFNComp "ts" (leqOf rk) ++ show upper ]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
 feel2jsIn lhs o@(FFunction fnunf)      = showFeel "ts" o
 -- Ordering comparisons against a non-numeric value; see 'showFeel's own catch-all.

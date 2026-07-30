@@ -192,7 +192,7 @@ mkFEither (Just DMN_Number)  arg1
   | ">=" `isSuffixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
   | arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: Bool =
     let (_,_,_,bounds) = arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: (String,String,String,[String])
-    in Right (FInRange ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float))
+    in Right (FInRange BClosed ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float) BClosed)
   | "="  `isPrefixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhile    (=='=') arg2)
   | "="  `isSuffixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhileEnd (=='=') arg2)
   | otherwise              = FNullary      <$> (mkVN $ trim                        arg2)
@@ -349,7 +349,10 @@ fEval (FNullary (VL vs)) val = error $ unwords
 fEval (FSection f    (VN rhs)) (FNullary (VN lhs)) = (find ((== f) <<< fst) >>> fromJust >>> snd)
                                                       [(Flt,(<)), (Flte,(<=)), (Fgt,(>)), (Fgte,(>=)), (Feq,(==))]
                                                      lhs rhs
-fEval (FInRange lower upper)   (FNullary (VN lhs)) = lower <= lhs && lhs <= upper
+fEval (FInRange lk lower upper rk) (FNullary (VN lhs)) =
+  cmp lk lower lhs && cmp rk lhs upper
+  where cmp BClosed a b = a <= b
+        cmp BOpen   a b = a <  b
 fEval (FSection Feq  (VB rhs)) (FNullary (VB lhs)) = lhs == rhs
 fEval (FSection Feq  (VS rhs)) (FNullary (VS lhs)) = lhs == rhs
 fEval (FNullary (VS rhs)) (FNullary (VS lhs)) = lhs == rhs
@@ -727,7 +730,12 @@ showDomainMember :: FEELexp -> String
 showDomainMember (FNullary (VS s)) = s
 showDomainMember (FNullary (VN n)) = show n
 showDomainMember (FNullary (VB b)) = toLower <$> show b
-showDomainMember (FInRange lo hi)  = "[" ++ show lo ++ ".." ++ show hi ++ "]"
+showDomainMember (FInRange lk lo hi rk) =
+  openBracket lk ++ show lo ++ ".." ++ show hi ++ closeBracket rk
+  where openBracket  BClosed = "["
+        openBracket  BOpen   = "("
+        closeBracket BClosed = "]"
+        closeBracket BOpen   = ")"
 showDomainMember  FAnything        = "-"
 -- A refusal quotes the cell back at the author, so these have to read like the
 -- table did — @"> 3"@, not @"FSection Fgt (VN 3.0)"@. Before 'structuralErrors'
@@ -852,7 +860,7 @@ inferType (FFunction _) = Just DMN_Number
 inferType (FSection _ (VN _)) = Just DMN_Number
 inferType (FSection _ (VB _)) = Just DMN_Boolean
 inferType (FSection _ (VS _)) = Just DMN_String
-inferType (FInRange _ _)      = Just DMN_Number
+inferType (FInRange _ _ _ _)  = Just DMN_Number
 inferType  FAnything         = Nothing
 inferType (FNullary (VN _)) = Just DMN_Number
 inferType (FNullary (VB _)) = Just DMN_Boolean

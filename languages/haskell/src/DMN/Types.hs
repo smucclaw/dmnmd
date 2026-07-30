@@ -86,8 +86,12 @@ data FBinOp = Flt | Flte               -- binary operators < <=
             | Feq                      -- binary operator  ==
              deriving (Show, Eq)
 
+-- | Which side of an interval endpoint is included.
+data Bound = BClosed | BOpen
+             deriving (Show, Eq)
+
 data FEELexp = FSection FBinOp DMNVal  --    > 2               FSection Fgt (VN Float)
-             | FInRange Float Float    --    [2..4]            FInRange 2.0 4.0
+             | FInRange Bound Float Float Bound -- [2..4)  FInRange BClosed 2 4 BOpen
              | FAnything               --    -                 FAnything
              | FNullary DMNVal         --    plain string      FNullary (VS "plain string")
              | FFunction FNumFunction  --    FEEL expression   age * 2

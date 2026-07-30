@@ -505,8 +505,8 @@ spec3 = do
         , DTCH DTCH_Out "limit" (Just DMN_Number) Nothing
         ]
         [ DTrow (Just 1) [[FSection Flt (VN 18.0)]] [[FNullary $ VB False], [FNullary (VN 0.0)]] []
-        , DTrow (Just 2) [[FInRange 18.0 21.0]]     [[FNullary $ VB True], [FNullary (VN 750.0)]] []
-        , DTrow (Just 3) [[FInRange 21.0 25.0]]     [[FNullary $ VB True], [FNullary (VN 1500.0)]] []
+        , DTrow (Just 2) [[FInRange BClosed 18.0 21.0 BClosed]]     [[FNullary $ VB True], [FNullary (VN 750.0)]] []
+        , DTrow (Just 3) [[FInRange BClosed 21.0 25.0 BClosed]]     [[FNullary $ VB True], [FNullary (VN 1500.0)]] []
         , DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] []
         ]
       )
