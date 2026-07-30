@@ -188,8 +188,23 @@ is no shared-code shape that fixes any of them, and no shared-code shape that is
 while they are open, because they are exactly the semantics a shared IR would have to encode.
 
 Three of the divergences named at the time have since been fixed in dmnmd (the interval forms, the
-suffix comparisons, the negative-number misparse); `VN Float` and the `label`-vs-`name` attribute
-have not. See §6.
+suffix comparisons, the negative-number misparse); `VN Float` has not. See §6.
+
+**One diagnosis in the original memo is retracted, and this document repeated it.** The memo
+explained the identifier divergence — `dmnmd -f md -t l4` emitting `` `is accredited investor` ``
+where `-f xml -t l4` emits `is_accredited_investor` — as dmnmd reading the wrong attribute, citing
+`src/DMN/XML/ParseDMN.hs:222`'s `xpAttr "name"` and its comment *"NB: This should be 'label' and
+not 'name'"*. **That is a misreading, verified by building a fixture carrying both attributes with
+different values: `@label` already wins.** `XmlToDmnmd.hs:331-335` resolves the column name as
+`firstNonEmpty [columnLabel toutLabel, dmnLabel toutName, "output" ++ show ix]` — `@label` is tried
+first — and the ordering is already pinned by `policy/xml-baseline-13` and
+`policy/xml-annotations-warn`. The `ParseDMN.hs:222` comment is about a field-naming wart, a record
+field spelled `dmnLabel` populated from `@name`, not about precedence downstream.
+
+The *observation* survives: the two legs do emit different identifiers on `reg-cf`. The *cause* is
+not dmnmd's attribute preference, and anyone planning a fix from the old text would have changed
+working code. Retracted here rather than deleted, so a reader who saw the earlier version can find
+out what happened to it.
 
 ---
 
