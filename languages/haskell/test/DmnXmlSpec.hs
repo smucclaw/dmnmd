@@ -128,7 +128,7 @@ dmn13Spec = describe "DMN 1.3" $ do
       -- which is exactly what dmnmd's own subheader rows populate.
       case tables of
         [t] -> map enums (header t)
-          `shouldBe` [ Just [FInRange 0 150]
+          `shouldBe` [ Just [FInRange BClosed 0 150 BClosed]
                      , Just [FNullary (VS "minor"), FNullary (VS "adult"), FNullary (VS "senior")]
                      ]
         _ -> expectationFailure "expected exactly one decision table"
@@ -419,7 +419,7 @@ convertedSimulation =
               { row_number = Just 5,
                 row_inputs =
                   [ [FNullary (VS "Spring")],
-                    [FInRange 5.0 8.0]
+                    [FInRange BClosed 5.0 8.0 BClosed]
                   ],
                 row_outputs = [[FNullary (VS "Steak")]],
                 row_comments = [Just "Save money"]

@@ -3,7 +3,7 @@
 module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
-import DMN.DecisionTable ( mkFs, trim, mkDTable )
+import DMN.DecisionTable ( CellSite(..), mkFsAt, trim, mkDTable )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
@@ -29,7 +29,7 @@ import DMN.Types
       HeaderRow(..),
       DTrow(DTrow),
       DecisionTable,
-      ColHeader(DTCH, label, enums, vartype),
+      ColHeader(DTCH, label, enums, varname, vartype),
       DTCH_Label(..),
       FEELexp(FAnything),
       DMNType(..),
@@ -169,9 +169,10 @@ parseTable tableName = do
   let headerRow = if not (null subHeadRow)
                   then  headerRow_1 { cols = zipWith (\orig subhead -> orig { enums = if subhead == [FAnything] then Nothing else Just subhead } ) -- in the data section a blank cell means anything, but in the subhead it means nothing.
                                              (cols headerRow_1)
-                                             (zipWith (\cs cell -> mkFs (snd cs) cell) columnSignatures subHeadRow) }
+                                             -- siteRow = Nothing: the sub-header row has no rule number.
+                                             (zipWith (\cs cell -> mkFsAt (CellSite tableName (csName cs) Nothing) (csType cs) cell) columnSignatures subHeadRow) }
                   else headerRow_1
-  dataRows <- parseDataRows columnSignatures <?> "parseDataRows"
+  dataRows <- parseDataRows tableName columnSignatures <?> "parseDataRows"
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
   return ( mkDTable tableName (hrhp headerRow)
            (cols headerRow)
@@ -211,20 +212,22 @@ parseTail = do
 -- subsequently, the lines are jammed together and converted to FEEL columns. "A1 A2 A3", "B1 B2 B3" happens thanks to "map unwords $ transpose"
 
 
-parseDataRows :: [ColumnSignature] -> Parser [DTrow]
-parseDataRows csigs = do
+-- | The table name is carried purely so a refused cell can say which table it
+-- was in; see 'DMN.DecisionTable.CellSite'.
+parseDataRows :: String -> [ColumnSignature] -> Parser [DTrow]
+parseDataRows tableName csigs = do
   -- the input could be a regular data row | foo | bar | baz |
   -- or it could be a horizontal rule, which used to be called DThr
   -- nowadays we discard all horizontal rules whenever we encounter them
   -- so … now i want to match something and then throw it away.
-  drows <- many (try ((many parseDThr <?> "parseDThr") >> parseDataRow csigs <?> "parseDataRow"))
+  drows <- many (try ((many parseDThr <?> "parseDThr") >> parseDataRow tableName csigs <?> "parseDataRow"))
   endOfInput
   return drows
 
 doTrace t = when False $ traceM t
 
-parseDataRow :: [ColumnSignature] -> Parser DTrow
-parseDataRow csigs =
+parseDataRow :: String -> [ColumnSignature] -> Parser DTrow
+parseDataRow tableName csigs =
   do
       pipeSeparator
       myrownumber <- many1 digit <?> "row number"
@@ -233,35 +236,58 @@ parseDataRow csigs =
       doTrace $ unlines [ "ParseDataRows: calling parseDThr and parseContinuationRow" ]
       morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
       let transposed = map (trim . unwords) $ transpose (firstrowtail : morerows)
-          datacols = zipWith mkFEELCol csigs transposed
+          -- Bound once and used both for the DTrow and for the CellSite of every
+          -- cell in it, so a diagnostic can never name a different row from the
+          -- one the row records. `many1 digit` cannot return "", so the Nothing
+          -- branch is dead; it is left exactly as it was rather than tidied,
+          -- because the row that would want it is eaten earlier by
+          -- parseContinuationRow (symptom/struct-blank-rownum-swallowed).
+          myrow = if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing
+          datacols = zipWith (mkFEELCol tableName myrow) csigs transposed
       doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
                         , "    csigs = " <> show csigs
                         , "    transposed = " <> show transposed
                         ]
-          
-      return ( DTrow (if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing)
+
+      return ( DTrow myrow
                (catMaybes (zipWith getInputs  csigs datacols))
                (catMaybes (zipWith getOutputs csigs datacols))
                (catMaybes (zipWith getComments csigs datacols)) )
-  
+
   -- TODO: if myrownumber is blank, append the current row to the previous row as though connected by a ,
   where
-    getInputs (DTCH_In, _) (DTCBFeels fexps) = Just fexps
+    getInputs ColSig{csLabel = DTCH_In} (DTCBFeels fexps) = Just fexps
     getInputs _ _ = Nothing
-    getOutputs (DTCH_Out, _) (DTCBFeels fexps) = Just fexps
+    getOutputs ColSig{csLabel = DTCH_Out} (DTCBFeels fexps) = Just fexps
     getOutputs _ _ = Nothing
-    getComments (DTCH_Comment, _) (DTComment mcs) = Just mcs
+    getComments ColSig{csLabel = DTCH_Comment} (DTComment mcs) = Just mcs
     getComments _ _ = Nothing
 
-mkFEELCol :: ColumnSignature -> String -> ColBody
-mkFEELCol (DTCH_Comment, _)      = mkDataColComment
-mkFEELCol (DTCH_In, maybe_type)  = mkDataCol maybe_type
-mkFEELCol (DTCH_Out, maybe_type) = mkDataCol maybe_type
+mkFEELCol :: String -> Maybe Int -> ColumnSignature -> String -> ColBody
+mkFEELCol _         _     (ColSig DTCH_Comment _  _        ) = mkDataColComment
+mkFEELCol tableName myrow (ColSig DTCH_In      nm maybe_type) = mkDataCol (CellSite tableName nm myrow) maybe_type
+mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (CellSite tableName nm myrow) maybe_type
 
-type ColumnSignature = (DTCH_Label, Maybe DMNType)
+-- | What a data row needs to know about a column: which kind it is, what it is
+-- called, and what type its cells are read at.
+--
+-- Not 'ColHeader', though 'ColHeader' carries all three, because 'columnSigs'
+-- runs on @headerRow_1@ — before 'parseTable' attaches the sub-header row's
+-- @enums@. A 'ColHeader' handed to 'parseDataRow' would therefore always have
+-- @enums = Nothing@ and invite somebody to read it as "this column declares no
+-- domain". Three fields make that unrepresentable.
+--
+-- 'csName' is the column name only so a refused cell can be located; nothing
+-- else reads it.
+data ColumnSignature = ColSig
+  { csLabel :: DTCH_Label
+  , csName  :: String
+  , csType  :: Maybe DMNType
+  }
+  deriving (Show, Eq)
 
 columnSigs :: HeaderRow -> [ColumnSignature]
-columnSigs = fmap (\ch -> (label ch, vartype ch)) . cols
+columnSigs = fmap (\ch -> ColSig (label ch) (varname ch) (vartype ch)) . cols
 
 -- hack: convert (in, in, in) to (in, in, out)
 -- Control.Arrow would probably let us phrase this more cleverly, a la hxt, with "guard" and "when" but this is probably more readable for a beginner
@@ -272,7 +298,7 @@ reviseInOut hr = let noncomments = filter ((DTCH_Comment /= ) . label) $ cols hr
                          in hr { cols = map (\ch -> if ch == rightmost then ch { label = DTCH_Out } else ch) (cols hr) }
                     else hr
 
-mkDataCol :: Maybe DMNType -> String -> ColBody
-mkDataCol dmntype = DTCBFeels . mkFs dmntype 
+mkDataCol :: CellSite -> Maybe DMNType -> String -> ColBody
+mkDataCol site dmntype = DTCBFeels . mkFsAt site dmntype
 mkDataColComment :: String -> ColBody
 mkDataColComment mcs = DTComment (if mcs == "" then Nothing else Just mcs)

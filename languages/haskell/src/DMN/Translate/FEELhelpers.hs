@@ -46,8 +46,11 @@ showFeel optform (FSection Flt  (VN rhs)) = lambdaHeader optform ++ "x" ++ showF
 showFeel optform (FSection Flte (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNLeq ++ show rhs
 showFeel optform (FSection Fgt  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNGt  ++ show rhs
 showFeel optform (FSection Fgte (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNGeq ++show rhs
-showFeel optform (FInRange lower upper)   = lambdaHeader optform ++ show lower ++ showFNComp optform FNLeq ++ "x" 
-                                            ++ showFNLog optform FNAnd ++ "x" ++ showFNComp optform FNLeq  ++ show upper
+showFeel optform (FInRange lk lower upper rk) =
+  lambdaHeader optform ++ show lower ++ showFNComp optform (leq lk) ++ "x"
+  ++ showFNLog optform FNAnd ++ "x" ++ showFNComp optform (leq rk) ++ show upper
+  where leq BClosed = FNLeq
+        leq BOpen   = FNLt
 showFeel _ (FFunction (FNF1 var))     = var
 showFeel _ (FFunction (FNF0 (VS str))) = "\"" ++ str ++ "\""
 showFeel _ (FFunction (FNF0 (VB bool))) = toLower <$> show bool

@@ -1,9 +1,0 @@
-export function DashRange ( Amount : number ) {
-  if ((40.0 - 50.0)) { // 1
-    return {"Verdict":"hit"};
-  }
-  else if ("default") { // 2
-    return {"Verdict":"miss"};
-  }
-}
-

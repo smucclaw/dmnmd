@@ -1,0 +1,6 @@
+export function Bins ( X : number ) {
+  if ((X === 4111.0 || X === 4112.0)) { // 1
+    return {"Y":"hit"};
+  }
+}
+

@@ -1,9 +1,0 @@
-export function NotRange ( Age : number ) {
-  if ((1.0 <= Age && Age <= 5.0)) { // 1
-    return {"Band":"outside"};
-  }
-  else if ((1.0 <= Age && Age <= 5.0)) { // 2
-    return {"Band":"either"};
-  }
-}
-

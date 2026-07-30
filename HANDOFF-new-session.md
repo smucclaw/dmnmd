@@ -74,6 +74,11 @@ languages/haskell/dist-newstyle/build/aarch64-osx/ghc-9.10.3/dmnmd-0.1.0.2/x/dmn
 with `Library not loaded: /usr/local/opt/pcre/lib/libpcre.1.dylib`. If `dmnmd --help` prints usage,
 it is fine; if it dies with a dyld error, reinstall with:
 
+> **Superseded, and the dyld half can no longer happen** — `regex-pcre` was retired with the
+> `num-*` cell-layer work, so the binary links no C library and there is nothing to fail to
+> load. The advice to check `which dmnmd` stands on its own: a stale `cabal install`ed copy
+> silently tests different code, which is why the corpus runner prints `corpus: using …`.
+
 ```
 cabal install exe:dmnmd --overwrite-policy=always --install-method=copy \
   --installdir=$HOME/.local/bin

@@ -51,9 +51,18 @@ is a real lower bound in `dmnmd.cabal` rather than a convention: `DMN.Translate.
 `Text.Megaparsec.Unicode (isWideChar)`, which does not exist before it. CI runs
 `cabal test` and then `make corpus`.
 
-macOS needs `brew install pkg-config pcre` for `regex-pcre` (Linux: `libpcre3-dev`).
-`languages/haskell/shell.nix` carries the same two for nix users; it replaced the
-`nix: pure: true` stanza that used to live in `stack.yaml`.
+**There are no system dependencies.** `regex-pcre` — and with it `pkg-config` + `libpcre`,
+which every install line in this repo used to name — was retired once the cell layer stopped
+using regexes. Two of its five call sites went with the interval recogniser; the other three
+were `inferType` classifiers whose patterns turned out to be eight literal substrings and one
+anchored digit test, i.e. `isInfixOf` and five lines of `span isDigit`. `shell.nix` is now an
+empty shell kept only as the machine-readable place to record that.
+
+This matters beyond tidiness: `jl4-wasm` build-depends on `jl4-core`, so anything jl4-core
+might one day depend on has to cross-build for wasm32, and a C-library binding cannot.
+`legalese/l4-ide` hit the same wall from the other side and resolved it the same way — see its
+`specs/done/WASM-LSP-SPEC.md`, which records dropping `pcre2` from `jl4-core.cabal` for exactly
+that reason.
 
 Single test / focused runs (hspec, via `--test-options`):
 
@@ -93,7 +102,7 @@ Things that are only apparent across several files:
 
 - **Type inference is a second pass.** `parseTable` first parses every cell as a string;
   `mkDTable` then infers each column's `DMNType` from the whole column (`inferTypes`) and
-  re-runs `mkF` over the cells (`reprocessRows`). So a cell's `FEELexp` shape depends on a
+  re-runs `mkFAt` over the cells (`reprocessRows`). So a cell's `FEELexp` shape depends on a
   type that isn't known until the table is fully parsed. Explicit `Column : Number` headers
   short-circuit this.
 - **`FEELexp` is the cell IR** for both inputs and outputs: `FSection` (a comparison
@@ -123,8 +132,9 @@ Things that are only apparent across several files:
   rules and DMN gives the construct no meaning. **The refusals live in
   `DecisionTable.structuralErrors`, which walks `allrows`** — not in `mkFEither`, which
   cannot tell an input cell from an output cell from a sub-header domain member, since
-  `ParseTable` builds `enums` through the same `mkFs`. Putting them there would make a range
-  domain `[0..150]` unwritable, and `mkFs = either error id` would crash ordinary tables.
+  `ParseTable` builds `enums` through the same `mkFsAt`. Putting them there would make a range
+  domain `[0..150]` unwritable, and the located wrappers are still `either error id` underneath,
+  so a `Left` would crash ordinary tables.
   A runtime *value* is a different thing from a cell and is parsed by `mkInputValue`, the
   sole producer of `DMNVal`'s `VL`.
 - **A double-quoted cell is a string literal**, unwrapped **all-or-nothing per cell**
@@ -201,6 +211,31 @@ disagrees with the column count, a cell that cannot be built at the column's typ
 that table is **not emitted**, because a table that can never match, or one whose rules have
 been silently widened, is a wrong answer that exits 0.
 
+The markdown reader gets there differently, and deliberately. It has no reason to refuse one
+table and carry on, so it raises through `error` — but a refusal from the cell layer now
+carries a `DMN.DecisionTable.CellSite` and reads
+`error: table "T": column "C": row N: …`, the same shape `structuralErrors` and
+`domainErrors` already print. `mkFsAt`/`mkFAt` are the located wrappers; `mkFs`/`mkF` stay
+for the XML reader (which frames its own) and for the test suite. `row N` is the rule number
+the **author wrote** in the leftmost cell, so gaps and repeats survive into the message; the
+XML reader stores a 1-based index in the same field, so the two readers mean different things
+by "row". `Nothing` there is the sub-header row and prints no row segment at all. No file name
+on the markdown path — `parseTable` is not given one, and the `CellSite` haddock records what
+that would cost.
+
+Three differences between the two readers' output survive, and only two are on purpose. The
+file name and the missing in/out word are reasoned (the latter because `reviseInOut` can
+relabel an explicitly-`(in)` column to `out`, so the word would sometimes contradict the
+header). The third is not: **the markdown path still prints a Haskell `CallStack` and a
+four-frame `HasCallStack backtrace:` of ghc-internal positions, and it is the only
+user-facing abort in the tool that does.** `app/Main.hs:130` defines
+`crash = errorWithoutStackTrace` and every other abort goes through it, so
+`dmnmd -f xml -t ts test/dmn13/temporal-type.dmn` ends on a clean located line. This is not a
+leftover to tidy in passing: that `CallStack` position is currently the **only** discriminator
+between the `mkFsAt` and `mkFAt` recordings, including the `num-subheader-*` pair the corpus
+README cites. Removing it needs the discriminator replaced first — it belongs to the
+diagnostics conversion (`DECISIONS.md` D-7), not to a cleanup commit.
+
 The exit status answers exactly one question: *did something we were asked to read fail to
 read?*
 
@@ -261,10 +296,23 @@ Three things there are easy to get wrong on sight:
   recordings with zero behavioural content, back when CI built with stack; stack is gone but
   the rule is not stack-specific, and Linux CI reproducing macOS arm64 recordings is the
   evidence it earns its place.
-- **Source positions are kept, not normalised.** `DecisionTable.hs:121` is `mkFs` and `:143` is
-  `mkF`, and several cells produce byte-identical message text down both paths, so the line
-  number is the only discriminator. Instead of stripping them, a diff consisting of *nothing but*
-  moved positions is reported as `cosmetic` and does not fail the run.
+- **Source positions are kept, not normalised.** `mkFsAt` and `mkFAt` are the multi-value and
+  single-value cell paths, and several cells produce byte-identical message text down both, so
+  the position is the only discriminator. `policy/num-subheader-{declared,inferred}-refused`
+  is the pair that pins it: identical text, different wrapper. Instead of stripping positions,
+  a diff consisting of *nothing but* moved ones is reported as `cosmetic` and does not fail the
+  run. Do not write the line numbers down anywhere — this bullet asserted `:121` and `:143` long
+  after both had moved. (An earlier retraction added that `:143` "was never right". That is
+  false: at `a670657`, the commit that wrote the sentence, `:121` was `mkFs`'s body and `:143`
+  was `mkF`'s, and eight and six recordings cited them respectively. Both were exact when
+  written and merely went stale — which is the whole argument for not writing them down, and is
+  a *weaker* claim than the one that replaced it. Correcting a stale claim into a false one is
+  worse than leaving it: rule 2 of `~/CLAUDE.md` names this exact move.)
+- **Commit 6 inverted which classes cite a cell-path position.** Eleven `policy/` recordings now
+  cite `mkFsAt`/`mkFAt`, where before the promotion those positions appeared only under
+  `symptom/`. The runner still classifies a position-only diff as `cosmetic`, so this cannot
+  produce a false regression — but an edit anywhere above those functions now dirties eleven
+  policy recordings, where it used to dirty none.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
   tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
@@ -301,4 +349,7 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   `regex-pcre` failed to configure before any project code compiled), and the deprecated
   `haskell/actions/setup` resolved `latest` to stack 2.11.1, whose bundled Hackage TUF keys
   can no longer validate `root.json`. If CI goes red again, check whether project code was
-  even reached before assuming a regression.
+  even reached before assuming a regression. **The first cause can no longer recur**:
+  `regex-pcre` is gone and CI installs no system packages at all. The general lesson stands —
+  a dependency that fails to *configure* fails before anything you wrote is compiled, and
+  reads as a mysterious error in a package nobody here maintains.

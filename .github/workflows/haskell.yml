@@ -13,13 +13,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # regex-pcre links against libpcre and finds it via pkg-config; without these
-    # the dependency fails to *configure* before any project code is compiled.
-    # (See the README's Linux install line: pkg-config + libpcre3-dev.)
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pkg-config libpcre3-dev
+    # No system-dependency step. dmnmd used to need pkg-config + libpcre3-dev for
+    # regex-pcre, whose failure to *configure* — before any project code compiled —
+    # was one of the two causes of the 2025-06-29 CI outage. The dependency is gone;
+    # if you are about to add a package with a C library behind it, weigh that
+    # against jl4-wasm, which needs everything jl4-core can reach to build for wasm32.
 
     # haskell/actions/setup has been unmaintained since 2023-09-09; use the
     # maintained fork. The GHC version is pinned to `tested-with` in

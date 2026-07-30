@@ -233,13 +233,32 @@ those are repo-relative, meaningful, and exactly the sort of thing we want to no
 changing.
 
 **Source positions are deliberately *not* normalised**, and it is worth knowing why,
-because stripping them looks like the obvious cleanup. `DecisionTable.hs:121` is
-`mkFs` and `:143` is `mkF` — the multi-value and single-value cell paths — and
-several cells produce byte-identical message text down both. `unable to parse an
-alleged boolean: n` appears at both, in `infer-declared-boolean-n-crash` and
-`infer-boolean-n-crash` respectively. Collapse the positions and those two distinct
-defects record identically, and a rewrite that moved a crash from one path to the
-other becomes invisible.
+because stripping them looks like the obvious cleanup. `DMN.DecisionTable`'s `mkFsAt`
+and `mkFAt` are the multi-value and single-value cell paths, and several cells
+produce byte-identical message text down both — the message is built from the cell
+and the column, neither of which knows which pass it arrived on. So the position is
+the only thing in the recording that says which path raised.
+
+The pair `policy/num-subheader-declared-refused` and
+`policy/num-subheader-inferred-refused` exists to hold that claim still. They are the
+same table name, the same column name, the same absent row number and the same
+message text to the byte; one refuses at parse time through `mkFsAt`, the other after
+type inference through `retypeEnums` → `reprocessRows` → `mkFAt`. Collapse the
+positions and those two distinct paths record identically, and a rewrite that moved a
+crash from one to the other becomes invisible.
+
+(No line numbers are quoted in this file, or in the runner, on purpose. They are the
+part that goes stale: this paragraph spent several commits asserting `:121` and
+`:143` after both had moved.
+
+An earlier version of this parenthesis went further and said `:143` "had never been
+right at all". **That was false, and it is retracted.** At `a670657` — the commit that
+wrote the original sentence — `:121` was `mkFs`'s body and `:143` was `mkF`'s, and six
+recordings cited `:143` while eight cited `:121`. Both numbers were exact when written.
+They went stale, which is the entire argument for not quoting them, and is a *smaller*
+claim than "never right" — so the correction made the paragraph more confident and less
+true at the same time. Checkable in one command:
+`git show a670657:languages/haskell/src/DMN/DecisionTable.hs | sed -n '121p;143p'`.)
 
 So the positions stay, and the *comparison* is what gives ground: a diff consisting
 of nothing but moved positions is classified `cosmetic` and does not fail the run.

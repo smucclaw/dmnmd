@@ -1,0 +1,6 @@
+export function NegThreshold ( Temp : number ) {
+  if (Temp >= -5.0) { // 1
+    return {"Advice":"mild"};
+  }
+}
+

@@ -606,7 +606,12 @@ oneFeel ch field = \case
   FSection Fgt  (VN n) -> field ++ " > "  ++ showNumL4 n
   FSection Fgte (VN n) -> field ++ " >= " ++ showNumL4 n
   FSection op   v      -> field ++ " EQUALS " ++ showValIn ch v   -- non-numeric comparison: best-effort
-  FInRange lo hi       -> "(" ++ field ++ " >= " ++ showNumL4 lo ++ " AND " ++ field ++ " <= " ++ showNumL4 hi ++ ")"
+  FInRange lk lo hi rk -> "(" ++ field ++ geOf lk ++ showNumL4 lo
+                          ++ " AND " ++ field ++ leOf rk ++ showNumL4 hi ++ ")"
+    where geOf BClosed = " >= "
+          geOf BOpen   = " > "
+          leOf BClosed = " <= "
+          leOf BOpen   = " < "
   FNullary v           -> field ++ " EQUALS " ++ showValIn ch v
   FFunction fnf        -> field ++ " EQUALS " ++ fnf2l4 fnf
   FAnything            -> "TRUE"
@@ -780,7 +785,7 @@ showFeelL4 ty = \case
   FNullary v     -> showValL4 v
   FFunction fnf  -> fnf2l4 fnf
   FSection op v  -> showValL4 v
-  FInRange lo _  -> showNumL4 lo
+  FInRange _ lo _ _ -> showNumL4 lo
   FAnything      -> typeDefaultScalar ty
 
 -- | A type-appropriate fallback for a totally empty table's OTHERWISE.

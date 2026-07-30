@@ -1,9 +1,0 @@
-export function CommaThreshold ( Amount : number ) {
-  if ((Amount >= 1.0 || Amount === 0.0)) { // 1
-    return {"Tier":"premium"};
-  }
-  else if ("default") { // 2
-    return {"Tier":"standard"};
-  }
-}
-

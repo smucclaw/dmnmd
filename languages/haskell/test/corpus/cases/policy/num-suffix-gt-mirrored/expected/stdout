@@ -1,0 +1,6 @@
+export function SuffixGt ( Age : number ) {
+  if (Age < 5.0) { // 1
+    return {"Band":"lessthan5"};
+  }
+}
+

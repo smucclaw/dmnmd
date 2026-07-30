@@ -1,6 +1,0 @@
-export function SuffixLt ( Age : number ) {
-  if (Age >= 5.0) { // 1
-    return {"Band":"morethan5"};
-  }
-}
-

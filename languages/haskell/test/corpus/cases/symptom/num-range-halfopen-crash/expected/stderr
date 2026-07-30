@@ -1,6 +1,0 @@
-dmnmd: expected a number, but this column is typed Number and the cell reads "[1..5)"
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:143:26 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:143:26 in dmnmd:DMN.DecisionTable
-
-

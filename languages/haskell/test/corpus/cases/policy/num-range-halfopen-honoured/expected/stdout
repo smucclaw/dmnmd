@@ -1,0 +1,6 @@
+export function HalfOpenRange ( Score : number ) {
+  if ((1.0 <= Score && Score < 5.0)) { // 1
+    return {"Band":"inrange"};
+  }
+}
+

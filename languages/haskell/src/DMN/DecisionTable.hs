@@ -6,12 +6,11 @@ module DMN.DecisionTable where
 
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseFEEL ( parseFNumFunction )
-import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
+import DMN.ParseCell ( parseNumberCell, thousandsGrouped )
+import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find, isInfixOf)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
-import Text.Regex.PCRE ( (=~) )
-import Data.Char (toLower)
+import Data.Char (toLower, isDigit)
 import Text.Read (readMaybe)
 import Debug.Trace ( trace )
 import qualified Data.Text as T
@@ -117,8 +116,99 @@ fNEval symtab (FNF3 fnf1 fnop2 fnf3) = let lhs = fromVN (fNEval symtab fnf1)
                                              FNExp   -> lhs ** rhs
                                        in VN result
 
+-- | The located-message house style, in one place: @column "C": row N: @, or
+-- @column "C": @ when there is no row.
+--
+-- Deliberately carries NO table name and no @error:@ prefix. That is the rule
+-- recorded above 'domainErrors'' @msg@: each reader frames a diagnostic its own
+-- way — the markdown path prepends @error: table "X": @ on its way to @error@,
+-- the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt'. This function exists so
+-- that the three places printing that prefix ('locate', @msg@, 'showSite')
+-- cannot drift apart; it is not an invitation to give the shared locators a
+-- table name.
+columnRow :: String -> Maybe Int -> String
+columnRow col rn = concat
+  [ "column ", show col, maybe "" (\n -> ": row " ++ show n) rn, ": " ]
+
+-- | Where a cell came from, for a diagnostic raised while building it.
+--
+-- Three fields, because that is exactly what the house style prints: a table
+-- name plus 'columnRow'. There is deliberately no kind word — 'structuralErrors'
+-- says "the input cell reads" in the message BODY and leaves the prefix alone,
+-- and a second spelling of the same prefix in the same binary is how a house
+-- style stops being one. (The kind word in 'DMN.XML.XmlToDmnmd' is that
+-- reader's own convention, and it does not follow that this one wants it.)
+--
+-- What this location does NOT promise, all three of them already recorded as
+-- symptoms:
+--
+--   * __uniqueness__ — two columns may share a name
+--     (@symptom\/struct-dup-column-names@), two headings may clean to the same
+--     table name (@symptom\/struct-tablename-collision@), and an unheaded table
+--     is called @f1@ with every unheaded table in the first file getting that
+--     same name (@symptom\/struct-no-heading-default-name@). Nothing rejects a
+--     repeated rule number either. The message names what the author wrote; it
+--     does not guarantee that only one cell answers to it.
+--
+--   * __a file name__ — 'DMN.ParseTable.parseTable' is not given one, though
+--     its caller has it: @ParseMarkdown.parseChunk@ binds @infile@ and prints
+--     it in the two sibling diagnostics either side of the 'parseTable' call.
+--     Threading it would touch every 'parseTable' call site, so the markdown
+--     path stays file-less for now, matching every other table-scoped refusal
+--     already in @cases\/policy\/@. The XML reader does print one. That is a
+--     deferral with a named cost, not an impossibility.
+data CellSite = CellSite
+  { siteTable  :: String
+  , siteColumn :: String
+    -- | The rule number the author WROTE in the leftmost cell — not an index,
+    -- which is why gaps and repeats survive into the message and why it agrees
+    -- with the row comment @--to=ts@ emits. 'Nothing' is the sub-header row,
+    -- which has no rule number; it renders as no row segment at all, exactly as
+    -- 'domainErrors' already renders a sub-header complaint. (The XML reader
+    -- stores a 1-based position in the same 'DTrow' field, so the two readers
+    -- mean different things by "row".)
+  , siteRow    :: Maybe Int
+  }
+  deriving (Show, Eq)
+
+-- | A 'CellSite' rendered in the house style, ready to prefix a cell message.
+--
+-- This is the one locator that carries its own @error: table "T": @ framing,
+-- because on this path there is nobody else to carry it: 'mkFsAt' fires inside
+-- 'DMN.ParseTable.parseTable', before 'mkDTable' exists at all, and 'mkFAt'
+-- fires while 'tableErrors' forces the rows, so the exception overtakes
+-- 'mkDTable'\'s own framing at the @case@. Do not make 'locate' or the
+-- 'domainErrors' @msg@ call this — those are shared with the XML reader, which
+-- frames them itself, and handing them a table name would change every XML
+-- diagnostic. The shared part is 'columnRow'.
+showSite :: CellSite -> String
+showSite st = concat
+  [ "error: table ", show (siteTable st), ": ", columnRow (siteColumn st) (siteRow st) ]
+
 mkFs :: Maybe DMNType -> String -> [FEELexp]
 mkFs dmntype args = either error id (mkFsEither dmntype args)
+
+-- | 'mkFs', with the cell's location prepended to any refusal.
+--
+-- CLAUDE.md's bar for a diagnostic is loud AND located, and until this existed
+-- the cell layer met only the first half: a refusal named a source position
+-- inside dmnmd and nothing about the table it was reading. It still reports
+-- through @error@, because that is how this path already reports a bad table
+-- ('mkDTable') and how every located markdown refusal in @cases\/policy\/@
+-- already arrives.
+--
+-- 'mkFs' stays, at its own source line. The XML reader calls it — including at
+-- a type-inference pre-pass with no column context to build a site from — dozens
+-- of test sites call it, and @test\/corpus\/README.md@ relies on the
+-- multi-value and single-value wrappers sitting at distinct source positions to
+-- tell otherwise byte-identical messages apart. Keep 'mkFsAt' and 'mkFAt' two
+-- functions at two lines for the same reason.
+--
+-- Reports the first cell FORCED, which is not the first in reading order:
+-- 'inferTypes' transposes, so pass 1 walks columns and pass 2 walks rows.
+-- Contrast 'tableErrors', which collects every error and joins them.
+mkFsAt :: CellSite -> Maybe DMNType -> String -> [FEELexp]
+mkFsAt st dmntype args = either (error . (showSite st ++)) id (mkFsEither dmntype args)
 
 -- | 'mkFs' as a total function.
 --
@@ -130,7 +220,37 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 -- it can report on. Do not reintroduce a second copy of these guards elsewhere:
 -- a validator that drifts from the constructor is worse than no validator.
 mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
-mkFsEither dmntype args = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
+mkFsEither dmntype args
+  -- Checked BEFORE the split and independently of the column type, because the
+  -- split happens before anything knows the type — a String column is shredded
+  -- identically. See 'DMN.ParseCell.thousandsGrouped'.
+  | thousandsGrouped args = Left (thousandsMsg args)
+  | otherwise = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
+
+-- | Note what this message does NOT say: that the old parse was wrong.
+--
+-- It was not. FEEL has no grouping production — rule 31 admits no separator and
+-- rules 32-33 are @digit = [0-9]@ and @digits = digit , {digit}@ — so @1,000@ is
+-- legally TWO unary tests, @1@ and @000@, and @000@ is a well-formed literal
+-- denoting 0. dmnmd's old output for @>= 1,000@,
+-- @(Amount >= 1.0 || Amount === 0.0)@, was therefore /conformant/, and the two
+-- corpus recordings that called it a misparse were wrong about the parse.
+--
+-- What was unambiguously wrong is the SILENCE. Nobody writing @1,000@ in a
+-- threshold column means "at least 1, or exactly 0". So dmnmd refuses the shape
+-- rather than inventing a thousands separator — which would be a markdown-surface
+-- extension governed by BUILD-SPEC-dmnmd-extensions.md §6, and could not be added
+-- without breaking policy/md-multivalue-cell and test/golden/miles-card-dmn.md,
+-- whose @4111, 4112@ is the same shape.
+thousandsMsg :: String -> String
+thousandsMsg args = concat
+  [ "the cell reads ", show (trim args)
+  , " — FEEL has no thousands separator (DMN 1.3 §9.2 rule 31 admits none, and"
+  , " rules 32-33 are digit = [0-9] and digits = digit , {digit}), so a comma in a"
+  , " cell is rule 11's OR. Written out, this cell means its comma-separated parts"
+  , " as ALTERNATIVES, which is almost certainly not what was meant."
+  , " Drop the separator (1000), or, if you really do mean two alternatives,"
+  , " put a space after the comma (1, 000)." ]
 
 
 -- TODO: add a state monad to allow type inference to span all input rows;
@@ -141,6 +261,11 @@ mkFsEither dmntype args = traverse (mkFEither dmntype) (unquoteCell (trim <$> sp
 -- after it's been fully parsed once.
 mkF :: Maybe DMNType -> String -> FEELexp
 mkF dmntype arg = either error id (mkFEither dmntype arg)
+
+-- | The single-value twin of 'mkFsAt' — see there for why there are two of
+-- these and why they must stay at distinct source lines.
+mkFAt :: CellSite -> Maybe DMNType -> String -> FEELexp
+mkFAt st dmntype arg = either (error . (showSite st ++)) id (mkFEither dmntype arg)
 
 -- | The single definition of "what does this cell mean, given this column type".
 --
@@ -162,9 +287,10 @@ mkFEither _ "-" = Right FAnything
 --
 -- __Do not turn this arm into a 'Left'.__ It is the obvious way to make an
 -- ambiguous list cell refuse, and it crashes on ordinary tables:
--- 'reprocessRows' calls @mkF (vartype ch)@ with the FULL column type on two
+-- 'reprocessRows' calls @mkFAt (vartype ch)@ with the FULL column type on two
 -- live paths — a list-typed OUTPUT column's cells, and 'retypeEnums' rebuilding
--- a declared domain — and @mkFs = either error id@. Refusals belong in
+-- a declared domain — and @mkFAt@ is @either error id@ under its location
+-- prefix, so a 'Left' there aborts rather than diagnosing. Refusals belong in
 -- 'structuralErrors', which walks 'allrows' and can therefore see which row,
 -- which column, and whether the cell is an input, an output or a domain member.
 mkFEither (Just (DMN_List t)) x    = mkFEither (Just t) x
@@ -181,25 +307,11 @@ mkFEither (Just DMN_Boolean) arg1 = FNullary <$> mkVB arg1
       | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = Right (VB True)
       | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = Right (VB False)
       | otherwise = Left $  "unable to parse an alleged boolean: " ++ arg
-mkFEither (Just DMN_Number)  arg1
-  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> Left $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) (Right . FFunction) (parseOnly parseFNumFunction (T.pack arg2))
-  | "<=" `isPrefixOf` arg2 = FSection Flte <$> (mkVN $ trim $ drop 2 arg2)
-  | "<"  `isPrefixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ drop 1 arg2)
-  | ">=" `isPrefixOf` arg2 = FSection Fgte <$> (mkVN $ trim $ drop 2 arg2)
-  | ">"  `isPrefixOf` arg2 = FSection Fgt  <$> (mkVN $ trim $ drop 1 arg2)
-  | "<=" `isSuffixOf` arg2 = FSection Fgt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | "<"  `isSuffixOf` arg2 = FSection Fgte <$> (mkVN $ trim $ Prelude.take (length arg2 - 1) arg2)
-  | ">=" `isSuffixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: Bool =
-    let (_,_,_,bounds) = arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: (String,String,String,[String])
-    in Right (FInRange ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float))
-  | "="  `isPrefixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhile    (=='=') arg2)
-  | "="  `isSuffixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhileEnd (=='=') arg2)
-  | otherwise              = FNullary      <$> (mkVN $ trim                        arg2)
-  where arg2 = trim arg1 -- probably extraneous
-        mkVN x = maybe (Left $ "expected a number, but this column is typed Number and the cell reads " ++ show arg2)
-                       (Right . VN)
-                       (readMaybe x :: Maybe Float)
+-- The nineteen lines this replaces were not a grammar but a chain of six
+-- mutually blind string tests over the same raw text, so the accepted language
+-- was whatever fell out of the guard ORDERING. See "DMN.ParseCell", which is
+-- that language written down once, anchored, with the rule numbers.
+mkFEither (Just DMN_Number)  arg1 = parseNumberCell arg1
 
 -- | Parse a runtime ARGUMENT — as opposed to a table cell, which is a TEST.
 --
@@ -349,7 +461,10 @@ fEval (FNullary (VL vs)) val = error $ unwords
 fEval (FSection f    (VN rhs)) (FNullary (VN lhs)) = (find ((== f) <<< fst) >>> fromJust >>> snd)
                                                       [(Flt,(<)), (Flte,(<=)), (Fgt,(>)), (Fgte,(>=)), (Feq,(==))]
                                                      lhs rhs
-fEval (FInRange lower upper)   (FNullary (VN lhs)) = lower <= lhs && lhs <= upper
+fEval (FInRange lk lower upper rk) (FNullary (VN lhs)) =
+  cmp lk lower lhs && cmp rk lhs upper
+  where cmp BClosed a b = a <= b
+        cmp BOpen   a b = a <  b
 fEval (FSection Feq  (VB rhs)) (FNullary (VB lhs)) = lhs == rhs
 fEval (FSection Feq  (VS rhs)) (FNullary (VS lhs)) = lhs == rhs
 fEval (FNullary (VS rhs)) (FNullary (VS lhs)) = lhs == rhs
@@ -360,7 +475,7 @@ fEval rhs lhs                                 = error $ unwords [ "type error in
 
 -- From the S-FEEL specification:
 -- Given an expression o to be tested and two endpoint e1 and e2:
---  is in the interval (e1..e2), also notated ]e1..e2[, if and only if o > e1 and o < e1
+--  is in the interval (e1..e2), also notated ]e1..e2[, if and only if o > e1 and o < e2
 --  is in the interval (e1..e2], also notated ]e1..e2], if and only if o > e1 and o ≤ e2
 --  is in the interval [e1..e2] if and only if o ≥ e1 and o ≤ e2
 --  is in the interval [e1..e2), also notated [e1..e2[, if and only if o ≥ e1 and o < e2
@@ -375,12 +490,12 @@ mkDTable origname orighp origchs origdtrows =
 --  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
                                      (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      typedchs = retypeEnums <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
+      typedchs = retypeEnums origname <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
       built = DTable origname orighp typedchs
               ((\case
                    (DTrow rn ri ro rc) -> (DTrow rn
-                                  (reprocessRows (getInputHeaders typedchs)  ri)
-                                  (reprocessRows (getOutputHeaders typedchs) ro)
+                                  (reprocessRows origname rn (getInputHeaders typedchs)  ri)
+                                  (reprocessRows origname rn (getOutputHeaders typedchs) ro)
                                   rc)) <$> origdtrows)
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
@@ -389,7 +504,7 @@ mkDTable origname orighp origchs origdtrows =
     -- a new domain member, and a rule built from it can never match. Emitting it
     -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
     -- §8. Reported by @error@ because that is how this path already reports a
-    -- bad cell ('mkFs'); the XML reader calls 'domainErrors' directly so it can
+    -- bad cell ('mkFsAt'); the XML reader calls 'domainErrors' directly so it can
     -- locate the failure and refuse only the offending table.
     case tableErrors built of
       []   -> built
@@ -411,12 +526,13 @@ tableErrors dt = structuralErrors dt ++ domainErrors dt
 --
 --  * 'mkFEither' cannot tell an input cell from an output cell from a
 --    __sub-header domain member__ — 'DMN.ParseTable.parseTable' builds @enums@
---    through the same 'mkFs'. A range domain @[0..150]@ on a @[Number]@ column
+--    through the same 'mkFsAt'. A range domain @[0..150]@ on a @[Number]@ column
 --    works today; refusing tests in the constructor would make it unwritable.
 --  * it knows no row number and no column name, so the message could not locate
 --    the offending cell.
---  * @mkFs = either error id@, and 'reprocessRows' calls it with the full column
---    type on live paths, so a 'Left' there crashes ordinary tables.
+--  * the located wrappers are still @either error id@ underneath, and
+--    'reprocessRows' calls 'mkFAt' with the full column type on live paths, so a
+--    'Left' there crashes ordinary tables.
 --
 -- Walking 'allrows' fixes all three: the sub-header row is excluded __by
 -- construction__ rather than by a special case that could rot.
@@ -425,7 +541,8 @@ tableErrors dt = structuralErrors dt ++ domainErrors dt
 -- path can @error@ and the XML path can locate and refuse one table.
 structuralErrors :: DecisionTable -> [String]
 structuralErrors dt = concat
-  [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs ]
+  [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs
+  , inputArithErrs, openRangeOutErrs ]
   where
     ins  = getInputHeaders  (header dt)
     outs = getOutputHeaders (header dt)
@@ -534,6 +651,47 @@ structuralErrors dt = concat
       , isListCol ch
       ]
 
+    -- R8. An input entry is a unary test (§9.2 rule 12): a value, a comparison,
+    -- an interval, or "-". There is NO arithmetic production for one. An output
+    -- entry is a rule 3 `simple expression`, which DOES include arithmetic
+    -- (§9.5.3, §8.2.9, and the XSD's inputEntry=tUnaryTests /
+    -- outputEntry=tLiteralExpression split), so policy/md-arith-output stays
+    -- legal and is untouched. Independently: 'fEval' has no FFunction arm, so an
+    -- arithmetic input cell can never match anything at all; it can only reach a
+    -- backend, where `40 - 50` becomes the JS guard `(40.0 - 50.0)` — no input
+    -- variable mentioned, and unconditionally truthy.
+    inputArithErrs =
+      [ locate ch (row_number r) (concat
+          [ "the input cell reads ", show (showDomainMember cell)
+          , ". An input entry is a unary test (DMN 1.3 §9.2 rule 12): a value, a"
+          , " comparison, an interval, or \"-\". Arithmetic is a rule 3 simple"
+          , " expression and is legal only in an OUTPUT cell. A dash-written range"
+          , " is arithmetic, not an interval — write [40..50], not 40 - 50."
+          , " If this column is not numeric, declare it (\"Season : String\");"
+          , " dmnmd infers Number from a cell containing a spaced operator." ])
+      | r@DTrow{} <- allrows dt
+      , (ch, cells) <- zip ins (row_inputs r)
+      , cell@(FFunction _) <- cells
+      ]
+
+    -- R9. An OUTPUT cell may hold a range (README "Extensions"), and
+    -- 'DMN.Translate.L4.showFeelL4' renders one by dropping the upper bound.
+    -- That is already wrong for a CLOSED range and is recorded separately as
+    -- symptom/l4-output-range-upper-bound-dropped; for an OPEN bound it would
+    -- emit a value that is not even in the interval. Refused here rather than in
+    -- 'showFeelL4', which returns a String and cannot express a refusal.
+    openRangeOutErrs =
+      [ locate ch (row_number r) (concat
+          [ "the output cell reads ", show (showDomainMember cell)
+          , ". dmnmd can emit a range as an output VALUE only when both endpoints"
+          , " are included: an excluded endpoint has no value to name."
+          , " Write a closed range [a..b], or move the test to an input column." ])
+      | r@DTrow{} <- allrows dt
+      , (ch, cells) <- zip outs (row_outputs r)
+      , cell@(FInRange lk _ _ rk) <- cells
+      , lk == BOpen || rk == BOpen
+      ]
+
     -- R6/R7. A collection has no position in an element-level domain, so every
     -- comparison is EQ and the ordering silently degrades to row order; and
     -- there is no aggregate over collections, so Collect would flatten every
@@ -568,9 +726,7 @@ structuralErrors dt = concat
     isPlainOrWild (FNullary _) = True
     isPlainOrWild _            = False
 
-    locate ch rn body = concat
-      [ "column ", show (varname ch)
-      , maybe "" (\n -> ": row " ++ show n) rn, ": ", body ]
+    locate ch rn body = columnRow (varname ch) rn ++ body
 
 -- | Every variable an arithmetic cell mentions.
 fnVars :: FNumFunction -> [String]
@@ -712,11 +868,12 @@ domainErrors dt = malformedDomains ++ violations
     -- way. The markdown path prepends `error: table "X": ` on its way to
     -- @error@; the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt' through
     -- that module's own `inTable`, which also knows the rule id. One rule, two
-    -- framings — rather than one rule and two implementations.
+    -- framings — rather than one rule and two implementations. The column/row
+    -- half is 'columnRow', shared with 'locate' and 'showSite' so the three
+    -- spellings of a location cannot drift.
     msg ch rn cell = concat
-      [ "column ", show (varname ch)
-      , maybe "" (\n -> ": row " ++ show n) rn
-      , ": value outside the column's declared domain {"
+      [ columnRow (varname ch) rn
+      , "value outside the column's declared domain {"
       , intercalate ", " (showDomainMember <$> fromJust (enums ch))
       , "} — the cell reads ", showDomainMember cell
       ]
@@ -727,7 +884,12 @@ showDomainMember :: FEELexp -> String
 showDomainMember (FNullary (VS s)) = s
 showDomainMember (FNullary (VN n)) = show n
 showDomainMember (FNullary (VB b)) = toLower <$> show b
-showDomainMember (FInRange lo hi)  = "[" ++ show lo ++ ".." ++ show hi ++ "]"
+showDomainMember (FInRange lk lo hi rk) =
+  openBracket lk ++ show lo ++ ".." ++ show hi ++ closeBracket rk
+  where openBracket  BClosed = "["
+        openBracket  BOpen   = "("
+        closeBracket BClosed = "]"
+        closeBracket BOpen   = ")"
 showDomainMember  FAnything        = "-"
 -- A refusal quotes the cell back at the author, so these have to read like the
 -- table did — @"> 3"@, not @"FSection Fgt (VN 3.0)"@. Before 'structuralErrors'
@@ -783,14 +945,20 @@ showFNumFunction (FNF3 l op r)  =
 -- rebuilt when every member is still an unconverted @FNullary (VS _)@. A domain
 -- on a column whose type stays 'Nothing' is left alone, as are @FAnything@ and
 -- anything already converted.
-retypeEnums :: ColHeader -> ColHeader
-retypeEnums ch = case enums ch of
+--
+-- Takes the table name only to locate a refusal ('reprocessRows' calls 'mkFAt');
+-- the row is 'Nothing' because a sub-header row has no rule number.
+retypeEnums :: String -> ColHeader -> ColHeader
+retypeEnums tbl ch = case enums ch of
   Nothing -> ch
-  Just es -> ch { enums = listToMaybe (reprocessRows [ch] [es]) }
+  Just es -> ch { enums = listToMaybe (reprocessRows tbl Nothing [ch] [es]) }
 
-reprocessRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
-reprocessRows = 
-  -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
+-- | The table name and row number are here for one reason: to build the
+-- 'CellSite' that locates a refusal from 'mkFAt'. The column half of the site
+-- comes from the 'ColHeader' this already has in hand.
+reprocessRows :: String -> Maybe Int -> [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
+reprocessRows tbl rn =
+  -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re-'mkFAt' it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
                -- DMN_String used to be excluded here alongside Nothing, because
@@ -804,7 +972,7 @@ reprocessRows =
                -- cells were already unquoted in pass 1.
                if vartype ch /= Nothing && (length [ x | FNullary (VS x) <- cells] == length cells)
                then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
-                    [ mkF (vartype ch) x | FNullary (VS x) <- cells ]
+                    [ mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x | FNullary (VS x) <- cells ]
                else cells)
                          
   
@@ -852,15 +1020,36 @@ inferType (FFunction _) = Just DMN_Number
 inferType (FSection _ (VN _)) = Just DMN_Number
 inferType (FSection _ (VB _)) = Just DMN_Boolean
 inferType (FSection _ (VS _)) = Just DMN_String
-inferType (FInRange _ _)      = Just DMN_Number
+inferType (FInRange _ _ _ _)  = Just DMN_Number
 inferType  FAnything         = Nothing
 inferType (FNullary (VN _)) = Just DMN_Number
 inferType (FNullary (VB _)) = Just DMN_Boolean
 inferType (FNullary (VS arg))
-  | any (arg =~) ["^\\d+(\\.\\d+)?$", "\\.\\.", ">", "<", "="] = Just DMN_Number
+  | anchoredDigits arg || any (`isInfixOf` arg) ["..", ">", "<", "="] = Just DMN_Number
   | arg `elem` ["-","_",""] = Nothing
   | (toLower <$> arg) `elem` ["true","yes","positive","y","false","no","negative","n"] = Just DMN_Boolean
   | head arg == '\"' && last arg == '\"' = Just DMN_String
-  | any (arg =~) [" \\* ", " \\+ ", " - ", " / ", " \\*\\* "] = Just DMN_Number
+  | any (`isInfixOf` arg) [" * ", " + ", " - ", " / ", " ** "] = Just DMN_Number
   | otherwise = -- Debug.Trace.trace ("inferType " ++ show arg ++ " returning String!") $
       Just DMN_String
+
+-- | Exactly the regex @^\\d+(\\.\\d+)?$@ that used to live in 'inferType', and
+-- deliberately nothing better.
+--
+-- It is NOT rule 31: it rejects @-5@ and @.5@, both of which are legal FEEL
+-- numbers and both of which 'DMN.ParseCell.numericLiteral' accepts. Widening it
+-- to @numericLiteral@ would be a real improvement and is exactly why it is not
+-- done here — this commit removes a C-library dependency and must not also
+-- change which arm a cell reaches. Inference is its own job; the cases it gets
+-- wrong are recorded under @test\/corpus\/cases\/symptom\/infer-*@.
+--
+-- The other eight patterns needed no replacement at all: once unescaped they
+-- were @..@, @>@, @<@, @=@, @ * @, @ + @, @ - @, @ / @ and @ ** @, which is
+-- 'isInfixOf'. A whole PCRE binding was being linked for one anchored digit
+-- test, and dropping it is what lets jl4-core's wasm32 build reach this package.
+anchoredDigits :: String -> Bool
+anchoredDigits s = case span isDigit s of
+  ("",  _)        -> False              -- \d+ needs at least one digit
+  (_,   "")       -> True               -- digits, no fraction
+  (_,   '.':frac) -> not (null frac) && all isDigit frac
+  _               -> False              -- trailing junk: $ did not match
