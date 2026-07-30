@@ -24,18 +24,9 @@ The interface is CLI. No mouse needed!
 
 At the moment, `dmnmd` is an executable program written in Haskell. In future it may switch to Python.
 
-You need GHC and cabal — [ghcup](https://www.haskell.org/ghcup/) is the usual way to get both —
-plus `pcre`, which `regex-pcre` links against and finds through `pkg-config`.
-
-OS X:
-
-    brew install pkg-config pcre
-
-Linux:
-
-    { yum, apt-get, ... } install pkg-config libpcre3-dev
-
-Both:
+You need GHC and cabal — [ghcup](https://www.haskell.org/ghcup/) is the usual way to get both.
+That is the whole list: dmnmd has **no system dependencies**. It used to need `pcre` via
+`pkg-config`, and no longer does.
 
     git clone git@github.com:smucclaw/dmnmd.git
     cd dmnmd/languages/haskell

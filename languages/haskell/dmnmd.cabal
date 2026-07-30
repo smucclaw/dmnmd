@@ -37,7 +37,8 @@ source-repository head
 -- Only what all three components genuinely import. hpack expanded one
 -- `dependencies:` block into every stanza, so until the cabal-only move each
 -- component claimed the union of all three — the executable pulled in the whole
--- test framework, and the test suite pulled in hxt and regex-pcre. The lists
+-- test framework, and the test suite pulled in hxt and (then still) regex-pcre.
+-- The lists
 -- below were derived from the actual import graph and are checked by the build.
 common shared
   build-depends:
@@ -74,9 +75,6 @@ library
     -- (ghcid --allow-eval). Drop this and that dev loop breaks, with nothing
     -- in CI to notice.
     , pretty-simple
-    -- links against libpcre, located with pkg-config. See shell.nix and the
-    -- install lines in ../../README.md.
-    , regex-pcre
     -- number parsing
     , scientific
     , split

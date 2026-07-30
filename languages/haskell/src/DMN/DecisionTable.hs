@@ -7,11 +7,10 @@ module DMN.DecisionTable where
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
 import DMN.ParseCell ( parseNumberCell, thousandsGrouped )
-import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find)
+import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find, isInfixOf)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
-import Text.Regex.PCRE ( (=~) )
-import Data.Char (toLower)
+import Data.Char (toLower, isDigit)
 import Text.Read (readMaybe)
 import Debug.Trace ( trace )
 import qualified Data.Text as T
@@ -923,10 +922,31 @@ inferType  FAnything         = Nothing
 inferType (FNullary (VN _)) = Just DMN_Number
 inferType (FNullary (VB _)) = Just DMN_Boolean
 inferType (FNullary (VS arg))
-  | any (arg =~) ["^\\d+(\\.\\d+)?$", "\\.\\.", ">", "<", "="] = Just DMN_Number
+  | anchoredDigits arg || any (`isInfixOf` arg) ["..", ">", "<", "="] = Just DMN_Number
   | arg `elem` ["-","_",""] = Nothing
   | (toLower <$> arg) `elem` ["true","yes","positive","y","false","no","negative","n"] = Just DMN_Boolean
   | head arg == '\"' && last arg == '\"' = Just DMN_String
-  | any (arg =~) [" \\* ", " \\+ ", " - ", " / ", " \\*\\* "] = Just DMN_Number
+  | any (`isInfixOf` arg) [" * ", " + ", " - ", " / ", " ** "] = Just DMN_Number
   | otherwise = -- Debug.Trace.trace ("inferType " ++ show arg ++ " returning String!") $
       Just DMN_String
+
+-- | Exactly the regex @^\\d+(\\.\\d+)?$@ that used to live in 'inferType', and
+-- deliberately nothing better.
+--
+-- It is NOT rule 31: it rejects @-5@ and @.5@, both of which are legal FEEL
+-- numbers and both of which 'DMN.ParseCell.numericLiteral' accepts. Widening it
+-- to @numericLiteral@ would be a real improvement and is exactly why it is not
+-- done here — this commit removes a C-library dependency and must not also
+-- change which arm a cell reaches. Inference is its own job; the cases it gets
+-- wrong are recorded under @test\/corpus\/cases\/symptom\/infer-*@.
+--
+-- The other eight patterns needed no replacement at all: once unescaped they
+-- were @..@, @>@, @<@, @=@, @ * @, @ + @, @ - @, @ / @ and @ ** @, which is
+-- 'isInfixOf'. A whole PCRE binding was being linked for one anchored digit
+-- test, and dropping it is what lets jl4-core's wasm32 build reach this package.
+anchoredDigits :: String -> Bool
+anchoredDigits s = case span isDigit s of
+  ("",  _)        -> False              -- \d+ needs at least one digit
+  (_,   "")       -> True               -- digits, no fraction
+  (_,   '.':frac) -> not (null frac) && all isDigit frac
+  _               -> False              -- trailing junk: $ did not match

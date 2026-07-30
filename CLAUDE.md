@@ -51,9 +51,18 @@ is a real lower bound in `dmnmd.cabal` rather than a convention: `DMN.Translate.
 `Text.Megaparsec.Unicode (isWideChar)`, which does not exist before it. CI runs
 `cabal test` and then `make corpus`.
 
-macOS needs `brew install pkg-config pcre` for `regex-pcre` (Linux: `libpcre3-dev`).
-`languages/haskell/shell.nix` carries the same two for nix users; it replaced the
-`nix: pure: true` stanza that used to live in `stack.yaml`.
+**There are no system dependencies.** `regex-pcre` — and with it `pkg-config` + `libpcre`,
+which every install line in this repo used to name — was retired once the cell layer stopped
+using regexes. Two of its five call sites went with the interval recogniser; the other three
+were `inferType` classifiers whose patterns turned out to be eight literal substrings and one
+anchored digit test, i.e. `isInfixOf` and five lines of `span isDigit`. `shell.nix` is now an
+empty shell kept only as the machine-readable place to record that.
+
+This matters beyond tidiness: `jl4-wasm` build-depends on `jl4-core`, so anything jl4-core
+might one day depend on has to cross-build for wasm32, and a C-library binding cannot.
+`legalese/l4-ide` hit the same wall from the other side and resolved it the same way — see its
+`specs/done/WASM-LSP-SPEC.md`, which records dropping `pcre2` from `jl4-core.cabal` for exactly
+that reason.
 
 Single test / focused runs (hspec, via `--test-options`):
 
@@ -301,4 +310,7 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   `regex-pcre` failed to configure before any project code compiled), and the deprecated
   `haskell/actions/setup` resolved `latest` to stack 2.11.1, whose bundled Hackage TUF keys
   can no longer validate `root.json`. If CI goes red again, check whether project code was
-  even reached before assuming a regression.
+  even reached before assuming a regression. **The first cause can no longer recur**:
+  `regex-pcre` is gone and CI installs no system packages at all. The general lesson stands —
+  a dependency that fails to *configure* fails before anything you wrote is compiled, and
+  reads as a mysterious error in a package nobody here maintains.

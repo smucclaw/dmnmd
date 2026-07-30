@@ -67,6 +67,11 @@ Probed 2026-07-25 against commit `3724e61` (branch `feat/translate-l4`), using t
 binary. **Note:** the shim at `~/.local/bin/dmnmd` is broken on this machine — it dies with
 `Library not loaded: /usr/local/opt/pcre/lib/libpcre.1.dylib`. Use the build output directly:
 
+> **Superseded.** That dyld failure can no longer happen: `regex-pcre` was retired with the
+> `num-*` cell-layer work and the binary links no C library. Preferring the build output over
+> the on-PATH copy is still good advice, for the unrelated reason that a stale `cabal install`
+> silently tests a different binary — see the corpus runner's `corpus: using …` line.
+
 ```
 languages/haskell/dist-newstyle/build/aarch64-osx/ghc-9.10.3/dmnmd-0.1.0.2/x/dmnmd/build/dmnmd/dmnmd
 ```
