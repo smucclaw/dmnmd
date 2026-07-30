@@ -1,6 +1,6 @@
 dmnmd: error: table "T": column "cat": the declared domain has a wildcard member, so it constrains nothing — check for a stray or doubled comma in the sub-header row
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:385:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:385:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:415:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:415:15 in dmnmd:DMN.DecisionTable
 
 

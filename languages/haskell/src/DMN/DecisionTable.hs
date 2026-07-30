@@ -6,7 +6,7 @@ module DMN.DecisionTable where
 
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseCell ( parseNumberCell )
+import DMN.ParseCell ( parseNumberCell, thousandsGrouped )
 import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
@@ -130,7 +130,37 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 -- it can report on. Do not reintroduce a second copy of these guards elsewhere:
 -- a validator that drifts from the constructor is worse than no validator.
 mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
-mkFsEither dmntype args = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
+mkFsEither dmntype args
+  -- Checked BEFORE the split and independently of the column type, because the
+  -- split happens before anything knows the type — a String column is shredded
+  -- identically. See 'DMN.ParseCell.thousandsGrouped'.
+  | thousandsGrouped args = Left (thousandsMsg args)
+  | otherwise = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
+
+-- | Note what this message does NOT say: that the old parse was wrong.
+--
+-- It was not. FEEL has no grouping production — rule 31 admits no separator and
+-- rules 32-33 are @digit = [0-9]@ and @digits = digit , {digit}@ — so @1,000@ is
+-- legally TWO unary tests, @1@ and @000@, and @000@ is a well-formed literal
+-- denoting 0. dmnmd's old output for @>= 1,000@,
+-- @(Amount >= 1.0 || Amount === 0.0)@, was therefore /conformant/, and the two
+-- corpus recordings that called it a misparse were wrong about the parse.
+--
+-- What was unambiguously wrong is the SILENCE. Nobody writing @1,000@ in a
+-- threshold column means "at least 1, or exactly 0". So dmnmd refuses the shape
+-- rather than inventing a thousands separator — which would be a markdown-surface
+-- extension governed by BUILD-SPEC-dmnmd-extensions.md §6, and could not be added
+-- without breaking policy/md-multivalue-cell and test/golden/miles-card-dmn.md,
+-- whose @4111, 4112@ is the same shape.
+thousandsMsg :: String -> String
+thousandsMsg args = concat
+  [ "the cell reads ", show (trim args)
+  , " — FEEL has no thousands separator (DMN 1.3 §9.2 rule 31 admits none, and"
+  , " rules 32-33 are digit = [0-9] and digits = digit , {digit}), so a comma in a"
+  , " cell is rule 11's OR. Written out, this cell means its comma-separated parts"
+  , " as ALTERNATIVES, which is almost certainly not what was meant."
+  , " Drop the separator (1000), or, if you really do mean two alternatives,"
+  , " put a space after the comma (1, 000)." ]
 
 
 -- TODO: add a state monad to allow type inference to span all input rows;
