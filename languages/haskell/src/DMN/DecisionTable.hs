@@ -116,8 +116,99 @@ fNEval symtab (FNF3 fnf1 fnop2 fnf3) = let lhs = fromVN (fNEval symtab fnf1)
                                              FNExp   -> lhs ** rhs
                                        in VN result
 
+-- | The located-message house style, in one place: @column "C": row N: @, or
+-- @column "C": @ when there is no row.
+--
+-- Deliberately carries NO table name and no @error:@ prefix. That is the rule
+-- recorded above 'domainErrors'' @msg@: each reader frames a diagnostic its own
+-- way — the markdown path prepends @error: table "X": @ on its way to @error@,
+-- the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt'. This function exists so
+-- that the three places printing that prefix ('locate', @msg@, 'showSite')
+-- cannot drift apart; it is not an invitation to give the shared locators a
+-- table name.
+columnRow :: String -> Maybe Int -> String
+columnRow col rn = concat
+  [ "column ", show col, maybe "" (\n -> ": row " ++ show n) rn, ": " ]
+
+-- | Where a cell came from, for a diagnostic raised while building it.
+--
+-- Three fields, because that is exactly what the house style prints: a table
+-- name plus 'columnRow'. There is deliberately no kind word — 'structuralErrors'
+-- says "the input cell reads" in the message BODY and leaves the prefix alone,
+-- and a second spelling of the same prefix in the same binary is how a house
+-- style stops being one. (The kind word in 'DMN.XML.XmlToDmnmd' is that
+-- reader's own convention, and it does not follow that this one wants it.)
+--
+-- What this location does NOT promise, all three of them already recorded as
+-- symptoms:
+--
+--   * __uniqueness__ — two columns may share a name
+--     (@symptom\/struct-dup-column-names@), two headings may clean to the same
+--     table name (@symptom\/struct-tablename-collision@), and an unheaded table
+--     is called @f1@ with every unheaded table in the first file getting that
+--     same name (@symptom\/struct-no-heading-default-name@). Nothing rejects a
+--     repeated rule number either. The message names what the author wrote; it
+--     does not guarantee that only one cell answers to it.
+--
+--   * __a file name__ — 'DMN.ParseTable.parseTable' is not given one, though
+--     its caller has it: @ParseMarkdown.parseChunk@ binds @infile@ and prints
+--     it in the two sibling diagnostics either side of the 'parseTable' call.
+--     Threading it would touch every 'parseTable' call site, so the markdown
+--     path stays file-less for now, matching every other table-scoped refusal
+--     already in @cases\/policy\/@. The XML reader does print one. That is a
+--     deferral with a named cost, not an impossibility.
+data CellSite = CellSite
+  { siteTable  :: String
+  , siteColumn :: String
+    -- | The rule number the author WROTE in the leftmost cell — not an index,
+    -- which is why gaps and repeats survive into the message and why it agrees
+    -- with the row comment @--to=ts@ emits. 'Nothing' is the sub-header row,
+    -- which has no rule number; it renders as no row segment at all, exactly as
+    -- 'domainErrors' already renders a sub-header complaint. (The XML reader
+    -- stores a 1-based position in the same 'DTrow' field, so the two readers
+    -- mean different things by "row".)
+  , siteRow    :: Maybe Int
+  }
+  deriving (Show, Eq)
+
+-- | A 'CellSite' rendered in the house style, ready to prefix a cell message.
+--
+-- This is the one locator that carries its own @error: table "T": @ framing,
+-- because on this path there is nobody else to carry it: 'mkFsAt' fires inside
+-- 'DMN.ParseTable.parseTable', before 'mkDTable' exists at all, and 'mkFAt'
+-- fires while 'tableErrors' forces the rows, so the exception overtakes
+-- 'mkDTable'\'s own framing at the @case@. Do not make 'locate' or the
+-- 'domainErrors' @msg@ call this — those are shared with the XML reader, which
+-- frames them itself, and handing them a table name would change every XML
+-- diagnostic. The shared part is 'columnRow'.
+showSite :: CellSite -> String
+showSite st = concat
+  [ "error: table ", show (siteTable st), ": ", columnRow (siteColumn st) (siteRow st) ]
+
 mkFs :: Maybe DMNType -> String -> [FEELexp]
 mkFs dmntype args = either error id (mkFsEither dmntype args)
+
+-- | 'mkFs', with the cell's location prepended to any refusal.
+--
+-- CLAUDE.md's bar for a diagnostic is loud AND located, and until this existed
+-- the cell layer met only the first half: a refusal named a source position
+-- inside dmnmd and nothing about the table it was reading. It still reports
+-- through @error@, because that is how this path already reports a bad table
+-- ('mkDTable') and how every located markdown refusal in @cases\/policy\/@
+-- already arrives.
+--
+-- 'mkFs' stays, at its own source line. The XML reader calls it — including at
+-- a type-inference pre-pass with no column context to build a site from — dozens
+-- of test sites call it, and @test\/corpus\/README.md@ relies on the
+-- multi-value and single-value wrappers sitting at distinct source positions to
+-- tell otherwise byte-identical messages apart. Keep 'mkFsAt' and 'mkFAt' two
+-- functions at two lines for the same reason.
+--
+-- Reports the first cell FORCED, which is not the first in reading order:
+-- 'inferTypes' transposes, so pass 1 walks columns and pass 2 walks rows.
+-- Contrast 'tableErrors', which collects every error and joins them.
+mkFsAt :: CellSite -> Maybe DMNType -> String -> [FEELexp]
+mkFsAt st dmntype args = either (error . (showSite st ++)) id (mkFsEither dmntype args)
 
 -- | 'mkFs' as a total function.
 --
@@ -170,6 +261,11 @@ thousandsMsg args = concat
 -- after it's been fully parsed once.
 mkF :: Maybe DMNType -> String -> FEELexp
 mkF dmntype arg = either error id (mkFEither dmntype arg)
+
+-- | The single-value twin of 'mkFsAt' — see there for why there are two of
+-- these and why they must stay at distinct source lines.
+mkFAt :: CellSite -> Maybe DMNType -> String -> FEELexp
+mkFAt st dmntype arg = either (error . (showSite st ++)) id (mkFEither dmntype arg)
 
 -- | The single definition of "what does this cell mean, given this column type".
 --
@@ -393,12 +489,12 @@ mkDTable origname orighp origchs origdtrows =
 --  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
                                      (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      typedchs = retypeEnums <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
+      typedchs = retypeEnums origname <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
       built = DTable origname orighp typedchs
               ((\case
                    (DTrow rn ri ro rc) -> (DTrow rn
-                                  (reprocessRows (getInputHeaders typedchs)  ri)
-                                  (reprocessRows (getOutputHeaders typedchs) ro)
+                                  (reprocessRows origname rn (getInputHeaders typedchs)  ri)
+                                  (reprocessRows origname rn (getOutputHeaders typedchs) ro)
                                   rc)) <$> origdtrows)
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
@@ -628,9 +724,7 @@ structuralErrors dt = concat
     isPlainOrWild (FNullary _) = True
     isPlainOrWild _            = False
 
-    locate ch rn body = concat
-      [ "column ", show (varname ch)
-      , maybe "" (\n -> ": row " ++ show n) rn, ": ", body ]
+    locate ch rn body = columnRow (varname ch) rn ++ body
 
 -- | Every variable an arithmetic cell mentions.
 fnVars :: FNumFunction -> [String]
@@ -772,11 +866,12 @@ domainErrors dt = malformedDomains ++ violations
     -- way. The markdown path prepends `error: table "X": ` on its way to
     -- @error@; the XML path hands it to 'DMN.XML.XmlToDmnmd.errorAt' through
     -- that module's own `inTable`, which also knows the rule id. One rule, two
-    -- framings — rather than one rule and two implementations.
+    -- framings — rather than one rule and two implementations. The column/row
+    -- half is 'columnRow', shared with 'locate' and 'showSite' so the three
+    -- spellings of a location cannot drift.
     msg ch rn cell = concat
-      [ "column ", show (varname ch)
-      , maybe "" (\n -> ": row " ++ show n) rn
-      , ": value outside the column's declared domain {"
+      [ columnRow (varname ch) rn
+      , "value outside the column's declared domain {"
       , intercalate ", " (showDomainMember <$> fromJust (enums ch))
       , "} — the cell reads ", showDomainMember cell
       ]
@@ -848,13 +943,19 @@ showFNumFunction (FNF3 l op r)  =
 -- rebuilt when every member is still an unconverted @FNullary (VS _)@. A domain
 -- on a column whose type stays 'Nothing' is left alone, as are @FAnything@ and
 -- anything already converted.
-retypeEnums :: ColHeader -> ColHeader
-retypeEnums ch = case enums ch of
+--
+-- Takes the table name only to locate a refusal ('reprocessRows' calls 'mkFAt');
+-- the row is 'Nothing' because a sub-header row has no rule number.
+retypeEnums :: String -> ColHeader -> ColHeader
+retypeEnums tbl ch = case enums ch of
   Nothing -> ch
-  Just es -> ch { enums = listToMaybe (reprocessRows [ch] [es]) }
+  Just es -> ch { enums = listToMaybe (reprocessRows tbl Nothing [ch] [es]) }
 
-reprocessRows :: [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
-reprocessRows = 
+-- | The table name and row number are here for one reason: to build the
+-- 'CellSite' that locates a refusal from 'mkFAt'. The column half of the site
+-- comes from the 'ColHeader' this already has in hand.
+reprocessRows :: String -> Maybe Int -> [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
+reprocessRows tbl rn =
   -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re- mkF it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
@@ -869,7 +970,7 @@ reprocessRows =
                -- cells were already unquoted in pass 1.
                if vartype ch /= Nothing && (length [ x | FNullary (VS x) <- cells] == length cells)
                then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
-                    [ mkF (vartype ch) x | FNullary (VS x) <- cells ]
+                    [ mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x | FNullary (VS x) <- cells ]
                else cells)
                          
   

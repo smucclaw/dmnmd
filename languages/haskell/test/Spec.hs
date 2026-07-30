@@ -124,7 +124,7 @@ spec3 = do
         hr <- parseHeaderRow
         sh <- parseContinuationRows <?> "parseContinuationRows"
         let columnSignatures = columnSigs hr
-        dr <- parseDataRows columnSignatures <?> "parseDataRows"
+        dr <- parseDataRows "mytable1" columnSignatures <?> "parseDataRows"
         return (hr, sh, dr)
       ) `shouldParse` ( (DTHR HP_OutputOrder [ DTCH DTCH_In "Age"           (Just DMN_Number) Nothing
                                              , DTCH DTCH_Out "RiskCategory"  Nothing Nothing
@@ -171,15 +171,19 @@ spec3 = do
         return (DTrow (Just . (\n -> (read n) :: Int) $ myrownumber) [] [] [])
       ) `shouldParse` (DTrow (Just 1) [] [] [])
       
+  -- These four call parseDataRow with a hand-built signature list and no header
+  -- row, so the table name and the ColSig column names are invented. They are
+  -- read only by DMN.DecisionTable.CellSite when a cell is REFUSED, which none
+  -- of these rows does; nothing here asserts on them.
   describe "parseDataRow" $ do
     it "should parse a zero-column row"
-      $ ("| 1 |\n" :: Text ) ~> (parseDataRow []) `shouldParse` (DTrow (Just 1) [] [] [])
+      $ ("| 1 |\n" :: Text ) ~> (parseDataRow "mytable1" []) `shouldParse` (DTrow (Just 1) [] [] [])
     it "should parse a comment-only row"
-      $ ("| 1 | rem |\n" :: Text ) ~> (parseDataRow [(DTCH_Comment, Nothing)]) `shouldParse` (DTrow (Just 1) [] [] [Just "rem"])
+      $ ("| 1 | rem |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_Comment "note" Nothing]) `shouldParse` (DTrow (Just 1) [] [] [Just "rem"])
     it "should parse an input-only row"
-      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow [(DTCH_In, Nothing)]) `shouldParse` (DTrow (Just 1) [[FNullary $ VS "potato"]] [] [])
+      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_In "veg" Nothing]) `shouldParse` (DTrow (Just 1) [[FNullary $ VS "potato"]] [] [])
     it "should parse an output-only row"
-      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow [(DTCH_Out, Nothing)]) `shouldParse` (DTrow (Just 1) [] [[FNullary $ VS "potato"]] [])
+      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_Out "veg" Nothing]) `shouldParse` (DTrow (Just 1) [] [[FNullary $ VS "potato"]] [])
 
   describe "parseTable" $ do
     it "should parse a null table with no header columns and no body rows"
@@ -494,9 +498,9 @@ spec3 = do
       "age * 100" ~> parseFNumFunction `shouldParse` FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0))
     let evaled = columnSigs . reviseInOut . throwOnLeft $ parseOnly parseHeaderRow $ head $ T.lines dmn6a
     it "should handle the last line" $
-      (last (T.lines dmn6a) <> "\n") ~> (parseDataRow evaled) `shouldParse`
+      (last (T.lines dmn6a) <> "\n") ~> (parseDataRow "mytable1" evaled) `shouldParse`
         (DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] [])
-    -- parseOnly (parseDataRow [(DTCH_In,Just DMN_Number),(DTCH_Out,Just DMN_Boolean),(DTCH_Out,Just DMN_Number)]) "| 4 | >25          | True                   | age * 100            |\n"
+    -- parseOnly (parseDataRow "mytable1" [ColSig DTCH_In "age" (Just DMN_Number), ColSig DTCH_Out "mayBuy" (Just DMN_Boolean), ColSig DTCH_Out "limit" (Just DMN_Number)]) "| 4 | >25          | True                   | age * 100            |\n"
     it "should parse correctly" $
       dmn6a ~> (parseTable "mytable1") `shouldParse`
       (DTable "mytable1" HP_First

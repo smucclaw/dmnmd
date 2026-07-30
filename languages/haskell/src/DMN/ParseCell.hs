@@ -285,8 +285,10 @@ callName s0 = case break (== '(') s of
 -- ** Messages
 --
 -- Every one of these names the construct, cites the rule, and prints the
--- repair. The location — file, table, column, row — is prepended by the caller;
--- see 'DMN.DecisionTable.mkFEitherAt'.
+-- repair. The location — table, column, row — is prepended by the caller on the
+-- markdown path; see 'DMN.DecisionTable.mkFsAt' and 'DMN.DecisionTable.mkFAt'.
+-- The XML reader frames these itself. Neither path prints a file name; the
+-- 'DMN.DecisionTable.CellSite' haddock says why.
 
 negationMsg :: String -> String -> String
 negationMsg cell inner = concat

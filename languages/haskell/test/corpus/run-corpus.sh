@@ -112,10 +112,13 @@ normalize() {
 # reporting a behaviour change.
 #
 # They are NOT stripped by normalize(), because they carry information nothing
-# else does: DecisionTable.hs:121 is mkFs and :143 is mkF, the multi-value and
-# single-value cell paths, and several cells produce byte-identical message text
-# down both. Collapsing them would make two genuinely different defects record
-# identically.
+# else does: DecisionTable.mkFsAt and .mkFAt are the multi-value and single-value
+# cell paths, and several cells produce byte-identical message text down both.
+# The pinned demonstration is the pair policy/num-subheader-{declared,inferred}-
+# refused: same table, same column, same absent row, identical text to the byte,
+# tellable apart ONLY by which wrapper raised. Collapsing the positions would
+# make two genuinely different defects record identically. No line numbers are
+# quoted here on purpose -- the numbers are the part that goes stale.
 #
 # So positions stay verbatim in the recordings, and instead a diff that consists
 # of NOTHING BUT moved positions is reported as cosmetic: printed in full, but it

@@ -1,6 +1,6 @@
 dmnmd: error: table "Mix": column "tags": row 1: this cell mixes "-" with values. "-" already matches every collection, so the other values cannot change the answer. Write "-" alone, or drop it. A trailing or doubled comma is the usual cause.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:415:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:415:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:510:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:510:15 in dmnmd:DMN.DecisionTable
 
 

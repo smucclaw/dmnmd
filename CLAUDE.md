@@ -210,6 +210,18 @@ disagrees with the column count, a cell that cannot be built at the column's typ
 that table is **not emitted**, because a table that can never match, or one whose rules have
 been silently widened, is a wrong answer that exits 0.
 
+The markdown reader gets there differently, and deliberately. It has no reason to refuse one
+table and carry on, so it raises through `error` — but a refusal from the cell layer now
+carries a `DMN.DecisionTable.CellSite` and reads
+`error: table "T": column "C": row N: …`, the same shape `structuralErrors` and
+`domainErrors` already print. `mkFsAt`/`mkFAt` are the located wrappers; `mkFs`/`mkF` stay
+for the XML reader (which frames its own) and for the test suite. `row N` is the rule number
+the **author wrote** in the leftmost cell, so gaps and repeats survive into the message; the
+XML reader stores a 1-based index in the same field, so the two readers mean different things
+by "row". `Nothing` there is the sub-header row and prints no row segment at all. No file name
+on the markdown path — `parseTable` is not given one, and the `CellSite` haddock records what
+that would cost.
+
 The exit status answers exactly one question: *did something we were asked to read fail to
 read?*
 
@@ -270,10 +282,13 @@ Three things there are easy to get wrong on sight:
   recordings with zero behavioural content, back when CI built with stack; stack is gone but
   the rule is not stack-specific, and Linux CI reproducing macOS arm64 recordings is the
   evidence it earns its place.
-- **Source positions are kept, not normalised.** `DecisionTable.hs:121` is `mkFs` and `:143` is
-  `mkF`, and several cells produce byte-identical message text down both paths, so the line
-  number is the only discriminator. Instead of stripping them, a diff consisting of *nothing but*
-  moved positions is reported as `cosmetic` and does not fail the run.
+- **Source positions are kept, not normalised.** `mkFsAt` and `mkFAt` are the multi-value and
+  single-value cell paths, and several cells produce byte-identical message text down both, so
+  the position is the only discriminator. `policy/num-subheader-{declared,inferred}-refused`
+  is the pair that pins it: identical text, different wrapper. Instead of stripping positions,
+  a diff consisting of *nothing but* moved ones is reported as `cosmetic` and does not fail the
+  run. Do not write the line numbers down anywhere — this bullet asserted `:121` and `:143`
+  long after both had moved, and `:143` was never right.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
   tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
