@@ -444,7 +444,8 @@ tableErrors dt = structuralErrors dt ++ domainErrors dt
 -- path can @error@ and the XML path can locate and refuse one table.
 structuralErrors :: DecisionTable -> [String]
 structuralErrors dt = concat
-  [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs ]
+  [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs
+  , inputArithErrs, openRangeOutErrs ]
   where
     ins  = getInputHeaders  (header dt)
     outs = getOutputHeaders (header dt)
@@ -551,6 +552,47 @@ structuralErrors dt = concat
       , ch <- ins ++ outs
       , varname ch == v
       , isListCol ch
+      ]
+
+    -- R8. An input entry is a unary test (§9.2 rule 12): a value, a comparison,
+    -- an interval, or "-". There is NO arithmetic production for one. An output
+    -- entry is a rule 3 `simple expression`, which DOES include arithmetic
+    -- (§9.5.3, §8.2.9, and the XSD's inputEntry=tUnaryTests /
+    -- outputEntry=tLiteralExpression split), so policy/md-arith-output stays
+    -- legal and is untouched. Independently: 'fEval' has no FFunction arm, so an
+    -- arithmetic input cell can never match anything at all; it can only reach a
+    -- backend, where `40 - 50` becomes the JS guard `(40.0 - 50.0)` — no input
+    -- variable mentioned, and unconditionally truthy.
+    inputArithErrs =
+      [ locate ch (row_number r) (concat
+          [ "the input cell reads ", show (showDomainMember cell)
+          , ". An input entry is a unary test (DMN 1.3 §9.2 rule 12): a value, a"
+          , " comparison, an interval, or \"-\". Arithmetic is a rule 3 simple"
+          , " expression and is legal only in an OUTPUT cell. A dash-written range"
+          , " is arithmetic, not an interval — write [40..50], not 40 - 50."
+          , " If this column is not numeric, declare it (\"Season : String\");"
+          , " dmnmd infers Number from a cell containing a spaced operator." ])
+      | r@DTrow{} <- allrows dt
+      , (ch, cells) <- zip ins (row_inputs r)
+      , cell@(FFunction _) <- cells
+      ]
+
+    -- R9. An OUTPUT cell may hold a range (README "Extensions"), and
+    -- 'DMN.Translate.L4.showFeelL4' renders one by dropping the upper bound.
+    -- That is already wrong for a CLOSED range and is recorded separately as
+    -- symptom/l4-output-range-upper-bound-dropped; for an OPEN bound it would
+    -- emit a value that is not even in the interval. Refused here rather than in
+    -- 'showFeelL4', which returns a String and cannot express a refusal.
+    openRangeOutErrs =
+      [ locate ch (row_number r) (concat
+          [ "the output cell reads ", show (showDomainMember cell)
+          , ". dmnmd can emit a range as an output VALUE only when both endpoints"
+          , " are included: an excluded endpoint has no value to name."
+          , " Write a closed range [a..b], or move the test to an input column." ])
+      | r@DTrow{} <- allrows dt
+      , (ch, cells) <- zip outs (row_outputs r)
+      , cell@(FInRange lk _ _ rk) <- cells
+      , lk == BOpen || rk == BOpen
       ]
 
     -- R6/R7. A collection has no position in an element-level domain, so every
