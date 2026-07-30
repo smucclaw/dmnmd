@@ -83,6 +83,7 @@ library
   exposed-modules:
       DMN.DecisionTable
       DMN.Diagnostic
+      DMN.ParseCell
       DMN.ParseFEEL
       DMN.ParseTable
       DMN.ParsingUtils

@@ -1,6 +1,0 @@
-export function Inf ( X : number ) {
-  if (X === Infinity) { // 1
-    return {"Y":"hit"};
-  }
-}
-

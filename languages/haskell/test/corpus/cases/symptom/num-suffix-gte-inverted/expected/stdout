@@ -1,6 +1,0 @@
-export function SuffixGte ( Age : number ) {
-  if (Age < 5.0) { // 1
-    return {"Band":"atmost5"};
-  }
-}
-

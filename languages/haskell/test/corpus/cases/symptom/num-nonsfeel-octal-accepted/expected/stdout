@@ -1,6 +1,0 @@
-export function Octal ( X : number ) {
-  if (X === 15.0) { // 1
-    return {"Y":"hit"};
-  }
-}
-

@@ -1,6 +1,6 @@
 dmnmd: error: table "Agg": hit policy Collect Sum aggregates output column "sides", which is a collection ([Number]). dmnmd has no aggregate over collections — the elements of every matching row would be flattened into one number with no diagnostic. Use Collect All, or a scalar output column.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:396:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:396:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:385:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:385:15 in dmnmd:DMN.DecisionTable
 
 

@@ -1,0 +1,6 @@
+export function NegRange ( Temp : number ) {
+  if ((-5.0 <= Temp && Temp <= 5.0)) { // 1
+    return {"Advice":"mild"};
+  }
+}
+

@@ -1,0 +1,6 @@
+export function LeadingDot ( Rate : number ) {
+  if (Rate === 0.5) { // 1
+    return {"Band":"half"};
+  }
+}
+

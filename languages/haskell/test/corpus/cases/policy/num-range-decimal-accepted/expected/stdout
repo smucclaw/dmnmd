@@ -1,0 +1,6 @@
+export function DecimalRange ( Score : number ) {
+  if ((1.5 <= Score && Score <= 2.5)) { // 1
+    return {"Band":"inrange"};
+  }
+}
+

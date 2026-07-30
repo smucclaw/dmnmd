@@ -6,8 +6,8 @@ module DMN.DecisionTable where
 
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseFEEL ( parseFNumFunction )
-import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, intersect, isPrefixOf, isSuffixOf, find)
+import DMN.ParseCell ( parseNumberCell )
+import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
 import Text.Regex.PCRE ( (=~) )
@@ -181,25 +181,11 @@ mkFEither (Just DMN_Boolean) arg1 = FNullary <$> mkVB arg1
       | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = Right (VB True)
       | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = Right (VB False)
       | otherwise = Left $  "unable to parse an alleged boolean: " ++ arg
-mkFEither (Just DMN_Number)  arg1
-  | not (null ("+-*/" `intersect` arg2)) = either (\msg -> Left $ "error: parsing suspected function expression " ++ arg2 ++ ": " ++ msg) (Right . FFunction) (parseOnly parseFNumFunction (T.pack arg2))
-  | "<=" `isPrefixOf` arg2 = FSection Flte <$> (mkVN $ trim $ drop 2 arg2)
-  | "<"  `isPrefixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ drop 1 arg2)
-  | ">=" `isPrefixOf` arg2 = FSection Fgte <$> (mkVN $ trim $ drop 2 arg2)
-  | ">"  `isPrefixOf` arg2 = FSection Fgt  <$> (mkVN $ trim $ drop 1 arg2)
-  | "<=" `isSuffixOf` arg2 = FSection Fgt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | "<"  `isSuffixOf` arg2 = FSection Fgte <$> (mkVN $ trim $ Prelude.take (length arg2 - 1) arg2)
-  | ">=" `isSuffixOf` arg2 = FSection Flt  <$> (mkVN $ trim $ Prelude.take (length arg2 - 2) arg2)
-  | arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: Bool =
-    let (_,_,_,bounds) = arg2 =~ "\\[\\s*(\\d+)\\s*\\.\\.\\s*(\\d+)\\s*\\]" :: (String,String,String,[String])
-    in Right (FInRange BClosed ((read $ head bounds) :: Float) ((read $ bounds!!1) :: Float) BClosed)
-  | "="  `isPrefixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhile    (=='=') arg2)
-  | "="  `isSuffixOf` arg2 = FSection Feq  <$> (mkVN $ trim $ dropWhileEnd (=='=') arg2)
-  | otherwise              = FNullary      <$> (mkVN $ trim                        arg2)
-  where arg2 = trim arg1 -- probably extraneous
-        mkVN x = maybe (Left $ "expected a number, but this column is typed Number and the cell reads " ++ show arg2)
-                       (Right . VN)
-                       (readMaybe x :: Maybe Float)
+-- The nineteen lines this replaces were not a grammar but a chain of six
+-- mutually blind string tests over the same raw text, so the accepted language
+-- was whatever fell out of the guard ORDERING. See "DMN.ParseCell", which is
+-- that language written down once, anchored, with the rule numbers.
+mkFEither (Just DMN_Number)  arg1 = parseNumberCell arg1
 
 -- | Parse a runtime ARGUMENT — as opposed to a table cell, which is a TEST.
 --
@@ -363,7 +349,7 @@ fEval rhs lhs                                 = error $ unwords [ "type error in
 
 -- From the S-FEEL specification:
 -- Given an expression o to be tested and two endpoint e1 and e2:
---  is in the interval (e1..e2), also notated ]e1..e2[, if and only if o > e1 and o < e1
+--  is in the interval (e1..e2), also notated ]e1..e2[, if and only if o > e1 and o < e2
 --  is in the interval (e1..e2], also notated ]e1..e2], if and only if o > e1 and o ≤ e2
 --  is in the interval [e1..e2] if and only if o ≥ e1 and o ≤ e2
 --  is in the interval [e1..e2), also notated [e1..e2[, if and only if o ≥ e1 and o < e2
