@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="drg" name="Two Linked Decisions"
+             namespace="https://example.org/dmnmd/test/drg">
+  <inputData id="InputData_age" name="Age"/>
+  <decision id="Decision_band" name="Band">
+    <informationRequirement id="InformationRequirement_age">
+      <requiredInput href="#InputData_age"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_age">
+        <inputExpression id="InputExpression_age" typeRef="number">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band" name="Band" label="Band" typeRef="string"/>
+      <rule id="Rule_b1">
+        <inputEntry id="UnaryTests_b1"><text>&lt; 18</text></inputEntry>
+        <outputEntry id="LiteralExpression_b1"><text>"minor"</text></outputEntry>
+      </rule>
+      <rule id="Rule_b2">
+        <inputEntry id="UnaryTests_b2"><text>&gt;= 18</text></inputEntry>
+        <outputEntry id="LiteralExpression_b2"><text>"adult"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="Decision_fare" name="Fare">
+    <informationRequirement id="InformationRequirement_band">
+      <requiredDecision href="#Decision_band"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_fare" hitPolicy="FIRST">
+      <input id="Input_band">
+        <inputExpression id="InputExpression_band" typeRef="string">
+          <text>band</text>
+        </inputExpression>
+      </input>
+      <output id="Output_fare" name="Fare" label="Fare" typeRef="number"/>
+      <rule id="Rule_f1">
+        <inputEntry id="UnaryTests_f1"><text>"minor"</text></inputEntry>
+        <outputEntry id="LiteralExpression_f1"><text>5</text></outputEntry>
+      </rule>
+      <rule id="Rule_f2">
+        <inputEntry id="UnaryTests_f2"><text>"adult"</text></inputEntry>
+        <outputEntry id="LiteralExpression_f2"><text>10</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

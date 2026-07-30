@@ -1,0 +1,8 @@
+GIVEN Age IS A NUMBER
+GIVETH A NUMBER
+UniqueOverlap Age MEANS
+  BRANCH
+    IF Age <= 20 THEN 5
+    IF ^   >= 10 THEN 10
+    OTHERWISE 0
+

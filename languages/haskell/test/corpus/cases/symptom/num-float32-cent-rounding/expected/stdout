@@ -1,0 +1,6 @@
+export function Premium ( Plan : string ) {
+  if (Plan === "gold") { // 1
+    return {"Premium":1234567.9};
+  }
+}
+

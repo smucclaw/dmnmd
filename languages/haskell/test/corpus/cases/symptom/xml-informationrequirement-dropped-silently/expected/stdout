@@ -1,0 +1,18 @@
+export function Band ( age : number ) {
+  if (age < 18.0) { // 1
+    return {"Band":"minor"};
+  }
+  else if (age >= 18.0) { // 2
+    return {"Band":"adult"};
+  }
+}
+
+export function Fare ( band : string ) {
+  if (band === "minor") { // 1
+    return {"Fare":5.0};
+  }
+  else if (band === "adult") { // 2
+    return {"Fare":10.0};
+  }
+}
+
