@@ -1,0 +1,3 @@
+dmnmd: input.dmn: this document declares DMN 1.5 and dmnmd cannot represent it faithfully.
+  decision "Band": <decision> is in namespace "https://www.omg.org/spec/DMN/20191111/MODEL/" (DMN 1.3), but this document declares DMN 1.5. dmnmd reads one release per document.
+

@@ -241,11 +241,13 @@ read?*
 
 | input | status |
 |---|---|
-| valid DMN 1.3 with decision tables | 0 |
-| valid DMN 1.3 with no `<decision>` (`test/simple.dmn`) | 0 |
+| valid DMN 1.3/1.4/1.5 with decision tables | 0 |
+| valid DMN with no `<decision>` (`test/simple.dmn`) | 0 |
 | markdown with decision tables | 0 |
 | markdown with no decision tables — prose, or prose pipe tables (`test/golden/README.md`) | 0 |
 | malformed XML, or DMN 1.1/1.2 | 1 |
+| a DMN 1.4/1.5 construct dmnmd does not model — refused by name before unpickling | 1 |
+| a document mixing two releases' namespaces | 1 |
 | a table refused by the converter | 1 |
 | a table whose cell violates its own declared domain — either reader | 1 |
 | markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
@@ -331,11 +333,43 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
 - **The executable is not covered by `-Werror=incomplete-patterns`.** The flag is on the
   `library` stanza only, so `app/`'s partial functions still fail at run time — `showToJSON`
   is the live example, recorded as `symptom/cli-showtojson-*`.
-- **`--from=xml` reads DMN 1.3 only; `--to=xml` is not implemented at all**, despite `Xml`
-  existing in `FileFormat`. The reader is deliberately strict — an element or attribute the
-  vendored `xsd/DMN13.xsd` does not allow in that position is an error, and a DMN 1.1/1.2
-  document is refused by namespace with a message naming the version. Fixtures live in
-  `test/dmn13/`; its README says which refusal each one exercises.
+- **`--from=xml` reads DMN 1.3, 1.4 and 1.5; `--to=xml` is not implemented at all**, despite
+  `Xml` existing in `FileFormat`. The reader is deliberately strict — an element or attribute
+  the XSD does not allow in that position is an error, and a DMN 1.1/1.2 document is refused
+  by namespace with a message naming the version. Fixtures live in `test/dmn13/` and
+  `test/dmn15/`; each README says which refusal each one exercises.
+
+  **The namespace is a parameter, not a constant.** `DmnRelease` (`ParseDMN.hs`) is a name
+  plus *two independent* URIs — model and DMNDI — because DMN 1.4 pairs a 1.4 model
+  namespace with the **1.3** DMNDI one, so a date-into-a-template scheme is wrong on its
+  first use. It is resolved once by `checkDmnRoot` and threaded through the pickler tree by
+  `DmnPU`, a project-local replacement for hxt's `XmlPickler` whose method takes the release
+  (hxt's `xpickle :: PU a` is a value with nowhere to put it). Adding DMN 1.6 is one record —
+  *provided* its decision-table complex types are still byte-identical, which is the property
+  that lets one tree serve every release and must be re-measured, not assumed.
+
+  **What 1.4/1.5 add is refused by name, not by `xpCheckEmptyContents`.** `refuseUnmodelled`
+  scans the tree before unpickling and names the element, what it is, the release that
+  introduced it, and the `<decision>` or `<itemDefinition>` it sits under. Six names:
+  `conditional`, `for`, `some`, `every`, `filter` — the boxed expressions, added in **1.4**,
+  not 1.5 — plus `typeConstraint`, the only structural change 1.5 makes over 1.4. Five boxed
+  names and not seven, because `tIterator`, `tChildExpression` and `tTypedChildExpression` have
+  no global `<xsd:element>` declaration; `<iterator>` cannot be written in a document at all.
+  (This sentence used to add that `tQuantified` is abstract. It is not — `every` and `some` are
+  its global elements, and they are in the list above. Nothing in `DMN15.xsd` is an abstract
+  *complexType*.)
+
+  It is a pre-flight rather than an arm inside the picklers for three reasons, and
+  `typeConstraint` is the one that settles it: `ItemDefinition` filters its children by name,
+  and a name filter *deletes* what it does not list, so that element never reached the
+  unpickler and was dropped in **silence** — the case the governing rule above calls strictly
+  worse than rejection. The other two: all five boxed expressions substitute for `expression`,
+  which the XSD writes in seven positions and dmnmd models one of; and a pre-flight needs
+  nothing from hxt that `Text.XML.HXT.Core` does not re-export.
+
+  `unmodelledConstructs` is the extension point. The DMN **1.3** boxed expressions dmnmd has
+  never modelled — `<context>`, `<invocation>`, `<relation>`, `<list>`, `<functionDefinition>`
+  — belong there too and still produce a generic error today.
 - **Multi-table Markdown works — `test/safe.md` is a bad fixture, not a chunking limit.**
   Its file-level failure is a **missing final newline** (the last byte is `|`); append one
   and `grepMarkdown` succeeds and 3 of its 13 tables import. Also, the reported position is

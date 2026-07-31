@@ -1,0 +1,4 @@
+dmnmd: input.dmn: this document declares DMN 1.3 and dmnmd cannot represent it faithfully.
+  itemDefinition "tRole": <typeConstraint> is a unary test constraining an <itemDefinition>'s values, added in DMN 1.5. dmnmd does not model it.
+dmnmd models decision tables: a <decision> must hold a <decisionTable>, and an <itemDefinition> may carry <allowedValues> but not <typeConstraint>.
+

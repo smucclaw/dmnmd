@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The 1.5 baseline plus an <itemDefinition> carrying <typeConstraint> — the
+     ONLY structural change DMN 1.5 makes over DMN 1.4 (DMN15.xsd:239, type
+     tUnaryTests, minOccurs=0).
+
+     This is the sharpest of the refusals, because the old behaviour was not a
+     generic error but SILENCE: ItemDefinition's pickler filters its children by
+     name (ParseDMN.hs itemDefElems) and a name filter DELETES what it does not
+     list, so the constraint never reached xpCheckEmptyContents. dmnmd honoured
+     <allowedValues> and dropped its narrower sibling, admitting values the
+     document forbids. Recorded as it was in
+     test/corpus/cases/symptom/xml-typeconstraint-dropped-silently.
+
+     No TCK model uses <typeConstraint>, so this hand-written fixture is the only
+     coverage the path has anywhere. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20230324/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20230324/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="ageBand" name="Age Band"
+             namespace="https://example.org/dmnmd/test/ageBand">
+  <inputData id="InputData_age" name="Age"/>
+  <decision id="Decision_band" name="Band">
+    <informationRequirement id="InformationRequirement_age">
+      <requiredInput href="#InputData_age"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_age" label="Age">
+        <inputExpression id="InputExpression_age" typeRef="number">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band" name="band" label="Band" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>children</description>
+        <inputEntry id="UnaryTests_1"><text>&lt; 18</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"minor"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>[18..65]</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"adult"</text></outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <inputEntry id="UnaryTests_3"><text>&gt; 65</text></inputEntry>
+        <outputEntry id="LiteralExpression_3"><text>"senior"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <itemDefinition name="tBand">
+    <typeRef>string</typeRef>
+    <allowedValues id="AV_1"><text>"minor", "adult", "senior"</text></allowedValues>
+    <typeConstraint id="TC_1"><text>"minor", "adult"</text></typeConstraint>
+  </itemDefinition>
+</definitions>

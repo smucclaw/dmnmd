@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An <itemDefinition> carrying BOTH <allowedValues> and <typeConstraint>.
+
+     <typeConstraint> is a DMN 1.5 element (DMN15.xsd:239, type tUnaryTests) and
+     is not legal in a DMN 1.3 document at all. dmnmd neither honours it nor
+     rejects it: ItemDefinition's pickler applies a NAME FILTER
+     (xpFilterCont, ParseDMN.hs:565, list at itemDefElems :587), and a name
+     filter DELETES what it does not list, so the element never reaches
+     xpCheckEmptyContents. The document reads clean and the constraint vanishes.
+
+     The two children are deliberately in CONFLICT: <allowedValues> permits
+     "admin", "clerk" and "teller"; <typeConstraint> narrows that to "admin"
+     alone. Rule_2 tests "clerk". Honouring only the first admits a value the
+     document forbids, which is the silent-widening case CLAUDE.md's governing
+     rule calls strictly worse than rejection. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="tc" name="TypeConstraint"
+             namespace="https://example.org/dmnmd/test/typeconstraint">
+
+  <itemDefinition name="tRole">
+    <typeRef>string</typeRef>
+    <allowedValues id="AV_1"><text>"admin", "clerk", "teller"</text></allowedValues>
+    <typeConstraint id="TC_1"><text>"admin"</text></typeConstraint>
+  </itemDefinition>
+
+  <decision id="Decision_access" name="Access">
+    <decisionTable id="DecisionTable_access" hitPolicy="FIRST">
+      <input id="Input_role" label="Role">
+        <inputExpression id="InputExpression_role" typeRef="tRole">
+          <text>role</text>
+        </inputExpression>
+      </input>
+      <output id="Output_grant" name="grant" label="Grant" typeRef="string"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"admin"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"full"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"clerk"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"read"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
