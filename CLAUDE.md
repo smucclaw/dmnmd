@@ -353,9 +353,11 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   introduced it, and the `<decision>` or `<itemDefinition>` it sits under. Six names:
   `conditional`, `for`, `some`, `every`, `filter` — the boxed expressions, added in **1.4**,
   not 1.5 — plus `typeConstraint`, the only structural change 1.5 makes over 1.4. Five boxed
-  names and not seven: `tIterator`/`tQuantified` are abstract and
-  `tChildExpression`/`tTypedChildExpression` have no global element, so `<iterator>` and
-  `<quantified>` cannot be written in a document at all.
+  names and not seven, because `tIterator`, `tChildExpression` and `tTypedChildExpression` have
+  no global `<xsd:element>` declaration; `<iterator>` cannot be written in a document at all.
+  (This sentence used to add that `tQuantified` is abstract. It is not — `every` and `some` are
+  its global elements, and they are in the list above. Nothing in `DMN15.xsd` is an abstract
+  *complexType*.)
 
   It is a pre-flight rather than an arm inside the picklers for three reasons, and
   `typeConstraint` is the one that settles it: `ItemDefinition` filters its children by name,

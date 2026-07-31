@@ -22,7 +22,7 @@ import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
 import Data.Void (Void)
 import Data.Maybe (listToMaybe)
-import Data.List (intercalate, nub, nubBy)
+import Data.List (find, intercalate, nub, nubBy)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -108,10 +108,18 @@ releaseOfNamespace :: String -> Maybe DmnRelease
 releaseOfNamespace ns = lookup ns [(relModelNS r, r) | r <- readableReleases]
 
 -- | The name of any release we recognise, readable or not, for diagnostics.
+--
+-- Also names a DMNDI namespace, and says so: a message reading @(DMN 1.3)@ for a
+-- stray @xmlns:dmndi@ would send the reader to the wrong attribute. The DMNDI
+-- URIs are not one-to-one with releases — DMN 1.4 reuses 1.3's — so this reports
+-- the first release declaring it, which is the one whose spelling the author
+-- most likely copied.
 releaseNameOfNamespace :: String -> Maybe String
 releaseNameOfNamespace ns = case lookup ns refusedReleases of
   Just n -> Just n
-  Nothing -> relName <$> releaseOfNamespace ns
+  Nothing -> case relName <$> releaseOfNamespace ns of
+    Just n -> Just n
+    Nothing -> (++ " DMNDI") . relName <$> find ((== ns) . relDmndiNS) readableReleases
 
 -- * The pickler class
 --
@@ -1169,13 +1177,25 @@ parseDMNEither filename = do
 -- These are the five boxed expressions DMN 1.4 added — @\<conditional\>@,
 -- @\<for\>@, @\<some\>@, @\<every\>@, @\<filter\>@, all
 -- @substitutionGroup=\"expression\"@ — plus @\<typeConstraint\>@, the single
--- structural addition DMN 1.5 made over 1.4. __Five, not seven.__ The 1.4 XSD
--- adds seven complex types, but @tIterator@ and @tQuantified@ are abstract bases
--- and @tChildExpression@\/@tTypedChildExpression@ are the types of the named
--- children @in@\/@return@\/@satisfies@\/@if@\/@then@\/@else@\/@match@; none of
--- the four has a global @\<xsd:element\>@, so @\<iterator\>@ and
--- @\<quantified\>@ cannot be written in a document and a fixture for either
--- would test nothing.
+-- structural addition DMN 1.5 made over 1.4. __Five spellable names, not seven
+-- complex types.__
+--
+-- The reason is narrower than an earlier version of this comment claimed, and
+-- that version shipped to three other files before anyone checked it. It said
+-- @tIterator@ and @tQuantified@ are abstract bases. They are not: __no__
+-- complexType in @DMN15.xsd@ carries @abstract=\"true\"@ (all seven occurrences
+-- of that attribute are on /element/ declarations, e.g. the substitution-group
+-- head @\<xsd:element name=\"expression\" abstract=\"true\"\/\>@ at :223), and
+-- @tQuantified@ has __two__ global elements — @\<xsd:element name=\"every\"@ and
+-- @name=\"some\"@ at @DMN15.xsd:558-559@ — both of which the list above already
+-- refuses.
+--
+-- The true reason three of the four extra types are unspellable is simply that
+-- @tIterator@, @tChildExpression@ and @tTypedChildExpression@ have no global
+-- @\<xsd:element\>@ declaration. The last two are the types of the named children
+-- @in@\/@return@\/@satisfies@\/@if@\/@then@\/@else@\/@match@, which are declared
+-- only /inside/ the five parents above and so are unreachable in a valid document
+-- without one of them. A fixture for @\<iterator\>@ would test nothing.
 --
 -- None of the six names is declared anywhere in @DMN13.xsd@, so adding this
 -- check cannot make a document that reads today start failing — except the
@@ -1278,8 +1298,30 @@ refuseUnmodelled filename release root
     strays =
       multi (isElem >>> getQName)
         >>> arr (\qn -> (localPart qn, namespaceUri qn))
-        >>> isA (\(_, uri) -> uri /= relModelNS release && isReadableModelNS uri)
-    isReadableModelNS uri = any ((== uri) . relModelNS) readableReleases
+        >>> isA (\(_, uri) -> uri `notElem` ownNamespaces && isNameableDmnNS uri)
+
+    -- The document's own two URIs. A release is a MODEL namespace *and* a DMNDI
+    -- namespace, independently versioned — DMN 1.4 pairs MODEL 20211108 with
+    -- DMNDI 20191111 — so "belongs to this document" is a two-element test, not
+    -- a comparison against 'relModelNS' alone.
+    ownNamespaces = [relModelNS release, relDmndiNS release]
+
+    -- Any DMN namespace we can put a name to. Deliberately wider than
+    -- 'readableReleases', on both axes:
+    --
+    --  * 'relDmndiNS' as well as 'relModelNS'. Bumping MODEL and forgetting
+    --    DMNDI is exactly what a tool does by accident, and it used to land on
+    --    the generic @xpCheckEmptyContents@ this scan exists to prevent.
+    --  * 'refusedReleases' as well. A 1.5 document with a 1.2 @\<decision\>@
+    --    subtree was reaching the generic message too, because the filter
+    --    consulted only the readable list — while 'renderStrayNS' below already
+    --    called 'releaseNameOfNamespace', which handles refused releases. The
+    --    renderer was prepared for a URI the filter could never deliver, which
+    --    is how the gap reads as an accident rather than a decision. It also
+    --    /widened/ with every release added, since 'refusedReleases' stays at two.
+    isNameableDmnNS uri =
+      any (\r -> uri == relModelNS r || uri == relDmndiNS r) readableReleases
+        || uri `elem` map fst refusedReleases
     renderStrayNS (who, nm, uri) =
       who ++ ": <" ++ nm ++ "> is in namespace " ++ show uri
         ++ maybe "" (\v -> " (" ++ v ++ ")") (releaseNameOfNamespace uri)

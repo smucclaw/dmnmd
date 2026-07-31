@@ -60,12 +60,20 @@ The five boxed expressions were added in **DMN 1.4**, not 1.5. `DMN14.xsd` and
 delta is the namespace bump plus `typeConstraint`. A 1.5 document inherits them,
 and the refusal says 1.4 because that is true.
 
-There are **five** of them, not seven. The 1.4 XSD adds seven complex types, but
-`tIterator` and `tQuantified` are abstract bases and `tChildExpression` /
-`tTypedChildExpression` are the types of the named children `in`, `return`,
-`satisfies`, `if`, `then`, `else` and `match`. None of those four has a global
-`<xsd:element>`, so `<iterator>` and `<quantified>` cannot be written in a
-document at all and a fixture for either would test nothing.
+There are **five** of them, not seven. The 1.4 XSD adds seven complex types;
+three of them — `tIterator`, `tChildExpression` and `tTypedChildExpression` —
+have no global `<xsd:element>` declaration, so they cannot be written in a
+document and a fixture for `<iterator>` would test nothing. The last two are the
+types of the named children `in`, `return`, `satisfies`, `if`, `then`, `else` and
+`match`, which are declared only *inside* the five parents above.
+
+(An earlier version of this paragraph said `tIterator` and `tQuantified` are
+"abstract bases". Both halves are false. `tQuantified` has two global elements,
+`every` and `some` at `DMN15.xsd:558-559` — both already in the table below — and
+no complexType in that schema carries `abstract="true"` at all; every one of the
+seven occurrences of that attribute is on an *element* declaration. The five/seven
+count was never in doubt, only the explanation, which was invented and then copied
+to three other files.)
 
 | fixture | which refusal it exercises |
 |---|---|

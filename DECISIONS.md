@@ -101,11 +101,21 @@ committing a type vocabulary that a shared core would inherit without discussion
 >    `typeConstraint`. A 1.5 document inherits them, so what you refuse is unchanged — but what
 >    you *say* when you refuse it is, and "a 1.5 construct" would be false.
 > 2. **Five refusable names, not seven.** The seven new complex types yield exactly five global
->    elements: `conditional`, `for`, `some`, `every`, `filter`. `tIterator` and `tQuantified` are
->    abstract bases; `tChildExpression`/`tTypedChildExpression` are the types of the named children
->    `in`/`return`/`satisfies`/`if`/`then`/`else`/`match`. None has an `<xsd:element>`, so
->    `<iterator>` and `<quantified>` cannot be written in a document and fixtures for them would
->    test nothing. This entry's list also omitted `some`/`every` and named two unspellable things.
+>    elements: `conditional`, `for`, `some`, `every`, `filter`. The three that cannot be spelled
+>    are `tIterator`, `tChildExpression` and `tTypedChildExpression`, which simply have **no
+>    global `<xsd:element>` declaration**; the last two are the types of the named children
+>    `in`/`return`/`satisfies`/`if`/`then`/`else`/`match`, declared only inside the five parents
+>    above and so unreachable in a valid document without one of them. This entry's original list
+>    also omitted `some`/`every` and named two unspellable things.
+>
+>    **A correction that had to be made twice.** The first fix said `tIterator` and `tQuantified`
+>    are *abstract bases*. That is false on both counts, and it shipped to four files before a
+>    verifier checked it. `tQuantified` has **two** global elements — `<xsd:element name="every">`
+>    and `name="some"` at `DMN15.xsd:558-559` — which the very same paragraph already listed as
+>    refusable. And **no** complexType in that schema is `abstract="true"`: all seven occurrences
+>    of that attribute are on *element* declarations, such as the substitution-group head
+>    `<xsd:element name="expression" abstract="true"/>` at `:223`. The count was always right; the
+>    reason was invented, and then copied. `grep -n 'abstract="true"' DMN15.xsd` settles it.
 > 3. **`xmlns_dmn` had 16 occurrences, 3 of them in comments, so 11 live use sites** — not 18. And
 >    26 of the 27 element picklers already went through one wrapper, so the constant was never the
 >    work. **The class was**: hxt's `xpickle :: PU a` is a value with nowhere to put a parameter.
