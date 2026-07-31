@@ -3,7 +3,7 @@ error: table "BlankRowNum": column "Dish": row 2: value outside the column's dec
 error: table "BlankRowNum": column "Season": row 3: value outside the column's declared domain {Fall} — the cell reads Spring
 error: table "BlankRowNum": column "Dish": row 3: value outside the column's declared domain {Stew} — the cell reads Salad
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:510:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:510:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:540:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:540:15 in dmnmd:DMN.DecisionTable
 
 

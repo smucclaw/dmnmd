@@ -1,0 +1,6 @@
+export function Payout ( Claim : number ) {
+  if (Claim === 16777217.0) { // 1
+    return {"Award":16777217.0};
+  }
+}
+

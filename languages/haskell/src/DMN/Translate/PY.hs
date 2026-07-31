@@ -10,6 +10,7 @@ import DMN.DecisionTable
 import Data.List
 import Data.Maybe
 import Data.Char
+import DMN.Number (showNumFloatish)
 import DMN.Types
 import DMN.Translate.FEELhelpers
 
@@ -133,15 +134,15 @@ feel2pyIn :: String -> FEELexp -> String
 -- drops a cell that is wholly @FAnything@.
 feel2pyIn lhs  FAnything = wrapParen " or " ["True",lhs]
 feel2pyIn lhs (FSection Feq (VB rhs))  = lhs ++ showFNComp "py" FNEq  ++ capitalize (toLower <$> show rhs)
-feel2pyIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "py" FNEq  ++ show rhs
+feel2pyIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "py" FNEq  ++ showNumFloatish rhs
 feel2pyIn lhs (FSection Feq (VS rhs))  = lhs ++ showFNComp "py" FNEq  ++ show rhs
-feel2pyIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "py" FNLt  ++ show rhs
-feel2pyIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "py" FNLeq ++ show rhs
-feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "py" FNGt  ++ show rhs
-feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "py" FNGeq ++ show rhs
+feel2pyIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "py" FNLt  ++ showNumFloatish rhs
+feel2pyIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "py" FNLeq ++ showNumFloatish rhs
+feel2pyIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "py" FNGt  ++ showNumFloatish rhs
+feel2pyIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "py" FNGeq ++ showNumFloatish rhs
 feel2pyIn lhs (FInRange lk lower upper rk) = wrapParen (showFNLog "py" FNAnd)
-  [ show lower ++ showFNComp "py" (leqOf lk) ++ lhs
-  , lhs ++ showFNComp "py" (leqOf rk) ++ show upper ]
+  [ showNumFloatish lower ++ showFNComp "py" (leqOf lk) ++ lhs
+  , lhs ++ showFNComp "py" (leqOf rk) ++ showNumFloatish upper ]
 feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
 -- This arm was MISSING while 'DMN.Translate.JS.feel2jsIn' had it (JS.hs:152), so
 -- an arithmetic input cell was a runtime @Non-exhaustive patterns@ in --to=py and

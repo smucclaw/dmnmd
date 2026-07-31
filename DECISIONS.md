@@ -19,7 +19,52 @@ price is not written down gets reopened by whoever first pays it.
 Twelve divergences from DMN 1.3 were audited against the tree at `36df5a9` and ruled on. Numbering
 is `D-n` and is referenced from commit messages and corpus `WHY` fields.
 
-### D-1 — numbers become `Scientific`. **RULED: adopt.**
+### D-1 — numbers become `Scientific`. **RULED: adopt. LANDED.**
+
+> **Landed, with four things this entry did not anticipate.** Each is a measurement made while
+> implementing, not a re-reading.
+>
+> 1. **`**` did not compile and `/` was a live trap — neither is in the "cost we accept" list.**
+>    `Scientific` has no `Floating` instance, so `fNEval`'s `lhs ** rhs` was a hard type error with
+>    no coercion available; and its `Fractional` instance *does* compile while raising a bare
+>    library `error` on any repeating decimal (`(1 :: Scientific) / 3`), carrying a
+>    `Data/Scientific.hs` call stack and a build-specific package hash that `run-corpus.sh`'s
+>    normaliser does not strip. Both now go through `DMN.Number`: division is computed exactly as a
+>    `Rational` and rounded half-to-even to 34 significant digits (decimal128, which is what the
+>    ruling above already asks for), and a fractional exponent is **refused** rather than routed
+>    through `Double`, which would reintroduce the binary rounding this decision exists to remove.
+>    `fNEval` therefore returns `Either String DMNVal` and `evalTable` threads it through the `Left`
+>    channel it already had.
+>
+> 2. **Two silent wrong answers at exit 0 became refusals, and that is a user-visible change.**
+>    `x / 0` was `Infinity` — printed as `Infinity` by ts/js/py and as a plain, innocent-looking
+>    `0` by L4, because `showNumL4` caught `isInfinite`. And a huge exponent had `Infinity` to fall
+>    into; a decimal does not, so `DMN.Number.maxBase10Exponent` bounds the magnitude before
+>    anything tries to spell it. Recorded as `policy/num-divide-by-zero-refused` and
+>    `policy/num-fractional-exponent-refused`.
+>
+> 3. **`showNumL4` was not the only renderer that mattered — the DIAGNOSTICS were the fifth site,
+>    and this entry does not mention them.** `showDomainMember` rendered numbers with bare `show`,
+>    so a refusal quoted a cell the author wrote as `> 3` back at them as `"> 3.0"`, in violation of
+>    that function's own haddock. `num-dash-range-refused` was the proof: one sentence said the cell
+>    reads `"40.0 - 50.0"` and the next told the author to write `[40..50]` "not `40 - 50`". Five
+>    `policy/` recordings were re-recorded for this, which is the one thing in the change a reviewer
+>    must audit.
+>
+> 4. **The rendering blast radius was two cases, not seventy, and the reason is worth writing
+>    down.** `show @Scientific` inherits `show @Float`'s fixed-vs-exponent rule exactly, so a naive
+>    swap looks reassuringly small *and is wrong*: it spells `16777217` as `1.6777217e7`, the right
+>    value with text the author never wrote, which no typechecker and no test would catch. All four
+>    backends therefore **format** rather than `show`, through two functions in one module:
+>    `showNumPlain` (L4 and diagnostics — L4 has no exponent production at all, so `1.0e8` there
+>    lexes as `1.0` applied to a variable named `e8` and the file does not typecheck) and
+>    `showNumFloatish` (js/ts/py, which keeps the `.0` these backends have always emitted, because
+>    dropping it changes a generated Python value from `float` to `int`). Against Survey C's
+>    5,544-file baseline over 231 fixtures × 8 modes, exactly the five diagnostics and the two
+>    float32 fixtures move, and nothing else — not `README.md`, not `test/golden/miles-card`, not
+>    the ditto grid.
+>
+> Also: this entry cites the prior art as `SFeelGrammar.hs:273`; it is at `:272`.
 
 `VN Float` is binary32. Measured, at exit 0 and with no diagnostic: `16777217` emits as
 `1.6777216e7`, `1234567.89` as `1234567.9`. In a tool aimed at insurance payout formulas that is

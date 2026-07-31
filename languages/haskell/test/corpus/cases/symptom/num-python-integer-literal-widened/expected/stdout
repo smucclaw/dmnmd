@@ -1,0 +1,8 @@
+def Ledger ( Balance ) :
+  if (Balance == 9007199254740993.0): # 1
+    return {"Tier":"exact"};
+
+  elif ("default"): # 2
+    return {"Tier":"other"};
+
+

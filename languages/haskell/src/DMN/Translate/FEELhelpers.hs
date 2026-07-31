@@ -4,6 +4,7 @@ module DMN.Translate.FEELhelpers where
 
 import Data.Char
 import Data.List
+import DMN.Number (showNumFloatish)
 import DMN.Types
 
 capitalize :: String -> String -- This file is the "root" for generating the if-else condittions, and should be imported in fileformat-specific translation scripts, so I thought it'd be best to place this here
@@ -37,24 +38,24 @@ showFeels optform ch fexps = "\"" ++ varname ch ++ "\":" ++ if squash
           
 showFeel :: String -> FEELexp -> String
 showFeel _ (FNullary (VS str))  = show str
-showFeel _ (FNullary (VN num))  = show num
+showFeel _ (FNullary (VN num))  = showNumFloatish num
 showFeel optform (FNullary (VB bool)) = if optform == "py" then capitalize (toLower <$> show bool) else toLower <$> show bool 
 showFeel optform (FSection Feq  (VB rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNEq  ++ (toLower <$> show rhs)
 showFeel optform (FSection Feq  (VS rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNEq  ++ show rhs
-showFeel optform (FSection Feq  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNEq  ++ show rhs
-showFeel optform (FSection Flt  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNLt  ++ show rhs
-showFeel optform (FSection Flte (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNLeq ++ show rhs
-showFeel optform (FSection Fgt  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNGt  ++ show rhs
-showFeel optform (FSection Fgte (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNGeq ++show rhs
+showFeel optform (FSection Feq  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNEq  ++ showNumFloatish rhs
+showFeel optform (FSection Flt  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNLt  ++ showNumFloatish rhs
+showFeel optform (FSection Flte (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNLeq ++ showNumFloatish rhs
+showFeel optform (FSection Fgt  (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNGt  ++ showNumFloatish rhs
+showFeel optform (FSection Fgte (VN rhs)) = lambdaHeader optform ++ "x" ++ showFNComp optform FNGeq ++showNumFloatish rhs
 showFeel optform (FInRange lk lower upper rk) =
-  lambdaHeader optform ++ show lower ++ showFNComp optform (leq lk) ++ "x"
-  ++ showFNLog optform FNAnd ++ "x" ++ showFNComp optform (leq rk) ++ show upper
+  lambdaHeader optform ++ showNumFloatish lower ++ showFNComp optform (leq lk) ++ "x"
+  ++ showFNLog optform FNAnd ++ "x" ++ showFNComp optform (leq rk) ++ showNumFloatish upper
   where leq BClosed = FNLeq
         leq BOpen   = FNLt
 showFeel _ (FFunction (FNF1 var))     = var
 showFeel _ (FFunction (FNF0 (VS str))) = "\"" ++ str ++ "\""
 showFeel _ (FFunction (FNF0 (VB bool))) = toLower <$> show bool
-showFeel _ (FFunction (FNF0 (VN num)))  = show num
+showFeel _ (FFunction (FNF0 (VN num)))  = showNumFloatish num
 showFeel optform (FFunction (FNF3 lhs fnop2 rhs))  = "(" ++ showFeel optform (FFunction lhs) ++ showFNOp2 fnop2 ++ showFeel optform (FFunction rhs) ++ ")"
 showFeel  _ FAnything               = "undefined"
 -- The remaining shapes are ordering comparisons over a non-numeric value

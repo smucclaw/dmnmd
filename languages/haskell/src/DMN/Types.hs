@@ -9,6 +9,7 @@ module DMN.Types where
 import Prelude hiding (takeWhile)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import Data.Scientific (Scientific)
 
 -- | We implement DMN Hit Policies.
 data HitPolicy = HP_Unique
@@ -89,8 +90,8 @@ data FBinOp = Flt | Flte               -- binary operators < <=
 data Bound = BClosed | BOpen
              deriving (Show, Eq)
 
-data FEELexp = FSection FBinOp DMNVal  --    > 2               FSection Fgt (VN Float)
-             | FInRange Bound Float Float Bound -- [2..4)  FInRange BClosed 2 4 BOpen
+data FEELexp = FSection FBinOp DMNVal  --    > 2               FSection Fgt (VN 2)
+             | FInRange Bound Scientific Scientific Bound -- [2..4)  FInRange BClosed 2 4 BOpen
              | FAnything               --    -                 FAnything
              | FNullary DMNVal         --    plain string      FNullary (VS "plain string")
              | FFunction FNumFunction  --    FEEL expression   age * 2
@@ -172,13 +173,13 @@ data ColBody = DTCBFeels [FEELexp] -- inputs and outputs are both FEELexps. list
 --
 -- age      which becomes FFunction (       FNF1 "age"                            )
 --
--- age * 2  which becomes FFunction ( FNF3 (FNF1 "age")    FNMul (FNF0 (FN 2.0))  )
+-- age * 2  which becomes FFunction ( FNF3 (FNF1 "age")    FNMul (FNF0 (VN 2))  )
 --
--- 2 * 4    which becomes FFunction ( FNF3 (FNF0 (FN 2.0)) FNMul (FNF0 (FN 4.0))  )
+-- 2 * 4    which becomes FFunction ( FNF3 (FNF0 (VN 2))   FNMul (FNF0 (VN 4))  )
 --
 -- < 2      which becomes FSection FBinOp DMNVal
 --
--- 2        which becomes FNullary (FN 2.0)
+-- 2        which becomes FNullary (VN 2)
 
 -- | a FEEL expression is either a terminal value, a variable name, or a function with a binary operator
 data FNumFunction = FNF0 DMNVal  -- terminal value
@@ -209,10 +210,23 @@ data FNComp = FNEq
             | FNGeq
             deriving (Show, Eq)
 
--- | a DMN value is either a string, a float, or a bool.
+-- | a DMN value is either a string, a number, or a bool.
 -- For interop with other formats, we will need some pickle/unpickle infrastructure later.
 data DMNVal = VS String
-            | VN Float
+            -- | A number, held as an arbitrary-precision decimal.
+            --
+            -- __Not__ a 'Float'. FEEL's number is decimal128 (DMN 1.3
+            -- §10.3.2.3.1), and binary32 could hold neither of the two things
+            -- this tool is aimed at: @16777217@ became @16777216@ and
+            -- @1234567.89@ became @1234567.9@, both at exit 0 with nothing on
+            -- stderr. See @DECISIONS.md@ D-1, and 'DMN.Number' for everything
+            -- that follows from the choice.
+            --
+            -- 'Scientific' records the scale the author wrote — @9@ is
+            -- coefficient 9 exponent 0, @9.0@ is coefficient 90 exponent -1 —
+            -- but its 'Eq' and 'Ord' compare on value, so the two are one
+            -- number here and 'DMN.Number.showNumPlain' spells both @9@.
+            | VN Scientific
             | VB Bool
             -- | A collection, and __only ever a runtime argument__.
             --

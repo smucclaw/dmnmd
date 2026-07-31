@@ -8,7 +8,6 @@ import Data.Char (isDigit)
 import Data.Text (Text)
 import Data.Void (Void)
 import Text.Megaparsec.Char ( char, string )
-import Text.Megaparsec.Char.Lexer ( scientific )
 import Text.Megaparsec
     ( (<|>),
       (<?>),
@@ -55,10 +54,20 @@ isHorizontalSpace :: Char -> Bool
 isHorizontalSpace c = c == ' ' || c == '\t'
 {-# INLINE isHorizontalSpace #-}
 
--- Note: According to the docs of Scientific, we should use Data.Scientifc.toRealFloat instead of realToFrac
-double :: Parser Double
-double = realToFrac <$> scientific
--- double = read <$> many1 digit
+-- @double :: Parser Double@ used to live here, defined as
+-- @realToFrac \<$\> scientific@, with a note above it saying the conversion was
+-- the wrong one. Its sole caller ('DMN.ParseFEEL.parseFNF0') then applied a
+-- /second/ @realToFrac@ to reach 'Float', so an arithmetic literal that
+-- megaparsec had already handed back exactly went Scientific -> Double -> Float
+-- before anyone looked at it.
+--
+-- With @VN@ now a 'Scientific' (@DECISIONS.md@ D-1) the fix is a deletion, not
+-- an addition: 'DMN.ParseFEEL' calls 'Text.Megaparsec.Char.Lexer.scientific'
+-- directly. Keeping @double@ would have been actively dangerous — a single
+-- @realToFrac \@Double \@Scientific@ left behind is /exact/ and therefore
+-- catastrophic, turning @Age * 0.1@ into a 55-digit TypeScript literal, and
+-- nothing in the test suite or the corpus would have caught it because every
+-- arithmetic literal in the tree happens to be dyadic.
 
 -- | Parse a single digit, as recognised by 'isDigit'.
 digit :: Parser Char

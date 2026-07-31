@@ -8,9 +8,12 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Text (Text)
 import Data.Char (isAlphaNum)
+import Data.Scientific (Scientific)
 import qualified Data.Text as T
 import DMN.Types
 import DMN.ParsingUtils
+import DMN.Number (spellable, maxBase10Exponent)
+import Text.Megaparsec.Char.Lexer (scientific)
 import Debug.Trace
 
 -- parser for low-level expressions, e.g. FEEL, common to all DMN syntaxes.
@@ -59,7 +62,20 @@ parseFNF0 =
           strings <- many inner
           _ <- char '"'
           return $ FNF0 $ VS $ concat strings )
-     <|> (FNF0 . VN . realToFrac <$> double)
+     -- Numeric literal inside an arithmetic cell (@Age * 0.1@). This is
+     -- megaparsec's own 'Text.Megaparsec.Char.Lexer.scientific', taken
+     -- directly: it is what 'DMN.ParsingUtils.double' already wrapped, so the
+     -- accepted language is unchanged (exponents included), and the two
+     -- @realToFrac@s that stood between it and 'VN' are gone.
+     --
+     -- Note the deliberate asymmetry with 'DMN.ParseCell.numericLiteral', which
+     -- is hand-rolled to DMN 1.3 §9.2 rule 31 and refuses @1e5@. A cell is
+     -- S-FEEL; the inside of an arithmetic expression is not. Do not unify them.
+     --
+     -- 'spellable' is the magnitude guard 'Float' used to provide by rounding to
+     -- @Infinity@: @1e1000000@ parses fine and every route back out of it is
+     -- proportional to the spelled value.
+     <|> (FNF0 . VN <$> guardedScientific)
      <|> (("yes" <|> "true"  <|> "True"  <|> "t" <|> "y") >> return ( FNF0 $ VB True))
      <|> (("no"  <|> "false" <|> "False" <|> "f" <|> "n") >> return ( FNF0 $ VB False))
       
@@ -82,3 +98,13 @@ escape = do
 nonEscape :: Parser Char
 nonEscape = noneOf ['\\', '\"', '\0', '\n', '\r', '\v', '\t', '\b', '\f']
 
+
+-- | 'Text.Megaparsec.Char.Lexer.scientific', refusing a value dmnmd cannot
+-- spell back out. See 'DMN.Number.maxBase10Exponent'.
+guardedScientific :: Parser Scientific
+guardedScientific = do
+  n <- scientific
+  if spellable n
+    then pure n
+    else fail ("number is too large to represent: its decimal exponent exceeds "
+               ++ show maxBase10Exponent)
