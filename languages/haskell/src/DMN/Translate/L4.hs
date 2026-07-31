@@ -21,7 +21,8 @@ import DMN.Types
 import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate)
 import Data.Maybe (isJust, isNothing, catMaybes, mapMaybe)
-import Numeric (floatToDigits)
+import DMN.Number (showNumPlain)
+import Data.Scientific (Scientific)
 import Text.Megaparsec.Unicode (isWideChar)
 
 -- | Options governing L4 emission (see BUILD-SPEC §4.1).
@@ -859,34 +860,32 @@ showStrL4 s = '"' : concatMap esc s ++ "\""
         esc '\\' = "\\\\"
         esc c    = [c]
 
--- | Render a 'Float' without a spurious @.0@ (@9.0@ -> @"9"@) and without
+-- | Render a number without a spurious @.0@ (@9.0@ -> @"9"@) and without
 -- scientific notation (@0.02@ -> @"0.02"@).
 --
--- Precision is NOT truncated: the shortest decimal that round-trips the 'Float'
--- is emitted via 'floatToDigits' (the same minimal-digit basis 'show' uses), then
--- formatted as plain (non-exponential) decimal. A fixed @showFFloat (Just 6)@
--- silently corrupted small magnitudes (@0.0000001@ collapsed to @0.0@, a nonzero
--- value rendered as zero — BUILD-SPEC §1.2 / §9.5).
-showNumL4 :: Float -> String
-showNumL4 n
-  | isNaN n             = "0"            -- defensive: DMN cells never hold NaN/Inf
-  | isInfinite n        = "0"
-  | n == fromIntegral r = show r         -- integral floats: 9.0 -> "9", -3.0 -> "-3"
-  | n < 0               = '-' : showNumL4 (negate n)
-  | otherwise           = plainDecimal n
-  where r = round n :: Integer
-
--- | Format a strictly-positive, non-integral 'Float' as plain decimal using its
--- minimal round-tripping digit sequence (@floatToDigits@: @x = 0.d1…dn * 10^e@).
-plainDecimal :: Float -> String
-plainDecimal x = format digits e
-  where
-    (ds, e) = floatToDigits 10 x
-    digits  = concatMap show ds
-    format dgs ex
-      | ex <= 0            = "0." ++ replicate (negate ex) '0' ++ dgs
-      | ex >= length dgs   = dgs ++ replicate (ex - length dgs) '0'  -- (integral; unreached)
-      | otherwise          = let (a, b) = splitAt ex dgs in a ++ "." ++ b
+-- Now a one-line delegation to 'DMN.Number.showNumPlain', which is the whole
+-- point of that module: the L4 backend and the diagnostics need the identical
+-- spelling for the identical reason (a human reads it and expects the table's
+-- own text), and they used to arrive at it by two different routes — this
+-- function, and a bare @show@ in 'DMN.DecisionTable.showDomainMember' that did
+-- not agree with it.
+--
+-- What was here before was @floatToDigits@, picking the shortest decimal that
+-- round-trips a 'Float'. That could not be ported, and did not need to be:
+-- 'floatToDigits' is a 'RealFloat' method and 'Scientific' has no such instance,
+-- because a 'Scientific' /is/ its exact digits and there is no round trip to be
+-- shortest about. The earlier @showFFloat (Just 6)@ that @floatToDigits@
+-- replaced is still the cautionary tale — it collapsed @0.0000001@ to @0.0@
+-- (BUILD-SPEC §1.2 / §9.5) — and 'showNumPlain' does not, for a stronger reason
+-- than before: it is exact by construction rather than by digit count.
+--
+-- The @isNaN@/@isInfinite@ guards are gone. Their comment called them
+-- "defensive: DMN cells never hold NaN/Inf", and that is now structurally true
+-- rather than hopeful: 'Scientific' can represent neither. They were not
+-- harmless while they lasted — @1 \/ 0@ produced @Infinity@ and this function
+-- rendered it as the plain, innocent-looking @0@.
+showNumL4 :: Scientific -> String
+showNumL4 = showNumPlain
 
 -- * Small helpers
 

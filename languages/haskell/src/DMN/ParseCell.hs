@@ -35,6 +35,7 @@ module DMN.ParseCell
 
 import           Data.Char            (isAlpha)
 import           Data.List            (isPrefixOf)
+import           Data.Scientific       (Scientific)
 import qualified Data.Text as T
 import           Text.Megaparsec
 import           Text.Megaparsec.Char (char, digitChar, string)
@@ -204,11 +205,21 @@ bareEndpoint = FNullary . VN <$> numericLiteral
 -- parse: @some digitChar@ takes the @1@, @char '.'@ takes the first dot of
 -- @..@, @some digitChar@ then fails having consumed input, and megaparsec does
 -- not backtrack over consumed input.
-numericLiteral :: Parser Float
+-- Deliberately __not__ @Text.Megaparsec.Char.Lexer.scientific@, even though the
+-- result type now matches. That combinator parses a different language from
+-- rule 31 in both directions: it accepts an exponent, which the message below
+-- names @1e5@ as refusing and @policy\/num-nonsfeel-exponent-refused@ pins, and
+-- it requires an integer part, so it would reject the @.5@ that
+-- @policy\/num-leading-dot-accepted@ pins. Swapping it in would silently flip
+-- two policy recordings. @read@ over the accepted character run is all that is
+-- wanted here, because the accepted grammar is a strict subset of Haskell's
+-- decimal syntax — and @ds@ is the author's own text, so the 'Scientific' it
+-- builds carries the author's digits and scale.
+numericLiteral :: Parser Scientific
 numericLiteral = do
   neg <- option False (True <$ char '-')
   ds  <- withIntPart <|> withoutIntPart
-  let n = read ds :: Float
+  let n = read ds :: Scientific
   pure (if neg then negate n else n)
   where
     withIntPart = do

@@ -11,6 +11,7 @@ import DMN.DecisionTable
 import Data.List
 import Data.Maybe
 import Data.Char
+import DMN.Number (showNumFloatish)
 import DMN.Types
 import DMN.Translate.FEELhelpers
 
@@ -163,15 +164,15 @@ comment_headers = filter ((DTCH_Comment==).label)
 feel2jsIn :: String -> FEELexp -> String
 feel2jsIn lhs  FAnything = wrapParen "||" ["true",lhs]
 feel2jsIn lhs (FSection Feq (VB rhs))  = lhs ++ showFNComp "ts" FNEq  ++ (toLower <$> show rhs)
-feel2jsIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "ts" FNEq  ++ show rhs
+feel2jsIn lhs (FSection Feq (VN rhs))  = lhs ++ showFNComp "ts" FNEq  ++ showNumFloatish rhs
 feel2jsIn lhs (FSection Feq (VS rhs))  = lhs ++ showFNComp "ts" FNEq  ++ show rhs
-feel2jsIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "ts" FNLt  ++ show rhs
-feel2jsIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "ts" FNLeq ++ show rhs
-feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "ts" FNGt  ++ show rhs
-feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ show rhs
+feel2jsIn lhs (FSection Flt  (VN rhs)) = lhs ++ showFNComp "ts" FNLt  ++ showNumFloatish rhs
+feel2jsIn lhs (FSection Flte (VN rhs)) = lhs ++ showFNComp "ts" FNLeq ++ showNumFloatish rhs
+feel2jsIn lhs (FSection Fgt  (VN rhs)) = lhs ++ showFNComp "ts" FNGt  ++ showNumFloatish rhs
+feel2jsIn lhs (FSection Fgte (VN rhs)) = lhs ++ showFNComp "ts" FNGeq ++ showNumFloatish rhs
 feel2jsIn lhs (FInRange lk lower upper rk) = wrapParen (showFNLog "ts" FNAnd)
-  [ show lower ++ showFNComp "ts" (leqOf lk) ++ lhs
-  , lhs ++ showFNComp "ts" (leqOf rk) ++ show upper ]
+  [ showNumFloatish lower ++ showFNComp "ts" (leqOf lk) ++ lhs
+  , lhs ++ showFNComp "ts" (leqOf rk) ++ showNumFloatish upper ]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
 feel2jsIn lhs o@(FFunction fnunf)      = showFeel "ts" o
 -- Ordering comparisons against a non-numeric value; see 'showFeel's own catch-all.

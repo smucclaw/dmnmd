@@ -15,6 +15,8 @@ import Text.Read (readMaybe)
 import Debug.Trace ( trace )
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import Data.Scientific (Scientific)
+import DMN.Number ( divideFeel, powerFeel, showNumPlain, spellable )
 import DMN.ParsingUtils ( parseOnly )
 import DMN.Types
 
@@ -23,12 +25,17 @@ import DMN.Types
 --     putStrLn $ show $ evalTable example1_dish [VS "Fall"]
 
 evalTable :: DecisionTable -> [FEELexp] -> Either String [[[FEELexp]]]
-evalTable table given_input =
+evalTable table given_input = do
   let symtab = Map.fromList $ zip (varname <$> filter ((DTCH_In==).label) (header table)) given_input
       matched = filter ((given_input `matches`) . row_inputs) (datarows table)
-      -- evaluate any FFunctions
-      outputs = (\row -> row { row_outputs = evalFunctions symtab <$> row_outputs row }) <$> matched
-  in case hitpolicy table of
+  -- evaluate any FFunctions. This traverses in the Either monad rather than
+  -- mapping purely, because arithmetic can now fail with something to say: a
+  -- division by zero has no decimal answer (see 'DMN.Number.divideFeel'), and
+  -- under 'Float' it silently produced @Infinity@ at exit 0 for every backend
+  -- to print.
+  outputs <- traverse (\row -> (\os -> row { row_outputs = os })
+                               <$> traverse (evalFunctions symtab) (row_outputs row)) matched
+  case hitpolicy table of
     HP_Unique -> case length outputs of
                    0 -> Left "no rows returned -- a unique table should have one result!"
                    1 -> Right (row_outputs <$> outputs)
@@ -43,18 +50,16 @@ evalTable table given_input =
     HP_OutputOrder -> Right (row_outputs <$> outputOrder (header table) outputs) -- order according to enums in subheaders.
     HP_RuleOrder   -> Right (row_outputs <$> sortOn row_number outputs)
     HP_Collect Collect_All -> trace ("outputs has length " ++ show (length outputs)) $ Right (row_outputs <$> outputs)
-    HP_Collect Collect_Cnt -> trace ("outputs has length " ++ show (length outputs)) $ Right [[[FNullary (VN (fromIntegral (length outputs) :: Float))]]]
+    HP_Collect Collect_Cnt -> trace ("outputs has length " ++ show (length outputs)) $ Right [[[FNullary (VN (fromIntegral (length outputs) :: Scientific))]]]
     HP_Collect Collect_Min -> Right [[[FNullary (VN (minimum $ [ x | (FNullary (VN x)) <- concat $ concat (row_outputs <$> outputs) ]))]]]
     HP_Collect Collect_Max -> Right [[[FNullary (VN (maximum $ [ x | (FNullary (VN x)) <- concat $ concat (row_outputs <$> outputs) ]))]]]
     HP_Collect Collect_Sum -> Right [[[FNullary (VN (    sum $ [ x | (FNullary (VN x)) <- concat $ concat (row_outputs <$> outputs) ]))]]]
     _ -> Left ("don't know how to evaluate hit policy " ++ show (hitpolicy table))
   where
-    evalFunctions :: SymbolTable -> [FEELexp] -> [FEELexp]
-    evalFunctions symtab cells = do
-      fexp <- cells
-      case fexp of
-        FFunction f -> return $ FNullary (fNEval symtab f)
-        x           -> return x
+    evalFunctions :: SymbolTable -> [FEELexp] -> Either String [FEELexp]
+    evalFunctions symtab = traverse $ \case
+      FFunction f -> FNullary <$> fNEval symtab f
+      x           -> pure x
 
 head0 :: DecisionTable -> [p] -> p
 head0 dt mylist = if not (null mylist) then head mylist else
@@ -103,18 +108,33 @@ fe2dval fexp = error ("fe2dval can't extract a DMNVal from " ++ show fexp)
 
 -- static analysis phase, input validation of table, should identify scenarios where the variable name does not exist in the input props.
 -- feel like we should convert this to a ReaderT so the symtab gets hidden?
-fNEval :: SymbolTable -> FNumFunction -> DMNVal
-fNEval symtab (FNF0 dmnval) = dmnval
-fNEval symtab (FNF1 varname) = maybe (error $ "function unable to resolve variable " ++ varname) fe2dval $ Map.lookup varname symtab
-fNEval symtab (FNF3 fnf1 fnop2 fnf3) = let lhs = fromVN (fNEval symtab fnf1)
-                                           rhs = fromVN (fNEval symtab fnf3)
-                                           result = case fnop2 of
-                                             FNMul   -> lhs * rhs
-                                             FNDiv   -> lhs / rhs
-                                             FNPlus  -> lhs + rhs
-                                             FNMinus -> lhs - rhs
-                                             FNExp   -> lhs ** rhs
-                                       in VN result
+--
+-- Returns 'Either' rather than a bare 'DMNVal' because arithmetic over a decimal
+-- has two answers a binary float did not: a division by zero has no @Infinity@
+-- to fall into, and @**@ has no meaning at a fractional exponent. Both used to
+-- be silent — @1 \/ 0@ gave @Infinity@ at exit 0, which the L4 backend then
+-- printed as a plain @0@ — so they are refusals now, and they travel up through
+-- 'evalTable'\'s existing @Left@ channel, which names the table and the input.
+fNEval :: SymbolTable -> FNumFunction -> Either String DMNVal
+fNEval _      (FNF0 dmnval)  = Right dmnval
+fNEval symtab (FNF1 varname) =
+  maybe (Left $ "function unable to resolve variable " ++ varname) (Right . fe2dval)
+        (Map.lookup varname symtab)
+fNEval symtab (FNF3 fnf1 fnop2 fnf3) = do
+  lhs <- fromVN =<< fNEval symtab fnf1
+  rhs <- fromVN =<< fNEval symtab fnf3
+  -- @*@, @+@ and @-@ over 'Scientific' are exact decimal arithmetic, which is
+  -- the point: a Collect Sum over cent-precision cells no longer accumulates
+  -- binary error. @/@ and @**@ are the two that need a stated policy — see
+  -- 'divideFeel' and 'powerFeel', which carry it.
+  VN <$> case fnop2 of
+    FNMul   -> Right (lhs * rhs)
+    FNPlus  -> Right (lhs + rhs)
+    FNMinus -> Right (lhs - rhs)
+    FNDiv   -> located (divideFeel lhs rhs)
+    FNExp   -> located (powerFeel  lhs rhs)
+  where
+    located = either (Left . (++ " — in " ++ showFNumFunction (FNF3 fnf1 fnop2 fnf3))) Right
 
 -- | The located-message house style, in one place: @column "C": row N: @, or
 -- @column "C": @ when there is no row.
@@ -334,9 +354,18 @@ mkInputValue ty raw = FNullary <$> go ty (trim raw)
       Nothing -> Left $ concat
         [ "this column is a collection, so its value must be written [a, b, c]"
         , " (or [] for none) — got ", show s ]
-    go (Just DMN_Number) s =
-      maybe (Left $ "expected a number, got " ++ show s) (Right . VN)
-            (readMaybe (trim s) :: Maybe Float)
+    -- The accepted language moves with the type, in both directions, and both
+    -- are improvements. @read \@Float@ accepted @0x10@, @0o17@, @Infinity@ and
+    -- @NaN@ — all four of which 'DMN.ParseCell'\'s own refusal message already
+    -- names as things a FEEL number is not — and @read \@Scientific@ refuses
+    -- them. It does accept @+5@, which rule 31 does not have; that is the one
+    -- new divergence and it is a value at the prompt, not a cell in a table.
+    -- 'spellable' is the magnitude guard: @read@ is happy to build @1e1000000@,
+    -- and printing it would allocate a million digits.
+    go (Just DMN_Number) s = case readMaybe (trim s) :: Maybe Scientific of
+      Nothing              -> Left $ "expected a number, got " ++ show s
+      Just n | spellable n -> Right (VN n)
+             | otherwise   -> Left $ "number is too large to represent: " ++ show s
     go (Just DMN_Boolean) s
       | (toLower <$> trim s) `elem` ["true","yes","t","y"]  = Right (VB True)
       | (toLower <$> trim s) `elem` ["false","no","f","n"]  = Right (VB False)
@@ -415,11 +444,11 @@ isSFeelLiteral :: String -> Bool
 isSFeelLiteral s =
   length s >= 2 && head s == '"' && last s == '"' && '"' `notElem` drop 1 (init s)
 
-fromVN :: DMNVal -> Float
-fromVN (VN n) = n
-fromVN (VB True) = 1.0
-fromVN (VB False) = 0.0
-fromVN _ = error "type error: tried to read a float out of a string"
+fromVN :: DMNVal -> Either String Scientific
+fromVN (VN n)     = Right n
+fromVN (VB True)  = Right 1
+fromVN (VB False) = Right 0
+fromVN v = Left ("type error: tried to read a number out of " ++ show v)
 
 trim :: String -> String
 trim = dropWhile (==' ') . dropWhileEnd (==' ')
@@ -882,17 +911,23 @@ domainErrors dt = malformedDomains ++ violations
 -- Only used to build the diagnostic in 'domainErrors'.
 showDomainMember :: FEELexp -> String
 showDomainMember (FNullary (VS s)) = s
-showDomainMember (FNullary (VN n)) = show n
+showDomainMember (FNullary (VN n)) = showNumPlain n
 showDomainMember (FNullary (VB b)) = toLower <$> show b
 showDomainMember (FInRange lk lo hi rk) =
-  openBracket lk ++ show lo ++ ".." ++ show hi ++ closeBracket rk
+  openBracket lk ++ showNumPlain lo ++ ".." ++ showNumPlain hi ++ closeBracket rk
   where openBracket  BClosed = "["
         openBracket  BOpen   = "("
         closeBracket BClosed = "]"
         closeBracket BOpen   = ")"
 showDomainMember  FAnything        = "-"
 -- A refusal quotes the cell back at the author, so these have to read like the
--- table did — @"> 3"@, not @"FSection Fgt (VN 3.0)"@. Before 'structuralErrors'
+-- table did — @"> 3"@, not @"FSection Fgt (VN 3.0)"@ and not @"> 3.0"@ either.
+-- The second half of that promise was broken from the day it was written: this
+-- function rendered numbers with 'show', so a cell reading @40 - 50@ was quoted
+-- back as @"40.0 - 50.0"@ in the same sentence that correctly quoted the source
+-- as @40 - 50@. 'showNumPlain' is what makes the comment true, and it is the
+-- reason five @policy\/@ recordings changed when 'VN' became 'Scientific'.
+-- Before 'structuralErrors'
 -- nothing but 'FNullary' and 'FInRange' could reach here, so the @show e@
 -- fallthrough was never seen; now it can be, and a diagnostic that names a
 -- Haskell constructor is a diagnostic the author cannot act on.
