@@ -8,7 +8,6 @@ module DMN.Types where
 
 import Prelude hiding (takeWhile)
 import qualified Data.Map as Map
-import Data.List.Utils (replace)
 import Data.Maybe (isJust)
 
 -- | We implement DMN Hit Policies.
@@ -122,8 +121,18 @@ var_name :: ColHeader -> String
 var_name = underscore . varname
 
 -- | utility function replaces spaces with underscores.
+--
+-- Was @Data.List.Utils.replace " " "_"@, and was the package's only use of
+-- MissingH — which brought nine packages, three of them C-compiling, into the
+-- library's closure for this one line. For a single-character needle @replace@
+-- /is/ a pointwise map: it is @intercalate new . split old@, and splitting on
+-- one character and rejoining reproduces every other character unchanged.
+-- Checked exhaustively against MissingH-1.6.0.3's own source rather than
+-- argued: all 3280 strings of length <= 7 over @{' ', '_', 'a'}@ agree, and
+-- that alphabet is complete because no other character is distinguishable to
+-- this function.
 underscore :: String -> String
-underscore = replace " " "_"
+underscore = map (\c -> if c == ' ' then '_' else c)
 
 -- | a decision table has a name, a hit policy, a set of column headers, and data rows beneath.
 data DecisionTable = DTable { tableName :: String

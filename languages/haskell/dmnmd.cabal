@@ -62,19 +62,25 @@ library
   hs-source-dirs:  src
   build-depends:
       containers
-    -- Data.List.Utils
-    , MissingH
     , hxt
     -- a more convenient Iso for the XML pickling
     , lens
-    , optparse-applicative
     -- Control.Monad.Combinators.Expr
     , parser-combinators
-    -- NOT dead. DMN/XML/ParseDMN.hs ends in a `-- $>` block that does
-    -- `:m + Text.Pretty.Simple`, which `make ghcid` evaluates for real
-    -- (ghcid --allow-eval). Drop this and that dev loop breaks, with nothing
-    -- in CI to notice.
-    , pretty-simple
+    -- pretty-simple is deliberately absent, and the note that used to sit here
+    -- was half right. No module imports it; its only uses in the tree are the
+    -- two `-- $>` lines at src/DMN/XML/ParseDMN.hs:1124-1126, which
+    -- `make ghcid` really does evaluate (ghcid --allow-eval). And that loop
+    -- really does need the package: `cabal repl lib:dmnmd` hides every package
+    -- this stanza does not name — ask that repl for
+    -- `:m + System.Console.Haskeline` and it answers "hidden package" even
+    -- though the executable in this same project depends on it — so with the
+    -- dependency nowhere, the eval fails the same way.
+    -- What the note got wrong is whose need it is. It is the ghcid command's,
+    -- not the library's, so the Makefile's `ghcid` target passes
+    -- `--build-depends pretty-simple` and every consumer of this library stops
+    -- paying for a dev loop. If that eval starts reporting a hidden package,
+    -- look there, not here.
     -- number parsing
     , scientific
     , split

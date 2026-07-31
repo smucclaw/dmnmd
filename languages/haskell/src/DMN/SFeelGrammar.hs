@@ -6,7 +6,6 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import Control.Monad.Combinators.Expr
 import qualified Text.Megaparsec.Char.Lexer as L
-import Options.Applicative (Alternative((<|>)))
 import DMN.Types
 import DMN.ParsingUtils
 import Data.Text (Text)
