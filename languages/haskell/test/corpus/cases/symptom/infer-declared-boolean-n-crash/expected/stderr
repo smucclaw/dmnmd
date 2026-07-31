@@ -1,6 +1,6 @@
 dmnmd: error: table "DeclaredBoolean": column "Flag": row 2: unable to parse an alleged boolean: n
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:211:34 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:211:34 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:231:34 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:231:34 in dmnmd:DMN.DecisionTable
 
 
