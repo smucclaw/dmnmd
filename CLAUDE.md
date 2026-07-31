@@ -109,6 +109,29 @@ Things that are only apparent across several files:
   section like `<= 8`), `FInRange` (`[5..8]`), `FAnything` (`-`), `FNullary` (a literal),
   `FFunction` (arithmetic like `age * 100`). Cells are `[[FEELexp]]` — the inner list is a
   multi-value cell (`Fall, Winter`), the outer list is the columns.
+- **A number is a `Scientific`, and `DMN.Number` is the only module allowed an opinion about
+  one.** `VN` holds an arbitrary-precision decimal because FEEL's number *is* decimal128
+  (DECISIONS.md D-1); binary32 could hold neither `16777217` nor `1234567.89`, both at exit 0.
+  Everything that follows lives in `src/DMN/Number.hs`, because before it there were five
+  independent number-to-text sites and they disagreed:
+  - **`show` is never the right renderer.** `show @Scientific` inherits `show @Float`'s
+    fixed-vs-exponent rule, so it spells `16777217` as `1.6777217e7` — the right value with text
+    the author never wrote, valid TypeScript, caught by nothing. `showNumPlain` (L4 + every
+    diagnostic that quotes a cell back) and `showNumFloatish` (js/ts/py, which keeps the `.0`, so
+    a generated Python value stays a `float`) both `formatScientific Fixed Nothing` instead. L4 is
+    not merely stylistic here: it has no exponent production, so `1.0e8` lexes as `1.0` applied to
+    a variable named `e8`.
+  - **Arithmetic can fail, and `fNEval` returns `Either`.** `Scientific` has no `Floating`
+    instance, and its `/` raises a bare library `error` on a repeating decimal. `divideFeel`
+    computes the quotient as an exact `Rational` and rounds half-to-even to 34 significant digits;
+    `powerFeel` is exact at an integral exponent and refuses a fractional one rather than routing
+    through `Double`. Division by zero and an unspellable magnitude are refusals, where `Float`
+    answered `Infinity` at exit 0 — which the L4 backend then printed as a plain `0`.
+  - `ParseCell.numericLiteral` (S-FEEL rule 31, refuses `1e5`) and `ParseFEEL`'s
+    `guardedScientific` (megaparsec's `Lexer.scientific`, accepts exponents) are **two grammars on
+    purpose**. Do not unify them. And never reach for `realToFrac` to get *into* a `Scientific`:
+    from a `Double` it is exact and therefore catastrophic, turning `Age * 0.1` into a 55-digit
+    literal. `fromFloatDigits` is the conversion; the tree currently needs neither.
 - **Table names come from Markdown headings**, cleaned by `cleanTableName`: the first
   backticked token (`` `Categorize` — hit policy `F` `` → `Categorize`), else the text
   before the first `:`. `--pick` matches those names.

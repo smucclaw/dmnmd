@@ -24,6 +24,17 @@
 >   `cabal build`, and `stack run -- --to=l4 F` as `cabal run -- dmnmd --to=l4 F`. The golden
 >   round-trip itself is unaffected: it lives in `test/TranslateL4Spec.hs` and runs under
 >   `cabal test`.
+> - **Every mention of `Float` in this document is stale.** §2.1 (`DMNVal = … | VN Float`), §3.4
+>   and §8.2 (`showNumL4 :: Float -> String`) and §9.5's "number formatting" section all describe
+>   the IR as it was. `VN` is now a `Data.Scientific.Scientific` — `DECISIONS.md` D-1 — so
+>   `showNumL4 :: Scientific -> String`, and it is a one-line delegation to
+>   `DMN.Number.showNumPlain`. §9.5's requirement is unchanged and now easier to meet: L4 has no
+>   exponent production, so the emitted number must be plain decimal, and `formatScientific Fixed
+>   Nothing` is exact by construction where the `floatToDigits` shortest-round-trip dance it
+>   replaced was merely careful. The `isNaN`/`isInfinite` guards §9.5 asks for are **gone**:
+>   `Scientific` can represent neither, so the comment calling them "defensive" is now
+>   structurally true. They were not harmless while they lasted — `1 / 0` was `Infinity` and this
+>   backend rendered it as a plain `0`.
 > - §1.6 defers Collect to "v1.1". It is still deferred, and deliberately: `L4.hs` `error`s on
 >   the list-valued hit policies rather than collapsing them to a scalar `BRANCH`, which is
 >   pinned by `test/corpus/cases/policy/md-l4-refuses-collect`.
