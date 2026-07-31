@@ -52,8 +52,28 @@ tests-watch:
 	  --test ':main --rerun --failure-report=TESTREPORT --rerun-all-on-success'
 
 # Gives very quick iteration, especially when used with -- $> command
+#
+# --build-depends pretty-simple is load-bearing, and this is where it lives
+# rather than in dmnmd.cabal. src/DMN/XML/ParseDMN.hs:1124 holds
+# `-- $> :m + Text.Pretty.Simple` and --allow-eval runs it for real; the repl
+# ghcid starts hides every package the library stanza does not name — and no
+# module imports pretty-simple, so the stanza must not name it. This flag also
+# BUILDS the package when the store lacks it, which a `:set -package` in a
+# .ghci would not.
+#
+# Only this target. ghcid-tests is a multi-component repl and GHC refuses
+# `:module` in one outright ("Command is not supported (yet) in multi-mode"),
+# so that eval cannot run there whatever the packages are.
+#
+# If the eval instead reports `Ambiguous module name 'Text.Pretty.Simple' ...
+# found in multiple packages: pretty-simple-4.1.4.0 pretty-simple-4.1.4.0`,
+# that is NOT this flag and predates it — the same failure reproduces on the
+# commit before this one with the old command. It is a `:set -package
+# pretty-simple` line in your ~/.ghci naming the package a second time while
+# ~/.cabal/store holds two builds of that same version. Delete that ~/.ghci
+# line; this flag supersedes it.
 ghcid:
-	ghcid --command "cabal repl lib:dmnmd" --allow-eval
+	ghcid --command "cabal repl lib:dmnmd --build-depends pretty-simple" --allow-eval
 
 # Refresh the DMN->L4 golden fixtures (test/golden/) from the canonical homelab
 # sources. Committed copies are used because the homelab repo is not guaranteed
