@@ -22,7 +22,7 @@ import DMN.XML.PickleHelpers
 import Text.XML.HXT.Core
 import Data.Void (Void)
 import Data.Maybe (listToMaybe)
-import Data.List (intercalate, nub)
+import Data.List (intercalate, nub, nubBy)
 
 getEx1 :: IO [XmlTree]
 getEx1 = runX $ readDocument [] "test/simulation.dmn"
@@ -32,28 +32,134 @@ getEx2 = do
   [ans] <- runX $ removeAllWhiteSpace <<< readDocument [withCheckNamespaces True] "test/simple.dmn"
   pure ans
 
-xmlns_dmn, xmlns_dmndi, xmlns_dc, xmlns_di, xmlns_camunda :: String
-xmlns_dmn = "https://www.omg.org/spec/DMN/20191111/MODEL/"
-xmlns_dmndi = "https://www.omg.org/spec/DMN/20191111/DMNDI/"
-xmlns_dc = "http://www.omg.org/spec/DMN/20180521/DC/"
-xmlns_di = "http://www.omg.org/spec/DMN/20180521/DI/"
+xmlns_camunda :: String
 xmlns_camunda = "http://camunda.org/schema/1.0/dmn"
 
--- | Namespaces of the DMN releases we can recognise. Only 1.3 is readable; the
--- others exist so that we can say /which/ version we are refusing rather than
--- failing with a generic unpickling error.
-dmnVersionOfNamespace :: String -> Maybe String
-dmnVersionOfNamespace ns = lookup ns
+-- * Which DMN release is this?
+
+-- | One DMN release, as far as this reader is concerned: a name to put in
+-- diagnostics, and the two namespace URIs a document of that release uses.
+--
+-- __MODEL and DMNDI are independent fields, not a date substituted into a
+-- template.__ DMN 1.4 pairs a 1.4 model namespace with the /1.3/ DMNDI one:
+-- @DMN14.xsd@ declares @xmlns=\"…\/20211108\/MODEL\/\"@ and then imports
+-- @namespace=\"…\/20191111\/DMNDI\/\" schemaLocation=\"DMNDI13.xsd\"@, and the
+-- OMG ships no @DMNDI14.xsd@ at all. A @mkRelease :: Date -> DmnRelease@ would
+-- therefore be wrong on its very first use.
+--
+-- Both fields are 'String', so getting one wrong compiles, matches nothing, and
+-- makes the @\<dmndi:DMNDI\>@ subtree resurface as @xpCheckEmptyContents@ — the
+-- generic failure this module exists to avoid. @test\/dmn15\/baseline14.dmn@ and
+-- @policy\/xml-dmn14-accepted@ are the guard, and 1.4 is the only release they
+-- CAN guard: it is the only one whose DMNDI date differs from its model date, so
+-- a 1.3 or 1.5 fixture cannot tell a date-template design from a correct one.
+data DmnRelease = DmnRelease
+  { relName :: String
+  , relModelNS :: String
+  , relDmndiNS :: String
+  }
+  deriving (Show, Eq)
+
+-- | The releases this reader can read.
+--
+-- Adding a fourth is one record, /provided/ its decision-table complex types are
+-- still byte-identical — which is the property that makes one pickler tree
+-- serve all of them, and which must be re-measured rather than assumed. It held
+-- from 1.3 to 1.5: @tDecisionTable@, @tInputClause@, @tOutputClause@,
+-- @tDecisionRule@, @tUnaryTests@ and @tLiteralExpression@ are byte-identical in
+-- @DMN13.xsd@ and @DMN15.xsd@, and nothing was removed anywhere.
+--
+-- DMN 1.6 Beta 1 (OMG @dtc\/24-05-18@) is dated @20240513@ and is /not/ listed
+-- here: the beta text pins @…\/20240513\/FEEL\/@ but never spells its MODEL or
+-- DMNDI URI, and guessing one from the pattern would put an unverified string in
+-- an accept list. Measure it from a published @DMN16.xsd@, then add the record.
+dmn13, dmn14, dmn15 :: DmnRelease
+dmn13 =
+  DmnRelease "DMN 1.3"
+    "https://www.omg.org/spec/DMN/20191111/MODEL/"
+    "https://www.omg.org/spec/DMN/20191111/DMNDI/"
+dmn14 =
+  DmnRelease "DMN 1.4"
+    "https://www.omg.org/spec/DMN/20211108/MODEL/"
+    "https://www.omg.org/spec/DMN/20191111/DMNDI/" -- not a typo; see 'DmnRelease'
+dmn15 =
+  DmnRelease "DMN 1.5"
+    "https://www.omg.org/spec/DMN/20230324/MODEL/"
+    "https://www.omg.org/spec/DMN/20230324/DMNDI/"
+
+readableReleases :: [DmnRelease]
+readableReleases = [dmn13, dmn14, dmn15]
+
+-- | Releases we can /name/ but not read. Widening acceptance is not accepting
+-- everything: a DMN 1.1 or 1.2 document is still refused, and the point of this
+-- table is that it is refused by name rather than by a generic unpickling
+-- failure.
+--
+-- Note the scheme. 1.1 and 1.2 are @http:\/\/@; every release from 1.3 on is
+-- @https:\/\/@. A copy-paste that carried @http@ forward would match nothing.
+refusedReleases :: [(String, String)]
+refusedReleases =
   [ ("http://www.omg.org/spec/DMN/20151101/dmn.xsd", "DMN 1.1")
   , ("http://www.omg.org/spec/DMN/20180521/MODEL/",  "DMN 1.2")
-  , (xmlns_dmn,                                      "DMN 1.3")
   ]
 
-xpDMNElem :: String -> AnIso' a b -> PU b -> PU a
-xpDMNElem name iso = xpElemNS xmlns_dmn "" name . wrapIso iso
+-- | The release a @\<definitions\>@ model namespace identifies, if we read it.
+releaseOfNamespace :: String -> Maybe DmnRelease
+releaseOfNamespace ns = lookup ns [(relModelNS r, r) | r <- readableReleases]
 
-xpDMNDIElem :: String -> AnIso' a b -> PU b -> PU a
-xpDMNDIElem name iso = xpElemNS xmlns_dmndi "dmndi" name . wrapIso iso
+-- | The name of any release we recognise, readable or not, for diagnostics.
+releaseNameOfNamespace :: String -> Maybe String
+releaseNameOfNamespace ns = case lookup ns refusedReleases of
+  Just n -> Just n
+  Nothing -> relName <$> releaseOfNamespace ns
+
+-- * The pickler class
+--
+-- $pickler
+--
+-- hxt's 'XmlPickler' has method @xpickle :: PU a@ — a VALUE, with nowhere to put
+-- the release. Nor can the release go /inside/ the 'PU': it is a plain
+-- three-field record with no Functor\/Applicative\/Monad instance, its
+-- unpickler state is a fixed hxt record with no extension slot, and 'xpElemQN'
+-- bakes the 'QName' in at construction time, so a global mutable cell would be
+-- frozen by CAF memoisation the first time 'dmnPickler' was forced. The only
+-- channel left is an ordinary function argument — so the class is replaced
+-- rather than the picklers restructured.
+--
+-- __The four container instances below deliberately mirror hxt's own__
+-- (@Pickle\/Xml.hs@ :1160, :1163, :1232, :1235). Roughly fifteen sites in this
+-- file write a bare @xpickle@ that stands for a list, a @Maybe@, a pair or
+-- @()@ and let the instance resolve it; keeping a class keeps them resolving to
+-- exactly the same combinator. Hand-writing them instead would be fifteen
+-- chances to put 'xpList' where 'xpList1' belongs — a change of @minOccurs@ that
+-- has the same type, so neither the compiler nor the golden baseline distinguish
+-- it from the original, only a reader would.
+
+-- | Like hxt's 'XmlPickler', but the pickler is a function of the DMN release.
+class DmnPU a where
+  dmnPU :: DmnRelease -> PU a
+
+instance DmnPU () where
+  dmnPU _ = xpUnit
+
+instance (DmnPU a, DmnPU b) => DmnPU (a, b) where
+  dmnPU r = xpPair (dmnPU r) (dmnPU r)
+
+instance DmnPU a => DmnPU [a] where
+  dmnPU r = xpList (dmnPU r)
+
+instance DmnPU a => DmnPU (Maybe a) where
+  dmnPU r = xpOption (dmnPU r)
+
+xpDMNElem :: DmnRelease -> String -> AnIso' a b -> PU b -> PU a
+xpDMNElem r name iso = xpElemNS (relModelNS r) "" name . wrapIso iso
+
+-- | The /only/ reader of 'relDmndiNS'. If this is ever given 'relModelNS' by
+-- mistake it still compiles, matches nothing, and the whole @\<dmndi:DMNDI\>@
+-- subtree then resurfaces as @xpCheckEmptyContents@ — the generic failure this
+-- change exists to avoid, arriving through the back door.
+xpDMNDIElem :: DmnRelease -> String -> AnIso' a b -> PU b -> PU a
+xpDMNDIElem r name iso = xpElemNS (relDmndiNS r) "dmndi" name . wrapIso iso
 
 -- * Schema-guided ignoring
 --
@@ -77,9 +183,9 @@ xpIgnoredAttrs names p = foldr xpIgnoredAttr p names
 -- | Consume one child element in the DMN namespace, with whatever attributes
 -- and content it happens to carry, and throw it away. Only ever used at a
 -- position where the XSD permits that element.
-xpIgnoredElem :: String -> PU ()
-xpIgnoredElem name =
-  xpElemNS xmlns_dmn "" name . xpFilterAttr none . xpFilterCont none $ xpUnit
+xpIgnoredElem :: DmnRelease -> String -> PU ()
+xpIgnoredElem r name =
+  xpElemNS (relModelNS r) "" name . xpFilterAttr none . xpFilterCont none $ xpUnit
 
 -- | Consume a run of elements we do not model, keeping ONE attribute so the
 -- caller can name what it dropped. Everything else about them is discarded, so
@@ -90,28 +196,28 @@ xpIgnoredElem name =
 -- QUALIFIED name, so against a prefix-qualified document — which the DMN
 -- specification's own Chapter 11 example is, and it is checked in under
 -- @test/examples/@ — a bare 'hasName' silently matches nothing.
-xpPeekedElems :: String -> String -> PU [Maybe String]
-xpPeekedElems name attr =
+xpPeekedElems :: DmnRelease -> String -> String -> PU [Maybe String]
+xpPeekedElems r name attr =
   xpList $
-    xpElemNS xmlns_dmn "" name
+    xpElemNS (relModelNS r) "" name
       . xpFilterAttr (hasNameWith ((== attr) . localPart))
       . xpFilterCont none
       $ xpOption (xpAttr attr xpText)
 
 -- | @minOccurs="0" maxOccurs="1"@ version of 'xpIgnoredElem'.
-xpIgnoredElemOpt :: String -> PU ()
-xpIgnoredElemOpt name =
-  xpWrap (const (), const Nothing) . xpOption $ xpIgnoredElem name
+xpIgnoredElemOpt :: DmnRelease -> String -> PU ()
+xpIgnoredElemOpt r name =
+  xpWrap (const (), const Nothing) . xpOption $ xpIgnoredElem r name
 
 -- | @minOccurs="0" maxOccurs="unbounded"@ over a substitution group: any run of
 -- children whose local names are in the given list.
-xpIgnoredElemsOf :: [String] -> PU ()
-xpIgnoredElemsOf [] = xpLift ()
-xpIgnoredElemsOf names =
-  xpWrap (const (), const []) . xpList . xpAlt (const 0) $ map xpIgnoredElem names
+xpIgnoredElemsOf :: DmnRelease -> [String] -> PU ()
+xpIgnoredElemsOf _ [] = xpLift ()
+xpIgnoredElemsOf r names =
+  xpWrap (const (), const []) . xpList . xpAlt (const 0) $ map (xpIgnoredElem r) names
 
-xpIgnoredElems :: String -> PU ()
-xpIgnoredElems name = xpIgnoredElemsOf [name]
+xpIgnoredElems :: DmnRelease -> String -> PU ()
+xpIgnoredElems r name = xpIgnoredElemsOf r [name]
 
 -- | The two children every @tDMNElement@ may carry, in schema order:
 -- @<description>@ and @<extensionElements>@.
@@ -121,14 +227,14 @@ xpIgnoredElems name = xpIgnoredElemsOf [name]
 -- instead of using this. @<extensionElements>@ is declared
 -- @<xsd:any namespace="##other" processContents="lax"/>@ — the standard itself
 -- says a consumer may ignore it.
-xpDmnAnnotations :: PU ()
-xpDmnAnnotations =
+xpDmnAnnotations :: DmnRelease -> PU ()
+xpDmnAnnotations r =
   xpWrap (const (), const ((), ())) $
-    xpPair (xpIgnoredElemOpt "description") (xpIgnoredElemOpt "extensionElements")
+    xpPair (xpIgnoredElemOpt r "description") (xpIgnoredElemOpt r "extensionElements")
 
 -- | @<extensionElements>@ only, for elements whose @<description>@ we keep.
-xpExtensionElements :: PU ()
-xpExtensionElements = xpIgnoredElemOpt "extensionElements"
+xpExtensionElements :: DmnRelease -> PU ()
+xpExtensionElements r = xpIgnoredElemOpt r "extensionElements"
 
 -- | Attributes that are XML plumbing rather than DMN content, stripped from the
 -- whole tree before unpickling:
@@ -143,13 +249,17 @@ xpExtensionElements = xpIgnoredElemOpt "extensionElements"
 --
 -- Unprefixed attributes have no namespace and are therefore *not* touched: an
 -- unknown attribute in DMN's own vocabulary is still an error.
-stripIgnorableAttrs :: ArrowXml a => a XmlTree XmlTree
-stripIgnorableAttrs =
+--
+-- \"Foreign\" is relative to the release the document declared, which is why
+-- this runs /after/ 'checkDmnRoot' rather than inside the reading pipeline: a
+-- DMN 1.3 attribute on a DMN 1.5 element is as foreign as a Camunda one.
+stripIgnorableAttrs :: ArrowXml a => DmnRelease -> a XmlTree XmlTree
+stripIgnorableAttrs r =
     processTopDown (processAttrl (none `when` (isNsDecl <+> isForeignAttr)) `when` isElem)
   where
     isNsDecl      = hasNameWith isNameSpaceName
     isForeignAttr = hasNameWith $ \qn ->
-      let uri = namespaceUri qn in not (null uri) && uri /= xmlns_dmn
+      let uri = namespaceUri qn in not (null uri) && uri /= relModelNS r
 
 data Description = Description
   { description :: String
@@ -158,8 +268,8 @@ data Description = Description
 
 makePrisms ''Description
 
-instance XmlPickler Description where
-  xpickle = xpDMNElem "description" _Description xpText
+instance DmnPU Description where
+  dmnPU r = xpDMNElem r "description" _Description xpText
 
 data DmnNamed = DmnNamed
   { dmnnId :: Maybe String
@@ -169,8 +279,8 @@ data DmnNamed = DmnNamed
 
 makePrisms ''DmnNamed
 
-instance XmlPickler DmnNamed where
-  xpickle =
+instance DmnPU DmnNamed where
+  dmnPU r =
     wrapIso _DmnNamed $
       xpPair
         (xpOption $ xpAttr "id" xpText)
@@ -214,13 +324,13 @@ unnamed :: DmnCommon
 unnamed = DmnCommon Nothing Nothing
 -- unnamed = DmnCommon Nothing Nothing Nothing
 
-instance XmlPickler DmnCommon where
-  xpickle =
+instance DmnPU DmnCommon where
+  dmnPU r =
     wrapIso _DmnCommon $
       xpPair
         (xpOption $ xpAttr "id" xpText)
         (xpOption $ xpAttr "name" xpText) -- NB: This should be "label" and not "name"
-        -- (xpOption $ xpElemNS xmlns_dmn "" "description" xpText)
+        -- (xpOption $ xpElemNS (relModelNS r) "" "description" xpText)
 
 data DMNDI = DMNDI
   deriving (Show, Eq)
@@ -229,12 +339,12 @@ makePrisms ''DMNDI
 
 -- | Diagram interchange: geometry only, deliberately not modelled. The whole
 -- subtree (and any attributes on it) is discarded.
-instance XmlPickler DMNDI where
-  xpickle =
-    xpDMNDIElem "DMNDI" _DMNDI
+instance DmnPU DMNDI where
+  dmnPU r =
+    xpDMNDIElem r "DMNDI" _DMNDI
       . xpFilterAttr none
       . xpFilterCont none
-      $ xpickle
+      $ (dmnPU r)
 
 -- These can point to some input node (which is kind of useless) or to another table,
 -- in which case it shows their dependency on each other.
@@ -243,23 +353,23 @@ data RequiredInput = RequiredInput | RequiredDecision
 
 makePrisms ''RequiredInput
 
-instance XmlPickler RequiredInput where
-  xpickle =
+instance DmnPU RequiredInput where
+  dmnPU r =
     xpAlt
       fromEnum
-      [ xpElemNS xmlns_dmn "" "requiredInput" $ xpLift RequiredInput,
-        xpElemNS xmlns_dmn "" "requiredDecision" $ xpLift RequiredDecision
+      [ xpElemNS (relModelNS r) "" "requiredInput" $ xpLift RequiredInput,
+        xpElemNS (relModelNS r) "" "requiredDecision" $ xpLift RequiredDecision
       ]
 
 -- xpDMNElem "requiredInput" _RequiredInput
 --   $ xpickle
 
-pcklReqInput :: PU a -> PU (RequiredInput, a)
-pcklReqInput p =
+pcklReqInput :: DmnRelease -> PU a -> PU (RequiredInput, a)
+pcklReqInput r p =
   xpAlt
     (fromEnum . fst)
-    [ xpElemNS xmlns_dmn "" "requiredInput" $ xpPair (xpLift RequiredInput) p,
-      xpElemNS xmlns_dmn "" "requiredDecision" $ xpPair (xpLift RequiredDecision) p
+    [ xpElemNS (relModelNS r) "" "requiredInput" $ xpPair (xpLift RequiredInput) p,
+      xpElemNS (relModelNS r) "" "requiredDecision" $ xpPair (xpLift RequiredDecision) p
     ]
 
 newtype Href = Href String
@@ -268,8 +378,8 @@ newtype Href = Href String
 makePrisms ''Href
 
 -- TODO: Parse the "#" prefix of a href
-instance XmlPickler Href where
-  xpickle = wrapIso _Href $ xpAttr "href" xpText
+instance DmnPU Href where
+  dmnPU r = wrapIso _Href $ xpAttr "href" xpText
 
 data InformationRequirement = InformationRequirement
   { infrLabel :: DmnCommon,
@@ -282,12 +392,12 @@ makePrisms ''InformationRequirement
 
 -- | @tInformationRequirement@: @description?@, @extensionElements?@, then
 -- exactly one of @requiredDecision@ / @requiredInput@.
-instance XmlPickler InformationRequirement where
-  xpickle =
-    xpDMNElem "informationRequirement" (_InformationRequirement . pairsIso)
+instance DmnPU InformationRequirement where
+  dmnPU r =
+    xpDMNElem r "informationRequirement" (_InformationRequirement . pairsIso)
       . xpIgnoredAttr "label"
     $
-      xpPair xpickle (xpSeq' xpDmnAnnotations (pcklReqInput xpickle))
+      xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (pcklReqInput r (dmnPU r)))
 
 {-
 	<xsd:simpleType name="tBuiltinAggregator">
@@ -371,8 +481,8 @@ data TypeRef = TypeRef
 
 makePrisms ''TypeRef
 
-instance XmlPickler TypeRef where
-  xpickle = wrapIso _TypeRef $ xpAttr "typeRef" $ xpText
+instance DmnPU TypeRef where
+  dmnPU r = wrapIso _TypeRef $ xpAttr "typeRef" $ xpText
 
 data ColumnLabel = ColumnLabel
   { columnLabel :: String
@@ -384,8 +494,8 @@ makePrisms ''ColumnLabel
 -- | @tDMNElement/@label@. DMN 1.3 makes it optional everywhere (XSD line 29,
 -- @use="optional"@), so callers wrap this in 'xpOption'; requiring it here is
 -- what used to reject perfectly legal @<input>@ and @<output>@ clauses.
-instance XmlPickler ColumnLabel where
-  xpickle = wrapIso _ColumnLabel $ xpAttr "label" xpText
+instance DmnPU ColumnLabel where
+  dmnPU r = wrapIso _ColumnLabel $ xpAttr "label" xpText
 
 -- TODO: This is only one of the possible options for tLiteralExpression
 data TextElement = TextElement
@@ -395,9 +505,9 @@ data TextElement = TextElement
 
 makePrisms ''TextElement
 
-instance XmlPickler TextElement where
-  xpickle =
-    xpDMNElem "text" _TextElement
+instance DmnPU TextElement where
+  dmnPU r =
+    xpDMNElem r "text" _TextElement
       $ xpText0
 
 data TExpr = TExpr
@@ -410,15 +520,15 @@ makePrisms ''TExpr
 
 -- | @tExpression@'s attributes: @id@/@label@ (from @tDMNElement@) plus an
 -- optional @typeRef@. @label@ is consumed and dropped.
-instance XmlPickler TExpr where
-  xpickle = xpIgnoredAttr "label" . wrapIso _TExpr $ xpickle
+instance DmnPU TExpr where
+  dmnPU r = xpIgnoredAttr "label" . wrapIso _TExpr $ (dmnPU r)
 
 data ExpressionLanguage = ExpressionLanguage String -- xsd:anyURI
   deriving (Show, Eq)
 
 makePrisms ''ExpressionLanguage
-instance XmlPickler ExpressionLanguage where
-  xpickle = xpAttr "expressionLanguage" $ wrapIso _ExpressionLanguage xpText
+instance DmnPU ExpressionLanguage where
+  dmnPU r = xpAttr "expressionLanguage" $ wrapIso _ExpressionLanguage xpText
 
 data TLiteralExpression = TLiteralExpression
   { tleExpr :: TExpr
@@ -433,13 +543,13 @@ makePrisms ''TLiteralExpression
 -- @<text>@ or @<importedValues>@ (both optional). We model @<text>@; a literal
 -- expression backed by @<importedValues>@ is rejected rather than silently read
 -- as an empty expression.
-instance XmlPickler TLiteralExpression where
-  xpickle =
+instance DmnPU TLiteralExpression where
+  dmnPU r =
     wrapIso _TLiteralExpression $
       xpTriple
-        xpickle                                    -- TExpr: id/typeRef attrs
-        (xpOption xpickle)                         -- expressionLanguage attr
-        (xpSeq' xpDmnAnnotations (xpOption xpickle))  -- <text>?
+        (dmnPU r)                                    -- TExpr: id/typeRef attrs
+        (xpOption (dmnPU r))                         -- expressionLanguage attr
+        (xpSeq' (xpDmnAnnotations r) (xpOption (dmnPU r)))  -- <text>?
 
 -- | @tUnaryTests@ (used by @<inputValues>@, @<outputValues>@, @<inputEntry>@).
 -- Same shape as a literal expression but @<text>@ is required.
@@ -452,10 +562,10 @@ data UnaryTestsBody = UnaryTestsBody
 
 makePrisms ''UnaryTestsBody
 
-instance XmlPickler UnaryTestsBody where
-  xpickle =
+instance DmnPU UnaryTestsBody where
+  dmnPU r =
     wrapIso _UnaryTestsBody $
-      xpTriple xpickle (xpOption xpickle) (xpSeq' xpDmnAnnotations xpickle)
+      xpTriple (dmnPU r) (xpOption (dmnPU r)) (xpSeq' (xpDmnAnnotations r) (dmnPU r))
 
 -- | @tInputClause/inputValues@ — the declared domain of an input column.
 newtype InputValues = InputValues UnaryTestsBody
@@ -463,8 +573,8 @@ newtype InputValues = InputValues UnaryTestsBody
 
 makePrisms ''InputValues
 
-instance XmlPickler InputValues where
-  xpickle = xpDMNElem "inputValues" _InputValues xpickle
+instance DmnPU InputValues where
+  dmnPU r = xpDMNElem r "inputValues" _InputValues (dmnPU r)
 
 -- | @tOutputClause/outputValues@ — the declared domain of an output column.
 -- Byte-identically unmodelled before this change, which is why a fix aimed only
@@ -474,8 +584,8 @@ newtype OutputValues = OutputValues UnaryTestsBody
 
 makePrisms ''OutputValues
 
-instance XmlPickler OutputValues where
-  xpickle = xpDMNElem "outputValues" _OutputValues xpickle
+instance DmnPU OutputValues where
+  dmnPU r = xpDMNElem r "outputValues" _OutputValues (dmnPU r)
 
 -- | @tItemDefinition/allowedValues@ — the declared domain of a NAMED type.
 --
@@ -487,8 +597,8 @@ newtype AllowedValues = AllowedValues UnaryTestsBody
 
 makePrisms ''AllowedValues
 
-instance XmlPickler AllowedValues where
-  xpickle = xpDMNElem "allowedValues" _AllowedValues xpickle
+instance DmnPU AllowedValues where
+  dmnPU r = xpDMNElem r "allowedValues" _AllowedValues (dmnPU r)
 
 unAllowedValues :: AllowedValues -> UnaryTestsBody
 unAllowedValues (AllowedValues b) = b
@@ -501,8 +611,8 @@ newtype ItemTypeRef = ItemTypeRef String
 
 makePrisms ''ItemTypeRef
 
-instance XmlPickler ItemTypeRef where
-  xpickle = xpDMNElem "typeRef" _ItemTypeRef xpText0
+instance DmnPU ItemTypeRef where
+  dmnPU r = xpDMNElem r "typeRef" _ItemTypeRef xpText0
 
 unItemTypeRef :: ItemTypeRef -> String
 unItemTypeRef (ItemTypeRef s) = s
@@ -558,18 +668,18 @@ data ItemDefinition = ItemDefinition
 
 makePrisms ''ItemDefinition
 
-instance XmlPickler ItemDefinition where
-  xpickle =
-    xpDMNElem "itemDefinition" _ItemDefinition
+instance DmnPU ItemDefinition where
+  dmnPU r =
+    xpDMNElem r "itemDefinition" _ItemDefinition
       . xpFilterAttr (hasNameWith ((`elem` itemDefAttrs) . localPart))
       . xpFilterCont (hasNameWith ((`elem` itemDefElems) . localPart))
       $ xp6Tuple
           (xpOption (xpAttr "name" xpText))
           (xpOption (xpAttr "isCollection" xpText))
-          (xpOption xpickle)
-          (xpOption xpickle)
-          (xpPeekedElems "itemComponent" "name")
-          (xpIgnoredElemOpt "functionItem")
+          (xpOption (dmnPU r))
+          (xpOption (dmnPU r))
+          (xpPeekedElems r "itemComponent" "name")
+          (xpIgnoredElemOpt r "functionItem")
 
 -- | The attributes and child elements 'ItemDefinition' keeps. __Every name test
 -- here goes through @hasNameWith (… . localPart)@, never @hasName@__: HXT's
@@ -592,20 +702,20 @@ newtype DefaultOutputEntry = DefaultOutputEntry TLiteralExpression
 
 makePrisms ''DefaultOutputEntry
 
-instance XmlPickler DefaultOutputEntry where
-  xpickle = xpDMNElem "defaultOutputEntry" _DefaultOutputEntry xpickle
+instance DmnPU DefaultOutputEntry where
+  dmnPU r = xpDMNElem r "defaultOutputEntry" _DefaultOutputEntry (dmnPU r)
 
 data LiteralExpression = LiteralExpression TLiteralExpression
   deriving (Show, Eq)
 
 makePrisms ''LiteralExpression
 
-instance XmlPickler LiteralExpression where
-  xpickle =
-    xpDMNElem "literalExpression" _LiteralExpression
+instance DmnPU LiteralExpression where
+  dmnPU r =
+    xpDMNElem r "literalExpression" _LiteralExpression
       -- . xpFilterAttr (hasName "id" <+> hasName "name")
       -- . xpFilterCont none -- TODO
-      $ xpickle
+      $ (dmnPU r)
 
 
 data InputExpression = InputExpression TLiteralExpression
@@ -613,8 +723,8 @@ data InputExpression = InputExpression TLiteralExpression
 
 makePrisms ''InputExpression
 
-instance XmlPickler InputExpression where
-  xpickle = xpDMNElem "inputExpression" _InputExpression xpickle
+instance DmnPU InputExpression where
+  dmnPU r = xpDMNElem r "inputExpression" _InputExpression (dmnPU r)
 
 -- | @tInputClause@: @description?@, @extensionElements?@, @inputExpression@
 -- (required), @inputValues?@. Attributes @id@ and @label@ (both optional).
@@ -632,14 +742,14 @@ data TableInput = TableInput
 
 makePrisms ''TableInput
 
-instance XmlPickler TableInput where
-  xpickle =
-    xpDMNElem "input" _TableInput
+instance DmnPU TableInput where
+  dmnPU r =
+    xpDMNElem r "input" _TableInput
       $ xp4Tuple
-          xpickle
-          (xpOption xpickle)
-          (xpSeq' xpDmnAnnotations xpickle)
-          (xpOption xpickle)
+          (dmnPU r)
+          (xpOption (dmnPU r))
+          (xpSeq' (xpDmnAnnotations r) (dmnPU r))
+          (xpOption (dmnPU r))
 
 -- | @tOutputClause@: @description?@, @extensionElements?@, @outputValues?@,
 -- @defaultOutputEntry?@. Attributes @id@, @label@, @name@, @typeRef@ — all
@@ -656,15 +766,15 @@ data TableOutput = TableOutput
 
 makePrisms ''TableOutput
 
-instance XmlPickler TableOutput where
-  xpickle =
-    xpDMNElem "output" _TableOutput
+instance DmnPU TableOutput where
+  dmnPU r =
+    xpDMNElem r "output" _TableOutput
       $ xp5Tuple
-          xpickle
-          (xpOption xpickle)
-          (xpOption xpickle)
-          (xpSeq' xpDmnAnnotations (xpOption xpickle))
-          (xpOption xpickle)
+          (dmnPU r)
+          (xpOption (dmnPU r))
+          (xpOption (dmnPU r))
+          (xpSeq' (xpDmnAnnotations r) (xpOption (dmnPU r)))
+          (xpOption (dmnPU r))
 
 --- $> import Text.XML.HXT.Core
 
@@ -681,11 +791,11 @@ data InputEntry = InputEntry
 makePrisms ''InputEntry
 
 -- | @tUnaryTests@ in the @<inputEntry>@ position.
-instance XmlPickler InputEntry where
-  xpickle =
-    xpDMNElem "inputEntry" _InputEntry
+instance DmnPU InputEntry where
+  dmnPU r =
+    xpDMNElem r "inputEntry" _InputEntry
       . xpIgnoredAttrs ["label", "typeRef", "expressionLanguage"]
-      $ xpPair xpickle (xpSeq' xpDmnAnnotations xpickle)
+      $ xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (dmnPU r))
 
 data OutputEntry = OutputEntry
   { outputEntryLabel :: DmnCommon
@@ -696,11 +806,11 @@ data OutputEntry = OutputEntry
 makePrisms ''OutputEntry
 
 -- | @tLiteralExpression@ in the @<outputEntry>@ position.
-instance XmlPickler OutputEntry where
-  xpickle =
-    xpDMNElem "outputEntry" _OutputEntry
+instance DmnPU OutputEntry where
+  dmnPU r =
+    xpDMNElem r "outputEntry" _OutputEntry
       . xpIgnoredAttrs ["label", "typeRef", "expressionLanguage"]
-      $ xpPair xpickle (xpSeq' xpDmnAnnotations xpickle)
+      $ xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (dmnPU r))
 
 -- | @tRuleAnnotation@ (XSD line 352): the @<annotationEntry>@ that hangs off a
 -- @<rule>@. DMN 1.3's own spelling of a row comment, so 'DMN.XML.XmlToDmnmd'
@@ -710,8 +820,8 @@ newtype AnnotationEntry = AnnotationEntry (Maybe TextElement)
 
 makePrisms ''AnnotationEntry
 
-instance XmlPickler AnnotationEntry where
-  xpickle = xpDMNElem "annotationEntry" _AnnotationEntry $ xpOption xpickle
+instance DmnPU AnnotationEntry where
+  dmnPU r = xpDMNElem r "annotationEntry" _AnnotationEntry $ xpOption (dmnPU r)
 
 -- | The text of an @<annotationEntry>@, or @""@ if it had no @<text>@ child.
 annotationEntryText :: AnnotationEntry -> String
@@ -724,9 +834,9 @@ newtype AnnotationClause = AnnotationClause (Maybe String)
 
 makePrisms ''AnnotationClause
 
-instance XmlPickler AnnotationClause where
-  xpickle =
-    xpDMNElem "annotation" _AnnotationClause . xpFilterCont none $
+instance DmnPU AnnotationClause where
+  dmnPU r =
+    xpDMNElem r "annotation" _AnnotationClause . xpFilterCont none $
       xpOption (xpAttr "name" xpText)
 
 annotationClauseName :: AnnotationClause -> String
@@ -746,16 +856,16 @@ makePrisms ''Rule
 -- | @tDecisionRule@: @description?@, @extensionElements?@, @inputEntry*@,
 -- @outputEntry+@, @annotationEntry*@. Both @description@ and @annotationEntry@
 -- are kept; they become row comments.
-instance XmlPickler Rule where
-  xpickle =
-    xpDMNElem "rule" _Rule
+instance DmnPU Rule where
+  dmnPU r =
+    xpDMNElem r "rule" _Rule
       . xpIgnoredAttr "label"
       $ xp5Tuple
-          xpickle
-          (xpOption xpickle)
-          (xpSeq' xpExtensionElements xpickle)
-          xpickle
-          xpickle
+          (dmnPU r)
+          (xpOption (dmnPU r))
+          (xpSeq' (xpExtensionElements r) (dmnPU r))
+          (dmnPU r)
+          (dmnPU r)
 
 data DecisionTable = DecisionTable
   { dtLabel :: DmnCommon,
@@ -771,17 +881,17 @@ makePrisms ''DecisionTable
 
 -- | @tDecisionTable@: @description?@, @extensionElements?@, @input*@,
 -- @output+@, @annotation*@, @rule*@.
-instance XmlPickler DecisionTable where
-  xpickle =
-    xpDMNElem "decisionTable" _DecisionTable
+instance DmnPU DecisionTable where
+  dmnPU r =
+    xpDMNElem r "decisionTable" _DecisionTable
       . xpIgnoredAttrs ["label", "typeRef", "preferredOrientation", "outputLabel"]
       $ xp6Tuple
-        xpickle
+        (dmnPU r)
         xpHitPolicy
-        (xpSeq' xpDmnAnnotations xpickle)
-        (xpList1 xpickle)
-        xpickle
-        xpickle
+        (xpSeq' (xpDmnAnnotations r) (dmnPU r))
+        (xpList1 (dmnPU r))
+        (dmnPU r)
+        (dmnPU r)
 
 data Expression = ExprDTable DecisionTable | ExprLiteral LiteralExpression
   deriving (Show, Eq)
@@ -790,12 +900,12 @@ exprNr :: Expression -> Int
 exprNr (ExprDTable _) = 0
 exprNr (ExprLiteral _) = 0
 
-instance XmlPickler Expression where
-  xpickle =
+instance DmnPU Expression where
+  dmnPU r =
     xpAlt
       exprNr
-      [ xpWrap (ExprDTable, \(ExprDTable x) -> x) xpickle
-      , xpWrap (ExprLiteral, \(ExprLiteral x) -> x) xpickle
+      [ xpWrap (ExprDTable, \(ExprDTable x) -> x) (dmnPU r)
+      , xpWrap (ExprLiteral, \(ExprLiteral x) -> x) (dmnPU r)
       ]
 
 data Decision = Decision
@@ -815,24 +925,24 @@ makePrisms ''Decision
 -- The previous version used name-based content filters for @variable@ and
 -- @authorityRequirement@, which accepted them anywhere among the children.
 -- These are positional: an element out of schema order is still an error.
-instance XmlPickler Decision where
-  xpickle =
-    xpDMNElem "decision" _Decision
+instance DmnPU Decision where
+  dmnPU r =
+    xpDMNElem r "decision" _Decision
       . xpIgnoredAttr "label"
       $ xpTriple
-          xpickle
-          (xpSeq' decisionPrelude xpickle)
-          (xpSeq' decisionInterlude xpickle)
+          (dmnPU r)
+          (xpSeq' decisionPrelude (dmnPU r))
+          (xpSeq' decisionInterlude (dmnPU r))
     where
       decisionPrelude =
         xpWrap (const (), const ((), ((), ((), ())))) $
           xpPair
-            xpDmnAnnotations
+            (xpDmnAnnotations r)
             (xpPair
-              (xpIgnoredElemOpt "question")
-              (xpPair (xpIgnoredElemOpt "allowedAnswers") (xpIgnoredElemOpt "variable")))
+              (xpIgnoredElemOpt r "question")
+              (xpPair (xpIgnoredElemOpt r "allowedAnswers") (xpIgnoredElemOpt r "variable")))
       decisionInterlude =
-        xpIgnoredElemsOf
+        xpIgnoredElemsOf r
           [ "knowledgeRequirement", "authorityRequirement"
           , "supportedObjective", "impactedPerformanceIndicator"
           , "decisionMaker", "decisionOwner", "usingProcess", "usingTask"
@@ -861,17 +971,17 @@ data InputData = InputData
 
 makePrisms ''InputData
 
-xpVariable :: PU InformationItem
-xpVariable =
-  xpDMNElem "variable" _InformationItem
+xpVariable :: DmnRelease -> PU InformationItem
+xpVariable r =
+  xpDMNElem r "variable" _InformationItem
     . xpIgnoredAttr "label"
-    $ xpPair xpickle (xpSeq' xpDmnAnnotations (xpOption xpickle))
+    $ xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (xpOption (dmnPU r)))
 
-instance XmlPickler InputData where
-  xpickle =
-    xpDMNElem "inputData" _InputData
+instance DmnPU InputData where
+  dmnPU r =
+    xpDMNElem r "inputData" _InputData
       . xpIgnoredAttr "label"
-      $ xpPair xpickle (xpSeq' xpDmnAnnotations (xpOption xpVariable))
+      $ xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (xpOption (xpVariable r)))
 
 -- | @tKnowledgeSource@: provenance metadata, not decision logic. Consumed
 -- wholesale.
@@ -882,20 +992,20 @@ data KnowledgeSource = KnowledgeSource
 
 makePrisms ''KnowledgeSource
 
-instance XmlPickler KnowledgeSource where
-  xpickle =
-    xpDMNElem "knowledgeSource" _KnowledgeSource
+instance DmnPU KnowledgeSource where
+  dmnPU r =
+    xpDMNElem r "knowledgeSource" _KnowledgeSource
       . xpIgnoredAttrs ["label", "locationURI"]
       . xpFilterCont none
-      $ xpickle
+      $ (dmnPU r)
 
 data Namespace = Namespace { namespace :: String }
   deriving (Show, Eq)
 
 makePrisms ''Namespace
 
-instance XmlPickler Namespace where
-  xpickle = wrapIso _Namespace $ xpAttr "namespace" xpText
+instance DmnPU Namespace where
+  dmnPU r = wrapIso _Namespace $ xpAttr "namespace" xpText
 
 data DrgElems = DrgDec Decision | DrgInpData InputData | DrgKS KnowledgeSource
   deriving (Show, Eq)
@@ -905,13 +1015,13 @@ drgNr (DrgDec _) = 0
 drgNr (DrgInpData _) = 1
 drgNr (DrgKS _) = 2
 
-instance XmlPickler DrgElems where
-  xpickle =
+instance DmnPU DrgElems where
+  dmnPU r =
     xpAlt
       drgNr
-      [ xpWrap (DrgDec, \(DrgDec x) -> x) xpickle
-      , xpWrap (DrgInpData, \(DrgInpData x) -> x) xpickle
-      , xpWrap (DrgKS, \(DrgKS x) -> x) xpickle
+      [ xpWrap (DrgDec, \(DrgDec x) -> x) (dmnPU r)
+      , xpWrap (DrgInpData, \(DrgInpData x) -> x) (dmnPU r)
+      , xpWrap (DrgKS, \(DrgKS x) -> x) (dmnPU r)
       ]
 
 
@@ -964,28 +1074,38 @@ ex3 =
 -- Namespace declarations are no longer demanded here (see 'stripIgnorableAttrs'):
 -- requiring a fixed set of them rejected minimal DMN 1.3 files that declare only
 -- the model namespace, and also rejected files carrying one extra declaration.
--- The document is still pinned to DMN 1.3 by 'xpDMNElem', which matches
--- @definitions@ only in the 1.3 model namespace.
-dmnPickler :: PU XDMN
-dmnPickler =
-  xpDMNElem "definitions" _Definitions
+--
+-- The document is matched in exactly ONE release's namespace — the caller's.
+-- That is deliberate: a @\<definitions\>@ declaring DMN 1.5 whose
+-- @\<decisionTable\>@ is in the 1.3 namespace is not a document any DMN
+-- validator accepts, and reading it would be inventing a dialect. Accepting any
+-- of several namespaces at every position independently would do exactly that.
+--
+-- @expressionLanguage@ and @typeLanguage@ are consumed and dropped here, which
+-- is the whole reason @tDefinitions@ needs no per-release treatment: it is the
+-- one shared complex type that differs between 1.3 and 1.5, and it differs only
+-- in those two attributes' schema DEFAULT values (@…\/20191111\/FEEL\/@ becomes
+-- @…\/20230324\/FEEL\/@).
+dmnPickler :: DmnRelease -> PU XDMN
+dmnPickler r =
+  xpDMNElem r "definitions" _Definitions
     . xpIgnoredAttrs ["label", "expressionLanguage", "typeLanguage", "exporter", "exporterVersion"]
     $ xp7Tuple
-        xpickle                                  -- id / name attributes
-        xpickle                                  -- namespace attribute
-        (xpSeq' definitionsPrelude xpickle)       -- [ItemDefinition]; see defItemDefs
-        xpickle                                  -- [InputData]
-        xpickle                                  -- [Decision]
-        xpickle                                  -- [DrgElems]
-        (xpSeq' definitionsEpilogue xpickle)     -- Maybe DMNDI
+        (dmnPU r)                                  -- id / name attributes
+        (dmnPU r)                                  -- namespace attribute
+        (xpSeq' definitionsPrelude (dmnPU r))       -- [ItemDefinition]; see defItemDefs
+        (dmnPU r)                                  -- [InputData]
+        (dmnPU r)                                  -- [Decision]
+        (dmnPU r)                                  -- [DrgElems]
+        (xpSeq' definitionsEpilogue (dmnPU r))     -- Maybe DMNDI
   where
     definitionsPrelude =
       xpWrap (const (), const ((), ())) $
         xpPair
-          xpDmnAnnotations
-          (xpIgnoredElems "import")
+          (xpDmnAnnotations r)
+          (xpIgnoredElems r "import")
     definitionsEpilogue =
-      xpIgnoredElemsOf
+      xpIgnoredElemsOf r
         [ "association", "textAnnotation"          -- artifact
         , "elementCollection"
         , "performanceIndicator", "organizationUnit" -- businessContextElement
@@ -1000,71 +1120,223 @@ dmnPickler =
 --- $> :i _Definitions
 -- _Definitions :: L.Iso' Definitions (String, String, DMNDI)
 
+-- | The one surviving hxt 'XmlPickler' instance, and it exists only so that the
+-- dev-scratch 'showEx3' below can call 'showPickled', whose signature demands
+-- the class. It is pinned to 1.3 because that is a PICKLING direction and
+-- @--to=xml@ is unimplemented; when it lands, \"which release does dmnmd emit?\"
+-- becomes a real question and this is where it will be answered.
 instance XmlPickler Definitions where
-  xpickle = dmnPickler
-
---   xpickle :: PU XDMN
---   xpickle = xpElemNS xmlns_dmn "dmn" "definitions" $ xpLift XDMN
+  xpickle = dmnPickler dmn13
 
 -- . xpAddNSDecl "qw4" "nope"
-
--- dmnPickler = xpElemNS xmlns_dmn "" "definitions" $ xpLift XDMN
 
 pickleConfig :: [SysConfig]
 pickleConfig = [withValidate no, withCheckNamespaces yes, withRemoveWS yes, withIndent yes]
 
--- | Read a DMN 1.3 file, reporting *why* it could not be read.
+-- | Read a DMN file, reporting *why* it could not be read.
 --
 -- 'Text.XML.HXT.Arrow.Pickle.xunpickleDocument' swallows unpickling failures:
 -- it prints @fatal error: document unpickling failed@ and yields an empty list,
 -- which is indistinguishable from a valid file containing nothing. Callers then
 -- reported success. Here a failure is a 'Left' that the caller has to deal with.
+--
+-- The release is resolved ONCE, from the root element's namespace, and then
+-- threaded: it decides which namespace the picklers match, which namespace
+-- counts as foreign for attribute stripping, and what every diagnostic below
+-- calls this document.
 parseDMNEither :: FilePath -> IO (Either String [XDMN])
 parseDMNEither filename = do
-  roots <- runX $ readDocument pickleConfig filename
-                    >>> getChildren >>> isElem
-                    >>> stripIgnorableAttrs
+  roots <- runX $ readDocument pickleConfig filename >>> getChildren >>> isElem
   pure $ case roots of
     [] ->
       Left $ filename ++ ": no XML root element found"
           ++ " (the file is missing, empty, or not well-formed XML)."
-    (root : _) -> do
-      checkDmnRoot filename root
-      case unpickleDoc' dmnPickler root of
-        Left msg -> Left $ filename ++ ": " ++ readerRefusal root ++ "\n" ++ msg
+    (raw : _) -> do
+      release <- checkDmnRoot filename raw
+      refuseUnmodelled filename release raw
+      root <- maybe
+                (Left (filename ++ ": root element vanished under attribute stripping."))
+                Right
+                (listToMaybe (runLA (stripIgnorableAttrs release) raw))
+      case unpickleDoc' (dmnPickler release) root of
+        Left msg -> Left $ filename ++ ": " ++ readerRefusal release root ++ "\n" ++ msg
         Right v  -> Right [v]
+
+-- | Elements dmnmd does not model, refused by NAME before unpickling starts.
+--
+-- Each entry is @(local name, (release that introduced it, what it is))@.
+--
+-- These are the five boxed expressions DMN 1.4 added — @\<conditional\>@,
+-- @\<for\>@, @\<some\>@, @\<every\>@, @\<filter\>@, all
+-- @substitutionGroup=\"expression\"@ — plus @\<typeConstraint\>@, the single
+-- structural addition DMN 1.5 made over 1.4. __Five, not seven.__ The 1.4 XSD
+-- adds seven complex types, but @tIterator@ and @tQuantified@ are abstract bases
+-- and @tChildExpression@\/@tTypedChildExpression@ are the types of the named
+-- children @in@\/@return@\/@satisfies@\/@if@\/@then@\/@else@\/@match@; none of
+-- the four has a global @\<xsd:element\>@, so @\<iterator\>@ and
+-- @\<quantified\>@ cannot be written in a document and a fixture for either
+-- would test nothing.
+--
+-- None of the six names is declared anywhere in @DMN13.xsd@, so adding this
+-- check cannot make a document that reads today start failing — except the
+-- @\<typeConstraint\>@ case, which is the intended change and is recorded in
+-- @test\/corpus\/cases\/symptom\/xml-typeconstraint-dropped-silently@ as it
+-- behaved before.
+--
+-- The list is the extension point. The DMN /1.3/ boxed expressions dmnmd has
+-- never modelled — @\<context\>@, @\<invocation\>@, @\<relation\>@,
+-- @\<list\>@, @\<functionDefinition\>@ — belong here too and would turn a
+-- generic @xpCheckEmptyContents@ into a named refusal, but they are a separate
+-- change: adding them alters recordings this one must leave untouched.
+unmodelledConstructs :: [(String, (String, String))]
+unmodelledConstructs =
+  [ ("conditional",    ("DMN 1.4", "a boxed conditional (if / then / else)"))
+  , ("for",            ("DMN 1.4", "a boxed iterator (for / in / return)"))
+  , ("some",           ("DMN 1.4", "a boxed quantifier (some / in / satisfies)"))
+  , ("every",          ("DMN 1.4", "a boxed quantifier (every / in / satisfies)"))
+  , ("filter",         ("DMN 1.4", "a boxed filter (in / match)"))
+  , ("typeConstraint", ("DMN 1.5", "a unary test constraining an <itemDefinition>'s values"))
+  ]
+
+-- | Refuse the constructs in 'unmodelledConstructs' by name, before unpickling.
+--
+-- __Why a pre-flight rather than a refusal arm inside the picklers.__ Three
+-- reasons, each sufficient on its own.
+--
+--  1. @\<typeConstraint\>@ never reaches a pickler at all. 'ItemDefinition'
+--     applies @xpFilterCont@ with a NAME FILTER, which DELETES every child not
+--     in 'itemDefElems', so the element is gone before @xpCheckEmptyContents@
+--     could notice it — it is dropped silently, which is worse than the generic
+--     message, and no in-pickler arm can see it.
+--  2. All five boxed expressions substitute for @expression@, which
+--     @DMN15.xsd@ writes in seven places (@tDecision@, @tInvocation@,
+--     @tBinding@, @tContextEntry@, @tFunctionDefinition@, @tList@,
+--     @tChildExpression@). dmnmd models exactly one of them, 'decDTable', so at
+--     the other six there is no pickler to hang a refusal on.
+--  3. It needs nothing from hxt beyond 'runLA' — no @throwMsg@ or
+--     @liftUnpickleVal@ from @Text.XML.HXT.Arrow.Pickle.Xml@, which
+--     @Text.XML.HXT.Core@ does not re-export.
+--
+-- __'multi', not 'deep'__: hxt's 'deep' stops at the first success on each
+-- branch (@deep f = f \`orElse\` (getChildren >>> deep f)@), and the root
+-- @\<definitions\>@ is itself an element, so @deep isElem@ returns the root and
+-- nothing else. 'multi' is the one that visits every descendant.
+--
+-- The scan is confined to the document's own model namespace, so an element of
+-- the same name inside @\<extensionElements\>@ — declared
+-- @\<xsd:any namespace=\"##other\"\/\>@, which the standard says a consumer may
+-- ignore — is not touched.
+refuseUnmodelled :: FilePath -> DmnRelease -> XmlTree -> Either String ()
+refuseUnmodelled filename release root
+  | null problems = Right ()
+  | otherwise =
+      Left . intercalate "\n" $
+        (filename ++ ": this document declares " ++ relName release
+           ++ " and dmnmd cannot represent it faithfully.")
+          : map ("  " ++) problems
+          ++ [ "dmnmd models decision tables: a <decision> must hold a"
+                 ++ " <decisionTable>, and an <itemDefinition> may carry"
+                 ++ " <allowedValues> but not <typeConstraint>."
+             | not (null unmodelled)
+             ]
+  where
+    problems = nub (map renderUnmodelled unmodelled ++ map renderStrayNS strayNS)
+
+    -- Constructs we have no representation for, wherever they appear.
+    unmodelled =
+      [ (owner kid, nm)
+      | kid <- topLevel
+      , nm <- runLA offenders kid
+      ]
+    offenders =
+      multi (isElem >>> getQName)
+        >>> isA ((== relModelNS release) . namespaceUri)
+        >>> arr localPart
+        >>> isA (`elem` map fst unmodelledConstructs)
+    renderUnmodelled (who, nm) =
+      case lookup nm unmodelledConstructs of
+        Just (since, what) ->
+          who ++ ": <" ++ nm ++ "> is " ++ what ++ ", added in " ++ since
+            ++ ". dmnmd does not model it."
+        Nothing -> who ++ ": <" ++ nm ++ "> is not modelled by dmnmd."
+
+    -- A subtree in a DIFFERENT DMN release's namespace. No validator accepts a
+    -- document that mixes them, and reading one would be inventing a dialect —
+    -- so it is refused, but by name rather than as a bare "unprocessed XML
+    -- content" a hundred lines later.
+    --
+    -- Only the OUTERMOST element of each stray subtree is reported. An @xmlns@
+    -- is inherited by every descendant, so one misplaced declaration otherwise
+    -- yields one line per element in the subtree — a dozen lines that all say
+    -- the same thing about the same mistake. 'multi' is top-down, so the first
+    -- hit for a given namespace is the shallowest.
+    strayNS =
+      [ (owner kid, nm, uri)
+      | kid <- topLevel
+      , (nm, uri) <- nubBy (\(_, u1) (_, u2) -> u1 == u2) (runLA strays kid)
+      ]
+    strays =
+      multi (isElem >>> getQName)
+        >>> arr (\qn -> (localPart qn, namespaceUri qn))
+        >>> isA (\(_, uri) -> uri /= relModelNS release && isReadableModelNS uri)
+    isReadableModelNS uri = any ((== uri) . relModelNS) readableReleases
+    renderStrayNS (who, nm, uri) =
+      who ++ ": <" ++ nm ++ "> is in namespace " ++ show uri
+        ++ maybe "" (\v -> " (" ++ v ++ ")") (releaseNameOfNamespace uri)
+        ++ ", but this document declares " ++ relName release
+        ++ ". dmnmd reads one release per document."
+
+    -- Name the top-level DRG element the offender sits under, so the message is
+    -- located rather than merely loud. Nesting deeper than that (a <conditional>
+    -- inside a <contextEntry> inside a <decision>) still reports the decision,
+    -- which is the unit a reader can go and look at.
+    topLevel = runLA (getChildren >>> isElem) root
+    owner kid =
+      let ln = concat (runLA (getQName >>> arr localPart) kid)
+       in case listToMaybe (runLA (getAttrValue0 "name") kid) of
+            Just n -> ln ++ " " ++ show n
+            Nothing -> "<" ++ ln ++ ">"
 
 -- | Say what actually went wrong.
 --
--- The document has already been confirmed to be a DMN 1.3 @<definitions>@ by
+-- The document has already been confirmed to be a readable @<definitions>@ by
 -- 'checkDmnRoot', so blaming the version — as this message used to, for every
 -- unpickling failure whatsoever — was simply false. The commonest real cause is
--- a DRG element that DMN 1.3 permits and dmnmd does not model
+-- a DRG element that DMN permits and dmnmd does not model
 -- (@<businessKnowledgeModel>@, @<decisionService>@ …); name those when they are
 -- present, and otherwise admit that we only have the unpickler's complaint.
-readerRefusal :: XmlTree -> String
-readerRefusal root
+--
+-- The release is named from the document rather than hardcoded, so a DMN 1.5
+-- file is not told it is a DMN 1.3 one.
+readerRefusal :: DmnRelease -> XmlTree -> String
+readerRefusal release root
   | not (null unmodelled) =
-      "this is valid DMN 1.3, but it contains "
+      "this is valid " ++ relName release ++ ", but it contains "
         ++ intercalate ", " (map (\n -> "<" ++ n ++ ">") unmodelled)
         ++ ", which dmnmd does not model. Only <decision>, <inputData> and"
         ++ " <knowledgeSource> are read."
-  | otherwise = "dmnmd could not read this DMN 1.3 document."
+  | otherwise = "dmnmd could not read this " ++ relName release ++ " document."
   where
     childNames = runLA (getChildren >>> isElem >>> getQName >>> arr localPart) root
     unmodelled = nub (filter (`elem` unmodelledDrgElements) childNames)
 
--- | Children of @<definitions>@ that the DMN 1.3 XSD allows but this reader has
+-- | Children of @<definitions>@ that the DMN XSD allows but this reader has
 -- no representation for. Listing them is what lets 'readerRefusal' tell the
 -- truth instead of guessing at the version.
 unmodelledDrgElements :: [String]
 unmodelledDrgElements =
   [ "businessKnowledgeModel", "decisionService" ]
 
--- | Reject non-DMN-1.3 documents up front, naming what we actually found.
+-- | Identify the release, or refuse the document up front naming what we found.
 -- Without this, a DMN 1.1 or 1.2 file (correctly refused) failed with
 -- @xpElem: got element name \"...\"@ deep inside the pickler.
-checkDmnRoot :: FilePath -> XmlTree -> Either String ()
+--
+-- Widening from one readable release to three does not weaken this: a namespace
+-- that is not in 'readableReleases' is still refused, and 'refusedReleases' is
+-- what lets 1.1 and 1.2 be refused BY NAME rather than as an anonymous URI.
+-- Before this change a DMN 1.5 document was not even told it was 1.5, because
+-- the version table stopped at 1.3.
+checkDmnRoot :: FilePath -> XmlTree -> Either String DmnRelease
 checkDmnRoot filename root =
   case listToMaybe (runLA getQName root) of
     Nothing -> Left $ filename ++ ": XML root element has no name."
@@ -1072,13 +1344,17 @@ checkDmnRoot filename root =
       | localPart qn /= "definitions" ->
           Left $ filename ++ ": expected a <definitions> root element, but found <"
               ++ qualifiedName qn ++ ">."
-      | namespaceUri qn == xmlns_dmn -> Right ()
+      | Just release <- releaseOfNamespace (namespaceUri qn) -> Right release
       | otherwise ->
           Left $ filename ++ ": <definitions> is in namespace "
               ++ show (namespaceUri qn) ++ versionNote
-              ++ ".\ndmnmd reads DMN 1.3 only, i.e. " ++ show xmlns_dmn ++ "."
+              ++ ".\ndmnmd reads " ++ readableList ++ "."
       where
-        versionNote = maybe "" (\v -> " (" ++ v ++ ")") (dmnVersionOfNamespace (namespaceUri qn))
+        versionNote =
+          maybe "" (\v -> " (" ++ v ++ ")") (releaseNameOfNamespace (namespaceUri qn))
+        readableList =
+          intercalate ", "
+            [relName r ++ " (" ++ show (relModelNS r) ++ ")" | r <- readableReleases]
 
 -- | Backwards-compatible wrapper: throws in 'IO' on a bad document rather than
 -- returning an empty list.

@@ -1,7 +1,18 @@
 # DMN 1.3 fixtures
 
-Every other `.dmn` / `.xml` file under `test/` is DMN 1.1 or 1.2, which is why
-none of them ever exercised the DMN 1.3 reader. These do.
+These exercise the DMN 1.3 reader one feature at a time. `test/dmn15/` does the
+same for the 1.4 and 1.5 namespaces.
+
+> An earlier version of this paragraph said "every other `.dmn` / `.xml` file
+> under `test/` is DMN 1.1 or 1.2, which is why none of them ever exercised the
+> DMN 1.3 reader". That was false when it was written, not drift: of the 14
+> fixtures outside this directory, **12 are DMN 1.3** — `simple.dmn`,
+> `safe2.dmn`, `simulation.dmn`, `simulation-collect-hit-policy.dmn` and all
+> eight under `examples/`. Only `Traffic Violation.dmn` (1.2) and
+> `dish-decision.dmn11.xml` (1.1) match the claim, and `test/simple.dmn` has
+> exactly one commit touching it (`dbd1d73`), which already carried the 1.3
+> namespace. What is true, and was presumably meant, is that none of those
+> fixtures was written to exercise the reader *feature by feature*.
 
 `baseline.dmn` is the known-good file: one `<decision>` holding one
 `<decisionTable>`, plus the `<inputData>` nodes it refers to. Each of the others
@@ -19,6 +30,7 @@ fail to unpickle, so a regression points at one thing:
 | `feel-number-type.dmn` | `typeRef="number"`, the FEEL numeric type (B4) |
 | `unknown-type.dmn` | `typeRef="tuple<number>"` — must warn and degrade, not crash (B4) |
 | `annotations.dmn` | `<annotation>` columns and per-rule `<annotationEntry>` text |
+| `is-collection.dmn` | `isCollection="true"` on an `<itemDefinition>`, and a collection `typeRef` derived from another named type |
 
 `not-dmn13.dmn` is a DMN 1.2 file: it must be *rejected*, with a message naming
 the version. Fixtures whose names start with `bad-` must be rejected too; they

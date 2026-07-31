@@ -50,19 +50,24 @@ xmlSpec = do
 
 -- * DMN 1.3
 --
--- Every other XML fixture in test/ is DMN 1.1 or 1.2, so none of them ever
--- reached the DMN 1.3 reader. These do: `baseline` is a known-good file and
--- each of the others is `baseline` plus exactly one construct that used to make
--- the whole document fail to unpickle. See test/dmn13/README.md.
+-- `baseline` is a known-good file and each of the others is `baseline` plus
+-- exactly one construct that used to make the whole document fail to unpickle.
+-- See test/dmn13/README.md.
+--
+-- This comment used to open "Every other XML fixture in test/ is DMN 1.1 or
+-- 1.2, so none of them ever reached the DMN 1.3 reader" — a copy of the same
+-- false sentence that stood at the head of test/dmn13/README.md. Twelve of the
+-- fourteen fixtures outside test/dmn13/ are DMN 1.3. Corrected in both places
+-- at once; see that README for the measurement.
 
-dmn13 :: FilePath -> FilePath
-dmn13 name = "test/dmn13/" ++ name ++ ".dmn"
+dmn13File :: FilePath -> FilePath
+dmn13File name = "test/dmn13/" ++ name ++ ".dmn"
 
 -- | Parse a DMN 1.3 fixture and convert it, failing the example with the
 -- reader's own diagnostic if it could not be read at all.
 readDmn13 :: FilePath -> IO ([Diagnostic], [DT.DecisionTable])
 readDmn13 name = do
-  parsed <- parseDMNEither (dmn13 name)
+  parsed <- parseDMNEither (dmn13File name)
   case parsed of
     Left err   -> expectationFailure err >> pure ([], [])
     Right defs -> pure (convertAll defs)
@@ -198,9 +203,9 @@ dmn13Spec = describe "DMN 1.3" $ do
 
   describe "rejects" $ do
     let shouldReject name expected = do
-          parsed <- parseDMNEither (dmn13 name)
+          parsed <- parseDMNEither (dmn13File name)
           case parsed of
-            Right _  -> expectationFailure $ dmn13 name ++ " should not have been accepted"
+            Right _  -> expectationFailure $ dmn13File name ++ " should not have been accepted"
             Left err -> T.pack err `shouldSatisfy` T.isInfixOf (T.pack expected)
 
     it "a DMN 1.2 document, naming the version" $
@@ -217,7 +222,7 @@ dmn13Spec = describe "DMN 1.3" $ do
       -- the old message claimed "this is not DMN 1.3", which was simply untrue:
       -- businessKnowledgeModel is a legal drgElement substitution in the
       -- vendored XSD. We just do not model it.
-      parsed <- parseDMNEither (dmn13 "unsupported-drgelement")
+      parsed <- parseDMNEither (dmn13File "unsupported-drgelement")
       case parsed of
         Right _ -> expectationFailure "should not have been accepted"
         Left e -> T.pack e `shouldNotSatisfy` T.isInfixOf "not DMN 1.3"
@@ -229,6 +234,70 @@ dmn13Spec = describe "DMN 1.3" $ do
       (_, tables) <- readDmn13 "baseline"
       concatMap (concatMap concat . map row_outputs . allrows) tables
         `shouldBe` [FNullary (VS "minor"), FNullary (VS "adult"), FNullary (VS "senior")]
+
+  dmn15Spec
+
+-- * DMN 1.4 and 1.5
+--
+-- See test/dmn15/README.md. Two shapes only: a release we read must produce
+-- exactly what 1.3 produces, and a construct we do not model must be refused by
+-- name rather than by a generic unpickling failure.
+
+dmn15File :: FilePath -> FilePath
+dmn15File name = "test/dmn15/" ++ name ++ ".dmn"
+
+dmn15Spec :: Spec
+dmn15Spec = do
+  describe "DMN 1.4 / 1.5" $ do
+    -- The identity IS the assertion: these fixtures are test/dmn13/baseline.dmn
+    -- with the namespaces changed and nothing else, and the decision-table
+    -- complex types are byte-identical between DMN13.xsd and DMN15.xsd.
+    describe "reads, giving byte-identical results to the 1.3 baseline" $ do
+      let sameAs13 name = do
+            (_, expected) <- readDmn13 "baseline"
+            parsed <- parseDMNEither (dmn15File name)
+            case parsed of
+              Left err -> expectationFailure err
+              Right defs -> snd (convertAll defs) `shouldBe` expected
+      it "a DMN 1.5 document" $ sameAs13 "baseline15"
+      -- and this one also pins that DMN 1.4's DMNDI namespace is the 1.3 one,
+      -- which no other fixture can catch.
+      it "a DMN 1.4 document, whose DMNDI namespace is DMN 1.3's" $ sameAs13 "baseline14"
+
+    describe "refuses by name, not with a generic unpickling error" $ do
+      let shouldRefuse name expected = do
+            parsed <- parseDMNEither (dmn15File name)
+            case parsed of
+              Right _ -> expectationFailure $ dmn15File name ++ " should not have been accepted"
+              Left err -> do
+                mapM_ (\e -> T.pack err `shouldSatisfy` T.isInfixOf (T.pack e)) expected
+                -- the whole point: never the hxt fallback
+                T.pack err `shouldNotSatisfy` T.isInfixOf "unprocessed XML content"
+
+      it "<conditional>, naming the element, the release and the decision" $
+        shouldRefuse "bad-conditional" ["<conditional>", "DMN 1.4", "decision \"Fee\""]
+      it "<for>" $ shouldRefuse "bad-for" ["<for>", "DMN 1.4", "decision \"Doubled\""]
+      it "<some>" $ shouldRefuse "bad-some" ["<some>", "DMN 1.4", "decision \"AnyAdult\""]
+      it "<every>" $ shouldRefuse "bad-every" ["<every>", "DMN 1.4", "decision \"AllAdult\""]
+      it "<filter>" $ shouldRefuse "bad-filter" ["<filter>", "DMN 1.4", "decision \"Adults\""]
+      it "<typeConstraint>, the one structural change 1.5 makes over 1.4" $
+        shouldRefuse "bad-typeconstraint"
+          ["<typeConstraint>", "DMN 1.5", "itemDefinition \"tBand\""]
+      it "a document that mixes two releases' namespaces" $
+        shouldRefuse "bad-mixed-namespace"
+          ["one release per document", "20191111/MODEL/", "DMN 1.5"]
+
+    -- Widening acceptance is not accepting everything.
+    it "still refuses DMN 1.2, naming the version" $ do
+      parsed <- parseDMNEither (dmn13File "not-dmn13")
+      case parsed of
+        Right _ -> expectationFailure "DMN 1.2 should not have been accepted"
+        Left err -> do
+          T.pack err `shouldSatisfy` T.isInfixOf "DMN 1.2"
+          -- and the second line now lists what we DO read
+          mapM_
+            (\v -> T.pack err `shouldSatisfy` T.isInfixOf (T.pack v))
+            ["DMN 1.3", "DMN 1.4", "DMN 1.5"]
 
 convertedSimulation :: [DT.DecisionTable]
 convertedSimulation =

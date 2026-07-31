@@ -90,7 +90,48 @@ committing a type vocabulary that a shared core would inherit without discussion
 **dmnmd's temporal refusal stays** and is correct behaviour — it is recorded as
 `policy/xml-temporal-typeref-refused`, not as a symptom.
 
-### D-4 — accept DMN 1.4/1.5 by **parameterising** the namespace, not by re-pinning. **RULED: adopt.**
+### D-4 — accept DMN 1.4/1.5 by **parameterising** the namespace, not by re-pinning. **RULED: adopt. LANDED.**
+
+> **Landed, with four factual corrections to this entry.** Everything measured against the TCK's
+> own `DMN13.xsd`, `DMN14.xsd` and `DMN15.xsd` while implementing; each correction is a
+> measurement, not a re-reading of spec prose.
+>
+> 1. **The boxed expressions are DMN 1.4, not 1.5.** `DMN14.xsd` and `DMN15.xsd` have an
+>    *identical* set of 50 complex types. The whole 1.4 → 1.5 delta is the namespace bump plus
+>    `typeConstraint`. A 1.5 document inherits them, so what you refuse is unchanged — but what
+>    you *say* when you refuse it is, and "a 1.5 construct" would be false.
+> 2. **Five refusable names, not seven.** The seven new complex types yield exactly five global
+>    elements: `conditional`, `for`, `some`, `every`, `filter`. `tIterator` and `tQuantified` are
+>    abstract bases; `tChildExpression`/`tTypedChildExpression` are the types of the named children
+>    `in`/`return`/`satisfies`/`if`/`then`/`else`/`match`. None has an `<xsd:element>`, so
+>    `<iterator>` and `<quantified>` cannot be written in a document and fixtures for them would
+>    test nothing. This entry's list also omitted `some`/`every` and named two unspellable things.
+> 3. **`xmlns_dmn` had 16 occurrences, 3 of them in comments, so 11 live use sites** — not 18. And
+>    26 of the 27 element picklers already went through one wrapper, so the constant was never the
+>    work. **The class was**: hxt's `xpickle :: PU a` is a value with nowhere to put a parameter.
+> 4. **`xmlns_dmndi` had to be parameterised too, and this entry does not mention it.** DMNDI
+>    versions *independently*: `DMNDI15.xsd` targets `…/20230324/DMNDI/`, and 141 of the TCK models
+>    declare it. Worse, DMN 1.4 pairs a **1.4** model namespace with the **1.3** DMNDI namespace —
+>    `DMN14.xsd` imports `schemaLocation="DMNDI13.xsd"` and no `DMNDI14.xsd` exists — so a release
+>    is two independent URIs and any `mkRelease :: Date -> DmnRelease` is wrong on its first use.
+>    Had only the model namespace been parameterised, `<dmndi:DMNDI>` would have resurfaced as
+>    `xpCheckEmptyContents` — the exact generic failure this ruling forbids, by the back door.
+> 5. **`typeConstraint` was worse than this entry feared, in the other direction.** The stated
+>    rationale is that the new constructs "would surface as `xpCheckEmptyContents`" — loud but
+>    generic. True of the five boxed expressions; false of `typeConstraint`, which was not
+>    surfacing at all. `ItemDefinition`'s pickler filters its children by name, and a name filter
+>    **deletes** what it does not list, so the element never reached the unpickler. Measured on the
+>    pre-change binary: adding a `<typeConstraint>` that narrows an `<itemDefinition>` already
+>    carrying `<allowedValues>` produced byte-identical output, empty stderr and exit 0, while
+>    emitting a rule matching a value the document forbids. That is the silent-widening case, not
+>    the generic-message case, and it is recorded as it behaved in
+>    `policy/xml-typeconstraint-refused` (recorded as a `symptom/` first, then moved).
+>
+> Also worth pinning before anyone quotes it: **this buys a truthful conformance claim, not a TCK
+> score.** Measured on `compliance-level-2`, 27 of 28 models now read where 0 did; but only 17 of
+> those emit a decision table, and the single refusal is a `<businessKnowledgeModel>` — a DMN *1.3*
+> construct dmnmd never modelled. Across the whole TCK only about a fifth of the models contain a
+> `<decisionTable>` at all, and none of the five boxed-expression models does.
 
 `xmlns_dmn` is pinned to 1.3 at `ParseDMN.hs:36`, with 18 references across a 1,117-line pickler
 tree, and hxt's `xpElemNS` takes a concrete URI. Every model any current tool emits is 1.5
