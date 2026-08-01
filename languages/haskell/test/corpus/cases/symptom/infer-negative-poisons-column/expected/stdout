@@ -1,9 +1,0 @@
-export function Temperature ( Temp ) {
-  if (Temp === "-5") { // 1
-    return {"Advice":"wear a coat"};
-  }
-  else if (Temp === "20") { // 2
-    return {"Advice":"fine"};
-  }
-}
-

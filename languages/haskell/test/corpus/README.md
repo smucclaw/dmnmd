@@ -15,9 +15,15 @@ replace the whole layer with a real S-FEEL grammar.
 The existing hspec suite cannot be the safety net for that work, because **parts of
 it assert the bugs as expected behaviour**. `test/DmnXmlSpec.hs` expects
 `FNullary (VS "not(\"Fall\"")`; that is the comma-split defect frozen into an
-expectation. `test/Spec.hs` has a `type inference` block whose passing cases pass
-*because* the inference regexes are unanchored. A green suite therefore cannot tell
-"I preserved the behaviour" from "I preserved the bug".
+expectation. A green suite therefore cannot tell "I preserved the behaviour" from
+"I preserved the bug".
+
+`test/Spec.hs`'s `type inference` block was the second example — its passing cases
+passed *because* the inference regexes were unanchored — and D-2 discharged it. The
+trap that survived is subtler and is now recorded in that block's own banner: its
+`>23`/`<23` expectations pass under the old rule **and** the new one, so they cannot
+discriminate, and a green run of them is still no evidence either way. The cases that
+do discriminate were added below them.
 
 The corpus can, because every case says which of the two it is.
 

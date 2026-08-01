@@ -1,0 +1,9 @@
+export function Plan ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Status":"Non-Participating"};
+  }
+  else if ("default") { // 2
+    return {"Status":"Fully-Paid"};
+  }
+}
+

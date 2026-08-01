@@ -1,0 +1,9 @@
+export function Wildcards ( Anything, Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Spareribs"};
+  }
+  else if (Season === "Winter") { // 2
+    return {"Dish":"Stew"};
+  }
+}
+

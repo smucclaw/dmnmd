@@ -6,7 +6,7 @@ module DMN.DecisionTable where
 
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseCell ( parseNumberCell, thousandsGrouped )
+import DMN.ParseCell ( parseNumberCell, thousandsGrouped, namedRefusal )
 import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find, isInfixOf)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
@@ -323,9 +323,17 @@ mkFEither Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type infere
 mkFEither (Just DMN_String)  arg1 = Right (FNullary (VS (trim arg1)))
 mkFEither (Just DMN_Boolean) arg1 = FNullary <$> mkVB arg1
   where
+    -- The false list used to read ["false","no","t","y","negative"] — a
+    -- copy-paste of the true list's short forms, so "t" and "y" were dead there
+    -- (the true guard catches them first) and "f" and "n" appeared in NEITHER
+    -- list. So `n` was accepted by inference as a boolean word and then failed to
+    -- build, at exit 1, on both the inferred and the declared path.
+    -- Recorded as infer-boolean-n-crash and infer-declared-boolean-n-crash.
+    -- This is not D-2: inference resolved a y/n column to Boolean, and it was
+    -- RIGHT to. The vocabulary just has to agree with itself.
     mkVB arg
       | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = Right (VB True)
-      | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = Right (VB False)
+      | (toLower <$> arg) `elem` ["false","no","f","n","negative"] = Right (VB False)
       | otherwise = Left $  "unable to parse an alleged boolean: " ++ arg
 -- The nineteen lines this replaces were not a grammar but a chain of six
 -- mutually blind string tests over the same raw text, so the accepted language
@@ -546,7 +554,82 @@ mkDTable origname orighp origchs origdtrows =
 -- the table itself declares. Structural first, because a cell that has no
 -- meaning cannot meaningfully be checked against a domain.
 tableErrors :: DecisionTable -> [String]
-tableErrors dt = structuralErrors dt ++ domainErrors dt
+tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
+
+-- | D-2. A column dmnmd could not type, refused instead of guessed.
+--
+-- __Why here and not in 'inferTypes'.__ 'mkDTable' transposes the rows into
+-- columns before calling 'inferTypes', dropping the rule numbers on the way, so
+-- a refusal raised there could not name a row — every other cell-layer
+-- diagnostic can. Walking 'allrows' gets the row numbers back by construction,
+-- puts this in the same place as 'structuralErrors' and 'domainErrors', and
+-- gives the XML reader a located 'DMN.XML.XmlToDmnmd.Diagnostic' for free
+-- rather than an @error@ it cannot catch.
+--
+-- __Only untyped columns are considered__, which is how a declared type keeps
+-- short-circuiting inference: 'inferTypes' returns a declared header untouched,
+-- so @vartype@ is @Just@ and this never looks at it. A column that RESOLVED is
+-- likewise @Just@ and skipped. What is left is exactly the three ways to end up
+-- untyped, and only two of them are errors — 'VNone', an all-wildcard column, is
+-- a legitimate shape and stays silent.
+inferenceErrors :: DecisionTable -> [String]
+inferenceErrors dt =
+  [ err
+  | (ch, cells) <- zip ins (colsOf row_inputs) ++ zip outs (colsOf row_outputs)
+  , Nothing <- [vartype ch]
+  , err <- verdictErrs ch cells
+  ]
+  where
+    ins  = getInputHeaders  (header dt)
+    outs = getOutputHeaders (header dt)
+    rows = [ r | r@DTrow{} <- allrows dt ]
+    colsOf f = transpose [ [ (row_number r, cell) | cell <- f r ] | r <- rows ]
+
+    -- No row segment in the prefix: a conflict is a property of the COLUMN, and
+    -- the rows that disagree are named in the body, where there is room for more
+    -- than one of them. 'domainErrors' already prints a row-less complaint this
+    -- way. An ambiguous cell is a property of one cell and is located at it.
+    verdictErrs ch cells = case columnVerdict (snd <$> cells) of
+      VNone       -> []
+      VType _     -> []
+      VConflict ts ->
+        [ columnRow (varname ch) Nothing ++ concat
+          [ "dmnmd cannot infer a type for this column: "
+          , intercalate ", and " [ witness ty | ty <- sortOn showType ts ]
+          , ". An undeclared column has to agree with itself, and dmnmd will not"
+          , " pick a winner and read the losing cells as literal text — which is"
+          , " what it used to do, silently. Declare the column: "
+          , show (varname ch ++ " : String"), " reads every cell as the text the"
+          , " author wrote; ", show (varname ch ++ " : Number"), " requires every"
+          , " cell to be a number, a comparison, an interval or arithmetic." ]
+        ]
+      VAmbiguous ss ->
+        [ columnRow (varname ch) (firstRowOf s) ++ concat
+          [ "the cell reads ", show s
+          , " — a leading zero has no numeric meaning, so this is either the"
+          , " number ", unpadded s, " written oddly or an identifier that happens"
+          , " to be digits, and dmnmd will not choose."
+          , " Declare the column: ", show (varname ch ++ " : String"), " keeps "
+          , show s, " exactly as written; ", show (varname ch ++ " : Number")
+          , " reads it as ", unpadded s, "." ]
+        | s <- ss ]
+      where
+        witness ty = case [ (rn, showDomainMember c)
+                          | (rn, cs) <- cells, c <- cs, inferEvidence c == EType ty ] of
+          ((rn, txt):_) -> maybe "" (\n -> "row " ++ show n ++ " ") rn
+                           ++ show txt ++ " reads as " ++ showType ty
+          []            -> showType ty  -- unreachable: ty came from these cells
+        -- The value the padded literal denotes, spelled the way FEEL would.
+        -- "000" strips to nothing, and the message has to say 0.
+        unpadded s = case span (`elem` "+-") s of
+          (sgn, rest) -> case dropWhile (== '0') rest of
+            ""          -> sgn ++ "0"
+            r@('.':_)   -> sgn ++ "0" ++ r
+            r           -> sgn ++ r
+        firstRowOf s = case [ rn | (rn, cs) <- cells
+                                 , c <- cs, inferEvidence c == EAmbiguous s ] of
+          (rn:_) -> rn
+          []     -> Nothing
 
 -- | Cell shapes dmnmd refuses rather than guessing at, mostly about collections.
 --
@@ -696,8 +779,12 @@ structuralErrors dt = concat
           , " comparison, an interval, or \"-\". Arithmetic is a rule 3 simple"
           , " expression and is legal only in an OUTPUT cell. A dash-written range"
           , " is arithmetic, not an interval — write [40..50], not 40 - 50."
-          , " If this column is not numeric, declare it (\"Season : String\");"
-          , " dmnmd infers Number from a cell containing a spaced operator." ])
+          -- Name the column the author actually wrote, not a stock example:
+          -- 'ch' is in scope here, and a message that says "Season" to someone
+          -- whose column is called "Amount" reads as a bug in the tool.
+          , " If this column is not numeric, declare it (\"", varname ch
+          , " : String\"); with no declaration dmnmd infers Number from a column"
+          , " whose cells all read as numeric." ])
       | r@DTrow{} <- allrows dt
       , (ch, cells) <- zip ins (row_inputs r)
       , cell@(FFunction _) <- cells
@@ -1005,9 +1092,21 @@ reprocessRows tbl rn =
                -- DMN_String, but nothing re-ran the cell at that type.
                -- Idempotent for an explicitly-declared : String column, whose
                -- cells were already unquoted in pass 1.
-               if vartype ch /= Nothing && (length [ x | FNullary (VS x) <- cells] == length cells)
-               then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
-                    [ mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x | FNullary (VS x) <- cells ]
+               --
+               -- Rewritten ELEMENT-WISE. It used to guard on EVERY cell of the
+               -- multi-value list still being an unconverted VS, and then rebuild
+               -- with a list COMPREHENSION over `FNullary (VS x) <- cells`, which
+               -- is a filter: without the guard the comprehension silently
+               -- DELETED the FAnything out of a `4, -` cell rather than leaving
+               -- it alone, so the guard was accidentally protecting against a
+               -- worse bug one line below it and the two had to change together.
+               -- With the guard, `4, -` in a Number column left the string "4"
+               -- inside it (symptom/infer-multivalue-dash-not-reprocessed), as
+               -- did the far likelier trailing-comma typo `4,`. Nothing to do
+               -- with D-2: inference typed that column correctly.
+               if vartype ch /= Nothing
+               then map (\case FNullary (VS x) -> mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x
+                               other           -> other) cells
                else cells)
                          
   
@@ -1023,68 +1122,156 @@ getCommentHeaders = getWantedHeaders DTCH_Comment
 getWantedHeaders :: DTCH_Label -> [ColHeader] -> [ColHeader]
 getWantedHeaders wantedLabel = filter ((wantedLabel==).label)
 
+-- | Resolve a column's type from its cells — or leave it untyped, which
+-- 'inferenceErrors' will then turn into a located refusal.
+--
+-- __A declared type always wins, and this function must never overwrite one.__
+-- Before D-2 that held by accident: the disagreement branch happened to return
+-- the header unchanged. It is now the first thing tested, which also removes a
+-- trap the old shape had — a @roles : [String]@ column's cells infer
+-- @DMN_String@, never @DMN_List DMN_String@, so EVERY declared collection column
+-- (including @README.md@'s own) took the disagreement branch on every run.
 inferTypes :: ColHeader   -- in or out header column
            -> [[FEELexp]] -- body column of expressions corresponding to that column
            -> ColHeader   -- revised header column with vartype set
-inferTypes origch origrows = -- Debug.Trace.trace ("  infertypes: called with colheader = " ++ show origch ++ "\n           and rows = " ++ show origrows) $
-  let coltypes = nub $ catMaybes $ do
-        cells <- origrows
-        inferType <$> cells
+inferTypes origch origrows
+  | Just _ <- vartype origch = origch
+  | VType t <- columnVerdict origrows = origch { vartype = Just t }
+  | otherwise = origch
 
-  in if length coltypes == 1
-     then let coltype = head coltypes
-          in if null (vartype origch)
-             then origch { vartype = Just coltype }
-             else if vartype origch /= Just coltype
-                  then -- Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred type is " ++ (show coltype))
-                       origch
-                  else origch { vartype = Just coltype }
-     else -- Debug.Trace.trace ("    vartype for " ++ (varname origch) ++ " is " ++ (show $ vartype origch) ++ "; but inferred types are " ++ (show coltypes))
-          origch
+-- | What a whole column's cells say about its type, aggregated.
+--
+-- 'VNone' and the two failures all leave @vartype@ at 'Nothing', so this type
+-- exists to let 'inferenceErrors' tell them apart — and telling them apart is
+-- the whole of D-2. A column of nothing but @-@ is 'VNone' and is silent,
+-- because a wildcard column is a legitimate and common shape; a column whose
+-- cells disagree is 'VConflict' and is refused.
+data ColumnVerdict
+  = VNone                  -- ^ no cell said anything: an all-wildcard column.
+  | VType DMNType          -- ^ resolved.
+  | VConflict [DMNType]    -- ^ cells disagree; dmnmd will not pick a winner.
+  | VAmbiguous [String]    -- ^ a cell reads as a number it does not spell.
+  deriving (Eq, Show)
 
--- initially, we let type inference work for everything except functions.
--- in the future we may need to change the return type from Maybe DMNType to FEELexp (FNumFunction | FNullary)
-inferType :: FEELexp -> Maybe DMNType
+columnVerdict :: [[FEELexp]] -> ColumnVerdict
+columnVerdict rows
+  | not (null ambig) = VAmbiguous ambig
+  | otherwise = case hard of
+      [t] -> VType t
+      []  -> if soft then VType DMN_Number else VNone
+      ts  -> VConflict ts
+  where
+    evs   = inferEvidence <$> concat rows
+    ambig = nub [ s | EAmbiguous s <- evs ]
+    hard  = nub [ t | EType t      <- evs ]
+    soft  = not (null [ () | EWeakNumber <- evs ])
+
+-- | What ONE cell says about its column's type.
+--
+-- 'EWeakNumber' is the tier that makes anchoring possible at all.
+-- 'DMN.ParseCell.parseNumberCell' is the right oracle for "is this a number",
+-- but it is not a usable one on its own: its arithmetic arm accepts bare FEEL
+-- names, because §9.2 rule 27 puts @. \/ - ’ + *@ inside legal names — so it
+-- accepts @Non-Participating@ and @n\/a@, neither of which contains a digit.
+-- Counting arithmetic as hard evidence therefore types
+-- @policy\/md-quoted-literal-all-or-nothing@'s string column as Number;
+-- discarding it entirely turns @policy\/num-dash-range-refused@ from a refusal
+-- into silence, because @40 - 50@ is the only informative cell in that column.
+-- So arithmetic is evidence of LAST RESORT: it decides a column only when
+-- nothing harder spoke.
+data TypeEvidence
+  = ENoEvidence          -- ^ a wildcard, a blank, or a collection value.
+  | EType DMNType        -- ^ unambiguous.
+  | EWeakNumber          -- ^ arithmetic. See above.
+  | EAmbiguous String    -- ^ carries the offending text, for the diagnostic.
+  deriving (Eq, Show)
+
+inferEvidence :: FEELexp -> TypeEvidence
 -- A 'VL' never reaches inference: inference runs over CELLS, and no cell can
 -- hold one. A collection column is therefore always explicitly declared —
--- there is no `[Number]` to infer — which is also why 'inferTypes' preserving a
--- declared list type is load-bearing rather than incidental.
-inferType (FNullary  (VL _)) = Nothing
-inferType (FSection _ (VL _)) = Nothing
-inferType (FFunction _) = Just DMN_Number
-inferType (FSection _ (VN _)) = Just DMN_Number
-inferType (FSection _ (VB _)) = Just DMN_Boolean
-inferType (FSection _ (VS _)) = Just DMN_String
-inferType (FInRange _ _ _ _)  = Just DMN_Number
-inferType  FAnything         = Nothing
-inferType (FNullary (VN _)) = Just DMN_Number
-inferType (FNullary (VB _)) = Just DMN_Boolean
-inferType (FNullary (VS arg))
-  | anchoredDigits arg || any (`isInfixOf` arg) ["..", ">", "<", "="] = Just DMN_Number
-  | arg `elem` ["-","_",""] = Nothing
-  | (toLower <$> arg) `elem` ["true","yes","positive","y","false","no","negative","n"] = Just DMN_Boolean
-  | head arg == '\"' && last arg == '\"' = Just DMN_String
-  | any (`isInfixOf` arg) [" * ", " + ", " - ", " / ", " ** "] = Just DMN_Number
-  | otherwise = -- Debug.Trace.trace ("inferType " ++ show arg ++ " returning String!") $
-      Just DMN_String
+-- there is no `[Number]` to infer.
+inferEvidence (FNullary  (VL _)) = ENoEvidence
+inferEvidence (FSection _ (VL _)) = ENoEvidence
+inferEvidence (FFunction _) = EWeakNumber
+inferEvidence (FSection _ (VN _)) = EType DMN_Number
+inferEvidence (FSection _ (VB _)) = EType DMN_Boolean
+inferEvidence (FSection _ (VS _)) = EType DMN_String
+inferEvidence (FInRange _ _ _ _)  = EType DMN_Number
+inferEvidence  FAnything          = ENoEvidence
+inferEvidence (FNullary (VN _)) = EType DMN_Number
+inferEvidence (FNullary (VB _)) = EType DMN_Boolean
+-- The only arm that ever fires for an undeclared column: pass 1 calls
+-- @mkFEither Nothing@, whose one arm wraps the raw text. See D-2.
+inferEvidence (FNullary (VS arg))
+  | arg `elem` ["-","_",""] = ENoEvidence
+  -- Before the number test, and live only on the XML path: the markdown reader
+  -- strips quotes in 'mkFsEither' before a cell ever reaches here, but
+  -- 'DMN.XML.XmlToDmnmd''s inference pre-pass deliberately keeps them, because
+  -- the quotes are the only thing distinguishing FEEL's "2020" from 2020.
+  | length arg >= 2 && head arg == '\"' && last arg == '\"' = EType DMN_String
+  | (toLower <$> arg) `elem` boolWords = EType DMN_Boolean
+  -- A construct only a Number column could hold, which ParseCell refuses BY
+  -- NAME. It is a Left, but "not a number" is the wrong reading of it — see
+  -- 'DMN.ParseCell.namedRefusal', which exists because leaving this out made
+  -- symptom/num-negation-not-implemented silently pass at exit 0.
+  | namedRefusal arg = EType DMN_Number
+  | otherwise = case parseNumberCell arg of
+      Left _                 -> EType DMN_String
+      -- Arithmetic is weak evidence, and it is evidence of a NUMBER only if a
+      -- digit appears in it. §9.2 rule 27 puts @. / - ’ + *@ inside legal FEEL
+      -- names, so @parseNumberCell@ reads @Non-Participating@ and @n/a@ as
+      -- subtraction and division over bare names — arithmetic containing no
+      -- number at all. Without this test a column of hyphenated words types
+      -- Number, and the two ways that goes wrong are both bad and only one is
+      -- loud: an INPUT column refuses a table that was correct before, and an
+      -- OUTPUT column emits @return {"Status":(Non - Participating)}@ at exit 0
+      -- — TypeScript naming two variables that do not exist, where the string
+      -- literal used to be. That is the silent-wrong-answer class D-2 exists to
+      -- remove, reintroduced by D-2, and it is pinned from both sides by
+      -- policy/infer-hyphenated-words-stay-string and
+      -- policy/infer-hyphenated-output-stays-string.
+      --
+      -- The digit test is what makes the last-resort tier safe rather than
+      -- merely narrow. @40 - 50@ still speaks (it is the only informative cell
+      -- in policy/num-dash-range-refused, which is why the tier cannot simply be
+      -- discarded); @Full-Time@ no longer does.
+      Right (FFunction _)
+        | any isDigit arg    -> EWeakNumber
+        | otherwise          -> EType DMN_String
+      Right (FNullary (VN _))
+        | redundantLeadingZero arg -> EAmbiguous arg
+      Right _                -> EType DMN_Number
+  where
+    -- Unchanged from the pre-D-2 list. It is one word longer on each side than
+    -- 'mkVB' will accept, which is its own defect and not this one's business.
+    boolWords = ["true","yes","positive","y","false","no","negative","n"]
 
--- | Exactly the regex @^\\d+(\\.\\d+)?$@ that used to live in 'inferType', and
--- deliberately nothing better.
+-- | Does this text spell a number with a leading zero that means nothing?
 --
--- It is NOT rule 31: it rejects @-5@ and @.5@, both of which are legal FEEL
--- numbers and both of which 'DMN.ParseCell.numericLiteral' accepts. Widening it
--- to @numericLiteral@ would be a real improvement and is exactly why it is not
--- done here — this commit removes a C-library dependency and must not also
--- change which arm a cell reaches. Inference is its own job; the cases it gets
--- wrong are recorded under @test\/corpus\/cases\/symptom\/infer-*@.
+-- @007@, @042@ and @000@ are legal FEEL numbers (rule 31 admits them) denoting
+-- 7, 42 and 0 — and are also exactly how product codes, postcodes and flight
+-- numbers are written. dmnmd will not choose; it refuses and asks. @0.5@ is not
+-- caught: its single leading zero is ordinary decimal notation, not padding.
 --
--- The other eight patterns needed no replacement at all: once unescaped they
--- were @..@, @>@, @<@, @=@, @ * @, @ + @, @ - @, @ / @ and @ ** @, which is
--- 'isInfixOf'. A whole PCRE binding was being linked for one anchored digit
--- test, and dropping it is what lets jl4-core's wasm32 build reach this package.
-anchoredDigits :: String -> Bool
-anchoredDigits s = case span isDigit s of
-  ("",  _)        -> False              -- \d+ needs at least one digit
-  (_,   "")       -> True               -- digits, no fraction
-  (_,   '.':frac) -> not (null frac) && all isDigit frac
-  _               -> False              -- trailing junk: $ did not match
+-- __Why not the general rule "the source text is not the canonical spelling of
+-- the value".__ That would also catch @1.10@ (which is
+-- @symptom\/infer-version-float-collapse@, and would be nice) — but it catches
+-- @10.50@ and @2.0@ with it, and refusing a money column for writing cents is a
+-- worse outcome than the defect it fixes. The redundant TRAILING zero is
+-- ordinary decimal notation; the redundant LEADING zero is not notation at all.
+-- The version-collapse symptom therefore stays open; see D-13.
+redundantLeadingZero :: String -> Bool
+redundantLeadingZero s = case span isDigit (dropWhile (`elem` "+-") (trim s)) of
+  (d:_:_, _) -> d == '0'
+  _          -> False
+
+-- | Kept as the @Maybe@-shaped view of 'inferEvidence', because the test suite
+-- and the haddock both talk in these terms. 'EAmbiguous' maps to 'Nothing':
+-- "this cell does not tell me the type" is exactly what it means, and the
+-- column-level machinery that turns it into a message is 'columnVerdict'.
+inferType :: FEELexp -> Maybe DMNType
+inferType fx = case inferEvidence fx of
+  EType t      -> Just t
+  EWeakNumber  -> Just DMN_Number
+  EAmbiguous _ -> Nothing
+  ENoEvidence  -> Nothing

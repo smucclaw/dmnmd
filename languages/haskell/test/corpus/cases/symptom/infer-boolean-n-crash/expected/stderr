@@ -1,6 +1,0 @@
-dmnmd: error: table "Smoker": column "Smokes": row 2: unable to parse an alleged boolean: n
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:288:32 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:288:32 in dmnmd:DMN.DecisionTable
-
-

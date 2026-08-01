@@ -1,0 +1,9 @@
+export function Hierarchy ( Path : string ) {
+  if (Path === "L1 > L2") { // 1
+    return {"Owner":"alice"};
+  }
+  else if (Path === "L1 > L2 > L3") { // 2
+    return {"Owner":"bob"};
+  }
+}
+
