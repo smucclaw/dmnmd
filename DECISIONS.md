@@ -91,7 +91,76 @@ the current binary, or the change asserts an improvement rather than demonstrati
 **Unblocks** native `--to=xml` (D-8), which cannot be written from a `Float` without emitting
 numbers the source document does not contain.
 
-### D-2 — type inference is anchored, and refuses what it cannot resolve. **RULED: adopt.**
+### D-2 — type inference is anchored, and refuses what it cannot resolve. **RULED: adopt. LANDED.**
+
+> **Landed, with five things this entry did not anticipate.** Each is a measurement made while
+> implementing, not a re-reading. The corrections to the entry's own *description* of the code
+> were made first, as their own commit, and are the block after this one.
+>
+> 1. **A third of the symptom list is fixed by refusing LESS, not more.** This entry is framed
+>    entirely as "start refusing", and `infer-prose-with-dots-crash`,
+>    `infer-prose-with-angle-crash` and `infer-negative-poisons-column` are the opposite: they
+>    currently exit 1 or emit string equality, and under anchoring they simply work. Anchoring is
+>    two changes, not one — the recogniser gets *narrower* about what counts as numeric evidence
+>    (prose containing `>` stops being evidence) and *wider* about what a number is (`-5` and `.5`
+>    start being evidence, because the oracle is now `DMN.ParseCell.parseNumberCell`, the same
+>    function the declared path already used). Reusing it is the house pattern: `domainErrors`
+>    shares `fEval` "so the check cannot drift from it".
+>
+> 2. **"Some tables that parse today will start refusing" cost, measured: ZERO.** Across 237
+>    fixtures × 8 output modes — every `.md` and `.dmn` under `test/`, both READMEs, the corpus, the
+>    golden files — exactly eight recordings change stdout or exit status, and all eight are the
+>    `infer-*` symptom fixtures this ruling exists to fix. Nine more change one sentence of one
+>    diagnostic. Nothing else moves. The root `README.md` is byte-identical. The one file that
+>    newly hits a *column-level* refusal, `languages/haskell/README.md`, already exited 1 before
+>    the change, on the same column, for the same reason — it is the package README, it has been
+>    broken all along, and it is in no test and no corpus case. The scary-sounding price is not
+>    payable against this repo; it will be payable against tables in the wild.
+>
+> 3. **A `Left` from the oracle is not always "not a number", and getting that wrong reintroduced
+>    the exact defect this ruling removes.** `parseNumberCell` refuses two constructs BY NAME —
+>    FEEL negation and invocation — and those mean "unmistakably numeric, and dmnmd does not
+>    implement it". Read as "not a number", `not([1..5])` stopped being numeric evidence, its
+>    column typed `String`, and `symptom/num-negation-not-implemented` went from a located exit-1
+>    refusal to `Age === "not([1..5])"` at exit 0. Caught by the corpus, not by reading. Hence
+>    `DMN.ParseCell.namedRefusal`, and a new `policy/md-negation-in-numeric-column-refused`.
+>
+> 4. **The refusal predicate is `length coltypes > 1`, and the predicate that looks equivalent is
+>    not.** "The column has no type" and "the column's cells disagree" are both spelled
+>    `vartype = Nothing`, and a refusal keyed on the first would refuse every all-wildcard column —
+>    a legitimate and common shape — while nothing in the tree turned red, because no hspec
+>    expectation and no corpus recording covered one. One had to be constructed:
+>    `policy/infer-all-wildcard-column-silent`. It is now covered in both places.
+>
+> 5. **The declared type winning was an ACCIDENT, and the accident was load-bearing for
+>    collections.** `inferTypes` used to preserve a declared type only because its
+>    declared-vs-inferred disagreement branch happened to return the header unchanged. That branch
+>    fired on every declared collection column on every run — a `roles : [String]` column's cells
+>    infer `DMN_String`, never `DMN_List DMN_String` — so turning it into a diagnostic without an
+>    element-type exemption would have made `README.md` stop parsing. `inferTypes` now tests the
+>    declared type *first* and returns early, which makes the invariant explicit and the exemption
+>    unnecessary.
+>
+> **Where it landed.** `inferEvidence`/`columnVerdict` replace `inferType`'s raw-text arm;
+> `inferenceErrors` sits in `tableErrors` beside `structuralErrors` and `domainErrors`, NOT inside
+> `inferTypes`, because `mkDTable` transposes rows into columns before calling `inferTypes` and
+> drops the rule numbers on the way — a refusal raised there could not name a row, and every other
+> cell-layer diagnostic can. Putting it in `tableErrors` also hands the XML reader a located
+> `Diagnostic` for free rather than an `error` it cannot catch.
+>
+> **One policy ADDITION this entry does not contain**, made explicitly rather than silently: a
+> redundant *leading* zero (`007`, `042`) is refused as ambiguous between the number and an
+> identifier, because no numeric representation can fix `Code === 7.0` matching a real-world key
+> `"007"`. Deliberately narrower than the general rule "the source text is not the canonical
+> spelling of the value", which would also catch `1.10` — and `10.50` and `2.0` with it. Refusing a
+> money column for writing cents is worse than the defect. See D-13.
+>
+> **What this did NOT reach**, all three still recorded as symptoms with WHYs saying so:
+> `infer-version-float-collapse` (both cells are genuine numbers, so there is no disagreement to
+> refuse — D-12); `infer-explicit-type-contradiction-silent` (the declaration must win, so the
+> remedy is a *warning*, and the markdown path has no warning channel — D-7); and the two `n`
+> crashes plus the multi-value re-parse bug, which are not inference at all and were fixed
+> alongside in their own commit.
 
 > **Three corrections to this entry's own description of the code, made before implementing it and
 > confirmed independently by three readers of the tree at `f44881c`.** The ruling below survives
@@ -329,3 +398,35 @@ We refuse it because the conformant reading is a wrong answer nobody wants — a
 Recorded here so the next reader does not rediscover it as a bug, and so the **retracted** diagnosis
 in the original corpus recording stays visible: that recording claimed a misparse, and the misparse
 claim was wrong. What was actually wrong was the silence.
+
+### D-13 — two rows of a `U` table with identical guards. **RULED: open, and NOT a type problem.**
+
+`symptom/infer-version-float-collapse` writes `1.1` and `1.10` in an undeclared column. Both are
+genuine FEEL numbers, so anchored inference (D-2) resolves the column unambiguously to `Number` and
+has nothing to refuse; `Scientific` stores them distinguishably (11e-1 versus 110e-2) but its `Eq`
+compares on value and ignores scale, so the two rows emit **byte-identical guards** and the second
+is dead code in a table whose hit policy promises uniqueness.
+
+**Two candidate fixes, and the obvious one is the worse one.**
+
+*Extend the leading-zero ambiguity rule to any redundant zero* — "the source text is not the
+canonical spelling of the value it denotes". This catches `1.10`. It also catches `10.50` and `2.0`,
+so an insurance payout column written in cents stops parsing and is told to declare itself. A
+redundant **trailing** zero is ordinary decimal notation; a redundant **leading** zero is not
+notation at all, which is why D-2 adopted only the leading-zero half. Rejected.
+
+*Check hit-policy overlap.* Two rules of a `U` table with identical guards violate DMN's own
+uniqueness requirement (DMN 1.3 §8.2.11). It is detectable with **no reference to types**, it
+catches a strictly larger class than any zero rule — including the ordinary case of two rows that
+genuinely say the same thing — and it belongs to the hit policy, which is where the promise lives.
+This is the better fix.
+
+**Not done here** because it is a new check with its own scope question (`U` only, or `A` and `P`
+too? overlap, or only exact duplication? the interval case `[1..5]` versus `[3..8]` is a decision
+in itself) and D-2 was not the place to make it. `evalTable` already detects the runtime symptom —
+`HP_Unique` returns "multiple rows returned" — so what is missing is the *static* check that the
+transpilers need, since they do not implement hit policies at all.
+
+**Cost of leaving it.** A `U` table can be emitted with a permanently dead row, at exit 0, in every
+backend. That is a silent wrong answer, which is exactly the class D-2 exists to remove — so this
+is a debt with a name, not an oversight.

@@ -55,8 +55,10 @@ is a real lower bound in `dmnmd.cabal` rather than a convention: `DMN.Translate.
 which every install line in this repo used to name — was retired once the cell layer stopped
 using regexes. Two of its five call sites went with the interval recogniser; the other three
 were `inferType` classifiers whose patterns turned out to be eight literal substrings and one
-anchored digit test, i.e. `isInfixOf` and five lines of `span isDigit`. `shell.nix` is now an
-empty shell kept only as the machine-readable place to record that.
+anchored digit test, i.e. `isInfixOf` and five lines of `span isDigit`. (Those nine are gone too
+as of D-2 — inference now asks `DMN.ParseCell` — but that is a later change and this paragraph is
+about the dependency, not about inference.) `shell.nix` is now an empty shell kept only as the
+machine-readable place to record that.
 
 This matters beyond tidiness: `jl4-wasm` build-depends on `jl4-core`, so anything jl4-core
 might one day depend on has to cross-build for wasm32, and a C-library binding cannot.
@@ -100,11 +102,34 @@ Markdown file
 
 Things that are only apparent across several files:
 
-- **Type inference is a second pass.** `parseTable` first parses every cell as a string;
-  `mkDTable` then infers each column's `DMNType` from the whole column (`inferTypes`) and
-  re-runs `mkFAt` over the cells (`reprocessRows`). So a cell's `FEELexp` shape depends on a
-  type that isn't known until the table is fully parsed. Explicit `Column : Number` headers
-  short-circuit this.
+- **Type inference is a second pass, and it is allowed to give up.** `parseTable` first parses
+  every cell as a string; `mkDTable` then infers each column's `DMNType` from the whole column
+  (`inferTypes`) and re-runs `mkFAt` over the cells (`reprocessRows`). So a cell's `FEELexp` shape
+  depends on a type that isn't known until the table is fully parsed. Explicit `Column : Number`
+  headers short-circuit this — `inferTypes` tests the declared type **first** and returns early,
+  which is an explicit guard now and used to be an accident of the disagreement branch.
+
+  **It is anchored (D-2): the oracle is `DMN.ParseCell.parseNumberCell`,** the same function the
+  declared path uses, so the two cannot drift — the pattern `domainErrors` already follows with
+  `fEval`. `inferEvidence` grades one cell and `columnVerdict` aggregates, in three tiers that all
+  matter: hard evidence (a number, comparison, interval, boolean word, quoted string); **weak**
+  evidence (arithmetic, which decides a column only when nothing harder spoke, because
+  `parseNumberCell`'s arithmetic arm accepts bare FEEL names and so accepts `Non-Participating`
+  and `n/a`); and none (a wildcard).
+
+  **A `Left` from the oracle is not always "not a number".** Its two NAMED refusals — FEEL
+  negation and invocation — mean "unmistakably numeric, and dmnmd does not implement it", so
+  `DMN.ParseCell.namedRefusal` reads them back as Number evidence. Without that, `not([1..5])`
+  types its column `String` and the refusal becomes an equality test against literal text at
+  exit 0.
+
+  **A column that cannot be resolved is a located error, and lives in `inferenceErrors`** beside
+  `structuralErrors` and `domainErrors` — not in `inferTypes`, which cannot name a row because
+  `mkDTable` transposes the rows into columns and drops the rule numbers on the way. Two ways to
+  fail: cells that **disagree** (`VConflict`), and a cell that reads as a number it does not spell
+  (`VAmbiguous`, today only a redundant leading zero — `007`). A column with **no** evidence at all
+  (`VNone`, an all-wildcard column) is a legitimate shape and stays silent: that distinction is the
+  whole predicate, and `policy/infer-all-wildcard-column-silent` is the only thing pinning it.
 - **`FEELexp` is the cell IR** for both inputs and outputs: `FSection` (a comparison
   section like `<= 8`), `FInRange` (`[5..8]`), `FAnything` (`-`), `FNullary` (a literal),
   `FFunction` (arithmetic like `age * 100`). Cells are `[[FEELexp]]` — the inner list is a
@@ -283,9 +308,13 @@ on stderr as a `note:`. That is why a README full of documentation tables exits 
 
 The hspec suite **cannot** certify a change to the cell layer, because parts of it
 assert the bugs as expected behaviour — `DmnXmlSpec.hs` expects `FNullary (VS "not(\"Fall\"")`,
-which is the comma-split defect frozen into an expectation, and the `type inference` block in
-`Spec.hs` passes *because* the inference regexes are unanchored. A green suite therefore cannot
+which is the comma-split defect frozen into an expectation. A green suite therefore cannot
 distinguish "I preserved the behaviour" from "I preserved the bug".
+
+The `type inference` block in `Spec.hs` used to be the second example, and carried a KNOWN DEFECT
+banner saying so; D-2 discharged it. Its replacement banner records the subtler trap that survived:
+its `>23`/`<23` expectations pass under **both** the old substring rule and the anchored one, so a
+green run of them proves nothing either way. The cases that discriminate were added below it.
 
 `test/corpus/` exists to make that distinction. It records what the binary actually does
 today — stdout, stderr **and** exit status — one small input per verified defect, and puts
