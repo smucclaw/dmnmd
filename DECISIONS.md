@@ -93,10 +93,41 @@ numbers the source document does not contain.
 
 ### D-2 — type inference is anchored, and refuses what it cannot resolve. **RULED: adopt.**
 
-`inferType` reads a column as Number if any cell contains `..`, `>`, `<`, `=` or a spaced operator;
-as Boolean if a cell reads `y`, `n`, `positive`, `negative`. DMN types are declared (`typeRef`) and
-never inferred, so this is dmnmd's largest single divergence — and the root of eleven recorded
-`infer-*` symptoms. A cell containing `n` becomes Boolean false.
+> **Three corrections to this entry's own description of the code, made before implementing it and
+> confirmed independently by three readers of the tree at `f44881c`.** The ruling below survives
+> unamended; what follows is only the mechanism it rules on, restated truthfully.
+>
+> 1. **It is a chain of `isInfixOf` tests, not a regex, and it lives where this entry says it
+>    does.** `regex-pcre` went at `62d06d5` and `CLAUDE.md` records that "the `inferType`
+>    classifiers" were rewritten — which reads, in context, as if inference had moved. It has not.
+>    The guessing is still `inferType (FNullary (VS arg))` in `src/DMN/DecisionTable.hs`, and the
+>    accepted language is unchanged: `anchoredDigits arg || any (`isInfixOf` arg) ["..",">","<","="]`
+>    for Number, an eight-word list for Boolean, `[" * "," + "," - "," / "," ** "]` for Number
+>    again. `anchoredDigits`' own haddock says it is deliberately `^\d+(\.\d+)?$` and deliberately
+>    not rule 31. `DMN.ParseCell` — the anchored grammar — does no guessing; it is the downstream
+>    reader that inference hands a column to, and every located "not a number" refusal in the
+>    `infer-*` symptoms is ParseCell reporting truthfully about a type inference chose wrongly.
+>
+> 2. **`inferType`'s type signature is misleading and hides why this is one function clause.**
+>    It is `FEELexp -> Maybe DMNType`, so it looks as though it classifies an already-parsed cell.
+>    For a column with no `: Type` it does not: pass 1 calls `mkFEither Nothing`, whose only arm is
+>    `Right (FNullary (VS (trim arg)))`, so every cell of an undeclared column arrives as raw text
+>    and the `VS` arm is the *only* arm that ever fires. The other seven arms are reachable only for
+>    declared columns, whose verdict `inferTypes` then discards. The whole surface of this ruling is
+>    that one clause plus the aggregation in `inferTypes`.
+>
+> 3. **"A cell containing `n` becomes Boolean false" is false as written — `n` aborts.** The
+>    tool holds *three* boolean vocabularies: `inferType`'s
+>    `[true,yes,positive,y,false,no,negative,n]`, and `mkVB`'s two lists
+>    `[true,yes,t,y,positive]` / `[false,no,t,y,negative]` — the second being a copy-paste of the
+>    first's short forms, so `t` and `y` are unreachable there and `f` and `n` appear in neither.
+>    So `n` infers Boolean and then fails to build: exit 1, recorded as
+>    `symptom/infer-boolean-n-crash`. The honest demonstration of this ruling's premise is a `y`/`no`
+>    column, which is inferred Boolean and emits `Middle === true` / `Middle === false` at exit 0.
+>    That vocabulary disagreement is a separate one-line defect, not this ruling's business.
+
+DMN types are declared (`typeRef`) and never inferred, so this is dmnmd's largest single divergence
+— and the root of eleven recorded `infer-*` symptoms.
 
 **The ruling is not "stop inferring".** Inference survives for unambiguous cells; what changes is
 that a column it cannot resolve becomes a **located error** instead of a silent `String`.
