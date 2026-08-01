@@ -148,6 +148,13 @@ feel2pyIn lhs (FNullary rhs)           = feel2pyIn lhs (FSection Feq rhs)
 -- an arithmetic input cell was a runtime @Non-exhaustive patterns@ in --to=py and
 -- fine in --to=js. Found by -Werror=incomplete-patterns, not by a test.
 feel2pyIn _   o@(FFunction _)          = showFeel "py" o
+-- §9.2 rule 12.b. Parenthesised for the same reason as the JS arm: `not` binds
+-- tighter than `and` in Python, and 'wrapParen' leaves a one-element list
+-- unbracketed, so an unparenthesised `not` would negate only the first conjunct
+-- of a range. Note 'showFNLog' spells py's FNNot with TWO trailing spaces, which
+-- is why the emitted text reads `not  (…)`.
+feel2pyIn lhs (FNot test)              =
+  showFNLog "py" FNNot ++ "(" ++ feel2pyIn lhs test ++ ")"
 -- Ordering comparisons against a non-numeric value; see 'showFeel's own catch-all.
 feel2pyIn lhs fexp = error $ unwords
   [ "feel2pyIn: no rendering for", show fexp, "as a guard on", show lhs ]

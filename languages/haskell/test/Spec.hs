@@ -5,6 +5,8 @@ module Main where
 import Control.Monad
 import Text.RawString.QQ
 import DMN.DecisionTable
+import DMN.ParseCell (parseNumberCell)
+import Data.Either (isLeft, isRight)
 import DMN.Types
 import DMN.ParseTable
 import DMN.ParseFEEL
@@ -474,6 +476,34 @@ spec3 = do
   --
   -- See test/corpus/README.md for the symptom/policy distinction.
   -- ==========================================================================
+  -- D-9. Negation, DMN 1.3 §9.2 rule 12.b. The corpus records the emitted text
+  -- for all four backends; these assert the two things the corpus cannot see —
+  -- the IR the cell parses to, and that 'fEval' actually inverts, which is what
+  -- keeps a negated cell from parsing and then never matching anything.
+  describe "negation (FNot)" $ do
+    let num = mkF (Just DMN_Number)
+    it "parses not([1..5]) to a negated interval"
+      $ num "not([1..5])" `shouldBe` FNot (FInRange BClosed 1 5 BClosed)
+    it "parses not(> 3) to a negated comparison"
+      $ num "not(> 3)"    `shouldBe` FNot (FSection Fgt (VN 3))
+    it "fEval inverts: 9 satisfies not([1..5])"
+      $ fEval (FNot (FInRange BClosed 1 5 BClosed)) (FNullary (VN 9)) `shouldBe` True
+    it "fEval inverts: 3 does not satisfy not([1..5])"
+      $ fEval (FNot (FInRange BClosed 1 5 BClosed)) (FNullary (VN 3)) `shouldBe` False
+    it "a negation is Number evidence for an undeclared column"
+      $ inferType (mkF (Just DMN_String) "not([1..5])") `shouldBe` Just DMN_Number
+    -- Rule 12.b admits simple POSITIVE unary tests, so neither of these is one.
+    -- Spelled as a refusal check rather than `shouldThrow`, because mkF is
+    -- `either error id` and the message is what carries the diagnosis.
+    it "refuses a nested negation"
+      $ parseNumberCell "not(not(> 3))" `shouldSatisfy` isLeft
+    it "refuses a negated function call"
+      $ parseNumberCell "not(floor(3))" `shouldSatisfy` isLeft
+    it "refuses a negated arithmetic expression"
+      $ parseNumberCell "not(40 - 50)"  `shouldSatisfy` isLeft
+    it "accepts a negated interval"
+      $ parseNumberCell "not([1..5])"   `shouldSatisfy` isRight
+
   describe "type inference" $ do
     it "should infer [1..2] as a Number"    $ inferType (mkF (Just DMN_String) "[1..2]") `shouldBe` Just DMN_Number
     it "should infer 123 as a Number"       $ inferType (mkF (Just DMN_String) "123")    `shouldBe` Just DMN_Number

@@ -485,6 +485,18 @@ fEvals arg exps = or $ (`fEval` arg) <$> exps
 -- column in table -> input parameter -> is there a match?
 fEval :: FEELexp -> FEELexp -> Bool
 fEval FAnything    _                  = True
+-- §9.2 rule 12.b. Placed FIRST among the scalar arms, and before the collection
+-- arms deliberately: negating a membership test is meaningful ("the collection
+-- does not contain this"), so the recursive call should reach them rather than
+-- be pre-empted.
+--
+-- This arm is what stops 'FNot' from being a silent wrong answer. Without it a
+-- negated cell parses, is emitted by all four backends, and then never matches
+-- anything at run time — the catch-all below would raise a "type error in …"
+-- naming an expression the author wrote correctly. 'domainErrors' also decides
+-- membership through 'fEval', so a declared domain constrains a negated cell for
+-- free, by the same rule CLAUDE.md gives for every other cell shape.
+fEval (FNot test) val                 = not (fEval test val)
 -- A collection ARGUMENT against a plain cell is MEMBERSHIP — the same meaning
 -- the four backends emit (`.includes`, ` in `, `dmnmd list contains`). Placed
 -- after the FAnything arm, so `-` still matches any collection including the
@@ -666,7 +678,7 @@ inferenceErrors dt =
 structuralErrors :: DecisionTable -> [String]
 structuralErrors dt = concat
   [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs
-  , inputArithErrs, openRangeOutErrs ]
+  , inputArithErrs, openRangeOutErrs, outputNegationErrs ]
   where
     ins  = getInputHeaders  (header dt)
     outs = getOutputHeaders (header dt)
@@ -754,9 +766,14 @@ structuralErrors dt = concat
     junkMsg s = concat
       [ "the cell reads ", show s
       , " — a collection column's cell must be a plain member value or \"-\"."
-      , " dmnmd does not implement FEEL function calls, negation or list"
-      , " literals in a decision-table cell, and the comma split has already"
-      , " broken this one into fragments."
+      -- Since D-9 negation IS implemented, so the old wording ("dmnmd does not
+      -- implement … negation …") named a true refusal with a false reason. In a
+      -- COLLECTION column it stays refused for the reason above — a test over a
+      -- collection is ambiguous — not for want of an IR.
+      , " A collection column takes members, not tests, so negation is refused"
+      , " here even though dmnmd implements it elsewhere; FEEL function calls and"
+      , " list literals are not implemented at all. The comma split has already"
+      , " broken this cell into fragments."
       , " If the value really is that text, quote the whole cell." ]
 
     -- R5. Without this a collection reaches 'fNEval'/'fromVN', whose errors name
@@ -818,6 +835,34 @@ structuralErrors dt = concat
       , (ch, cells) <- zip outs (row_outputs r)
       , cell@(FInRange lk _ _ rk) <- cells
       , lk == BOpen || rk == BOpen
+      ]
+
+    -- R10. Negation is a unary TEST (§9.2 rule 12.b), so it has no meaning in an
+    -- output cell: @not([1..5])@ selects a set of values rather than naming one,
+    -- and there is nothing for a backend to return.
+    --
+    -- This refusal is what keeps D-9 from being a regression. Before 'FNot'
+    -- existed, an output cell reading @not(…)@ was refused loudly by
+    -- 'DMN.ParseCell.parseNumberCell', which has no idea whether it is looking at
+    -- an input or an output and refused both. Now it BUILDS, so without this arm
+    -- the cell would sail through to a backend and hit a catch-all: an @error@ in
+    -- 'DMN.Translate.FEELhelpers.showFeel' for js/ts/py, and — worse — the L4
+    -- emitter is the one that would have to invent a value. Turning a located
+    -- refusal into a crash is not a fix.
+    --
+    -- Mirrors 'inputArithErrs', which is the same argument the other way up:
+    -- arithmetic is legal only in an output cell, negation only in an input one.
+    outputNegationErrs =
+      [ locate ch (row_number r) (concat
+          [ "the output cell reads ", show (showDomainMember cell)
+          , ". Negation is a unary test (DMN 1.3 §9.2 rule 12.b) and selects a SET"
+          , " of values, so it cannot name the one value an output column must"
+          , " return. It is legal only in an INPUT cell."
+          , " Write the value you want returned, or move the negation into an"
+          , " input column and leave \"", varname ch, "\" a plain value." ])
+      | r@DTrow{} <- allrows dt
+      , (ch, cells) <- zip outs (row_outputs r)
+      , cell@(FNot _) <- cells
       ]
 
     -- R6/R7. A collection has no position in an element-level domain, so every
@@ -1019,6 +1064,9 @@ showDomainMember (FInRange lk lo hi rk) =
         closeBracket BClosed = "]"
         closeBracket BOpen   = ")"
 showDomainMember  FAnything        = "-"
+-- Round-trips to the source spelling, like every other arm: the author wrote
+-- @not([1..5])@ and a refusal must quote that back, not @FNot (FInRange …)@.
+showDomainMember (FNot inner)      = "not(" ++ showDomainMember inner ++ ")"
 -- A refusal quotes the cell back at the author, so these have to read like the
 -- table did — @"> 3"@, not @"FSection Fgt (VN 3.0)"@ and not @"> 3.0"@ either.
 -- The second half of that promise was broken from the day it was written: this
@@ -1210,6 +1258,13 @@ inferEvidence (FSection _ (VB _)) = EType DMN_Boolean
 inferEvidence (FSection _ (VS _)) = EType DMN_String
 inferEvidence (FInRange _ _ _ _)  = EType DMN_Number
 inferEvidence  FAnything          = ENoEvidence
+-- A negation is exactly as strong evidence as the test it negates: @not(…)@
+-- constrains the same column. Note this arm is currently unreachable from the
+-- undeclared-column path, which sees only the @FNullary (VS raw)@ arm below —
+-- there, @namedRefusal@ still answers for @not(…)@ and yields the same verdict
+-- by a different route. Written correctly anyway rather than left to a
+-- catch-all, because a declared column does reach here through 'reprocessRows'.
+inferEvidence (FNot inner)        = inferEvidence inner
 inferEvidence (FNullary (VN _)) = EType DMN_Number
 inferEvidence (FNullary (VB _)) = EType DMN_Boolean
 -- The only arm that ever fires for an undeclared column: pass 1 calls

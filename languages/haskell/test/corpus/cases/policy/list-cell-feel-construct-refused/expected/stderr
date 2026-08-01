@@ -1,7 +1,7 @@
-dmnmd: error: table "Junk": column "tags": row 1: the cell reads "not(RED" — a collection column's cell must be a plain member value or "-". dmnmd does not implement FEEL function calls, negation or list literals in a decision-table cell, and the comma split has already broken this one into fragments. If the value really is that text, quote the whole cell.
-error: table "Junk": column "tags": row 1: the cell reads "BLUE)" — a collection column's cell must be a plain member value or "-". dmnmd does not implement FEEL function calls, negation or list literals in a decision-table cell, and the comma split has already broken this one into fragments. If the value really is that text, quote the whole cell.
+dmnmd: error: table "Junk": column "tags": row 1: the cell reads "not(RED" — a collection column's cell must be a plain member value or "-". A collection column takes members, not tests, so negation is refused here even though dmnmd implements it elsewhere; FEEL function calls and list literals are not implemented at all. The comma split has already broken this cell into fragments. If the value really is that text, quote the whole cell.
+error: table "Junk": column "tags": row 1: the cell reads "BLUE)" — a collection column's cell must be a plain member value or "-". A collection column takes members, not tests, so negation is refused here even though dmnmd implements it elsewhere; FEEL function calls and list literals are not implemented at all. The comma split has already broken this cell into fragments. If the value really is that text, quote the whole cell.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
 
 

@@ -1,7 +1,7 @@
 dmnmd: error: table "R": column "Grade": row 1: value outside the column's declared domain {C A, B} — the cell reads A
 error: table "R": column "Grade": row 3: value outside the column's declared domain {C A, B} — the cell reads C
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
 
 

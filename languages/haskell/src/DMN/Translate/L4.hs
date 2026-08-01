@@ -616,6 +616,12 @@ oneFeel ch field = \case
   FNullary v           -> field ++ " EQUALS " ++ showValIn ch v
   FFunction fnf        -> field ++ " EQUALS " ++ fnf2l4 fnf
   FAnything            -> "TRUE"
+  -- Parenthesised unconditionally. The inner guard may be an @AND@ chain
+  -- (@FInRange@ expands to one), and @NOT@ binds tighter than @AND@ in L4, so
+  -- @NOT a AND b@ would negate only the first conjunct. That would be a silently
+  -- inverted guard at exit 0, which is the whole class of defect D-9 is about.
+  -- @NOT@ is already in 'reservedWordsL4'.
+  FNot inner           -> "NOT (" ++ oneFeel ch field inner ++ ")"
 
 -- | The bare value used inside an @elem … (LIST …)@ membership list.
 feelValL4 :: ColHeader -> FEELexp -> String
@@ -788,6 +794,14 @@ showFeelL4 ty = \case
   FSection op v  -> showValL4 v
   FInRange _ lo _ _ -> showNumL4 lo
   FAnything      -> typeDefaultScalar ty
+  -- Unreachable: 'DMN.DecisionTable.structuralErrors' refuses a negation in an
+  -- output cell before any backend is reached, because it selects a set rather
+  -- than naming a value. Loud rather than a guess — every other arm here has a
+  -- value it can honestly return, and this one does not.
+  FNot inner     -> error $ "dmn error: negation " ++ show (FNot inner)
+                         ++ " reached the L4 output emitter; it should have been"
+                         ++ " refused by structuralErrors as a unary test in an"
+                         ++ " output cell."
 
 -- | A type-appropriate fallback for a totally empty table's OTHERWISE.
 typeDefaultL4 :: Bool -> String -> [ColHeader] -> String

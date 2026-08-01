@@ -1,6 +1,6 @@
 dmnmd: error: table "OutTest": column "sides": row 1: the output cell reads "[5..7]". An output column produces a VALUE, and a collection column's value is a comma-separated list of members. A test is not a value.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
 
 

@@ -175,6 +175,13 @@ feel2jsIn lhs (FInRange lk lower upper rk) = wrapParen (showFNLog "ts" FNAnd)
   , lhs ++ showFNComp "ts" (leqOf rk) ++ showNumFloatish upper ]
 feel2jsIn lhs (FNullary rhs)           = feel2jsIn lhs (FSection Feq rhs)
 feel2jsIn lhs o@(FFunction fnunf)      = showFeel "ts" o
+-- §9.2 rule 12.b. The parentheses are forced here rather than delegated to
+-- 'wrapParen', which returns a ONE-element list unbracketed: `!` binds tighter
+-- than every comparison and every `&&` in JS, so `"!" ++ wrapParen …` over
+-- `Age < 10.0` yields `!Age < 10.0`, which parses as `(!Age) < 10.0` — a
+-- silently inverted guard at exit 0, exactly the defect class D-9 removes.
+feel2jsIn lhs (FNot test)              =
+  showFNLog "ts" FNNot ++ "(" ++ feel2jsIn lhs test ++ ")"
 -- Ordering comparisons against a non-numeric value; see 'showFeel's own catch-all.
 feel2jsIn lhs fexp = error $ unwords
   [ "feel2jsIn: no rendering for", show fexp, "as a guard on", show lhs ]
