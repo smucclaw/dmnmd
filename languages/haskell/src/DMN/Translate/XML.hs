@@ -486,6 +486,16 @@ cellText ch fs
 --    @\<inputEntry\>@ (rule 12) and warned about in an @\<outputEntry\>@.
 showFeelXML :: Maybe DMNType -> FEELexp -> String
 showFeelXML _ FAnything = "-"
+-- @not(…)@ is rule 12.b and needs no translation: DMN spells negation exactly as
+-- dmnmd does, so this is the rare construct that is isomorphic in both
+-- directions. The operand recurses, so `not([1..5])` keeps its interval.
+--
+-- This arm arrived from the other side of a concurrent branch: D-9 added 'FNot'
+-- to 'FEELexp' while this backend was being written, and
+-- @-Werror=incomplete-patterns@ turned the collision into a compile error rather
+-- than a silently unhandled cell. That is the whole argument for making an IR
+-- change a TYPE change, and it is why the flag is on the library stanza.
+showFeelXML t (FNot inner) = "not(" ++ showFeelXML t inner ++ ")"
 showFeelXML _ (FNullary v) = showValXML v
 showFeelXML _ (FSection Feq v) = showValXML v
 showFeelXML _ (FSection op v) = showCmpOp op ++ " " ++ showValXML v
