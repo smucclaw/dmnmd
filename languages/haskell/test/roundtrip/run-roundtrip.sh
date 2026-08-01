@@ -115,13 +115,64 @@ fi
 # stops diverging (re-read it, then delete the line) as loudly as if an ordinary
 # fixture starts to.
 #
-# Populate from Survey B's non-round-trippable list. Empty for now, deliberately:
-# the harness is written before the emitter exists, so every entry would be a
-# guess, and a guessed XFAIL is indistinguishable from a loosened comparison.
+# Six entries, every one written AFTER measuring the emitter and every one a
+# construct dmnmd accepts that DMN genuinely cannot express. Four are refusals
+# (exit 1, with the reason on stderr) and two are documented renumberings; none
+# is a loosened comparison, and each remains a strict FAIL if the divergence
+# changes shape.
+#
+# Two things are NOT here, and their absence is the measurement:
+#
+#  * DECISIONS.md D-11's suffix comparison. D-11 says --to=xml "must emit the
+#    mirrored form and record a fidelity note", as if the emitter could tell.
+#    It cannot: DMN.ParseCell.suffixCmp mirrors `5 <=` into FSection Fgte (VN 5)
+#    at PARSE time and FEELexp has no provenance slot, so by the time any
+#    backend runs, `5 <=` and `>= 5` are the same value. The four
+#    policy/num-suffix-* fixtures therefore round-trip CLEAN, which is the
+#    empirical proof that the note has nowhere to come from. See the amended
+#    D-11 entry.
+#  * multi-value cells, all four interval spellings, arithmetic in an output
+#    cell, and declared sub-header domains. All four were on the suspect list
+#    and all four turn out to have exact DMN spellings; they pass.
+
+# A leg that fails outright is a divergence like any other, so the XFAIL list has
+# to be consulted here too and not only at the final diff. Four of the six
+# entries below are REFUSALS — `--to=xml` exits 1 with a located error — and
+# treating those as hard failures would have left the only honest answer
+# (refusing a construct DMN cannot express) permanently red.
+#
+# Returns 0 if the divergence was expected, having counted it.
+expected_divergence() {
+  local slug="$1" what="$2" reason
+  if reason="$(xfail_reason "$slug")"; then
+    n_xfail=$((n_xfail + 1))
+    [ "$VERBOSE" = 1 ] && echo "  xfail ($what): $reason"
+    return 0
+  fi
+  return 1
+}
 
 xfail_reason() {
   case "$1" in
-    # corpus/policy/num-suffix-*) echo "D-11: suffix comparison has no <inputEntry> spelling; emitted mirrored" ;;
+    # DMN's tDecisionTable is `output+`. A markdown table with no output column
+    # parses (all three of these are symptom/ fixtures, i.e. dmnmd itself calls
+    # them defects) and no DMN document expresses it.
+    symptom/struct-onecol-no-output|\
+    symptom/struct-hitpolicy-only-table-accepted|\
+    symptom/l4-zero-output-dangling-giveth|\
+    policy/xml-no-output-column-refused)
+      echo "no output column: DMN's tDecisionTable requires output+; refused with a located error" ;;
+    # A short markdown row has no DMN spelling: tDecisionRule wants one entry per
+    # column, and padding with "-" would widen the rule in silence.
+    symptom/struct-short-row-truncated|\
+    policy/xml-short-row-refused)
+      echo "short row: DMN requires one entry per column; refused rather than padded with \"-\"" ;;
+    # Markdown rule numbers are AUTHORED (gaps and repeats are meaningful and
+    # reach diagnostics); DMN identifies a <rule> by position and has no field
+    # for one. The emitter warns; the TS comment `// 3` comes back as `// 2`.
+    symptom/struct-dash-rownum-dropped|\
+    symptom/struct-midtable-continuation)
+      echo "authored rule numbers are not 1..n: DMN has no field for one, so rows renumber (warned)" ;;
     *) return 1 ;;
   esac
 }
@@ -209,6 +260,7 @@ for f in "${FIXTURES[@]}"; do
   # 2. emit XML
   "$DMNMD" --to=xml -o "$d/out.dmn" "$f" >"$d/xml.out" 2>"$d/xml.err"; rc_xml=$?
   if [ "$rc_xml" -ne 0 ]; then
+    if expected_divergence "$slug" "--to=xml refused"; then continue; fi
     n_fail=$((n_fail + 1))
     FAILED+=("$slug	--to=xml exited $rc_xml: $(head -1 "$d/xml.err")")
     continue
@@ -230,6 +282,7 @@ for f in "${FIXTURES[@]}"; do
   # 4. read it back and re-emit TS
   "$DMNMD" --from=xml --to=ts "$d/out.dmn" >"$d/rt.ts" 2>"$d/rt.err"; rc_rt=$?
   if [ "$rc_rt" -ne 0 ]; then
+    if expected_divergence "$slug" "read-back refused"; then continue; fi
     n_fail=$((n_fail + 1))
     FAILED+=("$slug	--from=xml --to=ts exited $rc_rt: $(head -1 "$d/rt.err")")
     continue

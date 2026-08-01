@@ -61,6 +61,7 @@ import Text.XML.HXT.Core
 import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
 import qualified Text.XML.HXT.DOM.ShowXml as SX
 
+import DMN.DecisionTable (showType)
 import DMN.Diagnostic
 import DMN.Number (showNumPlain)
 import DMN.Types
@@ -212,7 +213,7 @@ decisionTableOf t dt = X.DecisionTable
   , X.dtInput = zipWith (inputClauseOf t) [1 ..] (inHeaders dt)
   , X.dtOutput = zipWith (outputClauseOf t) [1 ..] (outHeaders dt)
   , X.dtAnnotations =
-      [ X.AnnotationClause (Just (varname ch)) | ch <- commentHeaders dt ]
+      [ X.AnnotationClause (Just (varname ch)) | ch <- drop 1 (commentHeaders dt) ]
   , X.dtRules = zipWith (ruleOf t dt) [1 ..] (allrows dt)
   }
 
@@ -274,16 +275,28 @@ unaryTestsOf ch = case enums ch of
 
 -- | One row as a @\<rule\>@.
 --
--- Row comments split across two XML shapes because that is how the reader reads
--- them back: 'DMN.XML.XmlToDmnmd' builds @row_comments@ as
--- @description : annotationEntries@. So the comment columns become
--- @\<annotationEntry\>@s, in order, matching the @\<annotation\>@ clauses
--- declared on the table, and @\<description\>@ is left out — dmnmd has no
--- table-level place to put one back.
+-- Row comments split across two XML shapes, and the split is dictated by the
+-- reader: 'DMN.XML.XmlToDmnmd' builds @row_comments@ as
+-- @description : annotationEntries@. So the FIRST comment column becomes
+-- @\<description\>@ and the rest become @\<annotationEntry\>@s matching the
+-- @\<annotation\>@ clauses on the table.
+--
+-- __Putting the first one in @\<description\>@ is what makes the common case
+-- round-trip exactly__, and it is not a cosmetic preference. A markdown comment
+-- cell is @Maybe String@ and an absent one is 'Nothing'; an
+-- @\<annotationEntry\>@ has no absent state that survives the reader, which
+-- maps both @\<annotationEntry\/\>@ and @\<annotationEntry\>\<text\/\>@
+-- to @Just ""@. Emitting the column as annotations therefore turned every
+-- comment-less row into an EMPTY comment — ten spurious @\/\/@ lines in
+-- @README.md@ alone, which is how this was found. @\<description\>@ is
+-- @minOccurs=0@, so "no comment" is spellable there, and it is also the more
+-- honest mapping: DMN's per-rule description IS a comment on the rule.
 ruleOf :: Int -> DecisionTable -> Int -> DTrow -> X.Rule
 ruleOf t dt r row = X.Rule
   { X.ruleLabel = X.DmnCommon (Just (idOf "rule" [show t, show r])) Nothing
-  , X.ruleDescription = Nothing
+  , X.ruleDescription = case row_comments row of
+      (Just c : _) | not (null (commentHeaders dt)) -> Just (X.Description c)
+      _ -> Nothing
   , X.ruleInputEntry =
       [ X.InputEntry
           { X.ieLabel = X.DmnCommon (Just (idOf "inputEntry" [show t, show r, show c])) Nothing
@@ -300,7 +313,7 @@ ruleOf t dt r row = X.Rule
       ]
   , X.ruleAnnotations =
       [ X.AnnotationEntry (X.TextElement <$> mtext)
-      | mtext <- take (length (commentHeaders dt)) (row_comments row)
+      | mtext <- take (length (commentHeaders dt) - 1) (drop 1 (row_comments row))
       ]
   }
 
@@ -364,9 +377,18 @@ collectionItemDefs dts =
 -- A cell is a LIST of 'FEELexp' (DMN 1.3 §9.2 rule 11's comma-separated
 -- disjunction), and the list is rendered by joining with @\", \"@, which is
 -- what the reader splits on.
+-- __A wildcard is spelled differently on the two sides, and the column's own
+-- 'label' is what says which side we are on.__ @-@ is DMN 1.3 §9.2 rule 12
+-- syntax, legal in an @\<inputEntry\>@ (a @tUnaryTests@) and meaningless in an
+-- @\<outputEntry\>@ (a @tLiteralExpression@) — so an output wildcard becomes an
+-- EMPTY entry, which is what 'fidelityDiags' warns about and what dmnmd's own
+-- reader reads back as the same 'FAnything'.
 cellText :: ColHeader -> [FEELexp] -> String
-cellText ch fs = intercalate ", " (showFeelXML (scalarType ch) <$> fs)
+cellText ch fs
+  | label ch == DTCH_Out = intercalate ", " (spell <$> filter (/= FAnything) fs)
+  | otherwise = intercalate ", " (spell <$> fs)
   where
+    spell = showFeelXML (scalarType ch)
     -- A collection column's cells are parsed and rendered at the ELEMENT type;
     -- the list-ness lives in the column type, exactly as it does on the way in.
     scalarType c = case vartype c of
@@ -444,12 +466,18 @@ feelStringLiteral s = "\"" ++ concatMap esc s ++ "\""
     esc '\t' = "\\t"
     esc c = [c]
 
--- | Arithmetic, fully parenthesised. See 'showFeelXML'.
+-- | Arithmetic. Parentheses go round a nested operator application and __not__
+-- round the whole expression: 'DMN.ParseFEEL.parseFNF3' accepts a parenthesised
+-- OPERAND but has no production for a parenthesised whole cell, so wrapping the
+-- top level made every arithmetic output cell unreadable by dmnmd's own reader
+-- ("the cell reads \"(Age * 2)\" … that is not … an arithmetic expression").
 showArith :: FNumFunction -> String
 showArith (FNF0 v) = showValXML v
 showArith (FNF1 v) = v
-showArith (FNF3 l op r) = "(" ++ showArith l ++ showOp op ++ showArith r ++ ")"
+showArith (FNF3 l op r) = operand l ++ showOp op ++ operand r
   where
+    operand f@FNF3{} = "(" ++ showArith f ++ ")"
+    operand f = showArith f
     showOp FNMul = " * "
     showOp FNDiv = " / "
     showOp FNPlus = " + "
@@ -470,7 +498,8 @@ showArith (FNF3 l op r) = "(" ++ showArith l ++ showOp op ++ showArith r ++ ")"
 -- | Everything worth saying about one table's translation.
 fidelityDiags :: XMLOpts -> DecisionTable -> [Diagnostic]
 fidelityDiags _opts dt = concat
-  [ aggregateErrs, outputTestErrs, outputWildcardWarns, collectionWarns
+  [ noOutputErrs, ruleArityErrs
+  , aggregateErrs, outputTestErrs, outputWildcardWarns, collectionWarns
   , rowNumberWarns ]
   where
     inTable msg = "table " ++ show (tableName dt) ++ ": " ++ msg
@@ -482,6 +511,44 @@ fidelityDiags _opts dt = concat
                | row@DTrow{} <- allrows dt
                , (ch, cells) <- zip (outHeaders dt) (row_outputs row)
                , cell <- cells ]
+
+    -- @tDecisionTable@ is @output+@ (DMN13.xsd:357) and dmnmd's own reader
+    -- picks it with xpList1. A markdown table with no output column parses
+    -- today (symptom/struct-onecol-no-output and two others) and there is
+    -- simply no DMN document that expresses it. Without this the xpList1 write
+    -- half dies on `Prelude.tail: empty list`, which names nothing at all.
+    noOutputErrs
+      | null (outHeaders dt) =
+          [ errorAt . inTable $
+              "this table has no output column, and DMN has no document that"
+                ++ " expresses one. A <decisionTable> requires at least one"
+                ++ " <output> (DMN 1.3, tDecisionTable). Refusing to write this"
+                ++ " table." ]
+      | otherwise = []
+
+    -- A markdown row may be SHORT: the parser accepts fewer cells than there
+    -- are columns and the backends read the missing ones as absent. DMN
+    -- requires one entry per column, and dmnmd's own reader refuses a document
+    -- that breaks that (XmlToDmnmd checkArity) — so emitting a short rule would
+    -- write a document nothing can read, and padding it with "-" would widen
+    -- the rule silently, which is worse.
+    ruleArityErrs =
+      [ errorAt . inTable $
+          "rule " ++ maybe ("at position " ++ show ix) show (row_number row)
+            ++ " has " ++ show got ++ " " ++ what ++ " cell" ++ plural got
+            ++ " but the table declares " ++ show want ++ " " ++ what
+            ++ " column" ++ plural want ++ ". DMN requires one entry per column"
+            ++ " (tDecisionRule), and dmnmd has no way to say which column a"
+            ++ " missing cell belongs to. Fill the row in."
+      | (ix, row@DTrow{}) <- zip [1 :: Int ..] (allrows dt)
+      , (what, want, got) <-
+          [ ("input", length (inHeaders dt), length (row_inputs row))
+          , ("output", length (outHeaders dt), length (row_outputs row)) ]
+      , want /= got
+      ]
+
+    plural 1 = ""
+    plural _ = "s"
 
     -- HP_Aggregate has no letter in 'DMN.ParseTable.mkHitPolicy_' and no arm in
     -- 'DMN.XML.ParseDMN.xparseHitPolicy', and DMN13.xsd's tHitPolicy enumeration
@@ -532,7 +599,7 @@ fidelityDiags _opts dt = concat
     collectionWarns =
       [ warnAt . inTable $
           "column " ++ show (varname ch) ++ " is a collection ("
-            ++ typeRefName t ++ "). dmnmd reads a plain value in a collection"
+            ++ showType t ++ "). dmnmd reads a plain value in a collection"
             ++ " column as MEMBERSHIP; FEEL rules 12-13 read the same unary test"
             ++ " as equality against the whole list, which is false for any"
             ++ " non-singleton. The emitted document is self-consistent for dmnmd"

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions id="definitions_dmnmd" name="dmnmd" namespace="https://github.com/smucclaw/dmnmd" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+  <inputData id="inputData_age" name="age">
+    <variable id="informationItem_age" name="age" typeRef="number"/>
+  </inputData>
+  <decision id="decision_1" name="Rates">
+    <informationRequirement id="informationRequirement_1_1">
+      <requiredInput href="#inputData_age"/>
+    </informationRequirement>
+    <decisionTable id="decisionTable_1">
+      <input id="input_1_1" label="age">
+        <inputExpression id="inputExpression_1_1" typeRef="number">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <output id="output_1_1" name="Rate" label="Rate" typeRef="number"/>
+      <rule id="rule_1_1">
+        <inputEntry id="inputEntry_1_1_1">
+          <text>&lt; 18</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_1_1">
+          <text>100</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_1_2">
+        <inputEntry id="inputEntry_1_2_1">
+          <text>>= 18</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_2_1">
+          <text>200</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

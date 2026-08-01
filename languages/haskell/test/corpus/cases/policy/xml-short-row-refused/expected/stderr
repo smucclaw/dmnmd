@@ -1,0 +1,3 @@
+dmnmd: error: table "ShortRow": rule 2 has 1 input cell but the table declares 2 input columns. DMN requires one entry per column (tDecisionRule), and dmnmd has no way to say which column a missing cell belongs to. Fill the row in.
+dmnmd: error: table "ShortRow": rule 2 has 0 output cells but the table declares 1 output column. DMN requires one entry per column (tDecisionRule), and dmnmd has no way to say which column a missing cell belongs to. Fill the row in.
+dmnmd: nothing was emitted for any table, because a partial DMN document is indistinguishable from a complete one.
