@@ -157,11 +157,13 @@ numbers the source document does not contain.
 > identifier, because no numeric representation can fix `Code === 7.0` matching a real-world key
 > `"007"`. Deliberately narrower than the general rule "the source text is not the canonical
 > spelling of the value", which would also catch `1.10` — and `10.50` and `2.0` with it. Refusing a
-> money column for writing cents is worse than the defect. See D-13.
+> money column for writing cents is worse than the defect. `1.10` is caught anyway, by the
+> hit-policy check D-13 has since landed, which is the larger class and needs no types at all.
 >
 > **What this did NOT reach**, all three still recorded as symptoms with WHYs saying so:
 > `infer-version-float-collapse` (both cells are genuine numbers, so there is no disagreement to
-> refuse — D-13); `infer-explicit-type-contradiction-silent` (the declaration must win, so the
+> refuse — fixed since, by D-13's hit-policy check rather than by anything about types, and now
+> `policy/hp-unique-duplicate-rows-refused`); `infer-explicit-type-contradiction-silent` (the declaration must win, so the
 > remedy is a *warning*, and the markdown path has no warning channel — D-7); and the two `n`
 > crashes plus the multi-value re-parse bug, which are not inference at all and were fixed
 > alongside in their own commit.
@@ -614,7 +616,7 @@ Recorded here so the next reader does not rediscover it as a bug, and so the **r
 in the original corpus recording stays visible: that recording claimed a misparse, and the misparse
 claim was wrong. What was actually wrong was the silence.
 
-### D-13 — two rows of a `U` table with identical guards. **RULED: open, and NOT a type problem.**
+### D-13 — two rows of a `U` table with identical guards. **RULED: refuse, exact duplication only. LANDED.**
 
 `symptom/infer-version-float-collapse` writes `1.1` and `1.10` in an undeclared column. Both are
 genuine FEEL numbers, so anchored inference (D-2) resolves the column unambiguously to `Number` and
@@ -631,20 +633,110 @@ redundant **trailing** zero is ordinary decimal notation; a redundant **leading*
 notation at all, which is why D-2 adopted only the leading-zero half. Rejected.
 
 *Check hit-policy overlap.* Two rules of a `U` table with identical guards violate DMN's own
-uniqueness requirement (DMN 1.3 §8.2.11). It is detectable with **no reference to types**, it
+uniqueness requirement (DMN 1.3 §8.2.10). It is detectable with **no reference to types**, it
 catches a strictly larger class than any zero rule — including the ordinary case of two rows that
 genuinely say the same thing — and it belongs to the hit policy, which is where the promise lives.
 This is the better fix.
 
-**Not done here** because it is a new check with its own scope question (`U` only, or `A` and `P`
+**Not done in D-2** because it is a new check with its own scope question (`U` only, or `A` and `P`
 too? overlap, or only exact duplication? the interval case `[1..5]` versus `[3..8]` is a decision
-in itself) and D-2 was not the place to make it. `evalTable` already detects the runtime symptom —
-`HP_Unique` returns "multiple rows returned" — so what is missing is the *static* check that the
+in itself) and D-2 was not the place to make it. `evalTable` already detected the runtime symptom —
+`HP_Unique` returns "multiple rows returned" — so what was missing is the *static* check that the
 transpilers need, since they do not implement hit policies at all.
 
-**Cost of leaving it.** A `U` table can be emitted with a permanently dead row, at exit 0, in every
-backend. That is a silent wrong answer, which is exactly the class D-2 exists to remove — so this
-is a debt with a name, not an oversight.
+**Cost of leaving it**, which is why it did not stay left: a `U` table could be emitted with a
+permanently dead row, at exit 0, in every backend. That is a silent wrong answer, exactly the class
+D-2 exists to remove.
+
+#### What landed
+
+`DMN.DecisionTable.uniquenessErrors`, a fourth summand of `tableErrors`, so **both readers** get it
+— the markdown path through `mkDTable`'s `error`, the XML path through
+`DMN.XML.XmlToDmnmd`, which calls `tableErrors` directly and so locates the diagnostic and refuses
+just that table. The message names the table, **both** colliding rows by the number the author
+wrote, and the guard they share, and offers two repairs (delete a row, change a guard) that were
+both run before shipping.
+
+Four decisions inside it, each made deliberately:
+
+- **A guard is the whole input side.** `row_inputs :: [[FEELexp]]`, every input column conjoined.
+  One matching column is not a duplicate. The output side is irrelevant — two rows with the same
+  guard have a dead row whether their outputs agree or not.
+- **Parsed values, not source text.** `1.1` and `1.10` collide because `Scientific`'s `Eq` compares
+  on value and ignores scale, so the parser has already built the same `FNullary (VN 1.1)` for
+  both; they are not even distinguishable by `show`. A source-text comparison would have missed the
+  recorded symptom outright.
+- **A multi-value cell is a set.** `fEvals` is `or . map (fEval arg)`, so `Fall, Winter` and
+  `Winter, Fall` select exactly the same rows. Cells are compared by mutual containment rather than
+  list `Eq`, so the static check agrees with the runtime matcher. Nothing in the tree exercises
+  this either way — measured — so it is decided on the semantics, not on a fixture.
+- **Zero input columns decline rather than refuse.** Every guard would be the empty conjunction and
+  every pair vacuously identical. Unreachable from markdown (`reviseInOut` guarantees an input
+  column) but legal DMN, and the one false-refusal trap the surveys found.
+
+It is **sound** against the runtime, not merely agreeing with it by luck: `fEval` dispatches on
+constructor structure alone, so equal guards imply identical matching behaviour for every input.
+A static refusal here can never contradict `evalTable`'s `HP_Unique` arm.
+
+**Blast radius, measured before and after by byte comparison**: every fixture at `603676f`
+(`README.md` plus every `.md`/`.dmn` under `test/`) run through the six real output formats —
+`ts js py l4 xml md` — stdout + stderr + exit each, under a `603676f` binary and this branch's.
+**1,500 invocations, 1,495 byte-identical.** All five differences are the one symptom fixture that
+is *supposed* to newly refuse, in the five formats that emit; `md` is unimplemented and errors
+identically under both. Exactly one table newly refuses and it is that fixture. Corpus 210 cases,
+0 policy regressions; `make roundtrip` 0 FAIL.
+
+> **A retracted number, kept visible because the retraction is the useful part.** This paragraph
+> first read "all six output formats, 1560 invocations". That was wrong twice over: the capture
+> script looped `ts js py l4 json xml`, and **there is no `json` backend** — all 260 of those runs
+> were `option --to: Accepted file types are…` at exit 1, carrying no information — while `md`, a
+> real `FileFormat`, was never run at all. Five real formats, not six. The conclusion was right and
+> the evidence for it was one sixth weaker than advertised, which is exactly the shape `~/CLAUDE.md`
+> rule 2 warns about: a confident number forecloses the checking that would have caught it. Caught
+> by a verify lens reading the script rather than the summary. The figures above are a re-measure
+> with the format list corrected.
+
+#### What was deliberately left, and where the prior art is
+
+**The scope was Meng's call: exact duplication, `U` tables only.**
+
+- **`U` only.** `A` legitimately permits overlapping rows that agree (D-5 made that work) and `P`,
+  `O`, `R` and `Collect` order or accumulate deliberately. `policy/struct-outputorder-enum-honoured`
+  is an `O` table with two all-wildcard rows whose outputs are *both live*: applying this check to
+  `O` would be a false refusal on a policy recording.
+- **No interval reasoning.** `[1..5]` versus `[3..8]` overlap and are not refused; nor is
+  `<= 20` versus `>= 10`, which is `symptom/l4-hitpolicy-unique-silently-first` and stays a
+  symptom. The check is an under-approximation: it never refuses a table that is fine, and it does
+  not claim to catch every table that is not.
+
+**Full overlap analysis is deferred, not forgotten.** The prior art is Calvanese, Dumas, Laurson,
+Maggi, Montali & Teinemaa, *Semantics and Analysis of DMN Decision Tables*, BPM 2016, LNCS 9850
+(doi 10.1007/978-3-319-45348-4_13, arXiv:1603.07466). Per its abstract it gives a formal semantics
+for DMN tables, a formal definition of the key analysis tasks, and scalable algorithms for **two**
+of them — detection of **overlapping rules** and detection of **missing rules** — via a geometric
+interpretation of the table, implemented in an open-source DMN editor. (Stated no more strongly
+than that: the abstract does not claim masking or subsumption algorithms, and this entry should not
+either.)
+
+One thing a future implementer should know before starting, and it is the reason the deferral has
+content rather than being a shrug. A pre-implementation survey ran a *partial* interval-overlap
+approximation over the whole tree and reported 55 non-identical overlapping pairs across 36 of the
+141 `U` tables, of which about forty involve an all-wildcard catch-all row. Those figures are that
+survey's and are **not** re-derived here — treat them as an order of magnitude, not a count. What
+does not depend on them, and is checked directly: `symptom/l4-hitpolicy-unique-silently-first`
+already names four `policy/l4-*` recordings that are `U` tables ending in a catch-all row
+(`md-backend-l4`, `l4-sumtype-emitted`, `md-l4-ditto-wide-chars`,
+`l4-keyword-column-names-quoted`). So the wider check is not a drop-in: it needs its own ruling
+first — *is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?* That
+question is the real content of the deferral, and it is a genuinely separate decision from this
+one.
+
+**Correction to this entry, made while landing it.** It cited "DMN 1.3 §8.2.11" for the uniqueness
+requirement. That is wrong: §8.2.11 is *Default output values*; hit policy is **§8.2.10**, which
+carries "The hit policy SHALL default to Unique" and "Decision tables with the Unique hit policy
+SHALL NOT contain overlapping rules." Verified against the OMG PDF (formal/2021-01-01). The same
+wrong cite had a second copy in `DMN-CORE-HACKAGE-FINDINGS.md` and was corrected there in the same
+commit; the diagnostic itself cites §8.2.10 and always did.
 
 ### D-14 — delete `DMN.SFeelGrammar`; `DMN.ParseCell` is the grammar. **RULED: delete. LANDED.**
 

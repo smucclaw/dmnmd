@@ -1,0 +1,9 @@
+export function AnyDup ( x : number ) {
+  if (x === 5.0) { // 1
+    return {"out":"alpha"};
+  }
+  if (x === 5.0) { // 2
+    return {"out":"beta"};
+  }
+}
+

@@ -221,6 +221,17 @@ dmn13Spec = describe "DMN 1.3" $ do
       diags `shouldSatisfy` hasDiag Error "<outputEntry>"
       tables `shouldBe` []
 
+    -- D-13. The check lives in 'tableErrors', which this reader calls directly,
+    -- so it reaches the XML path with no extra wiring. The fixture omits
+    -- @hitPolicy@ on purpose: the XSD defaults it to UNIQUE and so does
+    -- 'DMN.XML.ParseDMN' (@xpDefault HP_Unique@), which is how a real document
+    -- most often lands in scope for this check.
+    it "when two rules of a UNIQUE table have identical input entries" $ do
+      (diags, tables) <- readDmn13 "bad-duplicate-unique-rules"
+      diags `shouldSatisfy` hasDiag Error "row 1 and row 2"
+      diags `shouldSatisfy` hasDiag Error "hit policy Unique"
+      tables `shouldBe` []
+
   describe "rejects" $ do
     let shouldReject name expected = do
           parsed <- parseDMNEither (dmn13File name)
