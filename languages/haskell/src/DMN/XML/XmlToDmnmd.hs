@@ -144,7 +144,7 @@ allDecisions :: X.XDMN -> [X.Decision]
 allDecisions d = X.defsDescisions d ++ [dec | X.DrgDec dec <- X.defDrgElems d]
 
 convdec :: TypeEnv -> X.Decision -> ([Diagnostic], [T.DecisionTable])
-convdec env dec = case X.decDTable dec of
+convdec env dec = (drgDiags, []) <> case X.decDTable dec of
     Just (X.ExprDTable tabl) -> convTable env decisionName tabl
     Just (X.ExprLiteral _)   ->
       ([ warnAt $ "decision " ++ show decisionName
@@ -153,6 +153,48 @@ convdec env dec = case X.decDTable dec of
       ([ warnAt $ "decision " ++ show decisionName ++ ": no decision logic; skipped." ], [])
   where
     decisionName = dmnnName $ decLabel dec
+    drgDiags     = map (drgEdgeDropped decisionName) (X.decInfoReq dec)
+
+-- | One 'Warning' per @\<informationRequirement\>@ edge, because dmnmd does not
+-- model the decision requirement graph and each @\<decision\>@ becomes an
+-- independent function (D-6).
+--
+-- This is the one place "DMN.XML.XmlToDmnmd" was breaking its own governing rule:
+-- everything else honours the input, warns about it, or refuses it by name, while
+-- the DRG was parsed into 'X.decInfoReq' and then never mentioned again. Two
+-- decisions wired by @\<requiredDecision\>@ arrived as two unrelated functions,
+-- in silence, and nothing in the output hinted that an edge had existed.
+--
+-- **A warning, not an error.** The emitted table is not wrong — it is exactly the
+-- decision logic the document states. What is missing is the wiring, and the
+-- caller can supply it by hand, so refusing would be worse than saying so. Exit
+-- status is therefore unaffected.
+--
+-- Modelling the graph is E1 and deliberately NOT done here.
+--
+-- Every name in the message comes from the author's own document: their decision,
+-- their edge id, their href. The @href@ keeps its leading @#@ because 'X.Href'
+-- stores it unparsed (see the TODO on its 'X.DmnPU' instance), so it is printed
+-- as written rather than tidied into something the file does not contain. An
+-- absent @id@ drops that clause rather than inventing a position.
+drgEdgeDropped :: String -> X.InformationRequirement -> Diagnostic
+drgEdgeDropped decisionName ir =
+  warnAt $ "decision " ++ show decisionName ++ ": <informationRequirement>"
+        ++ maybe "" (\i -> " " ++ show i) (dmnId (X.infrLabel ir))
+        ++ " declares a " ++ reqElem ++ " on " ++ show href
+        ++ ", which dmnmd does not model. The decision requirement graph is"
+        ++ " dropped: each <decision> becomes an independent function. " ++ consequence
+  where
+    (reqElem, consequence) = case X.infrReq ir of
+      X.RequiredDecision ->
+        ( "<requiredDecision>"
+        , "Nothing calls the required decision; its output arrives here as an\
+          \ ordinary parameter, so run that decision first and pass its result in." )
+      X.RequiredInput ->
+        ( "<requiredInput>"
+        , "The <inputData> node is not modelled as such; its value arrives here as\
+          \ an ordinary parameter, and any typeRef on its <variable> is not applied." )
+    X.Href href = X.infoHref ir
 
 -- | One column of the table, before its cells have been looked at.
 data Col = Col
