@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An <inputExpression> with NO typeRef. The XSD makes typeRef optional, so
+     this is a valid DMN 1.3 document, and dmnmd must decide the column's type
+     itself — which routes the XML reader through DMN.DecisionTable.inferTypes
+     (XmlToDmnmd.hs:408) and therefore through D-2's inference refusal, since
+     inferenceErrors lives inside tableErrors (XmlToDmnmd.hs:199).
+
+     No other fixture in the tree omits typeRef, so before this one nothing
+     exercised that coupling. Here the two cells disagree — 5 is a number, Blue
+     is not — so the column cannot be resolved and the table is refused. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="noTypeRef" name="No TypeRef"
+             namespace="https://example.org/dmnmd/test/noTypeRef">
+  <inputData id="InputData_shade" name="Shade"/>
+  <decision id="Decision_paint" name="Paint">
+    <decisionTable id="DecisionTable_paint" hitPolicy="FIRST">
+      <input id="Input_shade" label="Shade">
+        <inputExpression id="InputExpression_shade">
+          <text>shade</text>
+        </inputExpression>
+      </input>
+      <output id="Output_coat" name="coat" label="Coat" typeRef="string"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>5</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"thin"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>Blue</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"thick"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

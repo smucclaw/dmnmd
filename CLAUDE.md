@@ -171,6 +171,16 @@ Things that are only apparent across several files:
   drift from it and a declared numeric range constrains numeric cells for free. Both readers
   share it; the XML reader calls it directly because `convTable` bypasses `mkDTable` on
   purpose. Above the `|---|`, GFM does not render a table at all.
+
+  **"Bypasses `mkDTable`" is not "is unaffected by inference", and D-2 widened the gap.**
+  `XmlToDmnmd` calls `inferTypes` directly (`:408`) for any column whose `<inputExpression>`
+  has no `typeRef` — the XSD makes it optional — and calls `tableErrors` (`:199`), which now
+  contains `inferenceErrors`. So an inference change reaches the XML path in full: a DMN
+  document with an untyped column and disagreeing cells went exit 0 to exit 1 under D-2.
+  That is the right outcome (trunk read a *number* cell as literal text and emitted
+  `shade === "5"`), but no fixture omitted `typeRef`, so nothing in the tree covered it until
+  `test/dmn13/no-typeref-inferred.dmn` and `policy/xml-untyped-column-inference-refused`.
+  **Do not assume a change to `DecisionTable` inference is markdown-only.**
 - **A collection column's cell means membership, and the ambiguous shapes are refused.**
   `tags : [Number]` is DMN's `isCollection`. `mkFEither` parses such a cell at the *element*
   type (`elemType`, which does **not** recurse — nested `[[T]]` is refused), so `FEELexp`

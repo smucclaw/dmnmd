@@ -60,3 +60,4 @@ have been silently widened, is worse than emitting none:
 | `temporal-type.dmn` | `typeRef="date"`; there is no dmnmd temporal type, and reading it as a string turns every guard into a never-matching string comparison |
 | `bad-rule-arity.dmn` | a rule with more `<inputEntry>` elements than the table has `<input>` columns |
 | `bad-rule-no-output.dmn` | a rule with no `<outputEntry>` at all (the XSD requires at least one) |
+| `no-typeref-inferred.dmn` | an `<inputExpression>` with **no** `typeRef`, which the XSD allows — so dmnmd infers the column's type, and D-2 refuses a column whose cells disagree. The only fixture here that omits `typeRef`, and so the only one exercising the XML reader's coupling to `inferTypes` |
