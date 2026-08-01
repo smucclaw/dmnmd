@@ -1,0 +1,9 @@
+export function Esc ( S : string ) {
+  if (S === "a\\tb") { // 1
+    return {"Out":"x\\ny"};
+  }
+  else if ("default") { // 2
+    return {"Out":"z"};
+  }
+}
+

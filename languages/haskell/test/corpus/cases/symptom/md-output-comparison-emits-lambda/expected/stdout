@@ -1,0 +1,12 @@
+export function OutCmp ( K : string ) {
+  if (K === "a") { // 1
+    return {"Out":(x)=> x < 5.0};
+  }
+  else if (K === "b") { // 2
+    return {"Out":(x)=> 1.0 <= x && x <= 5.0};
+  }
+  else if ("default") { // 3
+    return {"Out":0.0};
+  }
+}
+
