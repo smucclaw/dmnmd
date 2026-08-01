@@ -323,13 +323,19 @@ invocationMsg cell fn = concat
 
 -- | Deliberately says dmnmd is /reading/ the column as Number rather than that
 -- the author /typed/ it that way. Both routes reach here and they need different
--- repairs: an explicit @Season : Number@ header, or 'DMN.DecisionTable.inferType'
--- guessing Number off an unanchored regex over some other cell in the column —
--- which is how @L1 > L2@ and @Coming soon...@ arrive, neither being remotely
--- numeric and neither column being declared. Saying "this column is typed
--- Number" to an author who typed no such thing is false and leaves them nothing
--- to do, so the closing sentence names the repair for the inferred case, exactly
--- as R8's message does. See test/corpus/cases/symptom/infer-*.
+-- repairs: an explicit @Season : Number@ header, or
+-- 'DMN.DecisionTable.inferEvidence' resolving the column to Number off its other
+-- cells. Saying "this column is typed Number" to an author who typed no such
+-- thing is false and leaves them nothing to do, so the closing sentence names
+-- the repair for the inferred case, exactly as R8's message does.
+--
+-- That closing sentence used to describe the pre-D-2 rule verbatim — "any cell
+-- in the column containing @..@, @>@, @<@, @=@ or a spaced arithmetic operator".
+-- It was true when written and is the reason @L1 > L2@ and @Coming soon...@ used
+-- to reach here at all; under D-2 they no longer do, because this function is
+-- now the oracle inference asks, so a cell it refuses is no longer evidence
+-- that the column is numeric. Anchoring is what shrank the population that sees
+-- this message: what is left is a genuinely mixed or genuinely declared column.
 notATestMsg :: String -> String
 notATestMsg cell = concat
   [ "the cell reads ", show cell
@@ -341,8 +347,8 @@ notATestMsg cell = concat
   , " A comparison is < 5 or 5 <; an interval is [1..5], [1..5), (1..5] or"
   , " (1..5); two alternatives are separated by a comma (rule 11)."
   , " If this column is not numeric, declare it (\"Season : String\"): with no"
-  , " declaration dmnmd infers Number from any cell in the column containing"
-  , " \"..\", \">\", \"<\", \"=\" or a spaced arithmetic operator."
+  , " declaration dmnmd infers Number from a column whose cells all read as one"
+  , " of the forms above."
   ]
 
 -- | Is this raw cell text a number written with thousands separators?
