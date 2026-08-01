@@ -716,6 +716,13 @@ policy regressions. `make roundtrip` 127 pass / 0 FAIL / 10 xfail. Not one corpu
 file, or round-trip fixture moved — which is what "imported by nothing but its own test" predicts,
 and is the only part of D-10 that survived measurement.
 
+Confirmed independently of the gates, by building the binary at `603676f` in a second worktree and
+diffing it against this one over **271 fixtures × 6 output modes = 1,626 pairs**, stdout, stderr
+and exit status together: **five differ, and all five are `DECISIONS.md` itself**, which is a
+prose document dmnmd reads as a fixture. The whole difference is one extra `note: … skipping the
+pipe table` line, emitted for the three-row table in D-15 that this session added. Zero code
+behaviour moved.
+
 **What this does not fix, and must not be lost with the module.** `ParseFEEL.parseFNumFunction` is
 flat: `Age * 2 + 1` is refused in **both** positions, and only `(Age * 2) + 1` works. In an output
 cell the refusal reads "row 1 \"Age \* 2 + 1\" reads as String", naming neither the limitation nor
