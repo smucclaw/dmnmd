@@ -616,12 +616,30 @@ oneFeel ch field = \case
   FNullary v           -> field ++ " EQUALS " ++ showValIn ch v
   FFunction fnf        -> field ++ " EQUALS " ++ fnf2l4 fnf
   FAnything            -> "TRUE"
-  -- Parenthesised unconditionally. The inner guard may be an @AND@ chain
-  -- (@FInRange@ expands to one), and @NOT@ binds tighter than @AND@ in L4, so
-  -- @NOT a AND b@ would negate only the first conjunct. That would be a silently
-  -- inverted guard at exit 0, which is the whole class of defect D-9 is about.
+  -- Parenthesised TWICE, and both pairs are load-bearing in opposite directions.
+  --
+  -- The inner pair guards the operand: @FInRange@ expands to an @AND@ chain, so
+  -- @NOT x <= 5 AND x <= 8@ must not read as @NOT x <= 5@ conjoined with the
+  -- rest of the range.
+  --
+  -- The OUTER pair guards what follows, and this is the one that was missing.
+  -- @NOT@ binds LOOSER than @AND@ in L4 — measured, not assumed:
+  --
+  -- >>> loose MEANS NOT (a) AND b        -- a=FALSE b=FALSE  ==>  TRUE
+  -- >>> tight MEANS (NOT (a)) AND b      -- a=FALSE b=FALSE  ==>  FALSE
+  --
+  -- so @NOT (…)@ swallows every conjunct to its right. In a row with more than
+  -- one input column, the unparenthesised form negates the WHOLE remaining
+  -- guard: the emitted L4 typechecks, @l4 check@ succeeds, and the row matches
+  -- inputs it must not — a silently inverted guard at exit 0, which is the exact
+  -- class D-9 exists to remove, in the one backend nothing executes.
+  --
+  -- An earlier version of this comment asserted the opposite precedence and
+  -- shipped only the inner pair. It was wrong; the two-line probe above is how
+  -- to re-check it rather than reasoning about it. @l4 check@ cannot catch this
+  -- — both forms typecheck — so only @l4 run@ or an emitted-code test will.
   -- @NOT@ is already in 'reservedWordsL4'.
-  FNot inner           -> "NOT (" ++ oneFeel ch field inner ++ ")"
+  FNot inner           -> "(NOT (" ++ oneFeel ch field inner ++ "))"
 
 -- | The bare value used inside an @elem … (LIST …)@ membership list.
 feelValL4 :: ColHeader -> FEELexp -> String
