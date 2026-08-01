@@ -1,0 +1,1 @@
+dmnmd: warning: table "Fallback": output column "Dish": row 2: the output cell is a wildcard. DMN has no <outputEntry> spelling for one — "-" is unary-test syntax (§9.2 rule 12) and an <outputEntry> is a literal expression — so dmnmd writes an empty <text/>. dmnmd reads that back as the same wildcard; another engine will read the rule as producing null.

@@ -26,12 +26,13 @@ import ParseFEELSpec (feelSpec)
 import ParserSpecHelpers
 import SFeelGrammar
 import TranslateL4Spec (l4Spec)
+import TranslateXMLSpec (xmlEmitSpec)
 
 -- * Main content
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, sfeelSpec, l4Spec, listSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, sfeelSpec, l4Spec, xmlEmitSpec, listSpec] $ hspec
   return ()
 
 parseHelloWorld :: Parser ()

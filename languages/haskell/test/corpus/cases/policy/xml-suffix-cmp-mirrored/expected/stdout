@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions id="definitions_dmnmd" name="dmnmd" namespace="https://github.com/smucclaw/dmnmd" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+  <inputData id="inputData_1" name="Guests">
+    <variable id="informationItem_1" name="Guests" typeRef="number"/>
+  </inputData>
+  <decision id="decision_1" name="Threshold">
+    <informationRequirement id="informationRequirement_1_1">
+      <requiredInput href="#inputData_1"/>
+    </informationRequirement>
+    <decisionTable id="decisionTable_1">
+      <input id="input_1_1" label="Guests">
+        <inputExpression id="inputExpression_1_1" typeRef="number">
+          <text>Guests</text>
+        </inputExpression>
+      </input>
+      <output id="output_1_1" name="Dish" label="Dish" typeRef="string"/>
+      <rule id="rule_1_1">
+        <inputEntry id="inputEntry_1_1_1">
+          <text>&gt;= 5</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_1_1">
+          <text>"Stew"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_1_2">
+        <inputEntry id="inputEntry_1_2_1">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_2_1">
+          <text>"Soup"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

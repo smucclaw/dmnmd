@@ -36,9 +36,10 @@ import DMN.DecisionTable
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
 import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
+import DMN.Translate.XML ( toXMLFile, defaultXMLOpts )
 import DMN.Translate.FEELhelpers ( showFeels )
 import DMN.XML.ParseDMN (parseDMNEither)
-import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError)
+import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError, Diagnostic)
 
 import Options
     ( ArgOptions(propstyle, verbose, out, pick, query, informat, input,
@@ -53,7 +54,14 @@ main :: IO ()
 main = do
   opts <- parseOptions
   mylog opts $ "Options: " ++ show opts
-  myouthandle <- myOutHandle $ out opts
+
+  -- Refuse an output format we cannot write BEFORE reading anything. Two things
+  -- were wrong while this lived in the per-table loop: the refusal only fired
+  -- if the input happened to contain a table (so the same flag exited 0 on
+  -- prose and 1 on a table — a refusal contingent on the input is an
+  -- unimplemented branch, not a decision), and it fired after the -o file had
+  -- already been destroyed.
+  unless (query opts) $ checkOutFormat (outformat opts)
 
   -- a markdown file could contain multiple tables, so give the user the option of choosing one.
   mydtables <- parseTables opts -- TODO: Don't hardcode markdown here
@@ -76,10 +84,16 @@ main = do
     -- which tables shall we run eval against? maybe the user gave a --pick. Maybe they didn't. if they didn't, run against all tables.
     -- if the tables have different input types, die. because our plan is to run the same input against all the different tables.
 
-  if | not $ query opts              -> outputToAll myouthandle (outformat opts) opts pickedTables
+  if | not $ query opts              -> do
+         -- Render first, open the destination second. 'openFile … WriteMode'
+         -- truncates, so opening it up front destroyed the user's file before
+         -- dmnmd knew whether it could read the input, whether the tables
+         -- parsed, or whether it could write the format at all — defeating,
+         -- for every -o user, the very guarantee the refusal below prints.
+         src <- renderAll (outformat opts) opts pickedTables
+         withOutHandle (out opts) (`hPutStr` src)
      | differentlyTyped pickedTables -> fail $ "tables " ++ show (tableName <$> pickedTables) ++ " have different types; can't query. use --pick to choose one"
      | query opts                    -> runInputT defaultSettings (loop opts pickedTables)
-  hClose myouthandle
 
   where
     loop :: ArgOptions -> [DecisionTable] -> InputT IO ()
@@ -189,42 +203,74 @@ showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") (
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
 
--- | Emit every picked table to one handle.
+-- | The output formats this binary can actually write.
 --
--- L4 goes through 'toL4File' rather than table-by-table, because L4's top-level
--- scope is the whole file: a @DECLARE@ one table emits collides with an
--- identical one from the next (@symptom\/l4-duplicate-declare-across-tables@).
--- No other backend has file-level scope — a JS/PY/TS file is a sequence of
--- independent function definitions — so they stay per-table.
+-- One list, consulted once. There used to be two — @Options.parseFileFormat@'s
+-- and the @outputTo@ fallthrough's — and they disagreed about @xml@ and @md@,
+-- with the user meeting the generous one first.
+implementedOutFormats :: [FileFormat]
+implementedOutFormats = [Ts, Js, Py, L4, Xml]
+
+-- | Refuse an output format we cannot write, before reading anything.
+checkOutFormat :: FileFormat -> IO ()
+checkOutFormat fmt
+  | fmt `elem` implementedOutFormats = pure ()
+  | otherwise = crash $
+      "unsupported output format: " ++ show fmt
+        ++ ".\nSupported output formats are 'ts', 'js', 'py', 'l4' and 'xml'"
+
+-- | Render every picked table into the text of one output file.
 --
--- Byte-identical to the previous @mapM_ (outputTo …)@ for every format,
--- including L4: 'toL4File' currently just concatenates.
-outputToAll :: Handle -> FileFormat -> ArgOptions -> [DecisionTable] -> IO ()
-outputToAll h L4 _opts dtables = do
-  let (diags, src) = toL4File defaultL4Opts dtables
+-- L4 and XML go through a file-level function rather than table-by-table,
+-- because both have file-level scope: a @DECLARE@ one table emits collides with
+-- an identical one from the next
+-- (@symptom\/l4-duplicate-declare-across-tables@), and a DMN document is a
+-- single @\<definitions\>@ carrying every decision. A JS\/PY\/TS file is a
+-- sequence of independent function definitions, so those stay per-table.
+--
+-- Byte-identical to the previous @mapM_ (outputTo …)@ for every format that
+-- existed before: @hPutStrLn@ per table is @concatMap (++ "\\n")@, and L4's
+-- @hPutStr src@ is @src@.
+renderAll :: FileFormat -> ArgOptions -> [DecisionTable] -> IO String
+renderAll L4 _opts dtables = fileLevel "L4 file" (toL4File defaultL4Opts dtables)
+renderAll Xml _opts dtables = fileLevel "DMN document" (toXMLFile defaultXMLOpts dtables)
+renderAll fmt opts dtables = pure $ concatMap ((++ "\n") . renderOne fmt opts) dtables
+
+-- | Diagnostics from a file-level backend, and its text if none was an error.
+fileLevel :: String -> ([Diagnostic], String) -> IO String
+fileLevel what (diags, src) = do
   mapM_ (hPutStrLn stderr . ("dmnmd: " ++) . renderDiagnostic) diags
   when (any isError diags) $ do
     hPutStrLn stderr $
-      "dmnmd: nothing was emitted for any table, because a partial L4 file is"
-        ++ " indistinguishable from a complete one."
+      "dmnmd: nothing was emitted for any table, because a partial " ++ what
+        ++ " is indistinguishable from a complete one."
     exitFailure
-  hPutStr h src
-outputToAll h fmt opts dtables = mapM_ (outputTo h fmt opts) dtables
+  pure src
 
--- | print to a file handle
-outputTo :: Handle -> FileFormat -> ArgOptions -> DecisionTable -> IO ()
-outputTo h Js opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
-outputTo h Ts opts dtable = hPutStrLn h $ toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
-outputTo h Py opts dtable = hPutStrLn h $ toPY (PYOpts (Options.propstyle opts))  dtable
--- L4 is emitted per FILE, not per table: 'outputToAll' intercepts it before
--- this function is reached. Kept as a loud invariant rather than deleted,
--- because a second emission path is exactly how the duplicate-DECLARE bug would
--- come back.
-outputTo _ L4 _opts _dtable = crash "outputTo: L4 is emitted per file by outputToAll, not per table"
-outputTo _ filetype _ _   = crash $ "outputTo: Unsupported file type: " ++ show filetype
-                                   ++ ".\nSupported output formats are 'ts', 'js', 'py' and 'l4'"
+-- | Render one table, for the backends whose output is a run of independent
+-- definitions.
+renderOne :: FileFormat -> ArgOptions -> DecisionTable -> String
+renderOne Js opts dtable = toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
+renderOne Ts opts dtable = toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
+renderOne Py opts dtable = toPY (PYOpts (Options.propstyle opts))  dtable
+-- L4 and Xml are emitted per FILE: 'renderAll' intercepts them before this
+-- function is reached. Kept as loud invariants rather than deleted, because a
+-- second emission path is exactly how the duplicate-DECLARE bug would come back.
+renderOne L4 _opts _dtable = crash "renderOne: L4 is emitted per file by renderAll, not per table"
+renderOne Xml _opts _dtable = crash "renderOne: Xml is emitted per file by renderAll, not per table"
+renderOne filetype _ _ = crash $ "renderOne: unsupported output format: " ++ show filetype
+                                 ++ ".\nSupported output formats are 'ts', 'js', 'py', 'l4' and 'xml'"
 
-myOutHandle :: FilePath -> IO Handle
-myOutHandle h = if h == "-" then return stdout else openFile h WriteMode
+-- | Run an action on the output destination, closing it only if we opened it.
+--
+-- @stdout@ was previously passed to 'hClose' on the way out, which is harmless
+-- only because it was the last thing main did.
+withOutHandle :: FilePath -> (Handle -> IO a) -> IO a
+withOutHandle "-" act = act stdout
+withOutHandle path act = do
+  h <- openFile path WriteMode
+  r <- act h
+  hClose h
+  pure r
 
 --  putStrLn $ toJS (fromRight (error "parse error") (parseOnly (parseTable "mydmn1") dmn2))

@@ -80,3 +80,17 @@ jobs:
       run: |
         make corpus
       working-directory: languages/haskell
+
+    # md --to=xml | --from=xml --to=ts must equal md --to=ts, across every
+    # fixture. This is the XML backend's real gate and it ran nowhere automatic
+    # until now: two verify lenses independently pointed out that the report
+    # called it "the gate" while nothing executed it on a commit.
+    #
+    # Deliberately NOT `roundtrip-xsd`: that needs xmllint, and this workflow
+    # installs no system packages (see CLAUDE.md — a dependency that fails to
+    # configure fails before any project code compiles). XSD validation stays a
+    # local check; the byte-exact round trip is what CI enforces.
+    - name: XML round trip
+      run: |
+        make roundtrip
+      working-directory: languages/haskell

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions id="definitions_dmnmd" name="dmnmd" namespace="https://github.com/smucclaw/dmnmd" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+  <itemDefinition name="dmnmd_list_of_string" isCollection="true">
+    <typeRef>string</typeRef>
+  </itemDefinition>
+  <inputData id="inputData_1" name="roles">
+    <variable id="informationItem_1" name="roles" typeRef="dmnmd_list_of_string"/>
+  </inputData>
+  <decision id="decision_1" name="Access">
+    <informationRequirement id="informationRequirement_1_1">
+      <requiredInput href="#inputData_1"/>
+    </informationRequirement>
+    <decisionTable id="decisionTable_1">
+      <input id="input_1_1" label="roles">
+        <inputExpression id="inputExpression_1_1" typeRef="dmnmd_list_of_string">
+          <text>roles</text>
+        </inputExpression>
+      </input>
+      <output id="output_1_1" name="Level" label="Level" typeRef="string"/>
+      <rule id="rule_1_1">
+        <inputEntry id="inputEntry_1_1_1">
+          <text>"admin"</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_1_1">
+          <text>"full"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_1_2">
+        <inputEntry id="inputEntry_1_2_1">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_2_1">
+          <text>"none"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

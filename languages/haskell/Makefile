@@ -16,6 +16,16 @@
 corpus:
 	./test/corpus/run-corpus.sh
 
+# The XML round trip: md --to=xml | --from=xml --to=ts must equal md --to=ts.
+# `roundtrip` is the CI-safe form. `roundtrip-xsd` additionally validates every
+# emitted document against xsd/DMN13.xsd and needs xmllint, which CI does not
+# install — CI installs no system packages at all, deliberately (see CLAUDE.md).
+roundtrip:
+	./test/roundtrip/run-roundtrip.sh
+
+roundtrip-xsd:
+	./test/roundtrip/run-roundtrip.sh --xsd
+
 corpus-policy:
 	./test/corpus/run-corpus.sh --class policy
 

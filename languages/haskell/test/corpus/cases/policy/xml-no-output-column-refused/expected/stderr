@@ -1,0 +1,2 @@
+dmnmd: error: table "OneCol": this table has no output column, and DMN has no document that expresses one. A <decisionTable> requires at least one <output> (DMN 1.3, tDecisionTable). Refusing to write this table.
+dmnmd: nothing was emitted for any table, because a partial DMN document is indistinguishable from a complete one.
