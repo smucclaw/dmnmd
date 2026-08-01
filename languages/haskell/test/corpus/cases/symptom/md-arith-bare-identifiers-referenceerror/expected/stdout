@@ -1,0 +1,12 @@
+export function Ref ( K : string ) {
+  if (K === "a") { // 1
+    return {"Out":(Non - Participating)};
+  }
+  else if (K === "b") { // 2
+    return {"Out":(false / a)};
+  }
+  else if ("default") { // 3
+    return {"Out":0.0};
+  }
+}
+

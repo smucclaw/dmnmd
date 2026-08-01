@@ -24,7 +24,6 @@ import DMN.ParsingUtils
 import DmnXmlSpec (xmlSpec)
 import ParseFEELSpec (feelSpec)
 import ParserSpecHelpers
-import SFeelGrammar
 import TranslateL4Spec (l4Spec)
 import TranslateXMLSpec (xmlEmitSpec)
 
@@ -32,7 +31,7 @@ import TranslateXMLSpec (xmlEmitSpec)
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, sfeelSpec, l4Spec, xmlEmitSpec, listSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec] $ hspec
   return ()
 
 parseHelloWorld :: Parser ()

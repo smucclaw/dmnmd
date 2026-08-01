@@ -115,11 +115,19 @@ fi
 # stops diverging (re-read it, then delete the line) as loudly as if an ordinary
 # fixture starts to.
 #
-# Six entries, every one written AFTER measuring the emitter and every one a
-# construct dmnmd accepts that DMN genuinely cannot express. Four are refusals
-# (exit 1, with the reason on stderr) and two are documented renumberings; none
-# is a loosened comparison, and each remains a strict FAIL if the divergence
-# changes shape.
+# Ten slugs in five groups, every one written AFTER measuring the emitter.
+# Eight are refusals (exit 1, with the reason on stderr) and two are documented
+# renumberings; none is a loosened comparison, and each remains a strict FAIL if
+# the divergence changes shape.
+#
+# (This paragraph said "six entries, four refusals and two renumberings" while
+# the list held nine slugs and the runner reported 9 xfail. Counting slugs is
+# what the reported number counts, so that is what it says now — and the number
+# is why it should not have been written down without being counted.)
+#
+# Four of the five groups are a construct dmnmd accepts that DMN genuinely
+# cannot express. The fifth, symptom/md-output-comparison-emits-lambda, is the
+# reverse: DMN is right and dmnmd's markdown reader is wrong.
 #
 # Two things are NOT here, and their absence is the measurement:
 #
@@ -136,8 +144,8 @@ fi
 #    and all four turn out to have exact DMN spellings; they pass.
 
 # A leg that fails outright is a divergence like any other, so the XFAIL list has
-# to be consulted here too and not only at the final diff. Four of the six
-# entries below are REFUSALS — `--to=xml` exits 1 with a located error — and
+# to be consulted here too and not only at the final diff. Eight of the ten
+# slugs below are REFUSALS — `--to=xml` exits 1 with a located error — and
 # treating those as hard failures would have left the only honest answer
 # (refusing a construct DMN cannot express) permanently red.
 #
@@ -183,6 +191,16 @@ xfail_reason() {
     # membership test, so the warning cannot drift from the refusal.
     policy/xml-eq-test-domain-warned)
       echo "\`= v\` outside a declared domain: DMN has no \"=\" so it emits as a bare value, which dmnmd's own domain check then refuses (warned)" ;;
+    # A unary test in an OUTPUT cell. DMN's <outputEntry> is a literal
+    # expression — a value — and §9.2 admits a test only in an <inputEntry>
+    # (rule 12 vs rule 3), so `--to=xml` refuses it with a located error. That
+    # refusal is CORRECT and is the point of the fixture: ts/js/py accept the
+    # same cell at exit 0 and emit an arrow function as the output value, which
+    # JSON.stringify drops. So the two backends disagree about the same cell,
+    # and the XML one is right. The divergence goes away when the markdown
+    # reader refuses it too — which is what progress on this symptom means.
+    symptom/md-output-comparison-emits-lambda)
+      echo "unary test in an output cell: DMN's <outputEntry> is a value, not a test; refused with a located error (ts/js/py wrongly accept it — see the case's WHY)" ;;
     *) return 1 ;;
   esac
 }

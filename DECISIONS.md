@@ -84,6 +84,10 @@ not cross-build to wasm32, and both candidate Hackage packages are dead (`decima
 
 **Prior art in our own tree:** `src/DMN/SFeelGrammar.hs:273` already chose `Scientific`. See D-10.
 
+> Both halves of that pointer are now stale. The line is `:272` (corrected above), and the file no
+> longer exists — D-14 deleted it. `Scientific` arrived in `DMN.ParseCell.numericLiteral` instead,
+> and that is where the choice lives now.
+
 **Cost we accept.** `Types.hs`, `fromVN`, `showNumL4`, all four backends, `ParseCell.numericLiteral`.
 Record `symptom/num-float32-integer-identity-lost` and `num-float32-cent-rounding` *first*, against
 the current binary, or the change asserts an improvement rather than demonstrating one.
@@ -496,7 +500,7 @@ unary-test language that DMN §9.2 rule 12.b fills. Cheap now: the anchored gram
 has somewhere to put it, which the guard chain it replaced did not. Destination for
 `symptom/num-negation-refused-unlocated` is `!(1.0 <= Age && Age <= 5.0)`.
 
-### D-10 — adopt `DMN.SFeelGrammar`. **RULED: adopt.**
+### D-10 — adopt `DMN.SFeelGrammar`. **RULED: adopt. ~~RETRACTED~~ — see the correction below.**
 
 It is a faithful transcription of clause 9.2's published EBNF — `UTComparison`, `UnaryTest`,
 `IsOpen = Open | Closed`, `NumericLiteral Scientific` — in `exposed-modules`, imported by nothing
@@ -507,6 +511,67 @@ part of why l4-ide had to write its own.
 bracket flags added in commit 2 (`15e9f02`) are a re-derivation of its `IsOpen`. A third
 re-derivation is the moment to stop. Leaving a second, better, unused type vocabulary in the library
 is the worst of the three options — it is the shape of the mistake that produced this whole audit.
+
+> **Retracted. The ruling is wrong on its facts, and it was written against a tree that did not
+> contain the module it was ruling against.** Three independent surveys re-measured it; this note
+> records only what I re-ran myself, in a `ghci` session against the library at `603676f` and
+> through the built binary. The re-ruling is D-14.
+>
+> 1. **"A faithful transcription of clause 9.2's published EBNF" is true of the module's *comments*
+>    and false of its *parsers*.** Measured, calling each parser directly with `<* eof`:
+>    `interval` refuses **all** of `[1..5]`, `(1..5)`, `(1..5]`, `]1..5[`; rule 12
+>    (`simpleUnaryTests`, the production an input entry *is*) refuses `5`, `-5`, `.5`, `<= 8`,
+>    `>= 3`, `= 5`, `5 <=`, every interval spelling, `not([1..5])`, `not(> 3)` and the `-` wildcard,
+>    accepting `< 5` and `<5` and returning `[]` on the empty string; `simpleLiteral "true"` is
+>    `StringLiteral "true"`, never `BooleanLiteral True`; `simpleLiteral` refuses
+>    `date("2020-01-01")` outright; `expression` refuses `(1+2)*3`, `-Age`, `Age * 2` and
+>    `Units / 2`, and reads `--` as `Neg (QName ["-"])`.
+>
+>    Four root causes, each one line. `simplePositiveUnaryTests` is `sepBy … ","`, which succeeds
+>    with `[]` on any input, so under `try` it makes rule 12.b (`not(…)`) and rule 12.c (`-`) at
+>    `:172-173` unreachable dead code. The `choice` at `:124-127` lists `Lt <$ "<"` before
+>    `Le <$ "<="`, so `<=` is unreachable — a defect `ParseCell.hs:167-169` already documents in
+>    prose, three days before this ruling called the module faithful. `:155` spells
+>    `closedIntervalStart = Closed <$ "]"` where rule 8 says `"["`, so `[` opens an interval
+>    nowhere, and `:325`'s `option` has no `try`, so `numericLiteral` consumes the first dot of
+>    `..` and cannot back out — the exact trap `ParseCell.hs:226-229` documents as the reason for
+>    *its* `try`. And `ParsingUtils.inClass` is `(\`elem\` cs)`: it does **not** expand ranges, so
+>    every character class in the module is literal set membership over its own notation.
+>    `nameStartChar` is `[True,False,True,False,True]` on `A`, `B`, `z`, `t`, `-` — four of the 52
+>    ASCII letters are legal name starts, and the hyphen from the literal `"A-Z"` is one too.
+>    That is why `Age` reads as `QName ["A"]` and why rules 22-27 and 36-38 do not implement what
+>    their comments say.
+>
+> 2. **"Imported by nothing but its own test" is still true** — `grep` finds no importer under
+>    `src/` or `app/` at `603676f`.
+>
+> 3. **"A third re-derivation is the moment to stop" had its premise expire, and the git graph is
+>    what shows it.** This entry landed in `63ecac8`, whose section header says the twelve
+>    idiosyncrasies were "audited against the tree at `36df5a9`". `36df5a9` is **not an ancestor**
+>    of `63ecac8` — they were concurrent branches on the same afternoon — and
+>    `git ls-tree 63ecac8 languages/haskell/src/DMN/ParseCell.hs` is **empty**, while the same
+>    command at `36df5a9` returns a blob. So the ruling weighed `SFeelGrammar` against a cell layer
+>    that had no extracted anchored grammar in it, while citing a commit that did. Anyone
+>    re-reading the entry and checking its cited commit would find `ParseCell` present and conclude
+>    the ruling considered it. It did not, and could not: the second derivation was not in the tree
+>    it saw.
+>
+>    The second derivation has since absorbed D-2's anchoring and inference oracle, D-9's `FNot`,
+>    D-11's mirrored suffix form, D-12's thousands-grouping refusal, and every located diagnostic
+>    in the cell layer. The question this entry answered — "should we re-derive again?" — is no
+>    longer live.
+>
+> 4. **History already held the answer, three days early.** `6edea2c` (2026-07-27) removed the last
+>    dead `import DMN.SFeelGrammar` and its message records that the module "has never been
+>    connected to the pipeline", names the abandoned 2023 branch that tried, and reports that the
+>    attempt changed nothing across the whole corpus. It also calls the module "the obvious
+>    starting point whenever the cell layer is rewritten" — a hedged note about a future rewrite,
+>    which three days later had become a ruling to adopt. That is the sharpening `~/CLAUDE.md`
+>    rule 2 names, and this entry is an instance of it.
+>
+> **What survives.** The entry's closing sentence — leaving a second, unused type vocabulary in the
+> library is the worst of the three options — is right, and still governs. It now argues for
+> deletion.
 
 ### D-11 — the suffix comparison form is mirrored and documented, not refused. **RULED: keep.**
 
@@ -672,3 +737,122 @@ carries "The hit policy SHALL default to Unique" and "Decision tables with the U
 SHALL NOT contain overlapping rules." Verified against the OMG PDF (formal/2021-01-01). The same
 wrong cite had a second copy in `DMN-CORE-HACKAGE-FINDINGS.md` and was corrected there in the same
 commit; the diagnostic itself cites §8.2.10 and always did.
+
+### D-14 — delete `DMN.SFeelGrammar`; `DMN.ParseCell` is the grammar. **RULED: delete. LANDED.**
+
+Supersedes D-10. The choice was adopt / harvest / delete, argued from a measured divergence list
+rather than from D-10's authority.
+
+**Adopt is disqualified twice over.** Behaviourally, it is a breaking change to the markdown
+surface on a scale D-2 ruled out without a deprecation path: in input position, 33 of the 36 cells
+dmnmd accepts today are refused by `simpleUnaryTests`, including every bare number, every interval,
+`<= 8`, `= 5`, the suffix form, `not(…)` and the `-` wildcard, and the divergence list is
+**one-directional** — there is no input-position cell SFeelGrammar accepts and dmnmd refuses. In
+output position the 12 cells it accepts and dmnmd refuses are all one artefact, `unescapedLiteral =
+some alphaNumChar` swallowing a bare word, so `Infinity` and `NaN` become `StringLiteral`s in a
+`Number` column. Structurally, `UnaryTest` has no negation constructor: rule 12.b's arm *discards*
+the `not`, so adopting the vocabulary would reinstate by construction the pre-D-9 defect — the
+unanchored search matching `[1..5]` inside `not([1..5])` and throwing the `not` away — that
+`c21fedf` fixed.
+
+**Harvest yields nothing that is this module's to give.** The three candidates were measured and
+all three fail on inspection of where the capability actually lives:
+
+- *Operator precedence and chaining.* Real gap (see below), but it is `makeExprParser` from
+  `Control.Monad.Combinators.Expr` doing the work, plus a 7-line `table`. And it does not survive
+  contact with a real cell: `expression` refuses `Age * 2` and `Units / 2`, because `name` cannot
+  read a multi-letter identifier. What would be ported is a library call, not a transcription.
+- *Non-breaking-space tolerance.* Real gap, and it matters for a tool whose ingestion path is a
+  paste out of Word. But it is `spaceConsumer = space`, i.e. megaparsec's `isSpace`; the fix in
+  `ParseCell` is one character class, not a port.
+- *String escape sequences, rules 29 and 38.* The only thing in the module with no counterpart in
+  `ParseCell` — and it **validates rather than decodes** (`stringEscapeSequence` on `\t` yields the
+  two characters `\` `t`), and its `hexDigit` inherits the `inClass` bug, accepting only
+  `0 9 a f A F`. The existing tests pass because they happen to use `ꪪ` and `ꪪ`.
+
+So: nothing in `DMN.SFeelGrammar` is simultaneously reachable, correct, and absent from
+`DMN.ParseCell`. 396 lines of module and 53 of test go.
+
+**The price, and how it is paid.** `test/SFeelGrammar.hs` was the only place in the repo naming two
+real gaps in the live path, neither of which any corpus case or round-trip fixture covered. Deleting
+it silently would delete the evidence they exist. Both are therefore **rehomed as `symptom/`
+recordings against the live binary**, which is strictly better than an hspec assertion about a
+module nothing imports. Measured through the built binary at `603676f` and recorded *before* the
+deletion, so the evidence never lapsed:
+
+- `symptom/md-nbsp-refused-input` and `symptom/md-nbsp-refused-output` — `1<NBSP>+<NBSP>2` is refused in an output cell and `<<NBSP>5` in an
+  input cell, both with a loud located diagnostic that renders the codepoint as `\160`. Honest, but
+  DMN 1.3 §9.2 rule 36 lists ` ` as white space, so this is a conformance gap and not a design
+  choice.
+- `symptom/md-string-escapes-uninterpreted` — a cell written `"a\tb"` emits TypeScript
+  `S === "a\\tb"`, backslash-t and not a tab, at exit 0 with nothing on stderr. Self-consistent
+  (dmnmd re-escapes what it read literally) but a silent divergence from rules 29 and 38.
+
+The fourth thing `test/SFeelGrammar.hs` asserted — `.5`, and `1+2` as arithmetic — is already live
+and already pinned, by `policy/num-leading-dot-accepted` and the arithmetic policy cases. Nothing is
+lost there.
+
+**Landed, and one thing the entry did not anticipate.** `ParsingUtils.inClass` — the
+`(\`elem\` cs)` that made every character class in the deleted module wrong — turns out to have had
+exactly one consumer that passed range notation, and it was `DMN.SFeelGrammar`. With the module
+gone, the two remaining call sites both pass enumerated classes (`"UAPFOR"`, `"#<>+A"`) and are
+correct, so deletion did not merely remove a broken user of the trap: **it emptied the trap.** The
+function now carries a haddock saying so, because the next person to write `inClass "0-9"` will
+otherwise re-set it in silence.
+
+**Measured.** 448 lines removed (396 module, 52 test), plus one `exposed-modules` line, one
+`other-modules` line, and two lines in `test/Spec.hs`. `cabal test` 244 → **228** examples, all
+passing: the 16 lost are `test/SFeelGrammar.hs`'s own (11 escape, 4 arithmetic, 1 numeric), 3 of
+which are rehomed above and 2 of which were already pinned. `make corpus` 213/213 unchanged, 0
+policy regressions. `make roundtrip` 127 pass / 0 FAIL / 10 xfail. Not one corpus recording, golden
+file, or round-trip fixture moved — which is what "imported by nothing but its own test" predicts,
+and is the only part of D-10 that survived measurement.
+
+Confirmed independently of the gates, by building the binary at `603676f` in a second worktree and
+diffing it against this one over **271 fixtures × 6 output modes = 1,626 pairs**, stdout, stderr
+and exit status together: **five differ, and all five are `DECISIONS.md` itself**, which is a
+prose document dmnmd reads as a fixture. The whole difference is one extra `note: … skipping the
+pipe table` line, emitted for the three-row table in D-15 that this session added. Zero code
+behaviour moved.
+
+**What this does not fix, and must not be lost with the module.** `ParseFEEL.parseFNumFunction` is
+flat: `Age * 2 + 1` is refused in **both** positions, and only `(Age * 2) + 1` works. In an output
+cell the refusal reads "row 1 \"Age \* 2 + 1\" reads as String", naming neither the limitation nor
+the repair; in a declared-`Number` input cell `notATestMsg` offers "an arithmetic expression" as an
+acceptable form while refusing one. That is a separate change with a real blast radius —
+`parseFNumFunction` is shared with the XML reader and every backend renders `FNF3` positionally, so
+precedence would newly matter to `showFeel` — and it does not ride along with a deletion. It is
+D-15.
+
+### D-15 — `Age * 2 + 1` is refused, and both diagnostics misdescribe why. **RULED: open.**
+
+Split out of D-14 so that deleting `DMN.SFeelGrammar` does not delete the only record of the one
+real capability gap the module pointed at. Measured through the built binary at `603676f`, in a
+declared-`Number` column, in both positions:
+
+| cell | position | today |
+|---|---|---|
+| `Age * 2 + 1` | output | refused; the message says the cell "is not … an arithmetic expression" |
+| `Age * 2 + 1` | input | refused by `notATestMsg`, which offers "an arithmetic expression" as an acceptable form |
+| `(Age * 2) + 1` | output | **accepted**, emits `((Age * 2.0) + 1.0)`, exit 0 |
+
+`DMN.ParseFEEL`'s `FNF3` is a single flat binary application whose operands are an atom or a
+parenthesised sub-expression, so there is no operator chaining and no precedence. The parenthesised
+form is the working repair and **neither message prints it** — which is the failure `~/CLAUDE.md`
+and the corpus README both name: a diagnostic that recommends a repair it will itself refuse.
+
+**Two changes, and they are separable.** The cheap half is the messages: name the chaining
+limitation and print `(Age * 2) + 1`, verified by running it. That moves the ~10 corpus recordings
+that quote the rule-31 message verbatim, each of which needs the ordinary policy-re-record
+justification. The expensive half is `parseFNumFunction` itself — `makeExprParser` would give
+precedence for one 7-line operator table, but `FNF3` is shared with the XML reader and every
+backend renders it **positionally**, so precedence would newly matter to `showFeel` and the L4
+ditto grid, and `--to=xml` round-trip fidelity would have to be re-measured across all 176
+fixtures. Neither rode along with D-14.
+
+**Not to be confused with two adjacent exit-0 wrong answers** found by *running* the emitted
+JavaScript under `node`. Those belong in `cases/symptom/` rather than here, because they are bugs
+and not decisions, and they are not refusals at all — `Non-Participating` in a `Number` output
+column emits `(Non - Participating)` and `n/a` emits `(false / a)`, both throwing `ReferenceError`;
+`< 5` and `[1..5]` in the same position emit an arrow function as the output *value*, which
+`JSON.stringify` drops, so the field silently vanishes.

@@ -92,7 +92,6 @@ library
       DMN.ParseFEEL
       DMN.ParseTable
       DMN.ParsingUtils
-      DMN.SFeelGrammar
       DMN.Translate.FEELhelpers
       DMN.Translate.JS
       DMN.Translate.L4
@@ -142,7 +141,6 @@ test-suite dmnmd-test
       DmnXmlSpec
       ParseFEELSpec
       ParserSpecHelpers
-      SFeelGrammar
       TranslateL4Spec
       TranslateXMLSpec
   build-depends:
