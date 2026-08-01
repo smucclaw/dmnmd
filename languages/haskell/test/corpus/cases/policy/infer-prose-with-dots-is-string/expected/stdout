@@ -1,0 +1,9 @@
+export function EllipsisDish ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Coming soon..."};
+  }
+  else if (Season === "Winter") { // 2
+    return {"Dish":"Ready when..."};
+  }
+}
+

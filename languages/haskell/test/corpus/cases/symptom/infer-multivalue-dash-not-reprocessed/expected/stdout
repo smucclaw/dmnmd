@@ -1,9 +1,0 @@
-export function MultiDash ( Guest_Count : number ) {
-  if ((Guest_Count === "4" || (true||Guest_Count))) { // 1
-    return {"Dish":"Spareribs"};
-  }
-  else if (Guest_Count === 8.0) { // 2
-    return {"Dish":"Stew"};
-  }
-}
-

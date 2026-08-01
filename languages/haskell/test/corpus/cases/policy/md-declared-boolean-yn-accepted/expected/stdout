@@ -1,0 +1,9 @@
+export function DeclaredBoolean ( Flag : boolean ) {
+  if (Flag === true) { // 1
+    return {"Dish":"Stew"};
+  }
+  else if (Flag === false) { // 2
+    return {"Dish":"Soup"};
+  }
+}
+
