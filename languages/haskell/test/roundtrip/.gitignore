@@ -1,0 +1,4 @@
+# The full backend outputs are bulky (5.4M / 1900 files) and regenerable.
+# MANIFEST.sha is the committed record; see backend-baseline.sh.
+baseline/*
+!baseline/MANIFEST.sha
