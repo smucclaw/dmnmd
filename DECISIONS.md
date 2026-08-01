@@ -346,7 +346,50 @@ Commit 6 (`7a5e990`) fixes the *message* — which table, column and rule number
 keeps the mechanism, because changing both at once would make the corpus diff unreadable at exactly
 the moment it matters most. The mechanism change is its own piece of work.
 
-### D-8 — build `--to=xml`; answer issue #13 now. **RULED: adopt.**
+### D-8 — build `--to=xml`; answer issue #13 now. **RULED: adopt. LANDED.**
+
+> **Landed, with five things this entry did not anticipate.** Each is a measurement made while
+> implementing, not a re-reading.
+>
+> 1. **The zero-byte file is worse than "created before erroring": it is destruction of
+>    pre-existing data, and it was never Xml-specific.** `myOutHandle` ran before `parseTables`
+>    and `openFile … WriteMode` truncates, so ANY failing run with `-o` emptied the user's file —
+>    measured on `-f xml -t ts test/dmn13/temporal-type.dmn`, a path that existed with no new code.
+>    All three surveys found it independently. Fixed as its own commit: `renderAll` produces the
+>    whole text and `withOutHandle` opens the destination only to write it.
+>
+> 2. **The write half of the DMN serialiser was already in the tree, unused.** hxt picklers are
+>    bidirectional, so `dmnPickler` — the function that READS DMN — is the function that writes it.
+>    What D-8 needed was a pure `DecisionTable -> Definitions` mapping and a cell renderer, not a
+>    second description of DMN's element structure that could drift from the reader's. This is the
+>    single biggest reason the backend was small.
+>
+> 3. **Two hxt facts that no amount of reading the picklers would have found.** hxt drops namespace
+>    declarations in the pickling direction (`xpElemNS` builds a universal name, the writer emits
+>    the qualified one), so `xmlns` has to be added to the root as an ordinary attribute after
+>    `pickleDoc`; and `ShowXml.xshow` does **not escape**, so the first whole-file output was
+>    literally `<text><= 0</text>` and was not well-formed XML at all. The second refutes Survey A,
+>    which reported escaping working — measured through `writeDocumentToString`, the IO writer,
+>    which is a different function.
+>
+> 4. **Four constructs dmnmd accepts that DMN cannot spell, and none was on the ruling's list.**
+>    A wildcard OUTPUT cell (`-` is rule-12 syntax; an `<outputEntry>` is a literal expression) —
+>    emitted as an empty `<text/>`, warned. A comparison in an output cell — refused. A table with
+>    no output column, and a row shorter than the table — both refused, the second because padding
+>    with `-` would widen the rule in a valid document at exit 0. Plus one silent normalisation
+>    that is safe because it is invisible downstream: `= 5` in an input cell becomes a bare `5`,
+>    which is DMN's equality test and which `JS.feel2jsIn` renders identically.
+>
+> 5. **The two-binary pipeline's byte count should never have been in this entry.** It says 8,142;
+>    `DMN-CORE-HACKAGE-FINDINGS.md` §6 says 8,132; Survey B measured 8,152 today. It is a
+>    build-pair fingerprint, not a property of the pipeline, and it got copied twice and sharpened
+>    once. The claim that survives is the shape: the pipeline loses the hit policy in both
+>    directions and `--fail-on lossy` cannot see it, and native `--to=xml` reads `hitpolicy dt` and
+>    cannot.
+>
+> The gate: 117 of 120 eligible markdown fixtures round-trip `--to=xml | --from=xml --to=ts`
+> byte-identically to `--to=ts`, every emitted document validates against `xsd/DMN13.xsd`, and the
+> eight XFAILs are enumerated with reasons in `test/roundtrip/run-roundtrip.sh`.
 
 `Xml` is a `FileFormat` constructor with no implementation; `outputTo` falls through to a crash, and
 with `-o` it creates a zero-byte file *before* erroring. dmnmd advertises a capability it does not
@@ -386,6 +429,28 @@ over conformance. Four recorded defects became four `policy/` cases.
 
 **The price, payable at D-8:** `--to=xml` must emit the mirrored form and record a fidelity note.
 Correct, but no longer isomorphic to the source.
+
+> **The second half of that price is unpayable where this entry puts it, and D-8 landing is what
+> proved it.** `DMN.ParseCell.suffixCmp` mirrors at PARSE time — `5 <=` is built directly as
+> `FSection Fgte (VN 5)` — and `FEELexp` has no provenance field. So by the time any backend runs,
+> `5 <=` and `>= 5` are *the same value*, indistinguishable by construction. The emitter gets the
+> mirrored form for free and has nothing to detect; a diagnostic written to fire on the suffix form
+> would be one that never fires.
+>
+> The empirical proof, rather than the argument: all four `policy/num-suffix-*` fixtures round-trip
+> **clean** through `--to=xml`, because both routes canonicalise identically. Two independent
+> surveys reached this before implementation and the measurement agreed.
+>
+> **So the note lives where the information does, which is nowhere in the IR** — and rather than
+> retire a recorded price in silence, it is paid three other ways: `policy/xml-suffix-cmp-mirrored`
+> records the emitted `>= 5` and this whole argument in a machine-checked place; the XFAIL list in
+> `test/roundtrip/run-roundtrip.sh` names the absence and says why; and `README.md`'s `to XML`
+> section tells the author directly.
+>
+> Paying it properly needs one of three things, none of which belongs to D-8: provenance on
+> `FSection`, which touches every backend and its `Eq`; an unconditional parse-time warning, which
+> needs the markdown diagnostic channel D-7 has not landed; or accepting that the record IS the
+> note. This entry now says the third, deliberately, rather than by omission.
 
 ### D-12 — a thousands-grouped number stays refused. **RULED: keep.**
 

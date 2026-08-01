@@ -144,6 +144,7 @@ test-suite dmnmd-test
       ParserSpecHelpers
       SFeelGrammar
       TranslateL4Spec
+      TranslateXMLSpec
   build-depends:
       dmnmd
     -- TranslateL4Spec: createDirectoryIfMissing for test/golden/.out

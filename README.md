@@ -16,7 +16,7 @@ The syntax is Markdown.
 
 The input is plain-text.
 
-The output is JS. (And, in future, XML, Python, English, LegalRuleML...)
+The output is JS, TS, Python, L4, or DMN XML. (And, in future, English, LegalRuleML...)
 
 The interface is CLI. No mouse needed!
 
@@ -339,11 +339,34 @@ Perhaps [Haxe])(https://www.haxe.org/) can help us achieve a longer list of tran
 
 ### to XML
 
-On the roadmap.
-
     $ dmnmd README.md --to=xml
 
-Exports to XML conforming to the DMN 1.3 specification.
+Exports to XML conforming to the DMN 1.3 specification: one `<definitions>` carrying one
+`<decision>` per table, plus the `<inputData>` and `<informationRequirement>` wiring that makes the
+file open in a DMN tool. The emitted documents in this repository are checked with
+`xmllint --noout --schema languages/haskell/xsd/DMN13.xsd`.
+
+DMN 1.3 specifically, even though `--from=xml` also reads 1.4 and 1.5: 1.3 is the only release this
+repository ships a schema for, so it is the only one whose output can be validated here.
+
+The gate on this backend is that dmnmd can read its own output. For every markdown fixture in the
+tree, `F --to=xml | --from=xml --to=ts` must equal `F --to=ts` byte for byte — see
+`languages/haskell/test/roundtrip/`. Where a construct dmnmd accepts has no DMN spelling, dmnmd
+either translates it faithfully and warns, or refuses; it never emits a document that means
+something else in silence. Three such constructs exist today:
+
+  * a **wildcard output cell** (`-` in an output column) becomes an empty `<text/>`, with a warning:
+    `-` is unary-test syntax and a DMN output entry is a literal expression, so a conformant engine
+    reads that rule as producing null.
+  * a **table with no output column**, and a **row with fewer cells than columns**, are refused.
+    DMN requires at least one `<output>` and exactly one entry per column, and padding a short row
+    with `-` would silently widen the rule.
+  * **authored rule numbers** that are not `1..n` are renumbered, with a warning. DMN identifies a
+    rule by position and has no field for the number written in the leftmost cell.
+
+The suffix comparison below (`5 <=`) is emitted in its mirrored prefix form, `>= 5`. That is
+correct but not isomorphic, and dmnmd cannot warn about it: the mirror happens in the parser, so by
+the time any backend runs the two spellings are the same value. See `DECISIONS.md` D-11.
 
 ### to Flora-2
 

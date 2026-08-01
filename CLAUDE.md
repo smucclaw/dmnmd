@@ -94,11 +94,21 @@ Markdown file
   → DMN/ParseTable.hs      parseTable: one chunk → DecisionTable
   → DMN/Types.hs           the IR: DecisionTable / ColHeader / DTrow / FEELexp
   → DMN/DecisionTable.hs   evalTable (interpreter) + mkDTable (type inference)
-  → DMN/Translate/*.hs     JS.hs (serves both --to=js and --to=ts), PY.hs, L4.hs
+  → DMN/Translate/*.hs     JS.hs (serves both --to=js and --to=ts), PY.hs, L4.hs,
+                           XML.hs (--to=xml, which pickles back through DMN/XML/ParseDMN.hs)
 ```
 
-`app/Main.hs` is the driver: parse options → parse tables → `--pick` filter → either
-`outputTo` a backend or `runInputT` an interactive eval REPL (`-q`).
+`app/Main.hs` is the driver: refuse an unwritable `--to` → parse tables → `--pick` filter →
+either `renderAll` a backend or `runInputT` an interactive eval REPL (`-q`).
+
+**`renderAll` produces a `String` and `withOutHandle` opens `-o` only to write it, in that
+order.** `openFile … WriteMode` truncates, so the previous order — open, then read, then render —
+destroyed the user's output file on every failing run, including a run that printed "refusing to
+emit … because partial output is indistinguishable from complete output" while the file was
+already empty with a fresh mtime. Recorded as
+`policy/cli-out-not-opened-until-render-succeeds`. Likewise `checkOutFormat` runs before
+`parseTables` and consults ONE list (`implementedOutFormats`); the refusal used to live inside the
+per-table loop, so it fired only if the input happened to contain a table.
 
 Things that are only apparent across several files:
 
@@ -206,9 +216,76 @@ Things that are only apparent across several files:
 ### Adding an output backend
 
 Four places: a `FileFormat` constructor + `parseFileFormat` case + `fileExtensionMappings`
-entry in `app/Options.hs`; an `outputTo` clause in `app/Main.hs`; the module under
+entry in `app/Options.hs`; a `renderAll`/`renderOne` clause in `app/Main.hs`; the module under
 `src/DMN/Translate/`; and `exposed-modules` in `dmnmd.cabal`. That last one is easy to forget
-and fails late — nothing auto-discovers modules since hpack went.
+and fails late — nothing auto-discovers modules since hpack went. A fifth, easy to miss: add the
+constructor to `implementedOutFormats`, or the up-front check refuses the format you just built.
+
+`renderAll` is per FILE and `renderOne` is per table. L4 and XML are file-level (one L4 scope, one
+`<definitions>`); js/ts/py are a run of independent function definitions.
+
+## The XML backend (`src/DMN/Translate/XML.hs`)
+
+`--to=xml`, ruled on as `DECISIONS.md` D-8 and landed there. The only backend whose output is read
+by something other than a programming-language toolchain, which gives it a failure mode none of the
+others has: **it can emit a well-formed, XSD-valid document that says the wrong thing**, and no
+validator catches that.
+
+- **It does not write XML. It builds a `ParseDMN.Definitions` and lets the READER's picklers run
+  backwards.** hxt picklers are bidirectional, so `dmnPickler` is both halves. A hand-rolled writer
+  would be a second description of DMN's element structure, free to drift from the reader's; there
+  is only one description, so it cannot. What this module owns is a pure
+  `DecisionTable -> Definitions` mapping and the cell language.
+- **Two hxt facts, both load-bearing, neither visible in the picklers.** hxt drops namespace
+  declarations when pickling — `xpElemNS` builds a universal name and the writer emits the
+  qualified one — so `xmlns` is added to the root as an ordinary attribute after `pickleDoc`;
+  without it dmnmd cannot read its own output. And `ShowXml.xshow` **does not escape**: it is the
+  tree printer, not the document writer, and the first whole-file output was literally
+  `<text><= 0</text>`. `escapeXmlRefs` (hxt's own table) is applied to the tree as a pure list
+  arrow, which is what keeps the backend a `… -> String` function.
+- **DMN 1.3, with the release as an `XMLOpts` field and no CLI flag.** `xsd/` stops at 1.3, so 1.3
+  is the only release whose output this repo can validate; a `--to=xml15` would ship an
+  unverifiable capability. The parameter exists (D-4's point) and a flag is one line once a DMN14
+  or DMN15 schema arrives.
+- **A wildcard is spelled differently on the two sides of a rule.** `-` is DMN 1.3 §9.2 rule 12
+  syntax: legal in an `<inputEntry>` (a `tUnaryTests`) and meaningless in an `<outputEntry>` (a
+  `tLiteralExpression`). An output wildcard becomes an EMPTY `<text/>`, which dmnmd reads back as
+  the same `FAnything` and which another engine reads as null — so it warns.
+- **Row comments go to `<description>` first, `<annotationEntry>` after.** Dictated by the reader,
+  which builds `row_comments` as `description : annotationEntries`. Not cosmetic: the reader maps
+  both `<annotationEntry/>` and `<annotationEntry><text/></annotationEntry>` to `Just ""`, so
+  routing a comment column through annotations turns every comment-LESS row into an EMPTY comment.
+- **A collection column forces a synthesized `<itemDefinition>`.** DMN has no column-level
+  `isCollection`; it is an `<itemDefinition>` attribute. This is the only element in the document
+  with no markdown counterpart, and the invention is confined to its name.
+- **Refused, because DMN has no document for them:** a table with no output column
+  (`tDecisionTable` is `output+`), a row with fewer cells than columns (padding with `-` would
+  WIDEN the rule silently), a comparison in an output cell, and `HP_Aggregate`.
+
+### The gate is a round trip, not a golden file (`test/roundtrip/`)
+
+dmnmd already READS DMN, so the emitter can be checked with no hand-written expectation at all:
+
+```
+cabal build                                # neither script builds
+./test/roundtrip/run-roundtrip.sh --xsd    # F --to=xml | --from=xml --to=ts  ==  F --to=ts
+./test/roundtrip/backend-baseline.sh --check   # did any OTHER backend move?
+```
+
+117 of 120 eligible markdown fixtures pass byte-identically, plus the same comparison through
+`--to=l4`; every emitted document validates against `xsd/DMN13.xsd` with `xmllint`. Eight XFAILs,
+each with a reason in the script.
+
+**Two things about that harness are worth knowing before trusting a green run.** TS is a weak
+surface on its own — measured, not assumed: `--to=ts` collapses eleven hit policies into two
+outputs, so L4 is compared as well; and even L4 collapses `C`, `C+`, `C<`, `C>` and `C#` onto one
+another, so **nothing here would notice a `COLLECT` emitted without its `aggregation` attribute**.
+And `--xsd` is not a proxy for correctness in either direction: `test/dmn13/bad-rule-arity.dmn`
+XSD-validates and dmnmd's reader refuses it.
+
+`backend-baseline.sh` is the other half: every fixture × every implemented format, byte for byte.
+Adding a `FileFormat` constructor is exactly the kind of edit that perturbs an unrelated format's
+dispatch. **`--check` only** — re-recording after a change launders a regression.
 
 ## The L4 backend (`src/DMN/Translate/L4.hs`)
 
@@ -295,7 +372,9 @@ README cites. Removing it needs the discriminator replaced first — it belongs 
 diagnostics conversion (`DECISIONS.md` D-7), not to a cleanup commit.
 
 The exit status answers exactly one question: *did something we were asked to read fail to
-read?*
+read?* — with one extension the XML backend adds: **or fail to WRITE.** An emitter has a failure
+mode a reader does not (a valid document that means something else), so a table it cannot express
+faithfully is refused, and then nothing at all is emitted for any table in the file.
 
 | input | status |
 |---|---|
@@ -309,6 +388,9 @@ read?*
 | a table refused by the converter | 1 |
 | a table whose cell violates its own declared domain — either reader | 1 |
 | markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
+| an output format the binary cannot write (`--to=md`) | 1, refused before anything is read |
+| `--to=xml` over an input with no tables | 0, and an empty `<definitions/>` is written |
+| `--to=xml` over a table DMN cannot express (no output column, short row) | 1, and nothing is emitted |
 
 A pipe table whose top-left cell is not a hit policy is prose, not a broken decision table:
 `ParseMarkdown.isDecisionTable` asks `parseHitPolicy` itself, skips the chunk, and says so
@@ -395,8 +477,9 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
 - **The executable is not covered by `-Werror=incomplete-patterns`.** The flag is on the
   `library` stanza only, so `app/`'s partial functions still fail at run time — `showToJSON`
   is the live example, recorded as `symptom/cli-showtojson-*`.
-- **`--from=xml` reads DMN 1.3, 1.4 and 1.5; `--to=xml` is not implemented at all**, despite
-  `Xml` existing in `FileFormat`. The reader is deliberately strict — an element or attribute
+- **`--from=xml` reads DMN 1.3, 1.4 and 1.5; `--to=xml` writes 1.3 only** (see "The XML backend"
+  below for why). `--to=md` remains unimplemented and is now refused up front rather than after
+  reading. The reader is deliberately strict — an element or attribute
   the XSD does not allow in that position is an error, and a DMN 1.1/1.2 document is refused
   by namespace with a message naming the version. Fixtures live in `test/dmn13/` and
   `test/dmn15/`; each README says which refusal each one exercises.

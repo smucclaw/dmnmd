@@ -3,6 +3,9 @@
 Two scripts, written **before** the emitter, so the implementer inherits the measurement
 rather than inventing one that happens to pass.
 
+**Result at the commit that landed `--to=xml` (D-8): 117 pass, 0 fail, 8 xfail, 36 skipped,
+0 XSD-invalid, over 161 fixtures.**
+
 ## `run-roundtrip.sh` — did the meaning survive?
 
 dmnmd already **reads** DMN 1.3/1.4/1.5. So the emitter can be checked against dmnmd's own
@@ -46,8 +49,28 @@ Those belong on the `xfail_reason` list **with a reason**, and the comparison st
 weakened comparison that passes is worse than a strict one that fails with a known list. An
 XFAIL that starts passing fails the run too, so the list cannot rot.
 
-The list ships **empty**, deliberately. Every entry written before the emitter exists would be
-a guess, and a guessed XFAIL is indistinguishable from a loosened comparison.
+The list shipped **empty** and was filled in only after the emitter was measured, which is the
+whole reason to trust it: an entry written before the emitter existed would have been a guess, and
+a guessed XFAIL is indistinguishable from a loosened comparison.
+
+Eight entries, in three groups, each a construct dmnmd accepts that DMN genuinely cannot express:
+
+* **no output column** (4). `tDecisionTable` is `output+`. Refused with a located error.
+* **short row** (2). `tDecisionRule` wants one entry per column; padding with `-` would widen the
+  rule in a valid document at exit 0.
+* **authored rule numbers not `1..n`** (2). DMN identifies a `<rule>` by position. Warned, then
+  renumbered.
+
+Four of the eight are REFUSALS, so `expected_divergence` is consulted at the failing LEG and not
+only at the final diff — otherwise the only honest answer available (refusing a construct DMN
+cannot express) would be permanently red.
+
+**D-11's suffix comparison is NOT on the list, and its absence is a measurement.** D-11 says
+`--to=xml` "must emit the mirrored form and record a fidelity note", as though the emitter could
+tell. `DMN.ParseCell.suffixCmp` mirrors `5 <=` into `FSection Fgte (VN 5)` at PARSE time and
+`FEELexp` has no provenance field, so all four `policy/num-suffix-*` fixtures round-trip CLEAN.
+Neither do multi-value cells, the four interval spellings, arithmetic in an output cell, or
+declared sub-header domains — all were suspected, all have exact DMN spellings, all pass.
 
 ## `backend-baseline.sh` — did anything else change?
 
