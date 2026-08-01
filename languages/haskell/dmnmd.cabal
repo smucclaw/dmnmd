@@ -97,6 +97,7 @@ library
       DMN.Translate.JS
       DMN.Translate.L4
       DMN.Translate.PY
+      DMN.Translate.XML
       DMN.Types
       DMN.XML.ParseDMN
       DMN.XML.PickleHelpers

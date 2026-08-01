@@ -36,6 +36,7 @@ import DMN.DecisionTable
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
 import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
+import DMN.Translate.XML ( toXMLFile, defaultXMLOpts )
 import DMN.Translate.FEELhelpers ( showFeels )
 import DMN.XML.ParseDMN (parseDMNEither)
 import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError, Diagnostic)
@@ -208,7 +209,7 @@ showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") (
 -- and the @outputTo@ fallthrough's — and they disagreed about @xml@ and @md@,
 -- with the user meeting the generous one first.
 implementedOutFormats :: [FileFormat]
-implementedOutFormats = [Ts, Js, Py, L4]
+implementedOutFormats = [Ts, Js, Py, L4, Xml]
 
 -- | Refuse an output format we cannot write, before reading anything.
 checkOutFormat :: FileFormat -> IO ()
@@ -216,14 +217,15 @@ checkOutFormat fmt
   | fmt `elem` implementedOutFormats = pure ()
   | otherwise = crash $
       "unsupported output format: " ++ show fmt
-        ++ ".\nSupported output formats are 'ts', 'js', 'py' and 'l4'"
+        ++ ".\nSupported output formats are 'ts', 'js', 'py', 'l4' and 'xml'"
 
 -- | Render every picked table into the text of one output file.
 --
--- L4 goes through a file-level function rather than table-by-table, because
--- L4's top-level scope is the whole file: a @DECLARE@ one table emits collides
--- with an identical one from the next
--- (@symptom\/l4-duplicate-declare-across-tables@). A JS\/PY\/TS file is a
+-- L4 and XML go through a file-level function rather than table-by-table,
+-- because both have file-level scope: a @DECLARE@ one table emits collides with
+-- an identical one from the next
+-- (@symptom\/l4-duplicate-declare-across-tables@), and a DMN document is a
+-- single @\<definitions\>@ carrying every decision. A JS\/PY\/TS file is a
 -- sequence of independent function definitions, so those stay per-table.
 --
 -- Byte-identical to the previous @mapM_ (outputTo …)@ for every format that
@@ -231,6 +233,7 @@ checkOutFormat fmt
 -- @hPutStr src@ is @src@.
 renderAll :: FileFormat -> ArgOptions -> [DecisionTable] -> IO String
 renderAll L4 _opts dtables = fileLevel "L4 file" (toL4File defaultL4Opts dtables)
+renderAll Xml _opts dtables = fileLevel "DMN document" (toXMLFile defaultXMLOpts dtables)
 renderAll fmt opts dtables = pure $ concatMap ((++ "\n") . renderOne fmt opts) dtables
 
 -- | Diagnostics from a file-level backend, and its text if none was an error.
@@ -250,12 +253,13 @@ renderOne :: FileFormat -> ArgOptions -> DecisionTable -> String
 renderOne Js opts dtable = toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 renderOne Ts opts dtable = toJS (JSOpts (Options.propstyle opts) (outformat opts == Ts)) dtable
 renderOne Py opts dtable = toPY (PYOpts (Options.propstyle opts))  dtable
--- L4 is emitted per FILE: 'renderAll' intercepts it before this function is
--- reached. Kept as a loud invariant rather than deleted, because a second
--- emission path is exactly how the duplicate-DECLARE bug would come back.
+-- L4 and Xml are emitted per FILE: 'renderAll' intercepts them before this
+-- function is reached. Kept as loud invariants rather than deleted, because a
+-- second emission path is exactly how the duplicate-DECLARE bug would come back.
 renderOne L4 _opts _dtable = crash "renderOne: L4 is emitted per file by renderAll, not per table"
+renderOne Xml _opts _dtable = crash "renderOne: Xml is emitted per file by renderAll, not per table"
 renderOne filetype _ _ = crash $ "renderOne: unsupported output format: " ++ show filetype
-                                 ++ ".\nSupported output formats are 'ts', 'js', 'py' and 'l4'"
+                                 ++ ".\nSupported output formats are 'ts', 'js', 'py', 'l4' and 'xml'"
 
 -- | Run an action on the output destination, closing it only if we opened it.
 --
