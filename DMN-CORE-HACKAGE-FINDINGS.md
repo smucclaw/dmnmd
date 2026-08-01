@@ -224,7 +224,7 @@ columns, and **all seven hit policies** implemented in `evalTable`, against l4-i
 Two consequences:
 
 - **Publishing today would commit `HitPolicy = HitUnique | HitFirst` and a singular output column
-  to a public API**, and both are known-wrong against DMN §8.2.11 and §8.2.5. That alone answers
+  to a public API**, and both are known-wrong against DMN §8.2.10 and §8.2.5. That alone answers
   "why not publish early to shorten the SHA-pin interval".
 - dmnmd has since closed part of its own half: `FInRange` gained bracket flags (`FInRange Bound
   Float Float Bound`), so all nine S-FEEL interval spellings now parse and collapse to the correct

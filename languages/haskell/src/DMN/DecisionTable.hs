@@ -1403,12 +1403,17 @@ inferEvidence (FNullary (VS arg))
 -- caught: its single leading zero is ordinary decimal notation, not padding.
 --
 -- __Why not the general rule "the source text is not the canonical spelling of
--- the value".__ That would also catch @1.10@ (which is
--- @symptom\/infer-version-float-collapse@, and would be nice) — but it catches
--- @10.50@ and @2.0@ with it, and refusing a money column for writing cents is a
--- worse outcome than the defect it fixes. The redundant TRAILING zero is
--- ordinary decimal notation; the redundant LEADING zero is not notation at all.
--- The version-collapse symptom therefore stays open; see D-13.
+-- the value".__ That would also catch @1.10@ — but it catches @10.50@ and @2.0@
+-- with it, and refusing a money column for writing cents is a worse outcome
+-- than the defect it fixes. The redundant TRAILING zero is ordinary decimal
+-- notation; the redundant LEADING zero is not notation at all.
+--
+-- @1.10@ is nonetheless caught now, and NOT here: D-13 landed
+-- 'uniquenessErrors', which refuses two rows of a @U@ table with identical
+-- guards. That is the larger class and it needs no reference to types, so this
+-- function did not have to widen. See
+-- @policy\/hp-unique-duplicate-rows-refused@, which was the symptom this
+-- paragraph used to say stays open.
 redundantLeadingZero :: String -> Bool
 redundantLeadingZero s = case span isDigit (dropWhile (`elem` "+-") (trim s)) of
   (d:_:_, _) -> d == '0'
