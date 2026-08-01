@@ -688,7 +688,7 @@ recordings against the live binary**, which is strictly better than an hspec ass
 module nothing imports. Measured through the built binary at `603676f` and recorded *before* the
 deletion, so the evidence never lapsed:
 
-- `symptom/md-nbsp-refused` — `1<NBSP>+<NBSP>2` is refused in an output cell and `<<NBSP>5` in an
+- `symptom/md-nbsp-refused-input` and `symptom/md-nbsp-refused-output` — `1<NBSP>+<NBSP>2` is refused in an output cell and `<<NBSP>5` in an
   input cell, both with a loud located diagnostic that renders the codepoint as `\160`. Honest, but
   DMN 1.3 §9.2 rule 36 lists ` ` as white space, so this is a conformance gap and not a design
   choice.
@@ -708,7 +708,7 @@ correct, so deletion did not merely remove a broken user of the trap: **it empti
 function now carries a haddock saying so, because the next person to write `inClass "0-9"` will
 otherwise re-set it in silence.
 
-**Measured.** 449 lines removed (396 module, 53 test), plus one `exposed-modules` line, one
+**Measured.** 448 lines removed (396 module, 52 test), plus one `exposed-modules` line, one
 `other-modules` line, and two lines in `test/Spec.hs`. `cabal test` 244 → **228** examples, all
 passing: the 16 lost are `test/SFeelGrammar.hs`'s own (11 escape, 4 arithmetic, 1 numeric), 3 of
 which are rehomed above and 2 of which were already pinned. `make corpus` 213/213 unchanged, 0
@@ -755,7 +755,7 @@ that quote the rule-31 message verbatim, each of which needs the ordinary policy
 justification. The expensive half is `parseFNumFunction` itself — `makeExprParser` would give
 precedence for one 7-line operator table, but `FNF3` is shared with the XML reader and every
 backend renders it **positionally**, so precedence would newly matter to `showFeel` and the L4
-ditto grid, and `--to=xml` round-trip fidelity would have to be re-measured across all 171
+ditto grid, and `--to=xml` round-trip fidelity would have to be re-measured across all 176
 fixtures. Neither rode along with D-14.
 
 **Not to be confused with two adjacent exit-0 wrong answers** found by *running* the emitted
