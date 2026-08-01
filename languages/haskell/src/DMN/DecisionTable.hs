@@ -779,8 +779,12 @@ structuralErrors dt = concat
           , " comparison, an interval, or \"-\". Arithmetic is a rule 3 simple"
           , " expression and is legal only in an OUTPUT cell. A dash-written range"
           , " is arithmetic, not an interval — write [40..50], not 40 - 50."
-          , " If this column is not numeric, declare it (\"Season : String\");"
-          , " dmnmd infers Number from a cell containing a spaced operator." ])
+          -- Name the column the author actually wrote, not a stock example:
+          -- 'ch' is in scope here, and a message that says "Season" to someone
+          -- whose column is called "Amount" reads as a bug in the tool.
+          , " If this column is not numeric, declare it (\"", varname ch
+          , " : String\"); with no declaration dmnmd infers Number from a column"
+          , " whose cells all read as numeric." ])
       | r@DTrow{} <- allrows dt
       , (ch, cells) <- zip ins (row_inputs r)
       , cell@(FFunction _) <- cells

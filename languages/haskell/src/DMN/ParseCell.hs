@@ -347,7 +347,12 @@ notATestMsg cell = concat
   , " \"5.\", \"+5\", Infinity or NaN."
   , " A comparison is < 5 or 5 <; an interval is [1..5], [1..5), (1..5] or"
   , " (1..5); two alternatives are separated by a comma (rule 11)."
-  , " If this column is not numeric, declare it (\"Season : String\"): with no"
+    -- A placeholder, not a stock column name: this function is given the cell
+    -- and not its header, so it cannot name the real column, and naming a
+    -- fictional one ("Season") reads as a bug to an author whose column is
+    -- called something else. Its sibling in DecisionTable.inputArithErrs does
+    -- have the header in scope and does use the real name.
+  , " If this column is not numeric, declare it (\"<column> : String\"): with no"
   , " declaration dmnmd infers Number from a column whose cells all read as one"
   , " of the forms above."
   ]
