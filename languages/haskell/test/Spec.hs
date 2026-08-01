@@ -433,40 +433,74 @@ spec3 = do
     it "should handle a variable times a number"
       $ ("age * 2.0" :: Text) ~> (parseFNumFunction) `shouldParse` (FNF3 (FNF1 "age") (FNMul) (FNF0 $ VN 2))
 
-  -- ======================== KNOWN DEFECT (part of this block) ========================
-  -- Several expectations below encode CURRENT behaviour that is wrong, not desired
-  -- behaviour. They are expected to change when the S-FEEL cell grammar lands; do not
-  -- read a green run of this block as evidence that inference is right.
+  -- ======================== D-2: ANCHORED INFERENCE ========================
+  -- This block used to carry a KNOWN DEFECT banner saying that a green run of it
+  -- was no evidence inference was right, because the expectations encoded the
+  -- unanchored substring test. That is discharged: 'inferEvidence' now asks
+  -- 'DMN.ParseCell.parseNumberCell', the same oracle the declared path uses.
   --
-  --   * The four "should infer … as a Number" cases pass because 'inferType' matches
-  --     its cell against the UNANCHORED PCRE list ["^\d+(\.\d+)?$", "\.\.", ">", "<",
-  --     "="]. Any occurrence of ".." or ">" or "<" or "=" ANYWHERE in the text wins,
-  --     so ordinary prose is typed Number and then fails to read. Corpus cases:
-  --       test/corpus/cases/symptom/infer-prose-with-dots-crash
-  --       test/corpus/cases/symptom/infer-prose-with-angle-crash
+  -- Two things survived the rewrite and are worth knowing before editing here:
   --
-  --   * Note also what is NOT here: a negative number. '-5' infers String, which
-  --     poisons its whole column. Corpus case:
-  --       test/corpus/cases/symptom/infer-negative-poisons-column
+  --   * ">23" and "<23" pass under BOTH rules, so on their own they cannot tell
+  --     an anchored inference from an unanchored one. The discriminating cases
+  --     are the block below them: "L1 > L2" and "Coming soon..." contain the same
+  --     characters and must now be String, and "-5" must now be Number.
   --
-  --   * "should infer \"no\" as a Boolean" passes "yes", not "no" — a copy-paste in
-  --     the test itself. It is left as-is deliberately: fixing the test is a
-  --     behaviour-visible change and belongs with the rewrite, not before it.
-  --     The real n/no asymmetry is recorded at
-  --       test/corpus/cases/symptom/infer-boolean-n-crash
+  --   * "should infer \"no\" as a Boolean" passed "yes", not "no" — a copy-paste
+  --     in the test itself, left in place deliberately until the rewrite it
+  --     belonged with. It now passes "no", which is what it always claimed to.
   --
   -- See test/corpus/README.md for the symptom/policy distinction.
-  -- ==================================================================================
+  -- ==========================================================================
   describe "type inference" $ do
     it "should infer [1..2] as a Number"    $ inferType (mkF (Just DMN_String) "[1..2]") `shouldBe` Just DMN_Number
     it "should infer 123 as a Number"       $ inferType (mkF (Just DMN_String) "123")    `shouldBe` Just DMN_Number
     it "should infer >23 as a Number"       $ inferType (mkF (Just DMN_String) ">23")    `shouldBe` Just DMN_Number
     it "should infer <23 as a Number"       $ inferType (mkF (Just DMN_String) "<23")    `shouldBe` Just DMN_Number
     it "should infer \"yes\" as a Boolean"  $ inferType (mkF (Just DMN_String) "yes")    `shouldBe` Just DMN_Boolean
-    it "should infer \"no\" as a Boolean"   $ inferType (mkF (Just DMN_String) "yes")    `shouldBe` Just DMN_Boolean
+    it "should infer \"no\" as a Boolean"   $ inferType (mkF (Just DMN_String) "no")     `shouldBe` Just DMN_Boolean
     it "double-quoted string is a String"   $ inferType (mkF (Just DMN_String) "\"quoted\"")    `shouldBe` Just DMN_String
     it "should infer a stringified age * 2 as a Number" $ inferType (mkF (Just DMN_String) "age * 2") `shouldBe` Just DMN_Number
     it "should infer an explicit Function age * 2 as a Number" $ inferType (FFunction (FNF3 (FNF1 "age") FNMul (FNF0 $ VN 2))) `shouldBe` Just DMN_Number
+
+  -- The cases that DISTINGUISH anchored inference from the substring test it
+  -- replaced. Each of the first four was typed Number by the old rule; each of
+  -- the next two was typed String. All six are also corpus recordings, which is
+  -- the machine-checked copy — these are here so the unit for the decision has
+  -- one too, and so a future edit to inferEvidence fails fast rather than at the
+  -- corpus step.
+  describe "type inference — anchored (D-2)" $ do
+    it "prose containing > is a String, not a Number"
+      $ inferEvidence (mkF Nothing "L1 > L2")        `shouldBe` EType DMN_String
+    it "prose containing .. is a String, not a Number"
+      $ inferEvidence (mkF Nothing "Coming soon...") `shouldBe` EType DMN_String
+    it "a negative number is a Number"
+      $ inferEvidence (mkF Nothing "-5")             `shouldBe` EType DMN_Number
+    it "a leading-dot number is a Number"
+      $ inferEvidence (mkF Nothing ".5")             `shouldBe` EType DMN_Number
+    it "a padded 007 is ambiguous, and names itself"
+      $ inferEvidence (mkF Nothing "007")            `shouldBe` EAmbiguous "007"
+    it "0.5 is NOT padded — one leading zero is decimal notation"
+      $ inferEvidence (mkF Nothing "0.5")            `shouldBe` EType DMN_Number
+    it "arithmetic is evidence of last resort, not hard evidence"
+      $ inferEvidence (mkF Nothing "age * 2")        `shouldBe` EWeakNumber
+    it "a NAMED ParseCell refusal is numeric evidence, not \"not a number\""
+      $ inferEvidence (mkF Nothing "not([1..5])")    `shouldBe` EType DMN_Number
+    it "a wildcard says nothing"
+      $ inferEvidence (mkF Nothing "-")              `shouldBe` ENoEvidence
+
+  describe "type inference — the column verdict (D-2)" $ do
+    let col = columnVerdict . map (pure . mkF Nothing)
+    it "resolves a column its cells agree on"
+      $ col ["<= 8", "> 8"]        `shouldBe` VType DMN_Number
+    it "refuses a column its cells disagree on"
+      $ col ["<= 8", "unknown"]    `shouldBe` VConflict [DMN_Number, DMN_String]
+    it "an all-wildcard column is VNone, NOT a conflict — it must stay silent"
+      $ col ["-", "-"]             `shouldBe` VNone
+    it "arithmetic alone still resolves the column"
+      $ col ["age * 2", "-"]       `shouldBe` VType DMN_Number
+    it "arithmetic does not outvote a String cell"
+      $ col ["Non-Participating", "5' 10\""] `shouldBe` VType DMN_String
     it "should infer dmn5a as number, number, bool" $
       dmn5a ~> (parseTable "dmn5a") `shouldParse` 
       (DTable "dmn5a" (HP_Collect Collect_Max)
