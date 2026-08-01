@@ -613,9 +613,12 @@ It is **sound** against the runtime, not merely agreeing with it by luck: `fEval
 constructor structure alone, so equal guards imply identical matching behaviour for every input.
 A static refusal here can never contradict `evalTable`'s `HP_Unique` arm.
 
-**Blast radius, measured before and after**: exactly one table in the tree newly refuses — the
-symptom fixture itself. `README.md`, `test/golden/miles-card-dmn.md` and all 208 pre-existing
-corpus cases are untouched (210 cases, 0 policy regressions); `make roundtrip` 0 FAIL.
+**Blast radius, measured before and after by byte comparison**: every fixture in the tree
+(`README.md`, every `.md`/`.dmn`/`.xml` under `test/`) run through all six output formats, 1560
+invocations, stdout + stderr + exit each, captured at `603676f` and again after. **Every shared
+invocation is byte-identical**; the only differences are the fixtures this work added or renamed.
+Exactly one table newly refuses, and it is the symptom fixture itself. Corpus 210 cases, 0 policy
+regressions; `make roundtrip` 0 FAIL.
 
 #### What was deliberately left, and where the prior art is
 
