@@ -613,12 +613,23 @@ It is **sound** against the runtime, not merely agreeing with it by luck: `fEval
 constructor structure alone, so equal guards imply identical matching behaviour for every input.
 A static refusal here can never contradict `evalTable`'s `HP_Unique` arm.
 
-**Blast radius, measured before and after by byte comparison**: every fixture in the tree
-(`README.md`, every `.md`/`.dmn`/`.xml` under `test/`) run through all six output formats, 1560
-invocations, stdout + stderr + exit each, captured at `603676f` and again after. **Every shared
-invocation is byte-identical**; the only differences are the fixtures this work added or renamed.
-Exactly one table newly refuses, and it is the symptom fixture itself. Corpus 210 cases, 0 policy
-regressions; `make roundtrip` 0 FAIL.
+**Blast radius, measured before and after by byte comparison**: every fixture at `603676f`
+(`README.md` plus every `.md`/`.dmn` under `test/`) run through the six real output formats —
+`ts js py l4 xml md` — stdout + stderr + exit each, under a `603676f` binary and this branch's.
+**1,500 invocations, 1,495 byte-identical.** All five differences are the one symptom fixture that
+is *supposed* to newly refuse, in the five formats that emit; `md` is unimplemented and errors
+identically under both. Exactly one table newly refuses and it is that fixture. Corpus 210 cases,
+0 policy regressions; `make roundtrip` 0 FAIL.
+
+> **A retracted number, kept visible because the retraction is the useful part.** This paragraph
+> first read "all six output formats, 1560 invocations". That was wrong twice over: the capture
+> script looped `ts js py l4 json xml`, and **there is no `json` backend** — all 260 of those runs
+> were `option --to: Accepted file types are…` at exit 1, carrying no information — while `md`, a
+> real `FileFormat`, was never run at all. Five real formats, not six. The conclusion was right and
+> the evidence for it was one sixth weaker than advertised, which is exactly the shape `~/CLAUDE.md`
+> rule 2 warns about: a confident number forecloses the checking that would have caught it. Caught
+> by a verify lens reading the script rather than the summary. The figures above are a re-measure
+> with the format list corrected.
 
 #### What was deliberately left, and where the prior art is
 
