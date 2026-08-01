@@ -579,6 +579,88 @@ mkDTable origname orighp origchs origdtrows =
 -- meaning cannot meaningfully be checked against a domain.
 tableErrors :: DecisionTable -> [String]
 tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
+                 ++ uniquenessErrors dt
+
+-- | D-13. Two rows of a @U@ table with identical guards: the second can never
+-- match, and every backend emits it as dead code at exit 0.
+--
+-- __What a guard is.__ A row's guard is its whole input side —
+-- @row_inputs :: [[FEELexp]]@, every input column conjoined. Two rows collide
+-- only when EVERY input cell corresponds; one matching column is not a
+-- duplicate. The output side is irrelevant: two rows with the same guard have a
+-- dead row whether or not their outputs agree.
+--
+-- __Parsed values, not source text.__ Comparison is on the 'FEELexp' the parser
+-- built, which is why @1.1@ and @1.10@ collide — 'Scientific'\'s 'Eq' compares
+-- on value and ignores scale, so both cells are @FNullary (VN 1.1)@ and are not
+-- even distinguishable by 'show'. A source-text comparison would miss the
+-- recorded symptom outright.
+--
+-- __A multi-value cell is a set.__ 'fEvals' is @or . map (fEval arg)@, so
+-- @Fall, Winter@ and @Winter, Fall@ select exactly the same rows, as do @Fall@
+-- and @Fall, Fall@. Cells are therefore compared by mutual containment rather
+-- than by list 'Eq' — deliberately, so the static check agrees with the
+-- runtime matcher. (Nothing in the tree exercises this, measured; it is decided
+-- on the semantics, not on a fixture.)
+--
+-- __Soundness, and what is deliberately NOT here.__ 'fEval' dispatches on
+-- constructor structure alone, so equal guards imply identical matching
+-- behaviour for every input: a static refusal here can never contradict
+-- 'evalTable'\'s @HP_Unique@ arm, which reports the same collision at run time
+-- as "multiple rows returned". The check is an under-approximation — @[1..5]@
+-- and @[3..8]@ overlap without being equal and are NOT refused. That is full
+-- overlap analysis, deferred by name in D-13.
+--
+-- __@U@ only.__ @A@ legitimately permits overlapping rows that agree (D-5) and
+-- @P@, @O@, @R@ and @Collect@ order or accumulate them on purpose;
+-- @policy\/struct-outputorder-enum-honoured@ is an @O@ table with two
+-- all-wildcard rows whose outputs are both live.
+--
+-- __Zero input columns.__ Then every guard is the empty conjunction and every
+-- pair of rows is vacuously identical. Unreachable from markdown
+-- ('DMN.ParseTable.reviseInOut' guarantees an input column) but legal DMN, so
+-- the check declines rather than refusing every input-less table.
+uniquenessErrors :: DecisionTable -> [String]
+uniquenessErrors dt = case hitpolicy dt of
+  HP_Unique | not (null ins) ->
+    [ dupMsg earlier (i, r)
+    | (i, r) <- numbered
+    , earlier <- take 1 [ e | e@(j, p) <- numbered
+                            , j < i
+                            , sameGuard (row_inputs p) (row_inputs r) ]
+    ]
+  _ -> []
+  where
+    ins      = getInputHeaders (header dt)
+    numbered = zip [1 :: Int ..] [ r | r@DTrow{} <- allrows dt ]
+
+    sameGuard as bs = length as == length bs && and (zipWith sameCell as bs)
+    -- Mutual containment: a multi-value cell is an OR, hence a set. No 'Ord'
+    -- instance exists for 'FEELexp' and cells are tiny, so this is not sorted.
+    sameCell a b = all (`elem` b) a && all (`elem` a) b
+
+    -- The row numbers are the ones the AUTHOR wrote on the markdown path
+    -- (gaps and repeats survive) and a 1-based index on the XML path — the
+    -- existing documented divergence, matched here rather than replaced. A
+    -- blank rule number has no author number to print, so the position is
+    -- named as a position and says so.
+    rowLabel (i, r) = case row_number r of
+      Just n  -> "row " ++ show n
+      Nothing -> "the unnumbered row at position " ++ show i
+
+    dupMsg first dup = concat
+      [ rowLabel first, " and ", rowLabel dup
+      , " have the same input cells (", guardOf (snd dup), "), so "
+      , rowLabel dup, " can never match: a table with hit policy Unique must not"
+      , " contain overlapping rules (DMN 1.3 §8.2.10). Delete one of the two"
+      , " rows, or change an input cell of ", rowLabel dup, " so that the two"
+      , " rules select different inputs. dmnmd compares the values the cells"
+      , " denote, not the text: two cells spelled differently for the same value"
+      , " (1.1 and 1.10, say) are the same guard." ]
+
+    guardOf r = intercalate "; "
+      [ varname ch ++ " = " ++ intercalate ", " (showDomainMember <$> cells)
+      | (ch, cells) <- zip ins (row_inputs r) ]
 
 -- | D-2. A column dmnmd could not type, refused instead of guessed.
 --
