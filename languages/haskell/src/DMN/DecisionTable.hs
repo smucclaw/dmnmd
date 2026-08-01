@@ -6,7 +6,7 @@ module DMN.DecisionTable where
 
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseCell ( parseNumberCell, thousandsGrouped )
+import DMN.ParseCell ( parseNumberCell, thousandsGrouped, namedRefusal )
 import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find, isInfixOf)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
@@ -599,11 +599,11 @@ inferenceErrors dt =
         [ columnRow (varname ch) (firstRowOf s) ++ concat
           [ "the cell reads ", show s
           , " — a leading zero has no numeric meaning, so this is either the"
-          , " number ", show (dropWhile (== '0') s), " written oddly or an"
-          , " identifier that happens to be digits, and dmnmd will not choose."
+          , " number ", unpadded s, " written oddly or an identifier that happens"
+          , " to be digits, and dmnmd will not choose."
           , " Declare the column: ", show (varname ch ++ " : String"), " keeps "
           , show s, " exactly as written; ", show (varname ch ++ " : Number")
-          , " reads it as ", show (dropWhile (== '0') s), "." ]
+          , " reads it as ", unpadded s, "." ]
         | s <- ss ]
       where
         witness ty = case [ (rn, showDomainMember c)
@@ -611,6 +611,13 @@ inferenceErrors dt =
           ((rn, txt):_) -> maybe "" (\n -> "row " ++ show n ++ " ") rn
                            ++ show txt ++ " reads as " ++ showType ty
           []            -> showType ty  -- unreachable: ty came from these cells
+        -- The value the padded literal denotes, spelled the way FEEL would.
+        -- "000" strips to nothing, and the message has to say 0.
+        unpadded s = case span (`elem` "+-") s of
+          (sgn, rest) -> case dropWhile (== '0') rest of
+            ""          -> sgn ++ "0"
+            r@('.':_)   -> sgn ++ "0" ++ r
+            r           -> sgn ++ r
         firstRowOf s = case [ rn | (rn, cs) <- cells
                                  , c <- cs, inferEvidence c == EAmbiguous s ] of
           (rn:_) -> rn
@@ -1179,6 +1186,11 @@ inferEvidence (FNullary (VS arg))
   -- the quotes are the only thing distinguishing FEEL's "2020" from 2020.
   | length arg >= 2 && head arg == '\"' && last arg == '\"' = EType DMN_String
   | (toLower <$> arg) `elem` boolWords = EType DMN_Boolean
+  -- A construct only a Number column could hold, which ParseCell refuses BY
+  -- NAME. It is a Left, but "not a number" is the wrong reading of it — see
+  -- 'DMN.ParseCell.namedRefusal', which exists because leaving this out made
+  -- symptom/num-negation-not-implemented silently pass at exit 0.
+  | namedRefusal arg = EType DMN_Number
   | otherwise = case parseNumberCell arg of
       Left _                 -> EType DMN_String
       Right (FFunction _)    -> EWeakNumber

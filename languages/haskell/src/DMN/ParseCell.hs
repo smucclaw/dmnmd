@@ -31,6 +31,7 @@ module DMN.ParseCell
   ( parseNumberCell
   , numericLiteral
   , thousandsGrouped
+  , namedRefusal
   ) where
 
 import           Data.Char            (isAlpha)
@@ -350,6 +351,22 @@ notATestMsg cell = concat
   , " declaration dmnmd infers Number from a column whose cells all read as one"
   , " of the forms above."
   ]
+
+-- | Is this cell a construct only a @Number@ column could hold, which dmnmd
+-- names and refuses rather than parses?
+--
+-- Type inference (D-2) asks 'parseNumberCell' whether a cell is numeric
+-- evidence, and a @Left@ from there means \"not a number\" — except for the two
+-- NAMED refusals, where it means \"unmistakably a numeric construct that dmnmd
+-- does not implement\". Without this distinction @not([1..5])@ stops being
+-- numeric evidence, its column types @String@, and the refusal recorded as
+-- @symptom\/num-negation-not-implemented@ silently becomes an equality test
+-- against the literal text @not([1..5])@ at exit 0 — the exact failure D-2
+-- exists to remove, reintroduced by D-2. Found by running the corpus.
+namedRefusal :: String -> Bool
+namedRefusal raw = case trim' raw of
+  cell -> maybe False (const True) (peelNot cell)
+       || maybe False (const True) (callName cell)
 
 -- | Is this raw cell text a number written with thousands separators?
 --
