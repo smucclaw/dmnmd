@@ -659,7 +659,7 @@ uniquenessErrors dt = case hitpolicy dt of
       , " (1.1 and 1.10, say) are the same guard." ]
 
     guardOf r = intercalate "; "
-      [ varname ch ++ " = " ++ intercalate ", " (showDomainMember <$> cells)
+      [ varname ch ++ ": " ++ intercalate ", " (showDomainMember <$> cells)
       | (ch, cells) <- zip ins (row_inputs r) ]
 
 -- | D-2. A column dmnmd could not type, refused instead of guessed.

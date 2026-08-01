@@ -1,0 +1,3 @@
+# copied from languages/haskell/test/dmn13/bad-duplicate-unique-rules.dmn — see
+# that directory's README. Kept as a copy rather than a WORKDIR, per the corpus
+# README.
