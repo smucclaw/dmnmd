@@ -822,3 +822,91 @@ listSpec = do
       splitArgs "[1,2,3], x" `shouldBe` ["[1,2,3]", " x"]
     it "still splits ordinary scalar arguments" $
       splitArgs "a, b" `shouldBe` ["a", " b"]
+
+  -- D-13. Hand-built tables rather than parsed source, because a refusal on the
+  -- markdown path goes through 'error' inside 'mkDTable' and cannot be observed
+  -- as a value. What is under test is the predicate, so the input is the IR.
+  describe "DMN.DecisionTable.uniquenessErrors — a U table's rules must be disjoint" $ do
+    let inCol n  = DTCH DTCH_In  n (Just DMN_String) Nothing
+        outCol n = DTCH DTCH_Out n (Just DMN_String) Nothing
+        row n ins = DTrow (Just n) ins [[FNullary (VS "x")]] []
+        tbl hp chs rows = DTable "T" hp chs rows
+        lit s = [FNullary (VS s)]
+        num d = [FNullary (VN d)]
+
+    it "refuses two rows whose single input cell is the same" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [row 1 [lit "Fall"], row 2 [lit "Fall"]])
+        `shouldSatisfy` ((== 1) . length)
+
+    it "names both rows the way the author numbered them" $
+      head (uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                              [row 7 [lit "Fall"], row 9 [lit "Fall"]]))
+        `shouldSatisfy` \m -> all (`T.isInfixOf` T.pack m) ["row 7", "row 9"]
+
+    it "accepts two rows that differ in their only input cell" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [row 1 [lit "Fall"], row 2 [lit "Winter"]])
+        `shouldBe` []
+
+    it "accepts rows that agree in one input column but differ in another" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", inCol "Guests", outCol "Dish"]
+                        [row 1 [lit "Fall", lit "few"], row 2 [lit "Fall", lit "many"]])
+        `shouldBe` []
+
+    -- The recorded symptom: Scientific's Eq compares on value, so the parser
+    -- has already built the same FEELexp for both cells.
+    it "refuses 1.1 against 1.10, which denote the same number" $
+      uniquenessErrors (tbl HP_Unique [inCol "Version", outCol "Status"]
+                        [row 1 [num 1.1], row 2 [num 1.10]])
+        `shouldSatisfy` ((== 1) . length)
+
+    -- A multi-value cell is an OR (see 'fEvals'), hence a set.
+    it "refuses a multi-value cell against the same members in another order" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [ row 1 [[FNullary (VS "Fall"), FNullary (VS "Winter")]]
+                        , row 2 [[FNullary (VS "Winter"), FNullary (VS "Fall")]] ])
+        `shouldSatisfy` ((== 1) . length)
+
+    it "accepts multi-value cells that do not hold the same members" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [ row 1 [[FNullary (VS "Fall"), FNullary (VS "Winter")]]
+                        , row 2 [[FNullary (VS "Winter"), FNullary (VS "Spring")]] ])
+        `shouldBe` []
+
+    it "refuses two all-wildcard rows, which are a catch-all written twice" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [row 1 [[FAnything]], row 2 [[FAnything]]])
+        `shouldSatisfy` ((== 1) . length)
+
+    it "leaves one catch-all row after a specific row alone" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [row 1 [lit "Fall"], row 2 [[FAnything]]])
+        `shouldBe` []
+
+    -- Overlap without identity is full overlap analysis, deferred by D-13.
+    it "does NOT refuse two rows that merely overlap" $
+      uniquenessErrors (tbl HP_Unique [inCol "Age", outCol "Band"]
+                        [ row 1 [[FSection Flte (VN 20)]]
+                        , row 2 [[FSection Fgte (VN 10)]] ])
+        `shouldBe` []
+
+    it "leaves hit policies other than Unique alone" $
+      concat [ uniquenessErrors (tbl hp [inCol "Season", outCol "Dish"]
+                                 [row 1 [lit "Fall"], row 2 [lit "Fall"]])
+             | hp <- [HP_Any, HP_Priority, HP_First, HP_OutputOrder, HP_RuleOrder
+                     , HP_Collect Collect_All, HP_Aggregate] ]
+        `shouldBe` []
+
+    -- Legal DMN: a decision table need not have an <input>. Every guard is then
+    -- the empty conjunction, vacuously equal to every other one.
+    it "declines a table with no input columns rather than refusing every row" $
+      uniquenessErrors (tbl HP_Unique [outCol "Dish"]
+                        [DTrow (Just 1) [] [[FNullary (VS "a")]] []
+                        ,DTrow (Just 2) [] [[FNullary (VS "b")]] []])
+        `shouldBe` []
+
+    it "reports n-1 collisions for n identical rows, each naming the first" $
+      uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
+                        [row 1 [lit "Fall"], row 2 [lit "Fall"], row 3 [lit "Fall"]])
+        `shouldSatisfy` ((== 2) . length)

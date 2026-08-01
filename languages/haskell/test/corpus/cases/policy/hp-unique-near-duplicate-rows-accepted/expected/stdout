@@ -1,0 +1,18 @@
+export function NearMiss ( Version : number, Tier : string, Season : string ) {
+  if (Version === 1.1 && Tier === "basic" && (Season === "Fall" || Season === "Winter")) { // 1
+    return {"Status":"ended"};
+  }
+  else if (Version === 1.2 && Tier === "basic" && (Season === "Fall" || Season === "Winter")) { // 2
+    return {"Status":"active"};
+  }
+  else if (Version === 1.2 && Tier === "premium" && (Season === "Fall" || Season === "Winter")) { // 3
+    return {"Status":"extended"};
+  }
+  else if (Version === 1.2 && Tier === "premium" && (Season === "Spring" || Season === "Winter")) { // 4
+    return {"Status":"seasonal"};
+  }
+  else if ("default") { // 5
+    return {"Status":"unknown"};
+  }
+}
+

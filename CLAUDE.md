@@ -387,6 +387,7 @@ faithfully is refused, and then nothing at all is emitted for any table in the f
 | a document mixing two releases' namespaces | 1 |
 | a table refused by the converter | 1 |
 | a table whose cell violates its own declared domain — either reader | 1 |
+| a `U` table with two rows whose guards are identical — either reader (D-13) | 1 |
 | markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
 | an output format the binary cannot write (`--to=md`) | 1, refused before anything is read |
 | `--to=xml` over an input with no tables | 0, and an empty `<definitions/>` is written |
