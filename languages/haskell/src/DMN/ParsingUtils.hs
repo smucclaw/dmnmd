@@ -26,6 +26,16 @@ import GHC.Stack (HasCallStack)
 type Parser = Parsec Void Text
 
 
+-- | Literal set membership. __It does not expand ranges.__ @inClass "A-Z" 'B'@
+-- is 'False', and @inClass "A-Z" '-'@ is 'True', because the hyphen is itself
+-- a member of the string.
+--
+-- Every remaining call site passes an ENUMERATED class (@"UAPFOR"@,
+-- @"#\<\>+A"@) and is correct. The one consumer that passed range notation was
+-- @DMN.SFeelGrammar@, where it silently invalidated every character class in
+-- the module — @nameStartChar@ admitted four of the 52 ASCII letters, plus the
+-- hyphen — and no test noticed. @DECISIONS.md@ D-14 deleted that module. If you
+-- need ranges, write the predicate; do not teach this function to parse.
 inClass :: [Char] -> Char -> Bool
 inClass cs = (`elem` cs)
 

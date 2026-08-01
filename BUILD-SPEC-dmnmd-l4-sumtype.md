@@ -397,6 +397,10 @@ what `<inputValues>` has imposed since E4 — both are `tUnaryTests`.
 > no quantifier, and `SFeelGrammar.hs` is not wired into the pipeline at all. What it needed was a
 > decision about **meaning**, and then plumbing.
 >
+> (`SFeelGrammar.hs` no longer exists — `DECISIONS.md` D-14 deleted it, for exactly the reason
+> this sentence gives plus the measurement that its parsers did not implement the EBNF its
+> comments quoted. The sentence's *argument* is unaffected: S-FEEL still has no list type.)
+>
 > **The meaning: a plain cell in a collection column is MEMBERSHIP, and every other shape is
 > refused.** Not an existential lift, and not an explicit `some`/`every` keyword. Both were
 > designed in full and both were rejected:

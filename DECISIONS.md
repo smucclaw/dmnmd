@@ -646,7 +646,7 @@ transpilers need, since they do not implement hit policies at all.
 backend. That is a silent wrong answer, which is exactly the class D-2 exists to remove — so this
 is a debt with a name, not an oversight.
 
-### D-14 — delete `DMN.SFeelGrammar`; `DMN.ParseCell` is the grammar. **RULED: delete.**
+### D-14 — delete `DMN.SFeelGrammar`; `DMN.ParseCell` is the grammar. **RULED: delete. LANDED.**
 
 Supersedes D-10. The choice was adopt / harvest / delete, argued from a measured divergence list
 rather than from D-10's authority.
@@ -683,9 +683,10 @@ So: nothing in `DMN.SFeelGrammar` is simultaneously reachable, correct, and abse
 
 **The price, and how it is paid.** `test/SFeelGrammar.hs` was the only place in the repo naming two
 real gaps in the live path, neither of which any corpus case or round-trip fixture covered. Deleting
-it silently would delete the evidence they exist. Both are therefore to be **rehomed as `symptom/`
+it silently would delete the evidence they exist. Both are therefore **rehomed as `symptom/`
 recordings against the live binary**, which is strictly better than an hspec assertion about a
-module nothing imports. Measured through the built binary at `603676f`, before any change:
+module nothing imports. Measured through the built binary at `603676f` and recorded *before* the
+deletion, so the evidence never lapsed:
 
 - `symptom/md-nbsp-refused` — `1<NBSP>+<NBSP>2` is refused in an output cell and `<<NBSP>5` in an
   input cell, both with a loud located diagnostic that renders the codepoint as `\160`. Honest, but
@@ -698,6 +699,22 @@ module nothing imports. Measured through the built binary at `603676f`, before a
 The fourth thing `test/SFeelGrammar.hs` asserted — `.5`, and `1+2` as arithmetic — is already live
 and already pinned, by `policy/num-leading-dot-accepted` and the arithmetic policy cases. Nothing is
 lost there.
+
+**Landed, and one thing the entry did not anticipate.** `ParsingUtils.inClass` — the
+`(\`elem\` cs)` that made every character class in the deleted module wrong — turns out to have had
+exactly one consumer that passed range notation, and it was `DMN.SFeelGrammar`. With the module
+gone, the two remaining call sites both pass enumerated classes (`"UAPFOR"`, `"#<>+A"`) and are
+correct, so deletion did not merely remove a broken user of the trap: **it emptied the trap.** The
+function now carries a haddock saying so, because the next person to write `inClass "0-9"` will
+otherwise re-set it in silence.
+
+**Measured.** 449 lines removed (396 module, 53 test), plus one `exposed-modules` line, one
+`other-modules` line, and two lines in `test/Spec.hs`. `cabal test` 244 → **228** examples, all
+passing: the 16 lost are `test/SFeelGrammar.hs`'s own (11 escape, 4 arithmetic, 1 numeric), 3 of
+which are rehomed above and 2 of which were already pinned. `make corpus` 213/213 unchanged, 0
+policy regressions. `make roundtrip` 127 pass / 0 FAIL / 10 xfail. Not one corpus recording, golden
+file, or round-trip fixture moved — which is what "imported by nothing but its own test" predicts,
+and is the only part of D-10 that survived measurement.
 
 **What this does not fix, and must not be lost with the module.** `ParseFEEL.parseFNumFunction` is
 flat: `Age * 2 + 1` is refused in **both** positions, and only `(Age * 2) + 1` works. In an output

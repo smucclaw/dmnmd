@@ -3,9 +3,13 @@
 -- | The cell language of a @Number@ column, written down once, as a grammar.
 --
 -- Rule numbers throughout are DMN 1.3 __§9.2__ (the S-FEEL subset, rules 1-38)
--- — the numbering "DMN.SFeelGrammar" transcribes and "DMN.DecisionTable"
--- already cites. NOT §10.3.1.2's full-FEEL numbering, which is a different
--- sequence.
+-- — the numbering "DMN.DecisionTable" already cites. NOT §10.3.1.2's full-FEEL
+-- numbering, which is a different sequence.
+--
+-- This module is the only cell grammar in the tree. There was a second,
+-- @DMN.SFeelGrammar@, which transcribed the same rule numbers and was imported
+-- by nothing but its own test; @DECISIONS.md@ D-14 deleted it after measuring
+-- that its parsers did not implement the EBNF its comments quoted.
 --
 -- Scope, deliberately narrow. This module replaces the @Just DMN_Number@ arm of
 -- 'DMN.DecisionTable.mkFEither' and nothing else. The @String@, @Boolean@ and
@@ -164,9 +168,10 @@ intervalEnd = choice
 
 -- ** Rule 5: comparisons
 
--- | Longest match first. 'DMN.SFeelGrammar' has these the other way round
--- (@choice [Lt \<$ \"\<\", Le \<$ \"\<=\", …]@), which is why @\<= 8@ parses
--- there as @\<@ and then dies on the @=@.
+-- | Longest match first. The deleted @DMN.SFeelGrammar@ had these the other way
+-- round (@choice [Lt \<$ \"\<\", Le \<$ \"\<=\", …]@), which is why @\<= 8@ parsed
+-- there as @\<@ and then died on the @=@ — a defect this comment recorded three
+-- days before D-10 called that module faithful, and which D-14 cites.
 --
 -- @=@ is not in rule 5; it is a pre-existing dmnmd spelling for equality, kept
 -- because it already shipped and @struct-outputorder-enum-honoured@ pins the
