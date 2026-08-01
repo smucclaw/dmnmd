@@ -370,7 +370,16 @@ negationOfArithMsg cell inner = concat
   , " — ", show inner, " is arithmetic (DMN 1.3 §9.2 rule 3, a simple"
   , " expression), and negation applies to a unary test (rule 12.b), not to a"
   , " value. Arithmetic is legal only in an OUTPUT cell, where a negation is not."
-  , " Compare against the arithmetic instead, as in not(< ", inner, ")."
+    -- Recommend a literal, NOT `not(< <inner>)`. That was the advice here until
+    -- a verify lens ran it: dmnmd refuses `not(< Age * 2)` AND the unnegated
+    -- `< Age * 2`, because a comparison's right-hand side must be a literal, so
+    -- the suggestion was impossible in both forms. A refusal that names an
+    -- impossible repair is worse than one that names none — the author trusts it
+    -- and loses the time twice. Same family as the message that once told every
+    -- author to declare a "Season" column they did not have.
+  , " Negation needs a unary test whose comparison is against a literal, as in"
+  , " not(< 10) or not([1..5]); dmnmd does not accept a comparison against"
+  , " arithmetic in an input cell, negated or not."
   ]
 
 invocationMsg :: String -> String -> String

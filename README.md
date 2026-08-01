@@ -541,12 +541,10 @@ Coming soon: JSON in, JSON out.
 
 An input cell may be negated, which is DMN 1.3 §9.2 rule 12.b:
 
-```
 | U | Age : Number | Band (out) |
 |---|--------------|------------|
 | 1 | not([1..5])  | outside    |
 | 2 | [1..5]       | inside     |
-```
 
 `not(...)` wraps a single unary test — a value, a comparison, or an interval — so `not([1..5])`
 and `not(> 3)` are both fine. Three limits, each for a stated reason:
