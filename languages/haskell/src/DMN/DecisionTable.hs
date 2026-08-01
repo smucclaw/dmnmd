@@ -40,11 +40,23 @@ evalTable table given_input = do
                    0 -> Left "no rows returned -- a unique table should have one result!"
                    1 -> Right (row_outputs <$> outputs)
                    _ -> Left $ "multiple rows returned -- this was supposed to be a unique table!\n" ++ show outputs
-    HP_Any    -> case length outputs of
-                   0 -> Left "no rows returned"
-                   _ -> if not (null (nub (row_outputs <$> outputs)))
-                        then Left ("multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!\n" ++ show outputs)
-                        else Right (row_outputs <$> outputs)
+    -- ANY is single-hit. DMN allows several rows to match, but requires them to
+    -- agree; if they do, the table has exactly ONE answer, and if they do not it
+    -- is ill-defined. So the arm dispatches on the nub, which says both things at
+    -- once and needs no partial function to read the survivor out.
+    --
+    -- Both halves of this were wrong and had to be fixed together (D-5). The
+    -- guard was @not (null (nub …))@, which is never false once the empty case
+    -- has been split off, so every A table took the conflict branch. And the
+    -- success branch was @row_outputs <$> outputs@ — one entry per matched row,
+    -- which is the LIST-VALUED shape HP_OutputOrder, HP_RuleOrder and
+    -- HP_Collect_All use — so repairing only the guard would have printed the
+    -- answer once per matching row, app/Main.hs emitting one line per element.
+    -- Pinned from both sides by @eval-hp-any-two-rows-{agree,disagree}@.
+    HP_Any    -> case nub (row_outputs <$> outputs) of
+                   []       -> Left "no rows returned"
+                   [agreed] -> Right [agreed]
+                   _        -> Left ("multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!\n" ++ show outputs)
     HP_Priority    -> Right [row_outputs $ head0 table (outputOrder (header table) outputs)]
     HP_First       -> Right [row_outputs $ head0 table outputs]
     HP_OutputOrder -> Right (row_outputs <$> outputOrder (header table) outputs) -- order according to enums in subheaders.

@@ -1,7 +1,7 @@
 dmnmd: error: table "ProductCode": column "Code": row 1: the cell reads "007" — a leading zero has no numeric meaning, so this is either the number 7 written oddly or an identifier that happens to be digits, and dmnmd will not choose. Declare the column: "Code : String" keeps "007" exactly as written; "Code : Number" reads it as 7.
 error: table "ProductCode": column "Code": row 2: the cell reads "042" — a leading zero has no numeric meaning, so this is either the number 42 written oddly or an identifier that happens to be digits, and dmnmd will not choose. Declare the column: "Code : String" keeps "042" exactly as written; "Code : Number" reads it as 42.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
 
 

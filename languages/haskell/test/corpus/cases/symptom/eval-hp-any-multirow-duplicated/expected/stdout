@@ -1,4 +1,0 @@
-AnyPolicy> problem running 5 against table AnyPolicy: multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!
-[DTrow {row_number = Just 1, row_inputs = [[FSection Flt (VN 30.0)]], row_outputs = [[FNullary (VS "ok")]], row_comments = []},DTrow {row_number = Just 2, row_inputs = [[FSection Flt (VN 40.0)]], row_outputs = [[FNullary (VS "ok")]], row_comments = []}]
-
-AnyPolicy>

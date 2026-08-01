@@ -1,6 +1,6 @@
 dmnmd: error: table "FeeSchedule": column "Units": row 1: the cell reads "floor(Amount / 5)" — dmnmd does not implement the FEEL function call floor(). Invocation is outside S-FEEL entirely: DMN 1.3 §9.2's rules 1-38 contain no invocation production (the only parenthesised forms in the whole grammar are not(...) and the date/time/duration literals of rule 34), and at conformance level 3 it takes the table out of the DMN-analysable fragment. Compute floor(...) in a preceding decision and pass it in as a column.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:231:34 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:231:34 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:243:34 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:243:34 in dmnmd:DMN.DecisionTable
 
 

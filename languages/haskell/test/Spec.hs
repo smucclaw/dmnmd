@@ -309,7 +309,29 @@ spec3 = do
     it "should run standard dmn example 1c: Never -> Left \"no match\""
       $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Never"])) `shouldBe` Left "no rows returned -- a unique table should have one result!"
 
- 
+  -- Hit policy A (D-5). Before this block the suite's ENTIRE coverage of HP_Any
+  -- was one `parseHitPolicy` assertion, so `cabal test` stayed green with the arm
+  -- returning Left for every input, and stayed green again with the guard fixed
+  -- but the success branch still list-valued. Both halves are asserted here.
+  describe "evalTable hit policy A" $ do
+    let anyAgree    = throwOnLeft (parseOnly (parseTable "AnyAgree")    dmnAnyAgree)
+        anyDisagree = throwOnLeft (parseOnly (parseTable "AnyDisagree") dmnAnyDisagree)
+    it "two rows match and agree: returns the shared output ONCE, not once per matching row"
+      $ evalTable anyAgree [FNullary (VN 5)]  `shouldBe` Right [[[FNullary (VS "ok")]]]
+    it "one row matches: returns its output"
+      $ evalTable anyAgree [FNullary (VN 25)] `shouldBe` Right [[[FNullary (VS "ok")]]]
+    it "no row matches: no rows returned"
+      $ evalTable anyAgree [FNullary (VN 99)] `shouldBe` Left "no rows returned"
+    it "two rows match and disagree: refused, because ANY permits multiple matches but not multiple answers"
+      -- only the first line: the rest is a `show` of the matched rows, which is a
+      -- debugging dump rather than a promise.
+      $ (case evalTable anyDisagree [FNullary (VN 5)] of
+           Left e  -> head (lines e)
+           Right r -> "unexpectedly returned " ++ show r)
+        `shouldBe` "multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!"
+    it "one row matches in a disagreeing table: still answers, because only the matched rows must agree"
+      $ evalTable anyDisagree [FNullary (VN 25)] `shouldBe` Right [[[FNullary (VS "deny")]]]
+
   describe "evalTable dmn2" $ do
     let evaled2 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn2))
     it "should handle multiple inputs: Fall, 5"   $ evalTable evaled2 [FNullary (VS "Fall"),   FNullary (VN 5)] `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
@@ -585,6 +607,28 @@ dmn1c = T.pack $ dropWhile (=='\n') [r|
 | 1 | Fall                 | Spareribs                    |               |
 | 2 | Winter               | Roastbeef, Strawberries      |               |
 | 3 | Spring, Summer       | Stew                         | Multivalue    |
+|]
+
+-- | Hit policy A. Rows 1 and 2 overlap deliberately: Age 5 matches both and they
+-- agree, which is the situation ANY exists to permit. Age 25 matches row 2 alone.
+-- Nothing matches Age 99.
+dmnAnyAgree :: Text
+dmnAnyAgree = T.pack $ dropWhile (=='\n') [r|
+| A | Age : Number         | Verdict : String             |
+|---+----------------------+------------------------------|
+| 1 | < 10                 | ok                           |
+| 2 | < 30                 | ok                           |
+|]
+
+-- | The same table with row 2 disagreeing, which makes it ill-defined under DMN.
+-- Spelled @deny@ rather than @no@: a @no@ cell infers Boolean and D-2 anchored
+-- inference then refuses the column before 'evalTable' is ever reached.
+dmnAnyDisagree :: Text
+dmnAnyDisagree = T.pack $ dropWhile (=='\n') [r|
+| A | Age : Number         | Verdict : String             |
+|---+----------------------+------------------------------|
+| 1 | < 10                 | ok                           |
+| 2 | < 30                 | deny                         |
 |]
 
 dmn2 :: Text

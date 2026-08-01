@@ -1,6 +1,6 @@
 dmnmd: error: table "Scores": column "tags": row 1: column "tags" is a collection ([Number]) and the cell reads "> 3". A test against a collection is ambiguous — "some element > 3" and "every element > 3" are different rules — and DMN gives it no meaning, so a conformant engine yields null and the rule never fires. dmnmd will not guess. A collection column's cell may be a plain value, meaning the collection CONTAINS it, a comma-separated list of them, meaning "any of these", or "-". Aggregate the collection to a scalar before the table, or split the column.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:560:15 in dmnmd:DMN.DecisionTable
 
 
