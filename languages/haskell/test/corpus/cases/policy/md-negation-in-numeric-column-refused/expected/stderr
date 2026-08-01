@@ -1,6 +1,0 @@
-dmnmd: error: table "NotRange": column "Age": row 1: the cell reads "not([1..5])" — dmnmd does not implement FEEL negation (DMN 1.3 §9.2 rule 12.b). It used to be ACCEPTED and silently parsed as the un-negated test "[1..5]", the exact complement of what was written. State the complement as explicit rows instead, or invert the output column.
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:288:32 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:288:32 in dmnmd:DMN.DecisionTable
-
-

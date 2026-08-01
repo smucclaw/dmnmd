@@ -1,0 +1,8 @@
+GIVEN Age  IS A NUMBER
+      Tier IS A STRING
+GIVETH A STRING
+Two Age Tier MEANS
+  BRANCH
+    IF (NOT (Age > 3))   AND Tier EQUALS "Gold" THEN "hit"
+    OTHERWISE "miss"
+

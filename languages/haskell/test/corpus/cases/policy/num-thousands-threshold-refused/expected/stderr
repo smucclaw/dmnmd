@@ -1,6 +1,6 @@
 dmnmd: error: table "CommaThreshold": column "Amount": row 1: the cell reads ">= 1,000" — FEEL has no thousands separator (DMN 1.3 §9.2 rule 31 admits none, and rules 32-33 are digit = [0-9] and digits = digit , {digit}), so a comma in a cell is rule 11's OR. Written out, this cell means its comma-separated parts as ALTERNATIVES, which is almost certainly not what was meant. Drop the separator (1000), or, if you really do mean two alternatives, put a space after the comma (1, 000).
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:231:34 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:231:34 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:243:34 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:243:34 in dmnmd:DMN.DecisionTable
 
 

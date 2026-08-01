@@ -77,6 +77,26 @@ hasDiag :: Severity -> String -> [Diagnostic] -> Bool
 hasDiag sev needle =
   any (\d -> diagSeverity d == sev && T.pack needle `T.isInfixOf` T.pack (diagMessage d))
 
+-- | @warns@ holds nothing but dropped-DRG-edge warnings, and exactly @n@ of them.
+--
+-- These fixtures each wire their @\<decision\>@ to an @\<inputData\>@ with an
+-- @\<informationRequirement\>@, so since D-6 they legitimately emit one Warning
+-- apiece: dmnmd does not model the requirement graph and now says so instead of
+-- dropping the edge in silence.
+--
+-- Deliberately NOT written as "ignore any warnings". The property these
+-- assertions were protecting is that an accepting fixture produces no
+-- diagnostics OTHER than the ones it is about, and relaxing them to a wildcard
+-- would silently license a future warning about something genuinely wrong. So
+-- the DRG warnings are counted and everything else must still be absent.
+shouldBeOnlyDrgWarnings :: Int -> [Diagnostic] -> Expectation
+shouldBeOnlyDrgWarnings n warns = do
+  filter (not . isDrgWarning) warns `shouldBe` []
+  length (filter isDrgWarning warns) `shouldBe` n
+  where
+    isDrgWarning d = diagSeverity d == Warning
+                  && "<informationRequirement>" `T.isInfixOf` T.pack (diagMessage d)
+
 -- | The single decision table every accepting fixture is expected to yield.
 shouldBeAgeBand :: String -> [DT.DecisionTable] -> Expectation
 shouldBeAgeBand outName tables = case tables of
@@ -97,17 +117,17 @@ dmn13Spec = describe "DMN 1.3" $ do
   describe "accepts" $ do
     it "the known-good baseline" $ do
       (warns, tables) <- readDmn13 "baseline"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       shouldBeAgeBand "Band" tables
 
     it "<inputData> carrying <description> and <variable> (B1)" $ do
       (warns, tables) <- readDmn13 "inputdata-variable"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       shouldBeAgeBand "Band" tables
 
     it "<input>/<output> with no label= and <output> with no typeRef= (B2)" $ do
       (warns, tables) <- readDmn13 "output-without-label"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       -- with no label the output column falls back to its name= attribute,
       -- and with no typeRef its type is inferred from the cells
       case tables of
@@ -127,7 +147,7 @@ dmn13Spec = describe "DMN 1.3" $ do
 
     it "<outputValues> and <inputValues> (B3)" $ do
       (warns, tables) <- readDmn13 "output-values"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       shouldBeAgeBand "Band" tables
       -- the declared domain is not dropped: it lands in the column's enums,
       -- which is exactly what dmnmd's own subheader rows populate.
@@ -140,17 +160,17 @@ dmn13Spec = describe "DMN 1.3" $ do
 
     it "a file declaring only the DMN model namespace (B5)" $ do
       (warns, tables) <- readDmn13 "minimal-namespaces"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       shouldBeAgeBand "Band" tables
 
     it "extra namespace declarations and foreign-namespace attributes (B5)" $ do
       (warns, tables) <- readDmn13 "extra-namespace"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       shouldBeAgeBand "Band" tables
 
     it "typeRef=\"number\", the FEEL numeric type (B4)" $ do
       (warns, tables) <- readDmn13 "feel-number-type"
-      warns `shouldBe` []
+      shouldBeOnlyDrgWarnings 1 warns
       case tables of
         [t] -> do
           map vartype (header t) `shouldBe` [Just DMN_Number, Just DMN_Number]

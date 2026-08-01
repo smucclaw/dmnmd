@@ -95,6 +95,7 @@ data FEELexp = FSection FBinOp DMNVal  --    > 2               FSection Fgt (VN 
              | FAnything               --    -                 FAnything
              | FNullary DMNVal         --    plain string      FNullary (VS "plain string")
              | FFunction FNumFunction  --    FEEL expression   age * 2
+             | FNot FEELexp            --    not([1..5])       FNot (FInRange BClosed 1 5 BClosed)
              deriving (Show, Eq)
 type SymbolTable = Map.Map String FEELexp
 
