@@ -323,9 +323,17 @@ mkFEither Nothing  arg1 = -- trace ("mkF Nothing shouldn't happen -- type infere
 mkFEither (Just DMN_String)  arg1 = Right (FNullary (VS (trim arg1)))
 mkFEither (Just DMN_Boolean) arg1 = FNullary <$> mkVB arg1
   where
+    -- The false list used to read ["false","no","t","y","negative"] — a
+    -- copy-paste of the true list's short forms, so "t" and "y" were dead there
+    -- (the true guard catches them first) and "f" and "n" appeared in NEITHER
+    -- list. So `n` was accepted by inference as a boolean word and then failed to
+    -- build, at exit 1, on both the inferred and the declared path.
+    -- Recorded as infer-boolean-n-crash and infer-declared-boolean-n-crash.
+    -- This is not D-2: inference resolved a y/n column to Boolean, and it was
+    -- RIGHT to. The vocabulary just has to agree with itself.
     mkVB arg
       | (toLower <$> arg) `elem` ["true","yes","t","y","positive"] = Right (VB True)
-      | (toLower <$> arg) `elem` ["false","no","t","y","negative"] = Right (VB False)
+      | (toLower <$> arg) `elem` ["false","no","f","n","negative"] = Right (VB False)
       | otherwise = Left $  "unable to parse an alleged boolean: " ++ arg
 -- The nineteen lines this replaces were not a grammar but a chain of six
 -- mutually blind string tests over the same raw text, so the accepted language
@@ -1080,9 +1088,21 @@ reprocessRows tbl rn =
                -- DMN_String, but nothing re-ran the cell at that type.
                -- Idempotent for an explicitly-declared : String column, whose
                -- cells were already unquoted in pass 1.
-               if vartype ch /= Nothing && (length [ x | FNullary (VS x) <- cells] == length cells)
-               then -- Debug.Trace.trace ("reprocessing to " ++ show (vartype ch) ++ ": " ++ show cells) $
-                    [ mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x | FNullary (VS x) <- cells ]
+               --
+               -- Rewritten ELEMENT-WISE. It used to guard on EVERY cell of the
+               -- multi-value list still being an unconverted VS, and then rebuild
+               -- with a list COMPREHENSION over `FNullary (VS x) <- cells`, which
+               -- is a filter: without the guard the comprehension silently
+               -- DELETED the FAnything out of a `4, -` cell rather than leaving
+               -- it alone, so the guard was accidentally protecting against a
+               -- worse bug one line below it and the two had to change together.
+               -- With the guard, `4, -` in a Number column left the string "4"
+               -- inside it (symptom/infer-multivalue-dash-not-reprocessed), as
+               -- did the far likelier trailing-comma typo `4,`. Nothing to do
+               -- with D-2: inference typed that column correctly.
+               if vartype ch /= Nothing
+               then map (\case FNullary (VS x) -> mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x
+                               other           -> other) cells
                else cells)
                          
   
