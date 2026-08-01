@@ -3,12 +3,12 @@
   <itemDefinition name="dmnmd_list_of_string" isCollection="true">
     <typeRef>string</typeRef>
   </itemDefinition>
-  <inputData id="inputData_roles" name="roles">
-    <variable id="informationItem_roles" name="roles" typeRef="dmnmd_list_of_string"/>
+  <inputData id="inputData_1" name="roles">
+    <variable id="informationItem_1" name="roles" typeRef="dmnmd_list_of_string"/>
   </inputData>
   <decision id="decision_1" name="Access">
     <informationRequirement id="informationRequirement_1_1">
-      <requiredInput href="#inputData_roles"/>
+      <requiredInput href="#inputData_1"/>
     </informationRequirement>
     <decisionTable id="decisionTable_1">
       <input id="input_1_1" label="roles">

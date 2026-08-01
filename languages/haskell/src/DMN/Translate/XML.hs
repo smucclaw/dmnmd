@@ -54,8 +54,9 @@ module DMN.Translate.XML
   , cellText
   ) where
 
-import Data.Char (isAlphaNum, isDigit, toLower)
-import Data.List (intercalate, nub)
+import Data.Char (toLower)
+import Data.Function (on)
+import Data.List (intercalate, nub, nubBy)
 import Data.Maybe (mapMaybe)
 import Text.XML.HXT.Core
 import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
@@ -163,8 +164,8 @@ definitionsOf opts dts = X.Definitions
   { X.defLabel = X.dmnNamed' "definitions_dmnmd" (xmlDocName opts)
   , X.defsNamespace = X.Namespace (xmlTargetNS opts)
   , X.defItemDefs = collectionItemDefs dts
-  , X.defInputData = map inputDataOf (documentInputs dts)
-  , X.defsDescisions = zipWith decisionOf [1 ..] dts
+  , X.defInputData = zipWith inputDataOf [1 ..] inputVars
+  , X.defsDescisions = zipWith (decisionOf inputDataId) [1 ..] dts
   , X.defDrgElems = []
   , X.defDMNDI = Nothing
     -- ^ Diagram interchange is geometry dmnmd does not have. The reader models
@@ -173,13 +174,26 @@ definitionsOf opts dts = X.Definitions
     -- neither dmnmd nor anything else can read.
   }
   where
-    documentInputs = nub . concatMap tableInputVars
-    tableInputVars dt = [ (varname ch, vartype ch) | ch <- inHeaders dt ]
+    -- Every distinct input column name in the document, in first-seen order.
+    -- Distinct by NAME: the same column read by two tables is one input.
+    inputVars = nubBy ((==) `on` fst)
+      [ (varname ch, vartype ch) | dt <- dts, ch <- inHeaders dt ]
 
-    inputDataOf (nm, ty) = X.InputData
-      { X.inpLabel = X.dmnNamed' (idOf "inputData" [slug nm]) nm
+    -- __Positional, not name-derived, and that is a correctness fix rather than
+    -- a style choice.__ An @xsd:ID@ must be unique across the document, and
+    -- 'slug' is not injective — the markdown identifier grammar admits both a
+    -- space and an underscore, so columns @a b@ and @a_b@ both slugged to
+    -- @inputData_a_b@. That produced two elements with one id and an
+    -- @href@ pointing at both: an XSD-INVALID document, at exit 0, which is
+    -- precisely the failure mode this backend exists to avoid. Caught by
+    -- xmllint on a hand-built probe, not by any fixture.
+    inputDataId nm = idOf "inputData" [show (position nm)]
+    position nm = length (takeWhile ((/= nm) . fst) inputVars) + 1
+
+    inputDataOf i (nm, ty) = X.InputData
+      { X.inpLabel = X.dmnNamed' (idOf "inputData" [show (i :: Int)]) nm
       , X.inpVariable = Just X.InformationItem
-          { X.iiLabel = X.dmnNamed' (idOf "informationItem" [slug nm]) nm
+          { X.iiLabel = X.dmnNamed' (idOf "informationItem" [show i]) nm
           , X.iiTypeRef = X.TypeRef <$> typeRefOf ty
           }
       }
@@ -192,14 +206,14 @@ definitionsOf opts dts = X.Definitions
 -- ignores them (D-6), so a round trip cannot check them — that is not a reason
 -- to leave them out, because it is what makes the output usable in a real DMN
 -- tool.
-decisionOf :: Int -> DecisionTable -> X.Decision
-decisionOf t dt = X.Decision
+decisionOf :: (String -> String) -> Int -> DecisionTable -> X.Decision
+decisionOf inputDataId t dt = X.Decision
   { X.decLabel = X.dmnNamed' (idOf "decision" [show t]) (tableName dt)
   , X.decInfoReq =
       [ X.InformationRequirement
           { X.infrLabel = X.DmnCommon (Just (idOf "informationRequirement" [show t, show c])) Nothing
           , X.infrReq = X.RequiredInput
-          , X.infoHref = X.Href ("#" ++ idOf "inputData" [slug (varname ch)])
+          , X.infoHref = X.Href ("#" ++ inputDataId (varname ch))
           }
       | (c, ch) <- zip [1 :: Int ..] (inHeaders dt)
       ]
@@ -635,13 +649,3 @@ commentHeaders dt = [ ch | ch <- header dt, label ch == DTCH_Comment ]
 idOf :: String -> [String] -> String
 idOf kind parts = intercalate "_" (kind : parts)
 
--- | An arbitrary string as an NCName fragment. Anything outside
--- @[A-Za-z0-9_]@ becomes @_@, and a leading digit is pushed behind one, because
--- an NCName may not start with a digit.
-slug :: String -> String
-slug s = case map keep s of
-  [] -> "_"
-  cs@(c : _) | isDigit c -> '_' : cs
-             | otherwise -> cs
-  where keep c | isAlphaNum c = c
-               | otherwise = '_'

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <definitions id="definitions_dmnmd" name="dmnmd" namespace="https://github.com/smucclaw/dmnmd" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
-  <inputData id="inputData_Season" name="Season">
-    <variable id="informationItem_Season" name="Season" typeRef="string"/>
+  <inputData id="inputData_1" name="Season">
+    <variable id="informationItem_1" name="Season" typeRef="string"/>
   </inputData>
   <decision id="decision_1" name="Fallback">
     <informationRequirement id="informationRequirement_1_1">
-      <requiredInput href="#inputData_Season"/>
+      <requiredInput href="#inputData_1"/>
     </informationRequirement>
     <decisionTable id="decisionTable_1">
       <input id="input_1_1" label="Season">
