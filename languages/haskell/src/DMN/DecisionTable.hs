@@ -1213,7 +1213,27 @@ inferEvidence (FNullary (VS arg))
   | namedRefusal arg = EType DMN_Number
   | otherwise = case parseNumberCell arg of
       Left _                 -> EType DMN_String
-      Right (FFunction _)    -> EWeakNumber
+      -- Arithmetic is weak evidence, and it is evidence of a NUMBER only if a
+      -- digit appears in it. §9.2 rule 27 puts @. / - ’ + *@ inside legal FEEL
+      -- names, so @parseNumberCell@ reads @Non-Participating@ and @n/a@ as
+      -- subtraction and division over bare names — arithmetic containing no
+      -- number at all. Without this test a column of hyphenated words types
+      -- Number, and the two ways that goes wrong are both bad and only one is
+      -- loud: an INPUT column refuses a table that was correct before, and an
+      -- OUTPUT column emits @return {"Status":(Non - Participating)}@ at exit 0
+      -- — TypeScript naming two variables that do not exist, where the string
+      -- literal used to be. That is the silent-wrong-answer class D-2 exists to
+      -- remove, reintroduced by D-2, and it is pinned from both sides by
+      -- policy/infer-hyphenated-words-stay-string and
+      -- policy/infer-hyphenated-output-stays-string.
+      --
+      -- The digit test is what makes the last-resort tier safe rather than
+      -- merely narrow. @40 - 50@ still speaks (it is the only informative cell
+      -- in policy/num-dash-range-refused, which is why the tier cannot simply be
+      -- discarded); @Full-Time@ no longer does.
+      Right (FFunction _)
+        | any isDigit arg    -> EWeakNumber
+        | otherwise          -> EType DMN_String
       Right (FNullary (VN _))
         | redundantLeadingZero arg -> EAmbiguous arg
       Right _                -> EType DMN_Number
@@ -1235,7 +1255,7 @@ inferEvidence (FNullary (VS arg))
 -- @10.50@ and @2.0@ with it, and refusing a money column for writing cents is a
 -- worse outcome than the defect it fixes. The redundant TRAILING zero is
 -- ordinary decimal notation; the redundant LEADING zero is not notation at all.
--- The version-collapse symptom therefore stays open; see D-12.
+-- The version-collapse symptom therefore stays open; see D-13.
 redundantLeadingZero :: String -> Bool
 redundantLeadingZero s = case span isDigit (dropWhile (`elem` "+-") (trim s)) of
   (d:_:_, _) -> d == '0'

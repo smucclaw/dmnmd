@@ -1,0 +1,9 @@
+export function Roster ( Employment : string ) {
+  if (Employment === "Full-Time") { // 1
+    return {"Rate":100.0};
+  }
+  else if (Employment === "Part-Time") { // 2
+    return {"Rate":50.0};
+  }
+}
+

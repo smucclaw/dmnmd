@@ -157,7 +157,7 @@ numbers the source document does not contain.
 >
 > **What this did NOT reach**, all three still recorded as symptoms with WHYs saying so:
 > `infer-version-float-collapse` (both cells are genuine numbers, so there is no disagreement to
-> refuse — D-12); `infer-explicit-type-contradiction-silent` (the declaration must win, so the
+> refuse — D-13); `infer-explicit-type-contradiction-silent` (the declaration must win, so the
 > remedy is a *warning*, and the markdown path has no warning channel — D-7); and the two `n`
 > crashes plus the multi-value re-parse bug, which are not inference at all and were fixed
 > alongside in their own commit.
