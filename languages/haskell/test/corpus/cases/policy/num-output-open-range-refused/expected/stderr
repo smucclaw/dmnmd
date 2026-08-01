@@ -1,6 +1,6 @@
 dmnmd: error: table "OpenOut": column "Fee": row 1: the output cell reads "[1..5)". dmnmd can emit a range as an output VALUE only when both endpoints are included: an excluded endpoint has no value to name. Write a closed range [a..b], or move the test to an input column.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
 
 

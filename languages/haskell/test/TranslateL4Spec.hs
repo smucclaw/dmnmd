@@ -83,6 +83,19 @@ noCatchTable = T.pack $ dropWhile (== '\n') [r|
 | 2 | < 0        | negative             |
 |]
 
+-- | A negated input cell in a row that has a SECOND input column (D-9).
+--
+-- The second column is the whole point: with one input column the missing
+-- parentheses are invisible, because there is no following conjunct for @NOT@
+-- to swallow.
+negTwoColTable :: Text
+negTwoColTable = T.pack $ dropWhile (== '\n') [r|
+| U | Age : Number | Tier : String | Result : String (out) |
+|---+--------------+---------------+-----------------------|
+| 1 | not(> 3)     | Gold          | hit                   |
+| 2 | -            | -             | miss                  |
+|]
+
 -- | Single-output NUMBER table whose trailing catch-all row has a wildcard @-@
 -- OUTPUT cell (bug 2). The OTHERWISE must be a typed default (@0@), not @""@.
 outWildTable :: Text
@@ -361,6 +374,26 @@ l4Spec = do
       out `shouldNotContain` "OTHERWISE \"negative\""
     it "falls back to a typed default sentinel when there is no catch-all row" $
       out `shouldContain` "OTHERWISE \"\""
+
+  -- This block is deliberately TEXTUAL rather than semantic. The semantic gate
+  -- for L4 is the golden round-trip, which shells out to `l4` and goes PENDING
+  -- when the binary is absent — and `l4` is not a build dependency and is not on
+  -- the CI runner. So on CI the semantic gate says nothing, and a string
+  -- assertion is what actually stands between a precedence regression and green.
+  --
+  -- `l4 check` cannot catch this either: both the right and the wrong form
+  -- typecheck. Only `l4 run` distinguishes them, which is exactly why the bug
+  -- shipped.
+  describe "DMN.Translate.L4.toL4 — negation parenthesising (D-9)" $ do
+    let out = toL4 defaultL4Opts (parse "NegTwoCol" negTwoColTable)
+    it "wraps the whole NOT, because L4's NOT binds looser than AND" $
+      -- Measured: `NOT (a) AND b` is TRUE at a=FALSE b=FALSE (it parses as
+      -- `NOT (a AND b)`); `(NOT (a)) AND b` is FALSE. Without the outer pair the
+      -- negation swallows `AND Tier EQUALS "Gold"` and the row matches inputs it
+      -- must not — silently, at exit 0.
+      out `shouldContain` "(NOT (Age > 3))"
+    it "does not emit a bare NOT that would absorb the following conjunct" $
+      out `shouldNotContain` "IF NOT ("
 
   describe "DMN.Translate.L4.toL4 — wildcard output cell typing (bug 2)" $ do
     let out = toL4 defaultL4Opts (parse "OutWild" outWildTable)

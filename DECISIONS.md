@@ -312,7 +312,32 @@ line becomes a version list rather than a single URI.
 `XmlToDmnmd.hs:134` — and is not a cabal `extra-source-file`. There is no runtime XSD validation to
 extend.
 
-### D-5 — `HP_Any` is two bugs, and they are fixed together or not at all. **RULED: adopt.**
+### D-5 — `HP_Any` is two bugs, and they are fixed together or not at all. **RULED: adopt. LANDED.**
+
+> **Landed, with three notes.**
+>
+> 1. **The two-row recording this entry asks for already existed.** It says "Record a two-row case
+>    first (task #22)", and `symptom/eval-hp-any-multirow-duplicated` — two matching rows with
+>    identical outputs, recorded pre-fix, with a `WHY` naming the doubled-answer trap — had been in
+>    the tree since `2edd4a3`. What was missing was its complement: two rows that match and
+>    **disagree**. Every ANY case in the corpus agreed, so every one of them is satisfied by an arm
+>    that merely stopped refusing. `policy/eval-hp-any-two-rows-disagree` is that control, and it is
+>    the one ANY recording whose text is byte-identical either side of the fix — before, it was what
+>    every A table got; after, only a genuine conflict reaches it.
+> 2. **Agreement is compared on the whole output ROW, not per column.** A table whose matching rows
+>    agree on one output column and differ on another is refused. Nothing in the tree held that
+>    shape; it was probed directly, along with three-row partial agreement and the no-match case.
+> 3. **The measurement holds, and the doubling was real.** TCK `compliance-level-2`, decision-table
+>    subset: 45/51 → 51/51, all six from the two ANY models, measured on both binaries rather than
+>    quoted. With a guard-only fix, `0117-multi-any-hitpolicy/001` returns its answer **twice** — a
+>    value-presence comparator scores that as a pass, so a half-fix could have reported 51/51 while
+>    being wrong. The hspec block added here catches exactly that: 3 of its 5 examples fail against
+>    the unfixed code, and against the guard-only half-fix exactly one fails, the single-hit one.
+>
+> Also: this entry cites `DecisionTable.hs:36`; the guard was at `:45` when the work started. The
+> prose was exact and only the number had drifted, so it is not corrected here — it would drift
+> again on the next edit to the arm. See `test/corpus/README.md` on why line numbers are not written
+> down.
 
 The guard at `DecisionTable.hs:36` is `not (null (nub …))`, which is never false, so an `A` table
 always returns `Left`. Separately, the success branch returns one entry per matched row when `ANY`
@@ -325,12 +350,40 @@ wrong. Record a two-row case first (task #22).
 All six of dmnmd's Level-2 TCK failures are this hit policy; this is the whole distance from 45/51
 to 51/51 on the Level-2 decision-table subset.
 
-### D-6 — warn when the DRG is discarded. **RULED: adopt.**
+### D-6 — warn when the DRG is discarded. **RULED: adopt. LANDED, narrower than written.**
 
-`informationRequirement` is parsed into `Decision.decInfoReq` (`ParseDMN.hs:803`) and then never
-mentioned in `XmlToDmnmd` — verified, zero occurrences. Same for `knowledgeRequirement`, `import`,
-`textAnnotation`, `association`. Two decisions linked by `<requiredDecision>` arrive as two
-unrelated functions.
+> **Landed for `informationRequirement` only, and the other four names in this entry are wrong.**
+>
+> 1. **"Same for `knowledgeRequirement`, `import`, `textAnnotation`, `association`" is false.**
+>    Those four are not parsed-and-dropped: `xpIgnoredElemsOf` / `xpIgnoredElems` consume them to
+>    `()` and keep **nothing**, not even a count. `XmlToDmnmd` cannot warn about what never entered
+>    the AST, so warning about them is a change to the *pickler tree* — a different and larger job
+>    than the afternoon this entry scopes. Only `informationRequirement` is genuinely
+>    parsed-then-ignored, and it is the one that landed.
+> 2. **Two further silent drops sit beside them and appear in no ruling.** `defInputData` is
+>    written by the pickler and read by nothing in `src/`, so every `<inputData>` node and the
+>    `typeRef` on its `<variable>` vanish; and `<knowledgeSource>` survives parsing as `DrgKS` only
+>    to be filtered out by `allDecisions`, which comprehends `DrgDec` alone. `<authorityRequirement>`
+>    is consumed to `()` like the four above.
+> 3. **The remainder is recorded rather than described.** `symptom/xml-drg-siblings-dropped-silently`
+>    is one document carrying seven DRG constructs, of which exactly one now warns. That is the
+>    machine-checked version of this note, and the place a future fix will show up.
+> 4. **The consequence sentence differs by edge kind**, because one sentence is wrong for one of
+>    them: a `<requiredDecision>` tells you to run that decision first and pass its result in, while
+>    a `<requiredInput>` tells you the `<inputData>` node is not modelled and its `typeRef` is not
+>    applied.
+> 5. **Collateral, larger than expected**: 15 further corpus recordings gained stderr lines, and
+>    seven `DmnXmlSpec` examples asserted `warns == []` on fixtures that each carry one
+>    `<informationRequirement>`. Those became `shouldBeOnlyDrgWarnings 1` — which counts the DRG
+>    warnings *and* still requires every other diagnostic to be absent — rather than being relaxed
+>    to ignore warnings, which would license a future warning about something genuinely wrong.
+>
+> This entry's citation is also stale: it gives `ParseDMN.hs:803`, which is `instance DmnPU
+> InputEntry`. The real sites are the type at `:392`, the pickler at `:403`, the field at `:921`.
+
+`informationRequirement` is parsed into `Decision.decInfoReq` and then never
+mentioned in `XmlToDmnmd` — verified, zero occurrences. Two decisions linked by
+`<requiredDecision>` arrive as two unrelated functions.
 
 This is the one place that module breaks its own governing rule; everything else honours, warns, or
 refuses by name. **The Warning is an afternoon and does not wait for E1**, which is the large job of
@@ -402,7 +455,39 @@ and `--fail-on` cannot see it (task #21); native `--to=xml` is gated on the numb
 
 #13 is dmnmd's only open issue, filed 2023-04-11.
 
-### D-9 — add `FNot`. **RULED: adopt.**
+### D-9 — add `FNot`. **RULED: adopt. LANDED, for Number columns and the single-test form.**
+
+> **Landed, with five things this entry did not anticipate.** Each is a measurement made while
+> implementing.
+>
+> 1. **"Every consumer becomes a compile error" is false, and the stated hazard is the wrong one.**
+>    Four sites error; ten more carry catch-alls and compile silently. And `app/` — which the brief
+>    warns is uncovered by `-Werror=incomplete-patterns` — needs **no change at all**, because it
+>    pattern-matches no `FEELexp` constructor anywhere. The real risk was inside the library.
+> 2. **An output cell had to be refused, or D-9 is a regression.** `parseNumberCell` cannot tell an
+>    input cell from an output cell, so its old refusal covered both. Once `not(…)` builds, an output
+>    cell would reach a backend and crash. `structuralErrors.outputNegationErrs` replaces it, and
+>    mirrors `inputArithErrs` exactly: arithmetic is legal only in an output cell, negation only in
+>    an input one.
+> 3. **`wrapParen` returns a one-element list UNBRACKETED**, so the obvious `"!" ++ wrapParen …`
+>    emits `!Age < 5.0`, which JS parses as `(!Age) < 5.0` — run under node, it returns the same
+>    answer for every input. Both backends force their own parentheses.
+> 4. **The named destination does not move.** This entry points at
+>    `symptom/num-negation-refused-unlocated`; the case is called `num-negation-not-implemented`,
+>    and it is byte-identical after a correct fix, because its refusal is column-level and driven by
+>    a malformed row 2 rather than by the negation. The case that moves is a **`policy/`** one, so a
+>    correct D-9 produces a policy regression on purpose.
+> 5. **Three limits, all recorded rather than left to be rediscovered.** `mkFEither`'s `DMN_String`
+>    arm consults no grammar, so `not(Fall)` is still `Season === "not(Fall)"` at exit 0 —
+>    pre-existing, but now an *inconsistency*, and recorded as
+>    `symptom/md-negation-in-string-column-silent`. It is not fixed here because there is no escape
+>    hatch: `unquoteCell` strips quotes before the type arms run, so quoting cannot force the literal
+>    reading, and that decision belongs with the quoting rule. `not(a, b)` needs a bracket-aware
+>    splitter (`splitArgs` exists) that would move three unrelated policy recordings. And a
+>    collection column still refuses negation, correctly.
+>
+> Also: `FNLog`'s `FNNot` constructor and its ts/py renderings had existed, dead, since before this
+> work — half the emitter vocabulary was already written and wired to nothing.
 
 No `FNot` constructor exists anywhere. `not([1..5])` is refused — honest, but a hole in the
 unary-test language that DMN §9.2 rule 12.b fills. Cheap now: the anchored grammar from commit 3

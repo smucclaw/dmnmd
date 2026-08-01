@@ -616,6 +616,30 @@ oneFeel ch field = \case
   FNullary v           -> field ++ " EQUALS " ++ showValIn ch v
   FFunction fnf        -> field ++ " EQUALS " ++ fnf2l4 fnf
   FAnything            -> "TRUE"
+  -- Parenthesised TWICE, and both pairs are load-bearing in opposite directions.
+  --
+  -- The inner pair guards the operand: @FInRange@ expands to an @AND@ chain, so
+  -- @NOT x <= 5 AND x <= 8@ must not read as @NOT x <= 5@ conjoined with the
+  -- rest of the range.
+  --
+  -- The OUTER pair guards what follows, and this is the one that was missing.
+  -- @NOT@ binds LOOSER than @AND@ in L4 — measured, not assumed:
+  --
+  -- >>> loose MEANS NOT (a) AND b        -- a=FALSE b=FALSE  ==>  TRUE
+  -- >>> tight MEANS (NOT (a)) AND b      -- a=FALSE b=FALSE  ==>  FALSE
+  --
+  -- so @NOT (…)@ swallows every conjunct to its right. In a row with more than
+  -- one input column, the unparenthesised form negates the WHOLE remaining
+  -- guard: the emitted L4 typechecks, @l4 check@ succeeds, and the row matches
+  -- inputs it must not — a silently inverted guard at exit 0, which is the exact
+  -- class D-9 exists to remove, in the one backend nothing executes.
+  --
+  -- An earlier version of this comment asserted the opposite precedence and
+  -- shipped only the inner pair. It was wrong; the two-line probe above is how
+  -- to re-check it rather than reasoning about it. @l4 check@ cannot catch this
+  -- — both forms typecheck — so only @l4 run@ or an emitted-code test will.
+  -- @NOT@ is already in 'reservedWordsL4'.
+  FNot inner           -> "(NOT (" ++ oneFeel ch field inner ++ "))"
 
 -- | The bare value used inside an @elem … (LIST …)@ membership list.
 feelValL4 :: ColHeader -> FEELexp -> String
@@ -788,6 +812,14 @@ showFeelL4 ty = \case
   FSection op v  -> showValL4 v
   FInRange _ lo _ _ -> showNumL4 lo
   FAnything      -> typeDefaultScalar ty
+  -- Unreachable: 'DMN.DecisionTable.structuralErrors' refuses a negation in an
+  -- output cell before any backend is reached, because it selects a set rather
+  -- than naming a value. Loud rather than a guess — every other arm here has a
+  -- value it can honestly return, and this one does not.
+  FNot inner     -> error $ "dmn error: negation " ++ show (FNot inner)
+                         ++ " reached the L4 output emitter; it should have been"
+                         ++ " refused by structuralErrors as a unary test in an"
+                         ++ " output cell."
 
 -- | A type-appropriate fallback for a totally empty table's OTHERWISE.
 typeDefaultL4 :: Bool -> String -> [ColHeader] -> String

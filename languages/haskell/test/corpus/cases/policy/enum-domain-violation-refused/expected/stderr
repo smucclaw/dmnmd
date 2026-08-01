@@ -1,7 +1,7 @@
 dmnmd: error: table "Routing": column "Risk Category": row 1: value outside the column's declared domain {LOW, MEDIUM, HIGH} — the cell reads HIHG
 error: table "Routing": column "Routing": row 2: value outside the column's declared domain {DECLINE, REFER, ACCEPT} — the cell reads ACCEPTT
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:548:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
 
 

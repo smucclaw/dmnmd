@@ -1,0 +1,4 @@
+AnyDisagree> problem running 5 against table AnyDisagree: multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!
+[DTrow {row_number = Just 1, row_inputs = [[FSection Flt (VN 10.0)]], row_outputs = [[FNullary (VS "ok")]], row_comments = []},DTrow {row_number = Just 2, row_inputs = [[FSection Flt (VN 20.0)]], row_outputs = [[FNullary (VS "deny")]], row_comments = []}]
+
+AnyDisagree>

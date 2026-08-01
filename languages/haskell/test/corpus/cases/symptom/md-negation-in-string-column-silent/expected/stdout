@@ -1,0 +1,9 @@
+export function Season ( Season : string ) {
+  if (Season === "not(Fall)") { // 1
+    return {"Dish":"stew"};
+  }
+  else if (Season === "Fall") { // 2
+    return {"Dish":"spareribs"};
+  }
+}
+

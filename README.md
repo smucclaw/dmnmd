@@ -154,9 +154,10 @@ A cell that is **not** a plain member — a comparison like `> 3`, a range, an a
 expression — is **refused**, with a message naming the row and the column. This is deliberate.
 "Some element is over 3" and "every element is over 3" are different rules, nothing in the table
 says which, and DMN gives the comparison no meaning at all. Rather than guess, `dmnmd` asks you to
-aggregate the collection to a scalar before the table, or split the column. FEEL constructs that
-`dmnmd` does not implement — `not(...)`, `list contains(...)`, a `[a, b]` literal — are refused
-for the same reason.
+aggregate the collection to a scalar before the table, or split the column. `not(...)` is refused
+here for the same reason — a negated test is still a test — even though `dmnmd` implements it in
+an ordinary input column. `list contains(...)` and a `[a, b]` literal are refused because `dmnmd`
+does not implement them anywhere.
 
 At the `-q` prompt a collection is written the way FEEL writes one, `[admin, clerk]`, with `[]`
 for the empty collection.
@@ -558,6 +559,31 @@ Coming soon: JSON in, JSON out.
 
     $ echo '{ "Season": "Winter" }' | dmnmd README.md --pick "Example 1" -j
     { "Season": "Winter", "Dish": "Roastbeef" }
+
+### Negation
+
+An input cell may be negated, which is DMN 1.3 §9.2 rule 12.b:
+
+| U | Age : Number | Band (out) |
+|---|--------------|------------|
+| 1 | not([1..5])  | outside    |
+| 2 | [1..5]       | inside     |
+
+`not(...)` wraps a single unary test — a value, a comparison, or an interval — so `not([1..5])`
+and `not(> 3)` are both fine. Three limits, each for a stated reason:
+
+- **Numeric columns only, for now.** In a `String` column `not(Fall)` is *not* yet read as a
+  negation; it is still taken as the literal text, so the cell compiles to an equality test
+  against `"not(Fall)"`. That is a silent wrong answer and it is recorded as a known defect
+  (`symptom/md-negation-in-string-column-silent`), not a design decision.
+- **It does not nest, and it does not wrap a function call.** Rule 12.b admits *simple positive
+  unary tests*, so `not(not(> 3))` and `not(floor(3))` are refused.
+- **`not(a, b)` is not supported yet.** `dmnmd` splits a cell on commas before reading it, so a
+  multi-test negation arrives already broken in two. Write the alternatives as separate rows.
+
+Negation is a **test**, so it belongs in an input cell. In an output cell it is refused: it names
+a set of values rather than the one value an output column has to return. In a collection column
+it is refused as well, for the reason given under collections above.
 
 ## Extensions
 

@@ -62,7 +62,28 @@ parseNumberCell raw
   -- Named refusals FIRST, so that a construct dmnmd does not implement is
   -- refused by name rather than producing a megaparsec column-2 complaint about
   -- the second character of @floor@.
-  | Just inner <- peelNot cell = Left (negationMsg cell inner)
+  -- §9.2 rule 12.b, @\"not\", \"(\", simple positive unary tests, \")\"@ (D-9).
+  -- The inner text is parsed as a 'numericCell' rather than by recursing through
+  -- 'parseNumberCell', and that is what makes the test POSITIVE: @not(not(x))@
+  -- and @not(floor(x))@ do not parse and are refused, because neither a nested
+  -- negation nor an invocation is a 'numericCell'.
+  | Just inner <- peelNot cell =
+      case runAnchored numericCell inner of
+        -- Arithmetic is a rule 3 simple expression, not a unary test, so it has
+        -- no business inside a negation even though 'numericCell' accepts the
+        -- union elsewhere. Refused here rather than downstream: 'inputArithErrs'
+        -- matches on a bare @FFunction@ cell and would not see one wrapped in
+        -- 'FNot'.
+        Right (FFunction _) -> Left (negationOfArithMsg cell inner)
+        Right fx            -> Right (FNot fx)
+        Left _              -> Left (negationMsg cell inner)
+  -- A cell that LOOKS like a call to a function named @not@ is really a rule
+  -- 12.b negation that the comma split has torn in half — @not(a, b)@ arrives
+  -- here as the fragment @not(a@, so 'peelNot' finds no closing paren and falls
+  -- through. Answering with the invocation message would tell the author that
+  -- dmnmd does not implement @not()@, which since D-9 is false and sends them
+  -- looking for the wrong repair.
+  | Just "not" <- callName cell = Left (splitNegationMsg cell)
   | Just fn    <- callName cell = Left (invocationMsg cell fn)
   | otherwise = case runAnchored numericCell cell of
       Right fx -> Right fx
@@ -302,13 +323,63 @@ callName s0 = case break (== '(') s of
 -- The XML reader frames these itself. Neither path prints a file name; the
 -- 'DMN.DecisionTable.CellSite' haddock says why.
 
+-- | @not(…)@ whose CONTENTS are not a unary test.
+--
+-- Negation itself is implemented (D-9); what this refuses is the inside. Rule
+-- 12.b admits @simple positive unary tests@, so a nested negation and an
+-- invocation are both out, and so is anything that is not a test at all.
+--
+-- The multi-test form @not(a, b)@ also lands here, and the message says so
+-- because the reason is not visible from the fragment: 'DMN.DecisionTable.mkFsEither'
+-- splits every cell on commas before this module sees it, so @not(\"Fall\", \"Winter\")@
+-- arrives already shredded into @not(\"Fall\"@ and @\"Winter\")@ and neither half
+-- can be recognised. Fixing that needs a bracket-aware splitter, which exists
+-- ('DMN.DecisionTable.splitArgs') but is deliberately not wired in here — see D-9.
 negationMsg :: String -> String -> String
 negationMsg cell inner = concat
   [ "the cell reads ", show cell
-  , " — dmnmd does not implement FEEL negation (DMN 1.3 §9.2 rule 12.b)."
-  , " It used to be ACCEPTED and silently parsed as the un-negated test "
-  , show inner, ", the exact complement of what was written."
-  , " State the complement as explicit rows instead, or invert the output column."
+  , " — dmnmd implements FEEL negation (DMN 1.3 §9.2 rule 12.b), but ", show inner
+  , " is not a simple positive unary test. Rule 12.b admits a value, a comparison"
+  , " or an interval, so not([1..5]) and not(> 3) are fine while a nested not()"
+  , " or a function call is not."
+  , " If you meant several alternatives, note that dmnmd splits a cell on commas"
+  , " before reading it, so not(a, b) is not yet supported; write the complement"
+  , " as explicit rows instead."
+  ]
+
+-- | @not(…)@ around arithmetic, which is a rule 3 simple expression rather than
+-- a unary test and is legal only in an output cell — where a negation in turn is
+-- not. Separated from 'negationMsg' because the repair is different: the cell is
+-- well-formed FEEL in the wrong place, not malformed.
+-- | The multi-test negation @not(a, b)@, seen after the comma split has already
+-- broken it up. Its own message because the fragment in hand is not what the
+-- author wrote, so quoting it without explanation reads as a bug in the tool.
+splitNegationMsg :: String -> String
+splitNegationMsg cell = concat
+  [ "the cell reads ", show cell, ", which is part of a negation over several"
+  , " tests. dmnmd implements FEEL negation (DMN 1.3 §9.2 rule 12.b) for a single"
+  , " test — not([1..5]), not(> 3) — but it splits a cell on commas before"
+  , " reading it, so not(a, b) arrives already broken in two and the fragment"
+  , " shown here is not what you wrote."
+  , " Write the alternatives as separate rows, or negate one test."
+  ]
+
+negationOfArithMsg :: String -> String -> String
+negationOfArithMsg cell inner = concat
+  [ "the cell reads ", show cell
+  , " — ", show inner, " is arithmetic (DMN 1.3 §9.2 rule 3, a simple"
+  , " expression), and negation applies to a unary test (rule 12.b), not to a"
+  , " value. Arithmetic is legal only in an OUTPUT cell, where a negation is not."
+    -- Recommend a literal, NOT `not(< <inner>)`. That was the advice here until
+    -- a verify lens ran it: dmnmd refuses `not(< Age * 2)` AND the unnegated
+    -- `< Age * 2`, because a comparison's right-hand side must be a literal, so
+    -- the suggestion was impossible in both forms. A refusal that names an
+    -- impossible repair is worse than one that names none — the author trusts it
+    -- and loses the time twice. Same family as the message that once told every
+    -- author to declare a "Season" column they did not have.
+  , " Negation needs a unary test whose comparison is against a literal, as in"
+  , " not(< 10) or not([1..5]); dmnmd does not accept a comparison against"
+  , " arithmetic in an input cell, negated or not."
   ]
 
 invocationMsg :: String -> String -> String

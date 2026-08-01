@@ -5,6 +5,8 @@ module Main where
 import Control.Monad
 import Text.RawString.QQ
 import DMN.DecisionTable
+import DMN.ParseCell (parseNumberCell)
+import Data.Either (isLeft, isRight)
 import DMN.Types
 import DMN.ParseTable
 import DMN.ParseFEEL
@@ -310,7 +312,29 @@ spec3 = do
     it "should run standard dmn example 1c: Never -> Left \"no match\""
       $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Never"])) `shouldBe` Left "no rows returned -- a unique table should have one result!"
 
- 
+  -- Hit policy A (D-5). Before this block the suite's ENTIRE coverage of HP_Any
+  -- was one `parseHitPolicy` assertion, so `cabal test` stayed green with the arm
+  -- returning Left for every input, and stayed green again with the guard fixed
+  -- but the success branch still list-valued. Both halves are asserted here.
+  describe "evalTable hit policy A" $ do
+    let anyAgree    = throwOnLeft (parseOnly (parseTable "AnyAgree")    dmnAnyAgree)
+        anyDisagree = throwOnLeft (parseOnly (parseTable "AnyDisagree") dmnAnyDisagree)
+    it "two rows match and agree: returns the shared output ONCE, not once per matching row"
+      $ evalTable anyAgree [FNullary (VN 5)]  `shouldBe` Right [[[FNullary (VS "ok")]]]
+    it "one row matches: returns its output"
+      $ evalTable anyAgree [FNullary (VN 25)] `shouldBe` Right [[[FNullary (VS "ok")]]]
+    it "no row matches: no rows returned"
+      $ evalTable anyAgree [FNullary (VN 99)] `shouldBe` Left "no rows returned"
+    it "two rows match and disagree: refused, because ANY permits multiple matches but not multiple answers"
+      -- only the first line: the rest is a `show` of the matched rows, which is a
+      -- debugging dump rather than a promise.
+      $ (case evalTable anyDisagree [FNullary (VN 5)] of
+           Left e  -> head (lines e)
+           Right r -> "unexpectedly returned " ++ show r)
+        `shouldBe` "multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!"
+    it "one row matches in a disagreeing table: still answers, because only the matched rows must agree"
+      $ evalTable anyDisagree [FNullary (VN 25)] `shouldBe` Right [[[FNullary (VS "deny")]]]
+
   describe "evalTable dmn2" $ do
     let evaled2 = (throwOnLeft (parseOnly (parseTable "mytable1") dmn2))
     it "should handle multiple inputs: Fall, 5"   $ evalTable evaled2 [FNullary (VS "Fall"),   FNullary (VN 5)] `shouldBe` Right [[[FNullary $ VS "Spareribs"]]]
@@ -453,6 +477,34 @@ spec3 = do
   --
   -- See test/corpus/README.md for the symptom/policy distinction.
   -- ==========================================================================
+  -- D-9. Negation, DMN 1.3 §9.2 rule 12.b. The corpus records the emitted text
+  -- for all four backends; these assert the two things the corpus cannot see —
+  -- the IR the cell parses to, and that 'fEval' actually inverts, which is what
+  -- keeps a negated cell from parsing and then never matching anything.
+  describe "negation (FNot)" $ do
+    let num = mkF (Just DMN_Number)
+    it "parses not([1..5]) to a negated interval"
+      $ num "not([1..5])" `shouldBe` FNot (FInRange BClosed 1 5 BClosed)
+    it "parses not(> 3) to a negated comparison"
+      $ num "not(> 3)"    `shouldBe` FNot (FSection Fgt (VN 3))
+    it "fEval inverts: 9 satisfies not([1..5])"
+      $ fEval (FNot (FInRange BClosed 1 5 BClosed)) (FNullary (VN 9)) `shouldBe` True
+    it "fEval inverts: 3 does not satisfy not([1..5])"
+      $ fEval (FNot (FInRange BClosed 1 5 BClosed)) (FNullary (VN 3)) `shouldBe` False
+    it "a negation is Number evidence for an undeclared column"
+      $ inferType (mkF (Just DMN_String) "not([1..5])") `shouldBe` Just DMN_Number
+    -- Rule 12.b admits simple POSITIVE unary tests, so neither of these is one.
+    -- Spelled as a refusal check rather than `shouldThrow`, because mkF is
+    -- `either error id` and the message is what carries the diagnosis.
+    it "refuses a nested negation"
+      $ parseNumberCell "not(not(> 3))" `shouldSatisfy` isLeft
+    it "refuses a negated function call"
+      $ parseNumberCell "not(floor(3))" `shouldSatisfy` isLeft
+    it "refuses a negated arithmetic expression"
+      $ parseNumberCell "not(40 - 50)"  `shouldSatisfy` isLeft
+    it "accepts a negated interval"
+      $ parseNumberCell "not([1..5])"   `shouldSatisfy` isRight
+
   describe "type inference" $ do
     it "should infer [1..2] as a Number"    $ inferType (mkF (Just DMN_String) "[1..2]") `shouldBe` Just DMN_Number
     it "should infer 123 as a Number"       $ inferType (mkF (Just DMN_String) "123")    `shouldBe` Just DMN_Number
@@ -586,6 +638,28 @@ dmn1c = T.pack $ dropWhile (=='\n') [r|
 | 1 | Fall                 | Spareribs                    |               |
 | 2 | Winter               | Roastbeef, Strawberries      |               |
 | 3 | Spring, Summer       | Stew                         | Multivalue    |
+|]
+
+-- | Hit policy A. Rows 1 and 2 overlap deliberately: Age 5 matches both and they
+-- agree, which is the situation ANY exists to permit. Age 25 matches row 2 alone.
+-- Nothing matches Age 99.
+dmnAnyAgree :: Text
+dmnAnyAgree = T.pack $ dropWhile (=='\n') [r|
+| A | Age : Number         | Verdict : String             |
+|---+----------------------+------------------------------|
+| 1 | < 10                 | ok                           |
+| 2 | < 30                 | ok                           |
+|]
+
+-- | The same table with row 2 disagreeing, which makes it ill-defined under DMN.
+-- Spelled @deny@ rather than @no@: a @no@ cell infers Boolean and D-2 anchored
+-- inference then refuses the column before 'evalTable' is ever reached.
+dmnAnyDisagree :: Text
+dmnAnyDisagree = T.pack $ dropWhile (=='\n') [r|
+| A | Age : Number         | Verdict : String             |
+|---+----------------------+------------------------------|
+| 1 | < 10                 | ok                           |
+| 2 | < 30                 | deny                         |
 |]
 
 dmn2 :: Text
