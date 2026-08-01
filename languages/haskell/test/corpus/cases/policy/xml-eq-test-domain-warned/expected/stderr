@@ -1,0 +1,1 @@
+dmnmd: warning: table "T": input column "N": the cell reads "= 9", which DMN spells as the bare value "9" (§9.2 rule 5 has no "=" operator). dmnmd exempts a TEST from a declared domain but checks a plain VALUE against it, and 9 is outside this column's domain — so dmnmd will refuse the document it just wrote. The document is correct DMN; the asymmetry is dmnmd's.

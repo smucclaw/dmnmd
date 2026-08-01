@@ -173,6 +173,16 @@ xfail_reason() {
     symptom/struct-dash-rownum-dropped|\
     symptom/struct-midtable-continuation)
       echo "authored rule numbers are not 1..n: DMN has no field for one, so rows renumber (warned)" ;;
+    # `= v` against a declared domain. Unlike the three classes above this is NOT
+    # a construct DMN cannot express — the emitted document is correct DMN and
+    # the value survives. It diverges because of an asymmetry inside dmnmd:
+    # §9.2 rule 5 has no "=" operator so `= 9` must emit as the bare `9`, and
+    # DecisionTable.domainErrors EXEMPTS a test from the declared domain while
+    # CHECKING a plain value against it. So dmnmd refuses the document it just
+    # wrote. Warned on emission by eqDomainWarns, which uses the same fEval
+    # membership test, so the warning cannot drift from the refusal.
+    policy/xml-eq-test-domain-warned)
+      echo "\`= v\` outside a declared domain: DMN has no \"=\" so it emits as a bare value, which dmnmd's own domain check then refuses (warned)" ;;
     *) return 1 ;;
   esac
 }
@@ -354,5 +364,10 @@ fi
 
 echo "roundtrip: $n_total fixture(s): $n_pass pass, $n_fail FAIL, $n_xfail xfail, $n_xpass xpass, $n_skip skipped$([ "$DO_XSD" = 1 ] && echo ", $n_xsdbad XSD-invalid")"
 
-if [ "$n_fail" -gt 0 ] || [ "$n_xpass" -gt 0 ]; then exit 1; fi
+# n_xsdbad is part of the gate. It was not, and the omission made --xsd a
+# reporting flag rather than a check: an XSD-invalid document printed under
+# FAILURES and the script still exited 0, so a future commit could break
+# validity without failing anything. Verified by stubbing xmllint to `false` —
+# "1 XSD-invalid" printed, exit status 0.
+if [ "$n_fail" -gt 0 ] || [ "$n_xpass" -gt 0 ] || [ "$n_xsdbad" -gt 0 ]; then exit 1; fi
 exit 0

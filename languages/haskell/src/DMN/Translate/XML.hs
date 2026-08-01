@@ -62,7 +62,7 @@ import Text.XML.HXT.Core
 import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
 import qualified Text.XML.HXT.DOM.ShowXml as SX
 
-import DMN.DecisionTable (showType)
+import DMN.DecisionTable (showType, showDomainMember, fEval)
 import DMN.Diagnostic
 import DMN.Number (showNumPlain)
 import DMN.Types
@@ -102,7 +102,49 @@ toXMLFile :: XMLOpts -> [DecisionTable] -> ([Diagnostic], String)
 toXMLFile opts dts
   | anyErrors diags = (diags, "")
   | otherwise = (diags, toXMLDoc opts dts)
-  where diags = concatMap (fidelityDiags opts) dts
+  where diags = crossTableDiags dts ++ concatMap (fidelityDiags opts) dts
+
+-- | Diagnostics that no single table can see, because they are about the
+-- document the tables are assembled INTO.
+--
+-- The markdown surface has no global variable scope: two tables with a column
+-- called @x@ are two unrelated columns, and nothing in a @.md@ file says
+-- otherwise. A DMN document does have one — @definitionsOf@ dedupes
+-- @\<inputData\>@ by NAME and every decision @href@s the shared node — so the
+-- emitter necessarily invents an identification the source did not make.
+--
+-- That is fine when the types agree and wrong when they do not: two @x@ columns
+-- typed @Number@ and @String@ collapse into one @\<inputData\>@ whose
+-- @\<variable\>@ can only carry one @typeRef@, while the second decision's own
+-- @\<inputExpression\>@ contradicts it. The document is XSD-valid and says
+-- something the source did not, at exit 0 — the failure mode this backend
+-- exists to avoid, and one the round trip cannot see because dmnmd's reader
+-- ignores the DRG entirely (D-6). The same blind spot hid the duplicate-@xsd:ID@
+-- defect.
+--
+-- Warned, not refused: each table is individually fine and the emission is the
+-- best available reading. Refusing would block a document whose tables merely
+-- reuse a common word. Pinned by @policy/xml-inputdata-name-type-conflict@.
+crossTableDiags :: [DecisionTable] -> [Diagnostic]
+crossTableDiags dts =
+  [ warnAt $
+      "input column " ++ show nm ++ " appears with more than one type ("
+        ++ intercalate ", " (nub (showType <$> ts)) ++ ") across tables "
+        ++ intercalate ", " (show <$> nub [ tableName dt | dt <- dts
+                                          , ch <- inHeaders dt, varname ch == nm ])
+        ++ ". A DMN document has ONE <inputData> per name and every decision"
+        ++ " references it, so the emitted <variable> can carry only one typeRef"
+        ++ " while each <inputExpression> keeps its own — the document will say"
+        ++ " the column is one type and use it as another. Markdown has no global"
+        ++ " scope, so this identification is the emitter's, not the author's."
+        ++ " Rename one of the columns if they are not the same thing."
+  | (nm, ts) <- namedTypes
+  , length (nub (showType <$> ts)) > 1 ]
+  where
+    namedTypes =
+      [ (nm, [ t | dt <- dts, ch <- inHeaders dt, varname ch == nm
+                 , Just t <- [vartype ch] ])
+      | nm <- nub [ varname ch | dt <- dts, ch <- inHeaders dt ] ]
 
 -- | Serialise, with no diagnostics and no refusal. Split out so a test can ask
 -- for the document text alone.
@@ -143,13 +185,21 @@ render r defs =
 -- @IO@; 'escapeXmlRefs' is the same escaping table it uses, exposed as a pair
 -- of pure functions (text, attribute value), so the tree is escaped in place
 -- and the backend stays a @… -> String@ function.
+-- @>@ is escaped on top of hxt's table, and that is not belt-and-braces: hxt
+-- escapes @<@ and @&@ only, but XML 1.0 §2.4 says the sequence @]]>@ MUST NOT
+-- appear in content except when closing a CDATA section. So a cell reading
+-- @a]]>b@ was written raw and produced a file that is not well-formed — caught
+-- by @xmllint --noout@ on well-formedness alone, and refused by dmnmd's own
+-- reader, at __exit 0__. Escaping every @>@ is unconditionally legal, is what
+-- mainstream serializers do, and needs no lookahead for the two-character
+-- prefix. Pinned by @policy/xml-emit-cdata-close-escaped@.
 escapeTree :: ArrowXml a => a XmlTree XmlTree
 escapeTree = processTopDown $
   (changeText (escapeWith textEsc) `when` isText)
     >>> (processAttrl (changeAttrValue (escapeWith attrEsc)) `when` isElem)
   where
     (textEsc, attrEsc) = escapeXmlRefs
-    escapeWith f = concatMap (\c -> f c "")
+    escapeWith f = concatMap (\c -> if c == '>' then "&gt;" else f c "")
 
 -- * The mapping
 
@@ -514,7 +564,7 @@ fidelityDiags :: XMLOpts -> DecisionTable -> [Diagnostic]
 fidelityDiags _opts dt = concat
   [ noOutputErrs, ruleArityErrs
   , aggregateErrs, outputTestErrs, outputWildcardWarns, collectionWarns
-  , rowNumberWarns ]
+  , rowNumberWarns, eqDomainWarns ]
   where
     inTable msg = "table " ++ show (tableName dt) ++ ": " ++ msg
     at ch row msg =
@@ -606,6 +656,40 @@ fidelityDiags _opts dt = concat
             ++ " <text/>. dmnmd reads that back as the same wildcard; another"
             ++ " engine will read the rule as producing null."
       | (ch, row, FAnything) <- outCells ]
+
+    -- `= v` in an INPUT cell of a column that declares a domain, where v is not
+    -- in that domain.
+    --
+    -- The normalisation `= v` -> `v` is forced: §9.2 rule 5's operator slot is
+    -- `< <= > >=` and a bare value IS DMN's equality test, so there is no `= v`
+    -- to emit. It is invisible almost everywhere — and NOT here, because dmnmd
+    -- makes a distinction DMN does not. `DecisionTable.domainErrors` exempts a
+    -- TEST from the declared domain ("a test selects a subset of the domain
+    -- rather than naming a member") while checking a plain VALUE as a member. So
+    -- `= 9` against a domain of `1, 2, 3` is accepted on the way in and refused
+    -- by dmnmd's own reader on the way back, at exit 0 in between.
+    --
+    -- Warned rather than refused: the emitted document is correct DMN and says
+    -- exactly what the author meant. What changes is which of dmnmd's own checks
+    -- it then trips. Refusing would block a legal table over an internal
+    -- exemption. The round-trip harness carries the matching xfail.
+    eqDomainWarns =
+      [ warnAt . inTable $
+          "input column " ++ show (varname ch) ++ ": the cell reads "
+            ++ show (showDomainMember cell) ++ ", which DMN spells as the bare"
+            ++ " value " ++ show (showDomainMember (FNullary v))
+            ++ " (§9.2 rule 5 has no \"=\" operator). dmnmd exempts a TEST from a"
+            ++ " declared domain but checks a plain VALUE against it, and "
+            ++ showDomainMember (FNullary v) ++ " is outside this column's domain — so"
+            ++ " dmnmd will refuse the document it just wrote. The document is"
+            ++ " correct DMN; the asymmetry is dmnmd's."
+      | row@DTrow{} <- allrows dt
+      , (ch, cells) <- zip (inHeaders dt) (row_inputs row)
+      , Just dom <- [enums ch]
+      , cell@(FSection Feq v) <- cells
+        -- Same membership test domainErrors uses, so the warning cannot drift
+        -- from the refusal it is predicting.
+      , not (any (`fEval` FNullary v) dom) ]
 
     -- Inherited from the reader, and worth saying on the way out because the
     -- document leaves dmnmd's control. policy/xml-iscollection-membership pins

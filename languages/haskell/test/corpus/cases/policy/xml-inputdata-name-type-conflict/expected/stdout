@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions id="definitions_dmnmd" name="dmnmd" namespace="https://github.com/smucclaw/dmnmd" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+  <inputData id="inputData_1" name="x">
+    <variable id="informationItem_1" name="x" typeRef="number"/>
+  </inputData>
+  <decision id="decision_1" name="A">
+    <informationRequirement id="informationRequirement_1_1">
+      <requiredInput href="#inputData_1"/>
+    </informationRequirement>
+    <decisionTable id="decisionTable_1">
+      <input id="input_1_1" label="x">
+        <inputExpression id="inputExpression_1_1" typeRef="number">
+          <text>x</text>
+        </inputExpression>
+      </input>
+      <output id="output_1_1" name="r" label="r" typeRef="string"/>
+      <rule id="rule_1_1">
+        <inputEntry id="inputEntry_1_1_1">
+          <text>5</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_1_1_1">
+          <text>"five"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="decision_2" name="B">
+    <informationRequirement id="informationRequirement_2_1">
+      <requiredInput href="#inputData_1"/>
+    </informationRequirement>
+    <decisionTable id="decisionTable_2">
+      <input id="input_2_1" label="x">
+        <inputExpression id="inputExpression_2_1" typeRef="string">
+          <text>x</text>
+        </inputExpression>
+      </input>
+      <output id="output_2_1" name="r" label="r" typeRef="string"/>
+      <rule id="rule_2_1">
+        <inputEntry id="inputEntry_2_1_1">
+          <text>"hello"</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_2_1_1">
+          <text>"greeting"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

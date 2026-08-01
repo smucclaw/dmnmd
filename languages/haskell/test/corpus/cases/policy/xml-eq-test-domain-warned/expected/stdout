@@ -1,33 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <definitions id="definitions_dmnmd" name="dmnmd" namespace="https://github.com/smucclaw/dmnmd" xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
-  <inputData id="inputData_1" name="age">
-    <variable id="informationItem_1" name="age" typeRef="number"/>
+  <inputData id="inputData_1" name="N">
+    <variable id="informationItem_1" name="N" typeRef="number"/>
   </inputData>
-  <decision id="decision_1" name="Rates">
+  <decision id="decision_1" name="T">
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>
     <decisionTable id="decisionTable_1">
-      <input id="input_1_1" label="age">
+      <input id="input_1_1" label="N">
         <inputExpression id="inputExpression_1_1" typeRef="number">
-          <text>age</text>
+          <text>N</text>
         </inputExpression>
+        <inputValues>
+          <text>1, 2, 3</text>
+        </inputValues>
       </input>
-      <output id="output_1_1" name="Rate" label="Rate" typeRef="number"/>
+      <output id="output_1_1" name="R" label="R" typeRef="string"/>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
-          <text>&lt; 18</text>
+          <text>9</text>
         </inputEntry>
         <outputEntry id="outputEntry_1_1_1">
-          <text>100</text>
+          <text>"nine"</text>
         </outputEntry>
       </rule>
       <rule id="rule_1_2">
         <inputEntry id="inputEntry_1_2_1">
-          <text>&gt;= 18</text>
+          <text>-</text>
         </inputEntry>
         <outputEntry id="outputEntry_1_2_1">
-          <text>200</text>
+          <text>"other"</text>
         </outputEntry>
       </rule>
     </decisionTable>

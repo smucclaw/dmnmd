@@ -16,7 +16,7 @@
       <output id="output_1_1" name="Dish" label="Dish" typeRef="string"/>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
-          <text>>= 5</text>
+          <text>&gt;= 5</text>
         </inputEntry>
         <outputEntry id="outputEntry_1_1_1">
           <text>"Stew"</text>
