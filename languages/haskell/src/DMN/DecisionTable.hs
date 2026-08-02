@@ -893,8 +893,15 @@ structuralErrors dt = concat
           -- Name the column the author actually wrote, not a stock example:
           -- 'ch' is in scope here, and a message that says "Season" to someone
           -- whose column is called "Amount" reads as a bug in the tool.
+          -- D-15: the closing sentence used to stop at ": String", and following
+          -- it is ACCEPTED — it turns the cell into a string test against its own
+          -- source text, which can never fire, at exit 0. A refusal that hands
+          -- the author a silent wrong answer is worse than one that hands them
+          -- nothing, so the sentence now says what the repair actually does.
           , " If this column is not numeric, declare it (\"", varname ch
-          , " : String\"); with no declaration dmnmd infers Number from a column"
+          , " : String\") — but a String column compares this cell as literal"
+          , " text rather than computing it, so a test written that way can never"
+          , " match. With no declaration dmnmd infers Number from a column"
           , " whose cells all read as numeric." ])
       | r@DTrow{} <- allrows dt
       , (ch, cells) <- zip ins (row_inputs r)
@@ -1175,12 +1182,25 @@ showBinOp Fgt  = ">"
 showBinOp Fgte = ">="
 showBinOp Feq  = "="
 
+-- | Render an arithmetic cell back to the author, for a diagnostic.
+--
+-- Parentheses go round a nested operator application and __not__ round the
+-- whole expression — the same rule, and for the same reason, as
+-- 'DMN.Translate.XML.showArith', whose haddock named this function as the flat
+-- copy that had not adopted it. Flat is a __misquote__: 'DMN.ParseFEEL.parseFNF3'
+-- accepts one top-level operator whose operands may be parenthesised, so
+-- @(Age + 1) * (Age + 2)@ came back to the author as @Age + 1 * Age + 2@ — text
+-- they did not write, that dmnmd itself refuses, and that is a different number.
+-- Not round the top level, because a parenthesised whole cell has no production
+-- either, and quoting one back would suggest a repair that is also refused.
 showFNumFunction :: FNumFunction -> String
 showFNumFunction (FNF0 v)       = showDomainMember (FNullary v)
 showFNumFunction (FNF1 v)       = v
 showFNumFunction (FNF3 l op r)  =
-  showFNumFunction l ++ showFNOp2' op ++ showFNumFunction r
+  operand l ++ showFNOp2' op ++ operand r
   where
+    operand f@FNF3{} = "(" ++ showFNumFunction f ++ ")"
+    operand f        = showFNumFunction f
     showFNOp2' FNMul   = " * "
     showFNOp2' FNDiv   = " / "
     showFNOp2' FNPlus  = " + "
