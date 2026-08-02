@@ -836,6 +836,43 @@ declared-`Number` column, in both positions:
 | `Age * 2 + 1` | input | refused by `notATestMsg`, which offers "an arithmetic expression" as an acceptable form |
 | `(Age * 2) + 1` | output | **accepted**, emits `((Age * 2.0) + 1.0)`, exit 0 |
 
+**Re-measured at `7e01caa`; four corrections to the paragraphs below, all from independent
+surveys.** Rows 1 and 3 hold. Row 2's *attribution* was wrong in a way that matters: both
+positions reach the **same** `notATestMsg` (`ParseCell.hs:416`, raised at `DecisionTable.hs:243`),
+because a chained cell never parses and so no `FFunction` exists for `inputArithErrs` to match.
+`inputArithErrs` (`DecisionTable.hs:886`, raised at `:572`) is reached only by the *parenthesised*
+form in an input cell. So the defect is symmetric — one message, both positions — and a fix confined
+to `inputArithErrs` would not touch a single `Age * 2 + 1` author.
+
+1. **The closing `: String` advice is a worse defect than the one this section was opened for,
+   and both messages carry it.** D-15 says the messages fail to print the working repair. They also
+   print a repair that is *accepted and wrong*: declaring the column `String` makes `--to=js` emit
+   `return {"Result":"Age * 2 + 1"};` at exit 0 — the formula as a literal, never computed — and in
+   an input cell emits `if (Age === "(Age * 2) + 1")`, a string test that can never fire. Both
+   measured under `node`. A refusal that hands the author a silent wrong answer is strictly worse
+   than one that hands them nothing, which is the rule `CLAUDE.md` states as governing.
+
+2. **`showFNumFunction` misquotes the author's own cell, today, with no patch applied.** It renders
+   `FNF3` flat, so `inputArithErrs` on a source cell of `(Age + 1) * (Age + 2)` reports
+   `the input cell reads "Age + 1 * Age + 2"` — text the author did not write, that dmnmd itself
+   refuses, and that is a different number. `DMN.Translate.XML.showArith` solved exactly this for
+   the XML writer and its haddock names `showFNumFunction` as the copy that did not adopt it.
+
+3. **"every backend renders `FNF3` positionally" is false.** All four *emitting* backends already
+   parenthesise: `FEELhelpers.showFeel` (serving ts/js/py) and `L4.fnf2l4` fully, `XML.showArith` at
+   nested operands. The only flat renderer is `showFNumFunction`, which produces **diagnostics**.
+   The blast radius the paragraph below assigns to the expensive half is therefore empty, and the
+   real one — type inference — it does not mention. Relatedly, the **L4 ditto grid cannot be moved
+   by this at all**: `inputArithErrs` refuses every `FFunction` in an input position, so no
+   arithmetic reaches a guard cell, and the output-side arithmetic sits in `armResult`, outside the
+   width computation.
+
+4. **`Age * (-1)` is refused**, and so is `Age * -1` and `-Age`, because `parseFNF0` uses
+   megaparsec's *unsigned* `scientific`. A signed literal is legal as a whole cell (`-5`, which
+   `notATestMsg` advertises) and nowhere inside arithmetic. That is a second instance of this
+   section's own defect hiding in the sentence meant to be the message's most reliable part: the
+   working negations are `0 - Age` and `Age * (0 - 1)`, and no message mentions either.
+
 `DMN.ParseFEEL`'s `FNF3` is a single flat binary application whose operands are an atom or a
 parenthesised sub-expression, so there is no operator chaining and no precedence. The parenthesised
 form is the working repair and **neither message prints it** — which is the failure `~/CLAUDE.md`
