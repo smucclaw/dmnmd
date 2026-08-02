@@ -489,6 +489,32 @@ the moment it matters most. The mechanism change is its own piece of work.
 > cheap option and was rejected: their inputs differ, so merging would delete real coverage to
 > tidy an argument.
 
+> **A defect the landing commit introduced, caught by verification and fixed in `0228c11`.**
+> The new summary line printed `length (filter isError diags)` and called the total
+> "decision table(s)". A `Diagnostic` is a message, not a table — and D-7 is precisely the
+> change that made one table able to raise several, per item 2 above. So a single-table file
+> with two bad cells announced `2 decision table(s) … could not be read`, and
+> `symptom/struct-blank-rownum-swallowed` said `4`. **Six recordings, five of them `policy/`,
+> pinned the wrong number as behaviour that must not change** before two independent verify
+> lenses converged on it.
+>
+> Worth keeping because of *when* it was possible: before D-7 the count was always right, since
+> the summary was reachable only from chunk-level failures, one per chunk. The bug arrived
+> attached to the improvement that enabled it, and every gate stayed green — a recording that
+> freezes a false sentence is indistinguishable from one that freezes a true one.
+>
+> There is no table identity in a `Diagnostic` to count instead, so the line now says what is
+> known, matching the wording the Xml arm already used. `length tables` **is** a table count and
+> survives: `one or more decision tables … could not be read; refusing to emit the 1 that could`.
+>
+> Three claims in the landing report were also false and are corrected in the tree rather than
+> only here: `run-corpus.sh` named `mkFsAtE`/`mkFAtE`, identifiers in no tree; `CLAUDE.md`'s
+> scope tripwire said two recordings carry a `src/DMN/` frame, where two carry a `CallStack` and
+> **one** carries a frame; and the report said no in-repo fixture covered "some tables parsed and
+> others did not", which `policy/md-partial-failure-emits-nothing` — a two-table case predating
+> the branch — refutes. The true half of that last one is kept: `test/safe.md` is *not* such a
+> witness, because it fails at the file level on a missing final newline.
+
 ### D-8 — build `--to=xml`; answer issue #13 now. **RULED: adopt. LANDED.**
 
 > **Landed, with five things this entry did not anticipate.** Each is a measurement made while
