@@ -417,20 +417,48 @@ notATestMsg :: String -> String
 notATestMsg cell = concat
   [ "the cell reads ", show cell
   , " — dmnmd is reading this column as Number, and that is not a number,"
-  , " a comparison, an interval, or an arithmetic expression."
+  , " a comparison, an interval, or arithmetic dmnmd can read."
   , " A FEEL number is optionally-signed digits with at most one decimal point"
   , " (DMN 1.3 §9.2 rule 31): 5, -5, 5.25, .5 — NOT 0x10, 0o17, 1e5, 1_000, 5%,"
   , " \"5.\", \"+5\", Infinity or NaN."
   , " A comparison is < 5 or 5 <; an interval is [1..5], [1..5), (1..5] or"
   , " (1..5); two alternatives are separated by a comma (rule 11)."
+    -- notATestMsg is given the cell and not its position, and fires for BOTH.
+    -- So the position constraint comes FIRST, before any grouping advice.
+    --
+    -- It used to come last, and a verify lens caught what that costs: an
+    -- input-cell author reads the grouping repair, writes `(Age * 2) + 1`, and
+    -- is refused a SECOND time by DecisionTable.inputArithErrs — two refusals to
+    -- learn one thing. The information was all present; the order made the first
+    -- actionable sentence the wrong one. Advice a reader acts on before reaching
+    -- its precondition is advice that does not work, which is the defect D-15
+    -- was opened for, one step milder.
+  , " Arithmetic is legal only in an OUTPUT cell; an input entry is a unary"
+  , " test (rule 12), so in an input cell none of the arithmetic forms below"
+  , " will be accepted however they are written."
+    -- D-15. The list above used to end "or an arithmetic expression", which
+    -- offered as acceptable the very thing being refused: `Age * 2 + 1` IS an
+    -- arithmetic expression in FEEL, and the sentence named no limit that would
+    -- tell the author what was wrong with theirs. The limit is chaining, the
+    -- repair is explicit grouping, and neither appeared anywhere in the message.
+  , " In an output cell, dmnmd's arithmetic is a SINGLE operator application:"
+  , " each operand is a name, a number, or a parenthesised sub-expression, and"
+  , " there is no precedence and no chaining — group explicitly, writing"
+  , " (Age * 2) + 1 and not Age * 2 + 1, or Age + (1 * 2) and not Age + 1 * 2."
+    -- Named because it is the form an author reaches for second, having just
+    -- read "-5" above: parseFNF0 uses megaparsec's UNSIGNED scientific, so no
+    -- signed literal occurs anywhere inside arithmetic, only as a whole cell.
+  , " A sign belongs to a whole cell only: -5 is a number, but Age * -1 and"
+  , " Age * (-1) are not — write Age * (0 - 1), or 0 - Age to negate."
     -- A placeholder, not a stock column name: this function is given the cell
     -- and not its header, so it cannot name the real column, and naming a
     -- fictional one ("Season") reads as a bug to an author whose column is
     -- called something else. Its sibling in DecisionTable.inputArithErrs does
     -- have the header in scope and does use the real name.
-  , " If this column is not numeric, declare it (\"<column> : String\"): with no"
-  , " declaration dmnmd infers Number from a column whose cells all read as one"
-  , " of the forms above."
+  , " If this column is not numeric, declare it (\"<column> : String\") — but a"
+  , " String column reads this cell as literal text and never computes it, so"
+  , " that is the wrong repair for a formula. With no declaration dmnmd infers"
+  , " Number from a column whose cells all read as one of the forms above."
   ]
 
 -- | Is this cell a construct only a @Number@ column could hold, which dmnmd

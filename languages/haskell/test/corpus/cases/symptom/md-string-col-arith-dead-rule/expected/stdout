@@ -1,0 +1,6 @@
+export function StrArith ( Age ) {
+  if (Age === "(Age * 2) + 1") { // 1
+    return {"Result":5.0};
+  }
+}
+

@@ -815,6 +815,41 @@ first — *is a trailing catch-all in a `U` table an authoring error, or an acce
 question is the real content of the deferral, and it is a genuinely separate decision from this
 one.
 
+**What the wider DMN community says about that question, gathered 2026-08-02.** Not a ruling —
+Meng has not ruled — but the evidence is one-sided enough that the next reader should not have to
+re-gather it.
+
+The industry answer is **authoring error**, and the argument is mechanical rather than stylistic:
+an all-wildcard row overlaps *every* other row by construction, and `U` means rules do not overlap,
+so the two cannot coexist. Bruce Silver (author of *DMN Method and Style*) puts it as "a U table
+means rules do not overlap. If you create a decision table with overlapping rules and use hit policy
+U, that is an error", and his worked examples change the hit policy to `P` (Priority) precisely in
+order to add an "else rule" — the catch-all is not wrong, it is wrong *under `U`*. Camunda's
+best-practice guide agrees that `U` "enforce[s] that rules do not overlap" and gives the
+add-a-fallback-row advice specifically under **`First`**, not under `U`.
+
+Worth noticing where that leaves the two clauses this entry already had to disentangle: DMN's own
+answer to "what if nothing matches" in a `U` table is **not** a catch-all row but the default output
+value of **§8.2.11** — the clause miscited above for hit policy. §8.2.10 forbids the overlap and
+§8.2.11 supplies the intended alternative; they sit next to each other and solve the two halves of
+this exact problem.
+
+Completeness is a separate axis and is advisory on all accounts: the spec does not require a table
+to be complete, though it is normally recommended.
+
+**The cost of adopting the strict reading is concrete and is the reason this stays open.** The four
+`policy/l4-*` recordings named above are `U` tables ending in a catch-all, so a strict check turns
+four of dmnmd's own policy recordings into refusals. Two defensible routes, and choosing between
+them is the ruling: rewrite those fixtures as `F` or `P` (spec-conformant, and cheap because they
+are fixtures rather than user data), or record a deliberate divergence in the manner of D-11 and
+D-12 — dmnmd tolerates the idiom with open eyes and says why.
+
+Sources: <https://www.trisotech.com/dmn-hit-policy-explained/>,
+<https://docs.camunda.io/docs/components/best-practices/modeling/choosing-the-dmn-hit-policy/>,
+<https://documentation.signavio.com/suite/en-us/Content/process-manager/userguide/dmn-hit-policy.htm>.
+These are secondary sources read at the URLs above; the §8.2.10/§8.2.11 clause content is the one
+part checked against the OMG PDF directly, when the miscite below was corrected.
+
 **Correction to this entry, made while landing it.** It cited "DMN 1.3 §8.2.11" for the uniqueness
 requirement. That is wrong: §8.2.11 is *Default output values*; hit policy is **§8.2.10**, which
 carries "The hit policy SHALL default to Unique" and "Decision tables with the Unique hit policy
@@ -908,7 +943,7 @@ acceptable form while refusing one. That is a separate change with a real blast 
 precedence would newly matter to `showFeel` — and it does not ride along with a deletion. It is
 D-15.
 
-### D-15 — `Age * 2 + 1` is refused, and both diagnostics misdescribe why. **RULED: open.**
+### D-15 — `Age * 2 + 1` is refused, and both diagnostics misdescribe why. **RULED: messages adopt, LANDED; precedence DO NOT ADOPT.**
 
 Split out of D-14 so that deleting `DMN.SFeelGrammar` does not delete the only record of the one
 real capability gap the module pointed at. Measured through the built binary at `603676f`, in a
@@ -919,6 +954,43 @@ declared-`Number` column, in both positions:
 | `Age * 2 + 1` | output | refused; the message says the cell "is not … an arithmetic expression" |
 | `Age * 2 + 1` | input | refused by `notATestMsg`, which offers "an arithmetic expression" as an acceptable form |
 | `(Age * 2) + 1` | output | **accepted**, emits `((Age * 2.0) + 1.0)`, exit 0 |
+
+**Re-measured at `7e01caa`; four corrections to the paragraphs below, all from independent
+surveys.** Rows 1 and 3 hold. Row 2's *attribution* was wrong in a way that matters: both
+positions reach the **same** `notATestMsg` (`ParseCell.hs:416`, raised at `DecisionTable.hs:243`),
+because a chained cell never parses and so no `FFunction` exists for `inputArithErrs` to match.
+`inputArithErrs` (`DecisionTable.hs:886`, raised at `:572`) is reached only by the *parenthesised*
+form in an input cell. So the defect is symmetric — one message, both positions — and a fix confined
+to `inputArithErrs` would not touch a single `Age * 2 + 1` author.
+
+1. **The closing `: String` advice is a worse defect than the one this section was opened for,
+   and both messages carry it.** D-15 says the messages fail to print the working repair. They also
+   print a repair that is *accepted and wrong*: declaring the column `String` makes `--to=js` emit
+   `return {"Result":"Age * 2 + 1"};` at exit 0 — the formula as a literal, never computed — and in
+   an input cell emits `if (Age === "(Age * 2) + 1")`, a string test that can never fire. Both
+   measured under `node`. A refusal that hands the author a silent wrong answer is strictly worse
+   than one that hands them nothing, which is the rule `CLAUDE.md` states as governing.
+
+2. **`showFNumFunction` misquotes the author's own cell, today, with no patch applied.** It renders
+   `FNF3` flat, so `inputArithErrs` on a source cell of `(Age + 1) * (Age + 2)` reports
+   `the input cell reads "Age + 1 * Age + 2"` — text the author did not write, that dmnmd itself
+   refuses, and that is a different number. `DMN.Translate.XML.showArith` solved exactly this for
+   the XML writer and its haddock names `showFNumFunction` as the copy that did not adopt it.
+
+3. **"every backend renders `FNF3` positionally" is false.** All four *emitting* backends already
+   parenthesise: `FEELhelpers.showFeel` (serving ts/js/py) and `L4.fnf2l4` fully, `XML.showArith` at
+   nested operands. The only flat renderer is `showFNumFunction`, which produces **diagnostics**.
+   The blast radius the paragraph below assigns to the expensive half is therefore empty, and the
+   real one — type inference — it does not mention. Relatedly, the **L4 ditto grid cannot be moved
+   by this at all**: `inputArithErrs` refuses every `FFunction` in an input position, so no
+   arithmetic reaches a guard cell, and the output-side arithmetic sits in `armResult`, outside the
+   width computation.
+
+4. **`Age * (-1)` is refused**, and so is `Age * -1` and `-Age`, because `parseFNF0` uses
+   megaparsec's *unsigned* `scientific`. A signed literal is legal as a whole cell (`-5`, which
+   `notATestMsg` advertises) and nowhere inside arithmetic. That is a second instance of this
+   section's own defect hiding in the sentence meant to be the message's most reliable part: the
+   working negations are `0 - Age` and `Age * (0 - 1)`, and no message mentions either.
 
 `DMN.ParseFEEL`'s `FNF3` is a single flat binary application whose operands are an atom or a
 parenthesised sub-expression, so there is no operator chaining and no precedence. The parenthesised
@@ -933,6 +1005,43 @@ precedence for one 7-line operator table, but `FNF3` is shared with the XML read
 backend renders it **positionally**, so precedence would newly matter to `showFeel` and the L4
 ditto grid, and `--to=xml` round-trip fidelity would have to be re-measured across all 176
 fixtures. Neither rode along with D-14.
+
+**RULED on the cheap half: adopt. LANDED.** Both messages name the chaining limit, print
+`(Age * 2) + 1`, name `Age * (0 - 1)` / `0 - Age` as the working negations, and caveat the
+`: String` sentence. `showFNumFunction` parenthesises a nested operand, so a refusal quotes the
+author's cell back verbatim. Every recommended form was emitted to js and py and **executed** at
+`Age = 3` — `(Age * 2) + 1` → 7, `Age + (1 * 2)` → 5, `Age * (0 - 1)` → −3, `0 - Age` → −3,
+`-5` → −5 — and every form named as not working is refused. Eleven recordings re-recorded
+(stderr-only, one message line each), and three added: `policy/num-arith-chain-refused-{output,input}`
+pin the refusal and the message in both positions, and `symptom/md-string-col-arith-dead-rule`
+pins the `: String` outcome, which is still an exit-0 silent wrong answer that the caveat mitigates
+but does not fix.
+
+**RULED on the expensive half: DO NOT ADOPT, on measured evidence. It ships a silent wrong answer
+on ISO-8601 dates.** A precedence-climbing `parseFNF3` (three tiers, `chainL` for `+ - * /` and
+`chainR` for `**`, ~18 lines, no new dependency) was built and measured, then reverted. It works:
+`Age * 2 + 1` → 7 and `Age + 2 * 3` → 9 under `node`, and `2 ** 3 ** 2` → 512, right-associatively.
+The stop condition is elsewhere, in **type inference**, which none of the paragraphs above mentions.
+`inferEvidence` treats a parsed `FFunction` containing a digit as `EWeakNumber`. A date cell
+`2024-01-15` does not parse today, so the column types `String`; under precedence it parses, so the
+column decides `Number`. Measured, same input, two binaries:
+
+| position | today | with precedence |
+|---|---|---|
+| `2024-01-15` output | `{"Signed":"2024-01-15"}`, exit 0 | `{"Signed":((2024.0 - 1.0) - 15.0)}` — **2008**, exit 0, stderr empty |
+| `2024-01-15` input | `Signed === "2024-01-15"`, exit 0 | exit 1, a false refusal |
+
+That is verbatim the class `policy/infer-hyphenated-output-stays-string` exists to pin, reintroduced
+by another route, and dates are the commonest non-numeric cell shape after enums. **The gates cannot
+see it**: with precedence applied, `cabal test` PASS, `make roundtrip` 0 FAIL, and the corpus was
+217/219 unchanged — the only two cases that moved were the two this ruling had just added, and no
+recording anywhere holds a date. Third confirmation that a green corpus is not coverage.
+
+Precedence therefore needs `EWeakNumber` narrowed first — arithmetic as numeric evidence only when
+every leaf is a numeric literal or a declared numeric column — plus corpus cases in both directions.
+That is a separate ruling, not a rider on this one. What is *not* an obstacle, contrary to the
+paragraph above: the emitting backends (all four parenthesise), the L4 ditto grid (arithmetic cannot
+reach a guard; `inputArithErrs` refuses it), and `--to=xml` (`showArith` never consults the parser).
 
 **Not to be confused with two adjacent exit-0 wrong answers** found by *running* the emitted
 JavaScript under `node`. Those belong in `cases/symptom/` rather than here, because they are bugs
