@@ -263,6 +263,17 @@ validator catches that.
 - **Refused, because DMN has no document for them:** a table with no output column
   (`tDecisionTable` is `output+`), a row with fewer cells than columns (padding with `-` would
   WIDEN the rule silently), a comparison in an output cell, and `HP_Aggregate`.
+- **A catch-all row in a `U` table is warned about HERE and nowhere else (D-16).** A row with `-`
+  in every input column overlaps every other rule, which §8.2.10 says a `U` table must not contain
+  — but the shape is idiomatic (**40 of 221** corpus fixtures, the README example among them),
+  dmnmd's own matching is first-match, and `--to=l4` renders it as `OTHERWISE`. So it is not
+  refused, and it is deliberately **not** a `tableWarnings` entry: put there, it added a paragraph
+  to 33 policy recordings about a problem the js/ts/py/l4 paths do not have. The hazard is only in
+  what this backend emits, because `U` lets a foreign engine reorder the rules and return the
+  catch-all instead of a specific one. DMN's construct for the intent is a default output value
+  (§8.2.11), which `DecisionTable` has no slot for — the same absent field that makes the reader
+  drop a declared `<defaultOutputEntry>`. D-16 phase 2 adds it; until then the warning names `F`
+  and `P` as portable repairs, both of which were run rather than reasoned about.
 
 ### The gate is a round trip, not a golden file (`test/roundtrip/`)
 
@@ -288,6 +299,17 @@ XSD-validates and dmnmd's reader refuses it.
 `backend-baseline.sh` is the other half: every fixture × every implemented format, byte for byte.
 Adding a `FileFormat` constructor is exactly the kind of edit that perturbs an unrelated format's
 dispatch. **`--check` only** — re-recording after a change launders a regression.
+
+> **This gate is currently dead, and you should not read a red run as a finding.** `test/roundtrip/
+> baseline/` was last recorded at `8c18f22`, before D-1 (number rendering), D-2 (inference), D-7
+> (diagnostic framing) and D-15 (message text) each changed output on purpose. `--check` now
+> reports ~487 of 1,072 runs changed, essentially all of them already-reviewed landed work, which
+> means a genuine cross-backend regression would be invisible in the noise.
+>
+> The fix is a deliberate re-record on trunk, audited against those four rulings — **not** a
+> re-record folded into whatever change happens to notice. Until then, A/B against a binary built
+> from `HEAD` for the change in hand, which is what D-16 did (1,520 paired invocations, and the
+> point of the exercise was proving the 41 diffs were all `--to=xml`).
 
 ## The L4 backend (`src/DMN/Translate/L4.hs`)
 

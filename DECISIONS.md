@@ -1075,3 +1075,81 @@ and not decisions, and they are not refusals at all — `Non-Participating` in a
 column emits `(Non - Participating)` and `n/a` emits `(false / a)`, both throwing `ReferenceError`;
 `< 5` and `[1..5]` in the same position emit an arrow function as the output *value*, which
 `JSON.stringify` drops, so the field silently vanishes.
+
+### D-16 — a catch-all row in a `U` table. **RULED: warn at emit time, do not refuse. Phase 1 LANDED; phase 2 spec'd, not built.**
+
+A row with `-` in every input column matches everything, so under hit policy `Unique` it overlaps
+every other rule — the one thing DMN 1.3 §8.2.10 says a `U` table must not contain. The strict
+reading refuses the table. dmnmd does not, and this is the entry that says why.
+
+**The DMN community's answer, researched before ruling.** Bruce Silver's worked examples switch to
+`P` to add an "else rule"; Camunda gives the fallback-row advice under `First`. DMN's own answer for
+`U` is neither: it is the **default output value of §8.2.11**, a construct that is not a rule at
+all. Notably that clause is adjacent to the §8.2.10 that was miscited for hit policy earlier in this
+file — the two solve the two halves of the same problem, and the miscitation was nearer the answer
+than it looked.
+
+**Ruled: do not refuse.** Three reasons, in order of weight.
+
+1. It would refuse `policy/md-backend-l4`, which is the README's own flagship example *and* a live
+   test fixture. Measured: the shape is in **40 of 221** corpus fixtures.
+2. dmnmd exists to formalize documents **as authored**. A catch-all in a `U` table is what real
+   analysts write, and their meaning is unambiguous to every human reader.
+3. Nothing dmnmd itself answers is wrong. `evalTable` is first-match and `--to=l4` renders the row
+   as `OTHERWISE` — verified by *running* the emitted JavaScript under `node`, where the catch-all
+   path returns `Takeaway`, rather than by reading it.
+
+**The hazard is real, and exclusive to `--to=xml`.** Under `U` a conforming engine may evaluate
+rules in any order, so a foreign engine reading our emitted document is entitled to return the
+catch-all instead of a more specific rule. That is a wrong answer at exit 0, in the one backend
+whose output is read by something other than a language toolchain.
+
+> **Phase 1, landed: the warning lives in the XML backend, not in the reader.**
+>
+> This was got wrong first and corrected by measurement, which is the part worth keeping. The
+> obvious home is `DecisionTable.tableWarnings`, which both readers already share. Built there, it
+> added a paragraph to **33 policy recordings** — a warning firing on a fifth of all input, about a
+> problem that does not exist on the js/ts/py/l4 paths. The negative-control case.conf written in
+> the same sitting said "a warning that fires on every table teaches people to ignore it", which is
+> exactly what the implementation then did.
+>
+> Moved to `Translate/XML.hs`'s `fidelityDiags`, beside `eqDomainWarns` and `outputWildcardWarns`,
+> where it is one warning about the one emission that can actually be misread. Blast radius fell
+> from 33 policy recordings to **5**, all `xml-*`.
+>
+> Verified against a freshly built pre-change binary: **1,520 paired invocations, 41 differ, all 41
+> `--to=xml`**; zero non-XML backends perturbed; and across those 41 the emitted document and the
+> exit status are **byte-identical** — only stderr gained the line. Warned rather than refused, on
+> the same principle as `eqDomainWarns`: the document is correct DMN and says exactly what the
+> author wrote.
+>
+> Pinned by `policy/hp-unique-catchall-warned` and its negative control
+> `policy/hp-first-catchall-not-warned`, plus seven examples in `TranslateXMLSpec`. The message
+> recommends `F` or `P`, and **both repairs were run rather than reasoned about**: each silences the
+> warning and each still returns `Takeaway` under `node`. They differ in shape — `F` folds the row
+> into `OTHERWISE`, `P` emits an explicit `IF TRUE` arm plus a dead `OTHERWISE ""` — but not in
+> meaning. An earlier reading of the `P` output mistook that dead arm for a lost default; running it
+> is what settled it.
+
+**Phase 2 — `dtDefaultOutput`, spec'd and NOT built.** `DecisionTable` has no slot for a default
+output value. That one absent field costs three things at once, which is the argument for adding it:
+
+- the XML **reader** parses `<defaultOutputEntry>`, checks it, and then "genuinely loses" it
+  (`XmlToDmnmd.hs`, which warns and says so) — a documented data loss;
+- the XML **writer** has nowhere to put a trailing catch-all except back into a rule, which is what
+  creates the portability hazard phase 1 can only describe;
+- L4's `OTHERWISE` reads `L4Opts.defaultResult`, set by the CLI, never by the table.
+
+With the slot, a trailing all-wildcard row emits as `<defaultOutputEntry>` and the row is dropped,
+making the emitted table genuinely `U`-conformant *and* meaning-preserving for any engine.
+
+**Held separate on purpose, because the cost lands on the gate.** Converting a row into a default
+output perturbs the round trip — `md → xml → ts` stops matching `md → ts` unless the js/ts/py
+backends learn the new field, and they currently render rules only. That is precisely the
+cross-backend perturbation `backend-baseline.sh` exists to catch, and it deserves its own diff
+rather than riding along with a warning.
+
+**This ruling makes the deferred full-overlap project (Calvanese 2016, D-13) *less* attractive, not
+more.** The catch-all is the one place naive overlap detection would fire constantly on legitimate
+input; understanding it as a misplaced default rather than as an overlap removes the main motivation
+for rushing general overlap analysis.

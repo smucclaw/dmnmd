@@ -963,3 +963,4 @@ listSpec = do
       uniquenessErrors (tbl HP_Unique [inCol "Season", outCol "Dish"]
                         [row 1 [lit "Fall"], row 2 [lit "Fall"], row 3 [lit "Fall"]])
         `shouldSatisfy` ((== 2) . length)
+

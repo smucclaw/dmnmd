@@ -19,7 +19,7 @@ import Test.Hspec
 
 import Data.List (isInfixOf)
 
-import DMN.Translate.XML (cellText, defaultXMLOpts, showFeelXML, toXMLDoc)
+import DMN.Translate.XML (cellText, defaultXMLOpts, fidelityDiags, showFeelXML, toXMLDoc)
 import DMN.Types
 
 xmlEmitSpec :: Spec
@@ -133,6 +133,64 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
       attrs (HP_Collect Collect_Min) `shouldBe` ["hitPolicy=\"COLLECT\"", "aggregation=\"MIN\""]
       attrs (HP_Collect Collect_Max) `shouldBe` ["hitPolicy=\"COLLECT\"", "aggregation=\"MAX\""]
       attrs (HP_Collect Collect_Cnt) `shouldBe` ["hitPolicy=\"COLLECT\"", "aggregation=\"COUNT\""]
+
+  -- D-16 phase 1. The catch-all 'uniquenessErrors' deliberately leaves alone
+  -- (it is legal, unambiguous, and dmnmd evaluates it first-match) becomes a
+  -- portability hazard only in what THIS backend emits, because Unique lets a
+  -- foreign engine reorder the rules. Reader-side was tried and measured: the
+  -- shape is in 40 of 221 corpus fixtures, so it warned on a fifth of all runs
+  -- about a problem those runs did not have.
+  describe "DMN.Translate.XML.fidelityDiags — a catch-all row in a U table" $ do
+    let inC n  = DTCH DTCH_In  n (Just DMN_String) Nothing
+        outC n = DTCH DTCH_Out n (Just DMN_String) Nothing
+        r n ins = DTrow (Just n) ins [[FNullary (VS "x")]] []
+        tb hp chs rows = DTable "T" hp chs rows
+        lit s' = [FNullary (VS s')]
+        catchAllWarns = length . filter ("overlaps every other rule" `isInfixOf`)
+                      . map show . fidelityDiags defaultXMLOpts
+
+    it "warns about a row whose every input cell is a wildcard" $
+      catchAllWarns (tb HP_Unique [inC "Season", inC "Guests", outC "Dish"]
+                     [r 1 [lit "Fall", lit "8"], r 2 [[FAnything], [FAnything]]])
+        `shouldBe` 1
+
+    it "names the row the way the author numbered it" $
+      show (fidelityDiags defaultXMLOpts
+             (tb HP_Unique [inC "Season", outC "Dish"]
+              [r 1 [lit "Fall"], r 9 [[FAnything]]]))
+        `shouldSatisfy` ("row 9" `isInfixOf`)
+
+    -- A partial wildcard does not match everything, so it does not overlap
+    -- every rule. This is the one an over-eager predicate gets wrong.
+    it "stays silent when only SOME input cells of a row are wildcards" $
+      catchAllWarns (tb HP_Unique [inC "Season", inC "Guests", outC "Dish"]
+                     [r 1 [lit "Fall", lit "8"], r 2 [[FAnything], lit "9"]])
+        `shouldBe` 0
+
+    it "stays silent for a U table with no catch-all at all" $
+      catchAllWarns (tb HP_Unique [inC "Season", outC "Dish"]
+                     [r 1 [lit "Fall"], r 2 [lit "Winter"]])
+        `shouldBe` 0
+
+    -- F and P are the repairs the message recommends. A repair that leaves the
+    -- diagnostic in place is not a repair.
+    it "leaves hit policies other than Unique alone, F and P included" $
+      sum [ catchAllWarns (tb hp [inC "Season", outC "Dish"]
+                           [r 1 [lit "Fall"], r 2 [[FAnything]]])
+          | hp <- [HP_First, HP_Priority, HP_Any, HP_OutputOrder, HP_RuleOrder] ]
+        `shouldBe` 0
+
+    -- With no input columns every row is vacuously a catch-all, which would
+    -- warn on every input-less table. Matches uniquenessErrors' own guard.
+    it "declines a table with no input columns" $
+      catchAllWarns (tb HP_Unique [outC "Dish"]
+                     [DTrow (Just 1) [] [[FNullary (VS "a")]] []])
+        `shouldBe` 0
+
+    it "reports every catch-all row, not just the first" $
+      catchAllWarns (tb HP_Unique [inC "Season", outC "Dish"]
+                     [r 1 [lit "Fall"], r 2 [[FAnything]], r 3 [[FAnything]]])
+        `shouldBe` 2
 
   where
     strCol k = DTCH k "Season" (Just DMN_String) Nothing
