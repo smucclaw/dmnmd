@@ -111,20 +111,24 @@ normalize() {
 # unrelated edit shifts a line, and a recording that goes red for that is not
 # reporting a behaviour change.
 #
-# They are NOT stripped by normalize(), because they carry information nothing
-# else does: DecisionTable.mkFsAt and .mkFAt are the multi-value and single-value
-# cell paths, and several cells produce byte-identical message text down both.
-# The pinned demonstration is the pair policy/num-subheader-{declared,inferred}-
-# refused: same table, same column, same absent row, identical text to the byte,
-# tellable apart ONLY by which wrapper raised. Collapsing the positions would
-# make two genuinely different defects record identically. No line numbers are
-# quoted here on purpose -- the numbers are the part that goes stale.
+# They are NOT stripped by normalize(): they are repo-relative, they cost nothing
+# to keep, and a reader auditing a diff would rather see them than not. No line
+# numbers are quoted here on purpose -- the numbers are the part that goes stale.
 #
-# So positions stay verbatim in the recordings, and instead a diff that consists
-# of NOTHING BUT moved positions is reported as cosmetic: printed in full, but it
-# does not fail the run. The alternative — a policy case going red every time
-# somebody inserts a line in L4.hs — trains people to re-record without reading
-# the diff, and that habit would make this whole directory worthless.
+# This comment used to claim more: that the positions were load-bearing, because
+# DecisionTable.mkFsAt and .mkFAt produce byte-identical text and only the
+# position says which raised. That is true of the FILES and false as a
+# justification, because scrub_positions below runs BEFORE the cosmetic check --
+# so a swap from one wrapper to the other is already reported as cosmetic and
+# already exits 0. Measured, by editing a recording to cite the other wrapper.
+# The real discriminator is in test/Spec.hs, which calls mkFsAtE and mkFAtE by
+# name. See test/corpus/README.md for the full retraction.
+#
+# A diff that consists of NOTHING BUT moved positions is reported as cosmetic:
+# printed in full, but it does not fail the run. The alternative — a policy case
+# going red every time somebody inserts a line in L4.hs — trains people to
+# re-record without reading the diff, and that habit would make this whole
+# directory worthless.
 scrub_positions() {
   sed -e 's/\.hs:[0-9][0-9]*:[0-9][0-9]*/.hs:LINE:COL/g' \
       -e 's/\.hs:([0-9][0-9]*,[0-9][0-9]*)-([0-9][0-9]*,[0-9][0-9]*)/.hs:SPAN/g'

@@ -229,12 +229,18 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 -- ('mkDTable') and how every located markdown refusal in @cases\/policy\/@
 -- already arrives.
 --
--- 'mkFs' stays, at its own source line. The XML reader calls it — including at
--- a type-inference pre-pass with no column context to build a site from — dozens
--- of test sites call it, and @test\/corpus\/README.md@ relies on the
+-- 'mkFs' stays. The XML reader calls it — including at a type-inference
+-- pre-pass with no column context to build a site from — and dozens of test
+-- sites call it.
+--
+-- This haddock used to add that @test\/corpus\/README.md@ "relies on the
 -- multi-value and single-value wrappers sitting at distinct source positions to
--- tell otherwise byte-identical messages apart. Keep 'mkFsAt' and 'mkFAt' two
--- functions at two lines for the same reason.
+-- tell otherwise byte-identical messages apart", and that the two must therefore
+-- stay at two lines. Both halves are retracted. 'mkFsAt' is the entry point for
+-- EVERY markdown cell, not the multi-value one — the pinned pair's single-value
+-- @0x10@ arrives here and its multi-value @0x10, 5@ arrives at 'mkFAt' — and the
+-- corpus runner scrubs positions before deciding whether a diff is a regression,
+-- so the distinct lines never enforced anything. See @test\/corpus\/README.md@.
 --
 -- Reports the first cell FORCED, which is not the first in reading order:
 -- 'inferTypes' transposes, so pass 1 walks columns and pass 2 walks rows.
@@ -294,8 +300,11 @@ thousandsMsg args = concat
 mkF :: Maybe DMNType -> String -> FEELexp
 mkF dmntype arg = either error id (mkFEither dmntype arg)
 
--- | The single-value twin of 'mkFsAt' — see there for why there are two of
--- these and why they must stay at distinct source lines.
+-- | The type-inference re-pass's cell wrapper: 'reprocessRows' calls this when
+-- a column's type arrives after pass 1 has already read the cell as a string.
+-- 'mkFsAt' is the pass-1 wrapper and handles every markdown cell; this one is
+-- not "the single-value path", which is what this haddock used to claim — see
+-- 'mkFs' for the retraction.
 mkFAt :: CellSite -> Maybe DMNType -> String -> FEELexp
 mkFAt st dmntype arg = either (error . (showSite st ++)) id (mkFEither dmntype arg)
 

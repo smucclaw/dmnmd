@@ -405,6 +405,33 @@ Commit 6 (`7a5e990`) fixes the *message* — which table, column and rule number
 keeps the mechanism, because changing both at once would make the corpus diff unreadable at exactly
 the moment it matters most. The mechanism change is its own piece of work.
 
+> **Two premises of this entry are false, measured before implementing it.** Landing the
+> corrections first, because the second one is what the mechanism change was said to be blocked on.
+>
+> 1. **"which `XmlToDmnmd` does on purpose" is only mostly true.** `mkFs` is `either error id`
+>    and the XML reader calls it at two sites — `firstPass = map (mkFs Nothing) texts`, forced
+>    when a column carries no `typeRef`, and the `isStringy` fallback `verbatim = mkFs ty text`.
+>    `mkFsEither`'s `thousandsGrouped` guard fires before any type dispatch, so `1,000` in an
+>    untyped `<inputEntry>` or in a string `<outputEntry>` aborts with a Haskell `CallStack` and
+>    names **no file, no table, no column and no rule** — less located than the markdown message
+>    this entry contrasts it with. The model being copied has a hole at the same function, so
+>    D-7 fixes those two sites too; both already have a locator in scope.
+>
+> 2. **The stated blocker does not exist.** `CLAUDE.md` said the `CallStack` position was "the
+>    only discriminator between the `mkFsAt` and `mkFAt` recordings" and that removing it "needs
+>    the discriminator replaced first". It is the only discriminator *in the files*, and it
+>    discriminates nothing *in the runner*: `run-corpus.sh`'s `scrub_positions` rewrites every
+>    `.hs:N:C` to `.hs:LINE:COL` **before** the cosmetic check, so a swap from one wrapper to the
+>    other is already classified `cosmetic`, counted as unchanged, and exits 0. Demonstrated by
+>    editing `policy/num-subheader-declared-refused`'s recorded stderr to cite `mkFAt`'s position
+>    — the exact swap the argument claimed to catch — and getting
+>    `1 unchanged, 0 POLICY REGRESSION(S)`.
+>
+>    The gloss those three documents share is also inverted: `mkFsAt` is not "the multi-value
+>    cell path" but the entry point for **every** markdown cell, and `mkFAt` is the
+>    type-inference re-pass. In the pinned pair itself, the single-value `0x10` raises at
+>    `mkFsAt` and the multi-value `0x10, 5` at `mkFAt`.
+
 ### D-8 — build `--to=xml`; answer issue #13 now. **RULED: adopt. LANDED.**
 
 > **Landed, with five things this entry did not anticipate.** Each is a measurement made while

@@ -362,14 +362,28 @@ Three differences between the two readers' output survive, and only two are on p
 file name and the missing in/out word are reasoned (the latter because `reviseInOut` can
 relabel an explicitly-`(in)` column to `out`, so the word would sometimes contradict the
 header). The third is not: **the markdown path still prints a Haskell `CallStack` and a
-four-frame `HasCallStack backtrace:` of ghc-internal positions, and it is the only
-user-facing abort in the tool that does.** `app/Main.hs:130` defines
-`crash = errorWithoutStackTrace` and every other abort goes through it, so
-`dmnmd -f xml -t ts test/dmn13/temporal-type.dmn` ends on a clean located line. This is not a
-leftover to tidy in passing: that `CallStack` position is currently the **only** discriminator
-between the `mkFsAt` and `mkFAt` recordings, including the `num-subheader-*` pair the corpus
-README cites. Removing it needs the discriminator replaced first — it belongs to the
-diagnostics conversion (`DECISIONS.md` D-7), not to a cleanup commit.
+four-frame `HasCallStack backtrace:` of ghc-internal positions.** `app/Main.hs` defines
+`crash = errorWithoutStackTrace` and most aborts go through it, so
+`dmnmd -f xml -t ts test/dmn13/temporal-type.dmn` ends on a clean located line.
+
+Two claims this paragraph used to make are **false and are retracted**, both measured against
+the tree rather than re-read:
+
+1. It said the markdown path "is the only user-facing abort in the tool that" prints a
+   `CallStack`. **The XML path does too, and worse.** `mkFs` — described below as staying "for
+   the XML reader (which frames its own)" — is `either error id`, and `XmlToDmnmd` reaches it
+   at two sites: `firstPass = map (mkFs Nothing) texts` and the `isStringy` fallback
+   `verbatim = mkFs ty text`. `mkFsEither`'s `thousandsGrouped` guard fires *before* any type
+   dispatch, so a `1,000` in an untyped `<inputEntry>` or a string `<outputEntry>` aborts with
+   a `CallStack` and **no file, no table, no column and no rule** — strictly less located than
+   the markdown message it was being contrasted with. No corpus case covered it.
+2. It said the `CallStack` position "is currently the **only** discriminator between the
+   `mkFsAt` and `mkFAt` recordings" and that "removing it needs the discriminator replaced
+   first". The first half is true of the *files*; the second does not follow, because
+   `run-corpus.sh`'s `scrub_positions` runs before the cosmetic check, so a swap from one
+   wrapper to the other is **already** reported as `cosmetic` and already exits 0. The
+   positions were never enforcing anything. See `test/corpus/README.md`, which carries the full
+   retraction and the one-command demonstration.
 
 The exit status answers exactly one question: *did something we were asked to read fail to
 read?* — with one extension the XML backend adds: **or fail to WRITE.** An emitter has a failure
@@ -443,12 +457,17 @@ Three things there are easy to get wrong on sight:
   recordings with zero behavioural content, back when CI built with stack; stack is gone but
   the rule is not stack-specific, and Linux CI reproducing macOS arm64 recordings is the
   evidence it earns its place.
-- **Source positions are kept, not normalised.** `mkFsAt` and `mkFAt` are the multi-value and
-  single-value cell paths, and several cells produce byte-identical message text down both, so
-  the position is the only discriminator. `policy/num-subheader-{declared,inferred}-refused`
-  is the pair that pins it: identical text, different wrapper. Instead of stripping positions,
-  a diff consisting of *nothing but* moved ones is reported as `cosmetic` and does not fail the
-  run. Do not write the line numbers down anywhere — this bullet asserted `:121` and `:143` long
+- **Source positions are kept, not normalised** — but only because they are cheap and
+  repo-relative, *not* because they discriminate anything. This bullet used to say `mkFsAt` and
+  `mkFAt` "are the multi-value and single-value cell paths" and that the position was therefore
+  "the only discriminator". Both halves are wrong. `mkFsAt` is the entry point for **every**
+  markdown cell and `mkFAt` is the type-inference re-pass — in the very pair cited as proof,
+  the single-value `0x10` raises at `mkFsAt` and the multi-value `0x10, 5` at `mkFAt`, the exact
+  inversion of the gloss. And a diff consisting of *nothing but* moved positions is reported as
+  `cosmetic` and does not fail the run, so a wrapper swap was already invisible to the runner.
+  So there is **no** enforced discriminator between the two paths today. D-7 proposes putting
+  one in `test/Spec.hs`, where a test that names the function it calls cannot be invalidated by
+  a line moving; that has not landed. Do not write the line numbers down anywhere — this bullet asserted `:121` and `:143` long
   after both had moved. (An earlier retraction added that `:143` "was never right". That is
   false: at `a670657`, the commit that wrote the sentence, `:121` was `mkFs`'s body and `:143`
   was `mkF`'s, and eight and six recordings cited them respectively. Both were exact when
