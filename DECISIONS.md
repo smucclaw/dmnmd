@@ -824,7 +824,7 @@ acceptable form while refusing one. That is a separate change with a real blast 
 precedence would newly matter to `showFeel` — and it does not ride along with a deletion. It is
 D-15.
 
-### D-15 — `Age * 2 + 1` is refused, and both diagnostics misdescribe why. **RULED: open.**
+### D-15 — `Age * 2 + 1` is refused, and both diagnostics misdescribe why. **RULED: messages adopt, LANDED; precedence DO NOT ADOPT.**
 
 Split out of D-14 so that deleting `DMN.SFeelGrammar` does not delete the only record of the one
 real capability gap the module pointed at. Measured through the built binary at `603676f`, in a
@@ -886,6 +886,43 @@ precedence for one 7-line operator table, but `FNF3` is shared with the XML read
 backend renders it **positionally**, so precedence would newly matter to `showFeel` and the L4
 ditto grid, and `--to=xml` round-trip fidelity would have to be re-measured across all 176
 fixtures. Neither rode along with D-14.
+
+**RULED on the cheap half: adopt. LANDED.** Both messages name the chaining limit, print
+`(Age * 2) + 1`, name `Age * (0 - 1)` / `0 - Age` as the working negations, and caveat the
+`: String` sentence. `showFNumFunction` parenthesises a nested operand, so a refusal quotes the
+author's cell back verbatim. Every recommended form was emitted to js and py and **executed** at
+`Age = 3` — `(Age * 2) + 1` → 7, `Age + (1 * 2)` → 5, `Age * (0 - 1)` → −3, `0 - Age` → −3,
+`-5` → −5 — and every form named as not working is refused. Eleven recordings re-recorded
+(stderr-only, one message line each), and three added: `policy/num-arith-chain-refused-{output,input}`
+pin the refusal and the message in both positions, and `symptom/md-string-col-arith-dead-rule`
+pins the `: String` outcome, which is still an exit-0 silent wrong answer that the caveat mitigates
+but does not fix.
+
+**RULED on the expensive half: DO NOT ADOPT, on measured evidence. It ships a silent wrong answer
+on ISO-8601 dates.** A precedence-climbing `parseFNF3` (three tiers, `chainL` for `+ - * /` and
+`chainR` for `**`, ~18 lines, no new dependency) was built and measured, then reverted. It works:
+`Age * 2 + 1` → 7 and `Age + 2 * 3` → 9 under `node`, and `2 ** 3 ** 2` → 512, right-associatively.
+The stop condition is elsewhere, in **type inference**, which none of the paragraphs above mentions.
+`inferEvidence` treats a parsed `FFunction` containing a digit as `EWeakNumber`. A date cell
+`2024-01-15` does not parse today, so the column types `String`; under precedence it parses, so the
+column decides `Number`. Measured, same input, two binaries:
+
+| position | today | with precedence |
+|---|---|---|
+| `2024-01-15` output | `{"Signed":"2024-01-15"}`, exit 0 | `{"Signed":((2024.0 - 1.0) - 15.0)}` — **2008**, exit 0, stderr empty |
+| `2024-01-15` input | `Signed === "2024-01-15"`, exit 0 | exit 1, a false refusal |
+
+That is verbatim the class `policy/infer-hyphenated-output-stays-string` exists to pin, reintroduced
+by another route, and dates are the commonest non-numeric cell shape after enums. **The gates cannot
+see it**: with precedence applied, `cabal test` PASS, `make roundtrip` 0 FAIL, and the corpus was
+217/219 unchanged — the only two cases that moved were the two this ruling had just added, and no
+recording anywhere holds a date. Third confirmation that a green corpus is not coverage.
+
+Precedence therefore needs `EWeakNumber` narrowed first — arithmetic as numeric evidence only when
+every leaf is a numeric literal or a declared numeric column — plus corpus cases in both directions.
+That is a separate ruling, not a rider on this one. What is *not* an obstacle, contrary to the
+paragraph above: the emitting backends (all four parenthesise), the L4 ditto grid (arithmetic cannot
+reach a guard; `inputArithErrs` refuses it), and `--to=xml` (`showArith` never consults the parser).
 
 **Not to be confused with two adjacent exit-0 wrong answers** found by *running* the emitted
 JavaScript under `node`. Those belong in `cases/symptom/` rather than here, because they are bugs
