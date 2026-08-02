@@ -4,6 +4,7 @@ module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
 import DMN.DecisionTable ( CellSite(..), mkFsAt, trim, mkDTable )
+import DMN.Diagnostic ( Diagnostic, anyErrors, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
@@ -156,8 +157,31 @@ mkHitPolicy_C c   = error $ unwords
 -- also, see page 112 for boxed expressions -- the contexts are pretty clearly an oop / record paradigm
 -- so we probably need to bite the bullet and just support JSON input.
 
+-- | 'parseTableD' for the test suite, which parses tables it expects to be
+-- well-formed and wants one back.
+--
+-- __Not reachable from the CLI__ — @app\/ParseMarkdown.hs@ calls 'parseTableD'
+-- — which is the only reason an @error@ is tolerable here. Exactly the shape
+-- and the justification 'DMN.DecisionTable.mkFs' already has beside
+-- 'DMN.DecisionTable.mkFsEither'. If you find yourself wanting this in @app/@,
+-- you want 'parseTableD' and a diagnostics check.
 parseTable :: String -> Parser DecisionTable
 parseTable tableName = do
+  (diags, tables) <- parseTableD tableName
+  case tables of
+    [t] -> pure t
+    _   -> error (unlines (renderDiagnostic <$> diags))
+
+-- | One markdown chunk to @([Diagnostic], 0-or-1 tables)@ — D-7's shape, the
+-- same one 'DMN.XML.XmlToDmnmd.convTable' has always had.
+--
+-- Refusals from the sub-header row and from the data rows are collected here
+-- rather than raised, and an 'DMN.Diagnostic.Error' among them means
+-- 'mkDTable' is not called at all: pass 2 re-types cells against a column type
+-- inferred from cells that pass 1 could not read, so its complaints would be
+-- about dmnmd's placeholders rather than about the author's table.
+parseTableD :: String -> Parser ([Diagnostic], [DecisionTable])
+parseTableD tableName = do
   input <- Mega.lookAhead Mega.takeRest
   doTrace ("parseTable: starting. input =\n" ++ T.unpack input)
   doTrace ("parseTable: end of input")
@@ -166,17 +190,25 @@ parseTable tableName = do
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
   -- merge headerRow with subHeadRows
-  let headerRow = if not (null subHeadRow)
+  -- siteRow = Nothing: the sub-header row has no rule number.
+  let subHeadCells = zipWith (\cs cell -> mkFsAt (CellSite tableName (csName cs) Nothing) (csType cs) cell)
+                             columnSignatures subHeadRow
+      subHeadDiags = [ d | Left d <- subHeadCells ]
+      -- A refused sub-header cell keeps FAnything in its place. It is never
+      -- read: an Error below means no table is returned.
+      subHeadOk    = either (const [FAnything]) id <$> subHeadCells
+      headerRow = if not (null subHeadRow)
                   then  headerRow_1 { cols = zipWith (\orig subhead -> orig { enums = if subhead == [FAnything] then Nothing else Just subhead } ) -- in the data section a blank cell means anything, but in the subhead it means nothing.
                                              (cols headerRow_1)
-                                             -- siteRow = Nothing: the sub-header row has no rule number.
-                                             (zipWith (\cs cell -> mkFsAt (CellSite tableName (csName cs) Nothing) (csType cs) cell) columnSignatures subHeadRow) }
+                                             subHeadOk }
                   else headerRow_1
-  dataRows <- parseDataRows tableName columnSignatures <?> "parseDataRows"
+  (rowDiags, dataRows) <- parseDataRows tableName columnSignatures <?> "parseDataRows"
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
-  return ( mkDTable tableName (hrhp headerRow)
-           (cols headerRow)
-           dataRows )
+  let pass1 = subHeadDiags ++ rowDiags
+  pure $ if anyErrors pass1
+         then (pass1, [])
+         else let (ds, ts) = mkDTable tableName (hrhp headerRow) (cols headerRow) dataRows
+              in (pass1 ++ ds, ts)
 
 grep_out_dashes :: String -> String
 grep_out_dashes x = unlines ( filter ( \str -> isLeft $ runParser parseDThr "internal" $ T.pack str ) ( lines x ) )
@@ -214,7 +246,7 @@ parseTail = do
 
 -- | The table name is carried purely so a refused cell can say which table it
 -- was in; see 'DMN.DecisionTable.CellSite'.
-parseDataRows :: String -> [ColumnSignature] -> Parser [DTrow]
+parseDataRows :: String -> [ColumnSignature] -> Parser ([Diagnostic], [DTrow])
 parseDataRows tableName csigs = do
   -- the input could be a regular data row | foo | bar | baz |
   -- or it could be a horizontal rule, which used to be called DThr
@@ -222,11 +254,11 @@ parseDataRows tableName csigs = do
   -- so … now i want to match something and then throw it away.
   drows <- many (try ((many parseDThr <?> "parseDThr") >> parseDataRow tableName csigs <?> "parseDataRow"))
   endOfInput
-  return drows
+  return (concatMap fst drows, snd <$> drows)
 
 doTrace t = when False $ traceM t
 
-parseDataRow :: String -> [ColumnSignature] -> Parser DTrow
+parseDataRow :: String -> [ColumnSignature] -> Parser ([Diagnostic], DTrow)
 parseDataRow tableName csigs =
   do
       pipeSeparator
@@ -243,13 +275,16 @@ parseDataRow tableName csigs =
           -- because the row that would want it is eaten earlier by
           -- parseContinuationRow (symptom/struct-blank-rownum-swallowed).
           myrow = if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing
-          datacols = zipWith (mkFEELCol tableName myrow) csigs transposed
+          colResults = zipWith (mkFEELCol tableName myrow) csigs transposed
+          cellDiags = concatMap fst colResults
+          datacols = snd <$> colResults
       doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
                         , "    csigs = " <> show csigs
                         , "    transposed = " <> show transposed
                         ]
 
-      return ( DTrow myrow
+      return ( cellDiags
+             , DTrow myrow
                (catMaybes (zipWith getInputs  csigs datacols))
                (catMaybes (zipWith getOutputs csigs datacols))
                (catMaybes (zipWith getComments csigs datacols)) )
@@ -263,8 +298,8 @@ parseDataRow tableName csigs =
     getComments ColSig{csLabel = DTCH_Comment} (DTComment mcs) = Just mcs
     getComments _ _ = Nothing
 
-mkFEELCol :: String -> Maybe Int -> ColumnSignature -> String -> ColBody
-mkFEELCol _         _     (ColSig DTCH_Comment _  _        ) = mkDataColComment
+mkFEELCol :: String -> Maybe Int -> ColumnSignature -> String -> ([Diagnostic], ColBody)
+mkFEELCol _         _     (ColSig DTCH_Comment _  _        ) = (,) [] . mkDataColComment
 mkFEELCol tableName myrow (ColSig DTCH_In      nm maybe_type) = mkDataCol (CellSite tableName nm myrow) maybe_type
 mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (CellSite tableName nm myrow) maybe_type
 
@@ -298,7 +333,12 @@ reviseInOut hr = let noncomments = filter ((DTCH_Comment /= ) . label) $ cols hr
                          in hr { cols = map (\ch -> if ch == rightmost then ch { label = DTCH_Out } else ch) (cols hr) }
                     else hr
 
-mkDataCol :: CellSite -> Maybe DMNType -> String -> ColBody
-mkDataCol site dmntype = DTCBFeels . mkFsAt site dmntype
+-- | A refused data cell keeps an empty cell body in its place; nothing reads it,
+-- because an Error anywhere in the returned list means 'parseTableD' emits no
+-- table. See 'DMN.DecisionTable.reprocessRows' for the same choice in pass 2.
+mkDataCol :: CellSite -> Maybe DMNType -> String -> ([Diagnostic], ColBody)
+mkDataCol site dmntype cell = case mkFsAt site dmntype cell of
+  Left d   -> ([d], DTCBFeels [FAnything])
+  Right fs -> ([],  DTCBFeels fs)
 mkDataColComment :: String -> ColBody
 mkDataColComment mcs = DTComment (if mcs == "" then Nothing else Just mcs)

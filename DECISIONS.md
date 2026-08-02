@@ -395,7 +395,7 @@ This is the one place that module breaks its own governing rule; everything else
 refuses by name. **The Warning is an afternoon and does not wait for E1**, which is the large job of
 actually modelling the graph.
 
-### D-7 — the markdown reader returns diagnostics instead of calling `error`. **RULED: adopt, after commit 6.**
+### D-7 — the markdown reader returns diagnostics instead of calling `error`. **RULED: adopt. LANDED.**
 
 `mkFs = either error id`. One rule, two mechanisms: a bad markdown cell is an imprecise exception
 carrying a Haskell `CallStack`, while the same cell arriving through XML is a structured
@@ -404,6 +404,37 @@ carrying a Haskell `CallStack`, while the same cell arriving through XML is a st
 Commit 6 (`7a5e990`) fixes the *message* — which table, column and rule number — and deliberately
 keeps the mechanism, because changing both at once would make the corpus diff unreadable at exactly
 the moment it matters most. The mechanism change is its own piece of work.
+
+> **Landed, with three things this entry did not anticipate.**
+>
+> 1. **The safety property the entry takes for granted was an accident of strictness, twice
+>    over.** A markdown cell refusal fired wherever a table was first forced — which happened to
+>    be `app/Main.hs`'s `tableWarnings` loop, and `--pick`'s `filter (\dt -> tableName dt …)`,
+>    both *before* `withOutHandle` truncates a `-o` file and before `--pick` had excluded
+>    anything. So `--pick Good` on a file whose *other* table was bad still exited 1, and `-o`
+>    survived, for reasons nobody designed. Converting to returned values removes both at once.
+>    What replaces them is the `([Diagnostic], 0-or-1 tables)` shape: an `Error` means the table
+>    is not in the list, so there is nothing to emit even if a caller ignores the diagnostics —
+>    plus an explicit `anyErrors` check in `Main.parseTables` ordered ahead of everything.
+>    Verified by measurement, not by reading: `--pick Good` still exits 1, `-o` against a
+>    pre-existing file still leaves it untouched, and all five emitting backends still write
+>    zero bytes.
+>
+> 2. **A refusal no longer stops at the first cell.** `error` reported one cell and died; a
+>    returned list collects every one. Exactly one recording changed content for this reason
+>    (`policy/infer-declared-number-nonnumeric-refused`, now naming rows 1 and 2), and it aligns
+>    the cell layer with `tableErrors`, which has always collected and joined.
+>
+> 3. **The markdown path gained a file name, closing a deferral the `CellSite` haddock records.**
+>    `parseTableD` still does not know one — the cell layer is shared with the XML reader — so
+>    `ParseMarkdown.parseChunk` adds it, which is where the two sibling markdown diagnostics
+>    already put it. Without this the same list would have named the file in some entries and not
+>    others.
+>
+> Not in scope and still raising with a `CallStack`: the *evaluation*-time crashes on the `-q`
+> REPL path (`head0`, `fe2dval`, `fEval`'s type errors). They already have `evalTable`'s
+> `Either String` channel to travel down. Their two recordings are the tripwire that says a
+> future read-time change has leaked scope.
 
 > **Two premises of this entry are false, measured before implementing it.** Landing the
 > corrections first, because the second one is what the mechanism change was said to be blocked on.
@@ -431,6 +462,32 @@ the moment it matters most. The mechanism change is its own piece of work.
 >    cell path" but the entry point for **every** markdown cell, and `mkFAt` is the
 >    type-inference re-pass. In the pinned pair itself, the single-value `0x10` raises at
 >    `mkFsAt` and the multi-value `0x10, 5` at `mkFAt`.
+>
+> **The discriminator decision, since this entry does not make one.** The `CallStack` had to go
+> for the mechanism change to mean anything; what replaces it as the thing telling `mkFsAt` from
+> `mkFAt` was a live choice. **Taken: put it in `test/Spec.hs`** — a block, `located cell
+> refusals (mkFsAt / mkFAt)`, that calls each wrapper *by name* and pins its contract, including
+> the one behaviour they genuinely disagree about (`mkFsAt` splits `4, 5` on the comma; `mkFAt`
+> refuses it). Both `num-subheader-*` cases stay, because their **inputs** differ — declared
+> `: Number` versus inferred — so they were never a single case wearing two hats.
+>
+> This is a strict increase over the status quo, which enforced nothing: it moves the
+> distinction from a field the runner scrubs into an assertion that fails, and it retires the
+> standing constraint that the two wrappers occupy distinct source lines.
+>
+> **What the alternatives would have cost.** Naming the pass in the *message* — "multi-value
+> cell" / "single-value cell" — is refutable on fact, not taste: run it, and an author whose
+> cell reads `0x10` is told it is multi-value while an author whose cell reads `0x10, 5` is told
+> it is single-value. It would have shipped a false sentence to satisfy a test. Naming the
+> *provenance* instead — "declared" versus "inferred" — is the better message and is genuinely
+> wanted, because the current text ends `with no declaration dmnmd infers Number…` and says that
+> to an author who did write `Amount : Number`. It is **not** done here for two reasons: the
+> provenance is not available at the refusal point (`inferTypes` never overwrites a declared
+> type, so `reprocessRows` fires on declared columns too, and the flag would have to be threaded
+> through `CellSite`), and that sentence lives in the diagnostic text D-15 is concurrently
+> rewriting. Handed to D-15 rather than raced with it. Simply merging the two recordings was the
+> cheap option and was rejected: their inputs differ, so merging would delete real coverage to
+> tidy an argument.
 
 ### D-8 — build `--to=xml`; answer issue #13 now. **RULED: adopt. LANDED.**
 

@@ -6,7 +6,9 @@ import Control.Monad
 import Text.RawString.QQ
 import DMN.DecisionTable
 import DMN.ParseCell (parseNumberCell)
+import DMN.Diagnostic (Severity (..), Diagnostic (..), renderDiagnostic)
 import Data.Either (isLeft, isRight)
+import Data.List (isPrefixOf)
 import DMN.Types
 import DMN.ParseTable
 import DMN.ParseFEEL
@@ -132,9 +134,10 @@ spec3 = do
                                              , DTCH DTCH_Out "RiskCategory"  Nothing Nothing
                                              , DTCH DTCH_Out "DebtReview"   (Just DMN_Boolean) Nothing])
                       , [ "", "LOW, MEDIUM, HIGH", "true" ]
-                      , [ DTrow (Just 1) [ mkFs (Just DMN_Number) "<18"  ] [ [ FNullary $ VS "HIGH" ] , [ FNullary $ VB False ] ] []
-                        , DTrow (Just 2) [ mkFs (Just DMN_Number) ">=21" ] [ [ FNullary $ VS "LOW" ]  , [ FNullary $ VB True  ] ] [] 
-                        ])
+                      , ( []
+                        , [ DTrow (Just 1) [ mkFs (Just DMN_Number) "<18"  ] [ [ FNullary $ VS "HIGH" ] , [ FNullary $ VB False ] ] []
+                          , DTrow (Just 2) [ mkFs (Just DMN_Number) ">=21" ] [ [ FNullary $ VS "LOW" ]  , [ FNullary $ VB True  ] ] [] 
+                          ]))
 
   describe "parseHitPolicy" $ do
     it "should parse a Unique hit policy"        $ ("U"  :: Text) ~> parseHitPolicy `shouldParse` HP_Unique
@@ -179,13 +182,13 @@ spec3 = do
   -- of these rows does; nothing here asserts on them.
   describe "parseDataRow" $ do
     it "should parse a zero-column row"
-      $ ("| 1 |\n" :: Text ) ~> (parseDataRow "mytable1" []) `shouldParse` (DTrow (Just 1) [] [] [])
+      $ ("| 1 |\n" :: Text ) ~> (parseDataRow "mytable1" []) `shouldParse` ([], DTrow (Just 1) [] [] [])
     it "should parse a comment-only row"
-      $ ("| 1 | rem |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_Comment "note" Nothing]) `shouldParse` (DTrow (Just 1) [] [] [Just "rem"])
+      $ ("| 1 | rem |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_Comment "note" Nothing]) `shouldParse` ([], DTrow (Just 1) [] [] [Just "rem"])
     it "should parse an input-only row"
-      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_In "veg" Nothing]) `shouldParse` (DTrow (Just 1) [[FNullary $ VS "potato"]] [] [])
+      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_In "veg" Nothing]) `shouldParse` ([], DTrow (Just 1) [[FNullary $ VS "potato"]] [] [])
     it "should parse an output-only row"
-      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_Out "veg" Nothing]) `shouldParse` (DTrow (Just 1) [] [[FNullary $ VS "potato"]] [])
+      $ ("| 1 | potato |\n" :: Text ) ~> (parseDataRow "mytable1" [ColSig DTCH_Out "veg" Nothing]) `shouldParse` ([], DTrow (Just 1) [] [[FNullary $ VS "potato"]] [])
 
   describe "parseTable" $ do
     it "should parse a null table with no header columns and no body rows"
@@ -504,6 +507,57 @@ spec3 = do
     it "accepts a negated interval"
       $ parseNumberCell "not([1..5])"   `shouldSatisfy` isRight
 
+  -- D-7. This block is the replacement for a discriminator that never worked.
+  --
+  -- `mkFsAt` (pass 1, every markdown cell) and `mkFAt` (pass 2, the
+  -- type-inference re-pass) produce byte-identical message text for the same
+  -- cell, so `policy/num-subheader-{declared,inferred}-refused` were said to be
+  -- told apart by the source position in their recorded `CallStack`. They were
+  -- not: `run-corpus.sh`'s `scrub_positions` rewrites every `.hs:N:C` to
+  -- `.hs:LINE:COL` BEFORE deciding whether a diff is a regression, so a swap
+  -- from one wrapper to the other was already classified `cosmetic` and already
+  -- exited 0. The recordings could not enforce it, and once the refusals became
+  -- returned Diagnostics there was no CallStack left to argue about.
+  --
+  -- These examples name the function they call, so nothing about them can be
+  -- invalidated by a line moving. What each pins is the wrapper's CONTRACT:
+  -- a well-formed cell is Right, a refused one is a located Left, and the
+  -- locator is built from the CellSite this wrapper was handed.
+  describe "located cell refusals (mkFsAt / mkFAt)" $ do
+    let site   = CellSite "T" "Amount" (Just 7)
+        subSite = CellSite "T" "Amount" Nothing
+        msgOf  = either diagMessage (const "")
+    it "mkFsAt: a readable cell is a Right, multi-valued"
+      $ mkFsAt site (Just DMN_Number) "4, 5"
+          `shouldBe` Right [FNullary (VN 4), FNullary (VN 5)]
+    it "mkFsAt: a refused cell is a Left"
+      $ mkFsAt site (Just DMN_Number) "0x10" `shouldSatisfy` isLeft
+    it "mkFsAt: the Left is an Error, not a Warning"
+      $ either diagSeverity (const Warning) (mkFsAt site (Just DMN_Number) "0x10")
+          `shouldBe` Error
+    it "mkFsAt: the Left is located to table, column and the AUTHOR'S row number"
+      $ msgOf (mkFsAt site (Just DMN_Number) "0x10")
+          `shouldSatisfy` isPrefixOf "table \"T\": column \"Amount\": row 7: the cell reads "
+    it "mkFsAt: a sub-header site prints no row segment at all"
+      $ msgOf (mkFsAt subSite (Just DMN_Number) "0x10")
+          `shouldSatisfy` isPrefixOf "table \"T\": column \"Amount\": the cell reads "
+    it "mkFsAt: the message does NOT carry the word error:, which renderDiagnostic adds"
+      $ msgOf (mkFsAt site (Just DMN_Number) "0x10") `shouldNotSatisfy` isPrefixOf "error: "
+    it "mkFsAt: renderDiagnostic supplies it"
+      $ take 7 (either renderDiagnostic (const "") (mkFsAt site (Just DMN_Number) "0x10"))
+          `shouldBe` "error: "
+    it "mkFAt: a readable cell is a Right, single-valued"
+      $ mkFAt site (Just DMN_Number) "4" `shouldBe` Right (FNullary (VN 4))
+    it "mkFAt: a refused cell is a Left, located the same way"
+      $ msgOf (mkFAt site (Just DMN_Number) "0x10")
+          `shouldSatisfy` isPrefixOf "table \"T\": column \"Amount\": row 7: the cell reads "
+    -- The one thing the two wrappers genuinely disagree about, and the reason
+    -- there are two: mkFsAt splits on commas (rule 11's OR) and mkFAt does not,
+    -- because pass 2 re-types a cell pass 1 has already split.
+    it "mkFsAt splits a multi-value cell; mkFAt does not"
+      $ (length <$> mkFsAt site (Just DMN_Number) "4, 5", mkFAt site (Just DMN_Number) "4, 5")
+          `shouldSatisfy` \(n, single) -> n == Right 2 && isLeft single
+
   describe "type inference" $ do
     it "should infer [1..2] as a Number"    $ inferType (mkF (Just DMN_String) "[1..2]") `shouldBe` Just DMN_Number
     it "should infer 123 as a Number"       $ inferType (mkF (Just DMN_String) "123")    `shouldBe` Just DMN_Number
@@ -585,7 +639,7 @@ spec3 = do
     let evaled = columnSigs . reviseInOut . throwOnLeft $ parseOnly parseHeaderRow $ head $ T.lines dmn6a
     it "should handle the last line" $
       (last (T.lines dmn6a) <> "\n") ~> (parseDataRow "mytable1" evaled) `shouldParse`
-        (DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] [])
+        ([], DTrow (Just 4) [[FSection Fgt (VN 25.0)]] [[FNullary $ VB True], [FFunction (FNF3 (FNF1 "age") FNMul (FNF0 (VN 100.0)))]] [])
     -- parseOnly (parseDataRow "mytable1" [ColSig DTCH_In "age" (Just DMN_Number), ColSig DTCH_Out "mayBuy" (Just DMN_Boolean), ColSig DTCH_Out "limit" (Just DMN_Number)]) "| 4 | >25          | True                   | age * 100            |\n"
     it "should parse correctly" $
       dmn6a ~> (parseTable "mytable1") `shouldParse`

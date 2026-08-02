@@ -260,10 +260,12 @@ point for *every* markdown cell, including a single-value one, and `mkFAt` is th
 type-inference re-pass. The pinned pair demonstrates the inversion — `0x10` (one value)
 raises at `mkFsAt`, `0x10, 5` (two values) raises at `mkFAt`.
 
-So there is **no enforced discriminator between the two paths today**, in this directory or
-anywhere else. D-7 proposes one in `test/Spec.hs`: a block that calls each located wrapper by
-name and asserts its `Left`, since a test that names the function it is testing cannot be
-silently invalidated by a line moving. **That has not landed** as of this paragraph.
+So the discriminator does not live in this directory. It lives in `test/Spec.hs`, in the
+`located cell refusals (mkFsAt / mkFAt)` block, which calls each wrapper by name and asserts
+its contract: a readable cell is a `Right`, a refused one a located `Left`, and — the one
+thing the two genuinely disagree about — `mkFsAt` splits `4, 5` on the comma while `mkFAt`
+refuses it. A test that names the function it is testing cannot be silently invalidated by a
+line moving, which is exactly what the positions could not manage.
 
 `policy/num-subheader-declared-refused` and `policy/num-subheader-inferred-refused` are two
 cases either way. They have **different inputs** — one column is declared `: Number`, the
@@ -271,9 +273,7 @@ other is inferred — so they were never held apart only by the position, and ea
 independently pins that its input is refused, with this message, at exit 1, emitting
 nothing. All the position ever added was the proof, readable from the recording alone, that
 the two took different internal paths — and only to a human reader, never to the runner.
-
-Their two `WHY` blocks still repeat the retracted argument; they are corrected when the pair
-is next re-recorded.
+Since D-7 there is no `CallStack` in either recording to compare; both `WHY` blocks say so.
 
 Positions still stay verbatim rather than being scrubbed in the files, for the smaller
 and true reason: they are repo-relative, they cost nothing to keep, and a reader

@@ -1,6 +1,2 @@
-dmnmd: error: table "NegOut": column "Band": row 1: the output cell reads "not([1..5])". Negation is a unary test (DMN 1.3 §9.2 rule 12.b) and selects a SET of values, so it cannot name the one value an output column must return. It is legal only in an INPUT cell. Write the value you want returned, or move the negation into an input column and leave "Band" a plain value.
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
-
-
+error: input.md: table "NegOut": column "Band": row 1: the output cell reads "not([1..5])". Negation is a unary test (DMN 1.3 §9.2 rule 12.b) and selects a SET of values, so it cannot name the one value an output column must return. It is legal only in an INPUT cell. Write the value you want returned, or move the negation into an input column and leave "Band" a plain value.
+dmnmd: 1 decision table(s) in input.md could not be read

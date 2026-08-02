@@ -1,6 +1,2 @@
-dmnmd: error: table "BadNeg": column "Age": row 1: the cell reads "not(not(> 3))" — dmnmd implements FEEL negation (DMN 1.3 §9.2 rule 12.b), but "not(> 3)" is not a simple positive unary test. Rule 12.b admits a value, a comparison or an interval, so not([1..5]) and not(> 3) are fine while a nested not() or a function call is not. If you meant several alternatives, note that dmnmd splits a cell on commas before reading it, so not(a, b) is not yet supported; write the complement as explicit rows instead.
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:243:34 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:243:34 in dmnmd:DMN.DecisionTable
-
-
+error: input.md: table "BadNeg": column "Age": row 1: the cell reads "not(not(> 3))" — dmnmd implements FEEL negation (DMN 1.3 §9.2 rule 12.b), but "not(> 3)" is not a simple positive unary test. Rule 12.b admits a value, a comparison or an interval, so not([1..5]) and not(> 3) are fine while a nested not() or a function call is not. If you meant several alternatives, note that dmnmd splits a cell on commas before reading it, so not(a, b) is not yet supported; write the complement as explicit rows instead.
+dmnmd: 1 decision table(s) in input.md could not be read

@@ -18,6 +18,7 @@ import qualified Data.Map as Map
 import Data.Scientific (Scientific)
 import DMN.Number ( divideFeel, powerFeel, showNumPlain, spellable )
 import DMN.ParsingUtils ( parseOnly )
+import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt )
 import DMN.Types
 
 -- main = do
@@ -182,13 +183,16 @@ columnRow col rn = concat
 --     repeated rule number either. The message names what the author wrote; it
 --     does not guarantee that only one cell answers to it.
 --
---   * __a file name__ — 'DMN.ParseTable.parseTable' is not given one, though
---     its caller has it: @ParseMarkdown.parseChunk@ binds @infile@ and prints
---     it in the two sibling diagnostics either side of the 'parseTable' call.
---     Threading it would touch every 'parseTable' call site, so the markdown
---     path stays file-less for now, matching every other table-scoped refusal
---     already in @cases\/policy\/@. The XML reader does print one. That is a
---     deferral with a named cost, not an impossibility.
+--   * __a file name__ — still not here, and now it does not need to be.
+--     'DMN.ParseTable.parseTableD' is not given one; its caller is
+--     (@ParseMarkdown.parseChunk@ binds @infile@), and since D-7 that caller
+--     prefixes every 'Diagnostic' coming back with it, exactly as it already
+--     did for the two sibling diagnostics either side of the call. So the
+--     markdown path DOES print a file name — this haddock recorded the
+--     file-less state as "a deferral with a named cost", and the cost has been
+--     paid at the right layer. Putting it in the 'CellSite' would be wrong: the
+--     cell layer is shared with the XML reader, which has its own single file
+--     name to attach and attaches it at its own top level.
 data CellSite = CellSite
   { siteTable  :: String
   , siteColumn :: String
@@ -205,48 +209,52 @@ data CellSite = CellSite
 
 -- | A 'CellSite' rendered in the house style, ready to prefix a cell message.
 --
--- This is the one locator that carries its own @error: table "T": @ framing,
--- because on this path there is nobody else to carry it: 'mkFsAt' fires inside
--- 'DMN.ParseTable.parseTable', before 'mkDTable' exists at all, and 'mkFAt'
--- fires while 'tableErrors' forces the rows, so the exception overtakes
--- 'mkDTable'\'s own framing at the @case@. Do not make 'locate' or the
--- 'domainErrors' @msg@ call this — those are shared with the XML reader, which
--- frames them itself, and handing them a table name would change every XML
--- diagnostic. The shared part is 'columnRow'.
+-- Carries the @table "T": @ framing but __not__ the @error: @ word, which
+-- 'DMN.Diagnostic.renderDiagnostic' supplies — the same division of labour the
+-- XML reader already uses, where @convTable@ builds @inTable@ and lets
+-- 'errorAt' say how bad it is. It used to include @error: @ itself, because it
+-- was prefixing a message that went straight to GHC's @error@ and had nobody
+-- else to frame it.
+--
+-- Do not make 'locate' or the 'domainErrors' @msg@ call this — those are shared
+-- with the XML reader, which frames them itself, and handing them a table name
+-- would change every XML diagnostic. The shared part is 'columnRow'.
 showSite :: CellSite -> String
 showSite st = concat
-  [ "error: table ", show (siteTable st), ": ", columnRow (siteColumn st) (siteRow st) ]
+  [ "table ", show (siteTable st), ": ", columnRow (siteColumn st) (siteRow st) ]
 
 mkFs :: Maybe DMNType -> String -> [FEELexp]
 mkFs dmntype args = either error id (mkFsEither dmntype args)
 
--- | 'mkFs', with the cell's location prepended to any refusal.
+-- | 'mkFs', with the cell's location attached to any refusal — as a returned
+-- 'Diagnostic', which is D-7.
 --
--- CLAUDE.md's bar for a diagnostic is loud AND located, and until this existed
--- the cell layer met only the first half: a refusal named a source position
--- inside dmnmd and nothing about the table it was reading. It still reports
--- through @error@, because that is how this path already reports a bad table
--- ('mkDTable') and how every located markdown refusal in @cases\/policy\/@
--- already arrives.
+-- CLAUDE.md's bar for a diagnostic is loud AND located, and this used to meet
+-- the second half only: it prepended the site and then reported through GHC's
+-- @error@, so a markdown refusal arrived with a Haskell @CallStack@ and a
+-- four-frame @HasCallStack backtrace:@ of ghc-internal positions attached. One
+-- rule, two mechanisms. Now there is one mechanism, and it is the XML reader's.
 --
--- 'mkFs' stays. The XML reader calls it — including at a type-inference
--- pre-pass with no column context to build a site from — and dozens of test
--- sites call it.
+-- Pass 1 of two. This is the entry point for __every__ markdown cell — the
+-- sub-header row and every data cell, single- and multi-valued alike. 'mkFAt' is
+-- pass 2, the type-inference re-pass. (This haddock, @CLAUDE.md@,
+-- @test\/corpus\/README.md@ and @run-corpus.sh@ all used to call the two "the
+-- multi-value and single-value cell paths"; that is retracted, and inverted in
+-- the very pair cited as its proof.)
 --
--- This haddock used to add that @test\/corpus\/README.md@ "relies on the
--- multi-value and single-value wrappers sitting at distinct source positions to
--- tell otherwise byte-identical messages apart", and that the two must therefore
--- stay at two lines. Both halves are retracted. 'mkFsAt' is the entry point for
--- EVERY markdown cell, not the multi-value one — the pinned pair's single-value
--- @0x10@ arrives here and its multi-value @0x10, 5@ arrives at 'mkFAt' — and the
--- corpus runner scrubs positions before deciding whether a diff is a regression,
--- so the distinct lines never enforced anything. See @test\/corpus\/README.md@.
+-- 'mkFs' stays for the test suite. It no longer stays "for the XML reader": its
+-- two 'DMN.XML.XmlToDmnmd' call sites were the last unlocated user-facing
+-- @error@ in the tool and now go through 'mkFsEither' with the locator those
+-- sites already had.
+mkFsAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic [FEELexp]
+mkFsAt st dmntype args = locateCell st (mkFsEither dmntype args)
+
+-- | The one place a cell-layer 'Left' becomes a located 'Diagnostic'.
 --
--- Reports the first cell FORCED, which is not the first in reading order:
--- 'inferTypes' transposes, so pass 1 walks columns and pass 2 walks rows.
--- Contrast 'tableErrors', which collects every error and joins them.
-mkFsAt :: CellSite -> Maybe DMNType -> String -> [FEELexp]
-mkFsAt st dmntype args = either (error . (showSite st ++)) id (mkFsEither dmntype args)
+-- Shared by 'mkFsAt' and 'mkFAt' so the two cannot drift, which is the failure
+-- the retracted "keep them at distinct source lines" rule was gesturing at.
+locateCell :: CellSite -> Either String a -> Either Diagnostic a
+locateCell st = either (Left . errorAt . (showSite st ++)) Right
 
 -- | 'mkFs' as a total function.
 --
@@ -304,9 +312,9 @@ mkF dmntype arg = either error id (mkFEither dmntype arg)
 -- a column's type arrives after pass 1 has already read the cell as a string.
 -- 'mkFsAt' is the pass-1 wrapper and handles every markdown cell; this one is
 -- not "the single-value path", which is what this haddock used to claim — see
--- 'mkFs' for the retraction.
-mkFAt :: CellSite -> Maybe DMNType -> String -> FEELexp
-mkFAt st dmntype arg = either (error . (showSite st ++)) id (mkFEither dmntype arg)
+-- 'mkFsAt' for the retraction.
+mkFAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic FEELexp
+mkFAt st dmntype arg = locateCell st (mkFEither dmntype arg)
 
 -- | The single definition of "what does this cell mean, given this column type".
 --
@@ -555,30 +563,53 @@ fEval rhs lhs                                 = error $ unwords [ "type error in
 
 
 -- perform type inference to resolve colheader values based on a review of the rows
-mkDTable :: String -> HitPolicy -> [ColHeader] -> [DTrow] -> DecisionTable
+-- | Type inference, re-typing, and every reason to refuse the result — as
+-- @([Diagnostic], 0-or-1 tables)@, the same shape
+-- 'DMN.XML.XmlToDmnmd.convTable' has always returned.
+--
+-- __The list is the gate.__ An 'DMN.Diagnostic.Error' means the table list is
+-- empty, so a caller cannot emit a table it was told to refuse merely by
+-- forgetting to look at the diagnostics. That property used to be supplied by
+-- @error@ — and, at the CLI, by the accident that @app\/Main.hs@'s
+-- @tableWarnings@ loop and @--pick@'s @tableName@ filter both forced every
+-- table to WHNF before anything was written. Both accidents are gone; this is
+-- the design that replaces them.
+--
+-- __Cell diagnostics short-circuit 'tableErrors'.__ Same reasoning as
+-- 'tableErrors' running 'structuralErrors' first: a cell whose meaning we could
+-- not read cannot meaningfully be checked against a domain, and the follow-on
+-- complaints would be about the placeholder 'reprocessRows' left behind rather
+-- than about anything the author wrote.
+mkDTable :: String -> HitPolicy -> [ColHeader] -> [DTrow] -> ([Diagnostic], [DecisionTable])
 mkDTable origname orighp origchs origdtrows =
 --  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
   let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
                                      (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      typedchs = retypeEnums origname <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs)
-      built = DTable origname orighp typedchs
-              ((\case
-                   (DTrow rn ri ro rc) -> (DTrow rn
-                                  (reprocessRows origname rn (getInputHeaders typedchs)  ri)
-                                  (reprocessRows origname rn (getOutputHeaders typedchs) ro)
-                                  rc)) <$> origdtrows)
+      (enumDiags, typedchs) =
+        (\pairs -> (concatMap fst pairs, snd <$> pairs))
+          (retypeEnums origname <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs))
+      rowResults =
+        (\case
+            (DTrow rn ri ro rc) ->
+              let (di, ri') = reprocessRows origname rn (getInputHeaders typedchs)  ri
+                  (dobs, ro') = reprocessRows origname rn (getOutputHeaders typedchs) ro
+              in (di ++ dobs, DTrow rn ri' ro' rc)) <$> origdtrows
+      cellDiags = enumDiags ++ concatMap fst rowResults
+      built = DTable origname orighp typedchs (snd <$> rowResults)
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
            --             "newchs = " ++ show(newchs) ++ "\n" )
     -- A cell outside the domain its own sub-header row declares is a typo, not
     -- a new domain member, and a rule built from it can never match. Emitting it
     -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
-    -- §8. Reported by @error@ because that is how this path already reports a
-    -- bad cell ('mkFsAt'); the XML reader calls 'domainErrors' directly so it can
-    -- locate the failure and refuse only the offending table.
-    case tableErrors built of
-      []   -> built
-      errs -> error (intercalate "\n" ((("error: table " ++ show origname ++ ": ") ++) <$> errs))
+    -- §8. The XML reader calls 'domainErrors' directly, because 'convTable'
+    -- bypasses this function on purpose; both readers now report the same way.
+    if anyErrors cellDiags
+    then (cellDiags, [])
+    else case tableErrors built of
+      []   -> (cellDiags, [built])
+      errs -> ( cellDiags ++ (errorAt . (("table " ++ show origname ++ ": ") ++) <$> errs)
+              , [] )
 
 -- | Every reason to refuse a table, in one place, for both readers.
 --
@@ -1221,16 +1252,27 @@ showFNumFunction (FNF3 l op r)  =
 --
 -- Takes the table name only to locate a refusal ('reprocessRows' calls 'mkFAt');
 -- the row is 'Nothing' because a sub-header row has no rule number.
-retypeEnums :: String -> ColHeader -> ColHeader
+retypeEnums :: String -> ColHeader -> ([Diagnostic], ColHeader)
 retypeEnums tbl ch = case enums ch of
-  Nothing -> ch
-  Just es -> ch { enums = listToMaybe (reprocessRows tbl Nothing [ch] [es]) }
+  Nothing -> ([], ch)
+  Just es -> let (ds, rows) = reprocessRows tbl Nothing [ch] [es]
+             in (ds, ch { enums = listToMaybe rows })
 
 -- | The table name and row number are here for one reason: to build the
 -- 'CellSite' that locates a refusal from 'mkFAt'. The column half of the site
 -- comes from the 'ColHeader' this already has in hand.
-reprocessRows :: String -> Maybe Int -> [ColHeader] -> [[FEELexp]] -> [[FEELexp]]
-reprocessRows tbl rn =
+--
+-- __A refused cell is left exactly as pass 1 read it__, and the 'Diagnostic'
+-- rides out alongside it. Nothing is fabricated to fill the hole, because a
+-- fabricated value that reached a backend would be the silent wrong answer this
+-- whole layer exists to prevent — and it cannot reach one: 'mkDTable' emits no
+-- table at all when any of these is an 'DMN.Diagnostic.Error'.
+reprocessRows :: String -> Maybe Int -> [ColHeader] -> [[FEELexp]] -> ([Diagnostic], [[FEELexp]])
+reprocessRows tbl rn chs rows = unzipCols (reprocessRows_ tbl rn chs rows)
+  where unzipCols cols = (concatMap fst cols, snd <$> cols)
+
+reprocessRows_ :: String -> Maybe Int -> [ColHeader] -> [[FEELexp]] -> [([Diagnostic], [FEELexp])]
+reprocessRows_ tbl rn =
   -- bang through all columns where the header vartype is Just something, and if the body is FNullary VS, then re-'mkFAt' it using the new type info
   zipWith (\ch cells ->
              -- Debug.Trace.trace ("** reprocessRows: have the option to reprocess cells to " ++ show (vartype ch) ++ ": " ++ show cells) $
@@ -1256,9 +1298,13 @@ reprocessRows tbl rn =
                -- did the far likelier trailing-comma typo `4,`. Nothing to do
                -- with D-2: inference typed that column correctly.
                if vartype ch /= Nothing
-               then map (\case FNullary (VS x) -> mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x
-                               other           -> other) cells
-               else cells)
+               then partitionCells
+                      (map (\case c@(FNullary (VS x)) ->
+                                    either (\d -> (Just d, c)) ((,) Nothing)
+                                           (mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x)
+                                  other -> (Nothing, other)) cells)
+               else ([], cells))
+  where partitionCells cs = (catMaybes (fst <$> cs), snd <$> cs)
                          
   
 getInputHeaders :: [ColHeader] -> [ColHeader]

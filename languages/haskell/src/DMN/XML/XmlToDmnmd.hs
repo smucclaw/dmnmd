@@ -443,7 +443,16 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
     -- First pass: read every cell as an untyped string. This is exactly the
     -- evidence inferType wants — in particular the FEEL quotes are still on
     -- "2020", which is the only thing that distinguishes it from the number.
-    firstPass = map (mkFs Nothing) texts
+    --
+    -- A cell that will not read at all contributes no evidence and is DROPPED
+    -- here rather than raised. It is not thereby accepted: this is a pre-pass
+    -- over the same texts 'mkCells' is about to read for real, and 'mkCells'
+    -- turns the same 'mkFsEither' Left into a located 'errorAt' that refuses the
+    -- table. This used to be `map (mkFs Nothing) texts`, which was `either error
+    -- id` — the last unlocated user-facing abort in the tool (D-7), reachable
+    -- from any untyped <inputEntry> containing a thousands-grouped number,
+    -- because that guard fires before any type dispatch.
+    firstPass = [ fs | Right fs <- mkFsEither Nothing <$> texts ]
 
     ty = case colDeclared col of
       Just t -> Just t
@@ -477,13 +486,13 @@ mkCells locate ty text
       Right ss -> ([], [T.FNullary (T.VS s) | s <- ss])
       Left _
         | '"' `elem` text ->
-            ( [ warnAt . locate $
-                  show text ++ " is not a FEEL string literal, nor a comma-separated list"
-                    ++ " of them. dmnmd keeps the text as written — quotes included — and"
-                    ++ " splits it on commas, which is wrong for anything more structured"
-                    ++ " than a literal." ]
-            , verbatim )
-        | otherwise -> ([], verbatim)
+            first ( warnAt . locate $
+                      show text ++ " is not a FEEL string literal, nor a comma-separated list"
+                        ++ " of them. dmnmd keeps the text as written — quotes included — and"
+                        ++ " splits it on commas, which is wrong for anything more structured"
+                        ++ " than a literal." )
+                  verbatim
+        | otherwise -> verbatim
   | otherwise = case mkFsEither ty text of
       Right fs -> ([], fs)
       Left msg -> ([errorAt (locate msg)], [])
@@ -496,8 +505,16 @@ mkCells locate ty text
     isStringy = ty == Nothing
              || ty == Just T.DMN_String
              || T.elemType ty == Just T.DMN_String
-    -- total for Nothing and DMN_String: both just keep the text
-    verbatim = mkFs ty text
+    -- NOT total, which is why it is no longer `mkFs ty text` (`either error id`):
+    -- 'mkFsEither''s thousandsGrouped guard fires before any type dispatch, so a
+    -- string <outputEntry> reading `1,000` aborted here with a Haskell CallStack
+    -- and no file, table, column or rule. D-7. Same treatment as the `otherwise`
+    -- arm below: a Left is a located errorAt and the table is refused.
+    verbatim = case mkFsEither ty text of
+      Right fs -> ([], fs)
+      Left msg -> ([errorAt (locate msg)], [])
+    -- prepend one diagnostic to a (Diagnostics, cells) pair
+    first d (ds, cs) = (d : ds, cs)
 
 -- * FEEL string literals
 

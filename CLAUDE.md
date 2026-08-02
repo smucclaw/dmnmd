@@ -346,44 +346,56 @@ disagrees with the column count, a cell that cannot be built at the column's typ
 that table is **not emitted**, because a table that can never match, or one whose rules have
 been silently widened, is a wrong answer that exits 0.
 
-The markdown reader gets there differently, and deliberately. It has no reason to refuse one
-table and carry on, so it raises through `error` — but a refusal from the cell layer now
-carries a `DMN.DecisionTable.CellSite` and reads
-`error: table "T": column "C": row N: …`, the same shape `structuralErrors` and
-`domainErrors` already print. `mkFsAt`/`mkFAt` are the located wrappers; `mkFs`/`mkF` stay
-for the XML reader (which frames its own) and for the test suite. `row N` is the rule number
-the **author wrote** in the leftmost cell, so gaps and repeats survive into the message; the
-XML reader stores a 1-based index in the same field, so the two readers mean different things
-by "row". `Nothing` there is the sub-header row and prints no row segment at all. No file name
-on the markdown path — `parseTable` is not given one, and the `CellSite` haddock records what
-that would cost.
+**The markdown reader now does the same thing, and that is D-7.** It used to raise through
+`error`, so one rule had two mechanisms and a bad markdown cell arrived with a Haskell
+`CallStack` and a four-frame `HasCallStack backtrace:` of ghc-internal positions attached.
+`app/ParseMarkdown.parseMarkdown` returns `([Diagnostic], [DecisionTable])`, fed by
+`DMN.ParseTable.parseTableD` and `DMN.DecisionTable.mkDTable`, which have the same
+`([Diagnostic], 0-or-1 tables)` shape `convTable` always had.
 
-Three differences between the two readers' output survive, and only two are on purpose. The
-file name and the missing in/out word are reasoned (the latter because `reviseInOut` can
-relabel an explicitly-`(in)` column to `out`, so the word would sometimes contradict the
-header). The third is not: **the markdown path still prints a Haskell `CallStack` and a
-four-frame `HasCallStack backtrace:` of ghc-internal positions.** `app/Main.hs` defines
-`crash = errorWithoutStackTrace` and most aborts go through it, so
-`dmnmd -f xml -t ts test/dmn13/temporal-type.dmn` ends on a clean located line.
+**The list is the gate, and that is the whole safety argument.** An `Error` means the table is
+not in the returned list, so a caller cannot emit a table it was told to refuse merely by
+forgetting to check. That property used to be supplied by two accidents of strictness — the
+`tableWarnings` loop and `--pick`'s `tableName` filter both forced every table to WHNF before
+anything was written — and those are gone. Three call sites receive markdown diagnostics and
+all three act: `parseTableD` (skips `mkDTable` if pass 1 had an error), `mkDTable` (skips
+`tableErrors` if a cell had one), and `Main.parseTables`' `Md` arm (prints them all, then
+`exitFailure` on `anyErrors`, mirroring `parseDmnXml`).
 
-Two claims this paragraph used to make are **false and are retracted**, both measured against
-the tree rather than re-read:
+A cell refusal carries a `DMN.DecisionTable.CellSite` and reads
+`error: <file>: table "T": column "C": row N: …`, the same shape `structuralErrors` and
+`domainErrors` already print. `mkFsAt`/`mkFAt` are the located wrappers — the first is pass 1
+and handles **every** markdown cell, the second is the type-inference re-pass — and `showSite`
+deliberately does **not** include the word `error:`, which `renderDiagnostic` supplies.
+`mkFs`/`mkF` stay for the test suite only; `parseTable` is likewise an `error`-ing wrapper over
+`parseTableD` kept for the 40-odd test call sites and unreachable from `app/`. `row N` is the
+rule number the **author wrote** in the leftmost cell, so gaps and repeats survive into the
+message; the XML reader stores a 1-based index in the same field, so the two readers mean
+different things by "row". `Nothing` there is the sub-header row and prints no row segment.
 
-1. It said the markdown path "is the only user-facing abort in the tool that" prints a
-   `CallStack`. **The XML path does too, and worse.** `mkFs` — described below as staying "for
-   the XML reader (which frames its own)" — is `either error id`, and `XmlToDmnmd` reaches it
-   at two sites: `firstPass = map (mkFs Nothing) texts` and the `isStringy` fallback
-   `verbatim = mkFs ty text`. `mkFsEither`'s `thousandsGrouped` guard fires *before* any type
-   dispatch, so a `1,000` in an untyped `<inputEntry>` or a string `<outputEntry>` aborts with
-   a `CallStack` and **no file, no table, no column and no rule** — strictly less located than
-   the markdown message it was being contrasted with. No corpus case covered it.
-2. It said the `CallStack` position "is currently the **only** discriminator between the
-   `mkFsAt` and `mkFAt` recordings" and that "removing it needs the discriminator replaced
-   first". The first half is true of the *files*; the second does not follow, because
-   `run-corpus.sh`'s `scrub_positions` runs before the cosmetic check, so a swap from one
-   wrapper to the other is **already** reported as `cosmetic` and already exits 0. The
-   positions were never enforcing anything. See `test/corpus/README.md`, which carries the full
-   retraction and the one-command demonstration.
+Two consequences worth knowing:
+
+* **A refused cell no longer stops at the first one forced.** `error` reported one cell and
+  died; a returned list collects every one, in reading order. `policy/infer-declared-number-nonnumeric-refused`
+  is the case that shows it — it reports rows 1 and 2 where it used to report only row 1. This
+  matches what `tableErrors` has always done.
+* **Markdown diagnostics now name the file.** `parseTableD` does not know it (the cell layer is
+  shared with the XML reader), so `ParseMarkdown.parseChunk` adds it, which is where the two
+  sibling markdown diagnostics already put it. That closes the gap the `CellSite` haddock
+  records as a deferral.
+
+One difference between the two readers' output survives on purpose: the missing in/out word,
+because `reviseInOut` can relabel an explicitly-`(in)` column to `out`, so the word would
+sometimes contradict the header. A second is cosmetic and unreasoned — XML writes
+`<file>: error: …` and markdown writes `error: <file>: …`, because the markdown list serves
+several input files at once and carries its file inside each message.
+
+`errorWithoutStackTrace` (`crash`, in `app/Main.hs`) still covers the aborts that are not
+diagnostics: an unsupported format, a multi-file `--from=xml`, an XML parse failure. What is
+**not** covered by D-7, and still prints a `CallStack`, is the *evaluation*-time crashes on the
+`-q` REPL path — `head0`, `fe2dval`, `fEval`'s type errors — recorded as
+`symptom/eval-hp-first-no-match-crash` and `symptom/eval-collect-min-empty-crash`. Those already
+have an `Either String` channel in `evalTable` to travel down; that is a separate, smaller job.
 
 The exit status answers exactly one question: *did something we were asked to read fail to
 read?* — with one extension the XML backend adds: **or fail to WRITE.** An emitter has a failure
@@ -406,6 +418,17 @@ faithfully is refused, and then nothing at all is emitted for any table in the f
 | an output format the binary cannot write (`--to=md`) | 1, refused before anything is read |
 | `--to=xml` over an input with no tables | 0, and an empty `<definitions/>` is written |
 | `--to=xml` over a table DMN cannot express (no output column, short row) | 1, and nothing is emitted |
+
+**Provenance.** Every row above was re-run against the built binary before and after D-7 and is
+unchanged — including the two the change was most likely to break. `markdown where some tables
+parsed and others did not` is the one to re-measure first if you touch this path; it holds now
+because `Main.parseTables` checks `anyErrors` before `--pick` and before `withOutHandle`, where
+it used to hold because forcing a table happened to raise. Measured alongside it, and also
+unchanged: `-o` against a pre-existing file leaves it untouched on a refusal (`openFile … WriteMode`
+truncates, so this is a real guarantee and not a tidiness), and all five emitting backends write
+**zero bytes** of stdout for a two-table file whose second table is bad. Note that the last row's
+only in-repo fixture, `test/safe.md`, is not actually a some-parsed-some-did-not case — it fails at
+file level on a missing final newline — so a hand-made two-table probe is what verifies it.
 
 A pipe table whose top-left cell is not a hit policy is prose, not a broken decision table:
 `ParseMarkdown.isDecisionTable` asks `parseHitPolicy` itself, skips the chunk, and says so
@@ -465,20 +488,22 @@ Three things there are easy to get wrong on sight:
   the single-value `0x10` raises at `mkFsAt` and the multi-value `0x10, 5` at `mkFAt`, the exact
   inversion of the gloss. And a diff consisting of *nothing but* moved positions is reported as
   `cosmetic` and does not fail the run, so a wrapper swap was already invisible to the runner.
-  So there is **no** enforced discriminator between the two paths today. D-7 proposes putting
-  one in `test/Spec.hs`, where a test that names the function it calls cannot be invalidated by
-  a line moving; that has not landed. Do not write the line numbers down anywhere — this bullet asserted `:121` and `:143` long
+  The discriminator now lives in `test/Spec.hs`'s `located cell refusals (mkFsAt / mkFAt)`
+  block, which calls each by name — a test cannot be invalidated by a line moving. Since D-7
+  no markdown recording carries a `CallStack` at all; the two that still do are eval-time
+  crashes. Do not write the line numbers down anywhere — this bullet asserted `:121` and `:143` long
   after both had moved. (An earlier retraction added that `:143` "was never right". That is
   false: at `a670657`, the commit that wrote the sentence, `:121` was `mkFs`'s body and `:143`
   was `mkF`'s, and eight and six recordings cited them respectively. Both were exact when
   written and merely went stale — which is the whole argument for not writing them down, and is
   a *weaker* claim than the one that replaced it. Correcting a stale claim into a false one is
   worse than leaving it: rule 2 of `~/CLAUDE.md` names this exact move.)
-- **Commit 6 inverted which classes cite a cell-path position.** Eleven `policy/` recordings now
-  cite `mkFsAt`/`mkFAt`, where before the promotion those positions appeared only under
-  `symptom/`. The runner still classifies a position-only diff as `cosmetic`, so this cannot
-  produce a false regression — but an edit anywhere above those functions now dirties eleven
-  policy recordings, where it used to dirty none.
+- **No `policy/` recording cites a cell-path position any more.** Commit 6 had promoted eleven
+  that did; D-7 removed the `CallStack` from all of them, so an edit above `mkFsAt`/`mkFAt` no
+  longer dirties any policy recording. Exactly two recordings still carry a `src/DMN/` frame,
+  both `symptom/` and both *evaluation*-time (`eval-hp-first-no-match-crash`,
+  `eval-collect-min-empty-crash`). If a D-7-shaped change ever dirties one of those, that is a
+  scope leak, not a re-record.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
   tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
