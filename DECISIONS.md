@@ -731,6 +731,41 @@ first — *is a trailing catch-all in a `U` table an authoring error, or an acce
 question is the real content of the deferral, and it is a genuinely separate decision from this
 one.
 
+**What the wider DMN community says about that question, gathered 2026-08-02.** Not a ruling —
+Meng has not ruled — but the evidence is one-sided enough that the next reader should not have to
+re-gather it.
+
+The industry answer is **authoring error**, and the argument is mechanical rather than stylistic:
+an all-wildcard row overlaps *every* other row by construction, and `U` means rules do not overlap,
+so the two cannot coexist. Bruce Silver (author of *DMN Method and Style*) puts it as "a U table
+means rules do not overlap. If you create a decision table with overlapping rules and use hit policy
+U, that is an error", and his worked examples change the hit policy to `P` (Priority) precisely in
+order to add an "else rule" — the catch-all is not wrong, it is wrong *under `U`*. Camunda's
+best-practice guide agrees that `U` "enforce[s] that rules do not overlap" and gives the
+add-a-fallback-row advice specifically under **`First`**, not under `U`.
+
+Worth noticing where that leaves the two clauses this entry already had to disentangle: DMN's own
+answer to "what if nothing matches" in a `U` table is **not** a catch-all row but the default output
+value of **§8.2.11** — the clause miscited above for hit policy. §8.2.10 forbids the overlap and
+§8.2.11 supplies the intended alternative; they sit next to each other and solve the two halves of
+this exact problem.
+
+Completeness is a separate axis and is advisory on all accounts: the spec does not require a table
+to be complete, though it is normally recommended.
+
+**The cost of adopting the strict reading is concrete and is the reason this stays open.** The four
+`policy/l4-*` recordings named above are `U` tables ending in a catch-all, so a strict check turns
+four of dmnmd's own policy recordings into refusals. Two defensible routes, and choosing between
+them is the ruling: rewrite those fixtures as `F` or `P` (spec-conformant, and cheap because they
+are fixtures rather than user data), or record a deliberate divergence in the manner of D-11 and
+D-12 — dmnmd tolerates the idiom with open eyes and says why.
+
+Sources: <https://www.trisotech.com/dmn-hit-policy-explained/>,
+<https://docs.camunda.io/docs/components/best-practices/modeling/choosing-the-dmn-hit-policy/>,
+<https://documentation.signavio.com/suite/en-us/Content/process-manager/userguide/dmn-hit-policy.htm>.
+These are secondary sources read at the URLs above; the §8.2.10/§8.2.11 clause content is the one
+part checked against the OMG PDF directly, when the miscite below was corrected.
+
 **Correction to this entry, made while landing it.** It cited "DMN 1.3 §8.2.11" for the uniqueness
 requirement. That is wrong: §8.2.11 is *Default output values*; hit policy is **§8.2.10**, which
 carries "The hit policy SHALL default to Unique" and "Decision tables with the Unique hit policy
