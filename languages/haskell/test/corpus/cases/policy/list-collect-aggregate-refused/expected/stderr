@@ -1,6 +1,2 @@
-dmnmd: error: table "Agg": hit policy Collect Sum aggregates output column "sides", which is a collection ([Number]). dmnmd has no aggregate over collections — the elements of every matching row would be flattened into one number with no diagnostic. Use Collect All, or a scalar output column.
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
-
-
+error: input.md: table "Agg": hit policy Collect Sum aggregates output column "sides", which is a collection ([Number]). dmnmd has no aggregate over collections — the elements of every matching row would be flattened into one number with no diagnostic. Use Collect All, or a scalar output column.
+dmnmd: one or more decision tables in input.md could not be read

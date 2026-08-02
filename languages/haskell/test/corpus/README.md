@@ -238,20 +238,46 @@ including the `CallStack (from HasCallStack): error, called at src/DMN/…` line
 those are repo-relative, meaningful, and exactly the sort of thing we want to notice
 changing.
 
-**Source positions are deliberately *not* normalised**, and it is worth knowing why,
-because stripping them looks like the obvious cleanup. `DMN.DecisionTable`'s `mkFsAt`
-and `mkFAt` are the multi-value and single-value cell paths, and several cells
-produce byte-identical message text down both — the message is built from the cell
-and the column, neither of which knows which pass it arrived on. So the position is
-the only thing in the recording that says which path raised.
+**Source positions are deliberately *not* normalised**, but the reason this file used
+to give for that was wrong, and the correction matters more than the rule. What it
+said: `DMN.DecisionTable`'s `mkFsAt` and `mkFAt` produce byte-identical message text,
+so the position is the only thing in the recording that says which path raised —
+therefore "collapse the positions and a rewrite that moved a crash from one to the
+other becomes invisible."
 
-The pair `policy/num-subheader-declared-refused` and
-`policy/num-subheader-inferred-refused` exists to hold that claim still. They are the
-same table name, the same column name, the same absent row number and the same
-message text to the byte; one refuses at parse time through `mkFsAt`, the other after
-type inference through `retypeEnums` → `reprocessRows` → `mkFAt`. Collapse the
-positions and those two distinct paths record identically, and a rewrite that moved a
-crash from one to the other becomes invisible.
+**The first half is true and the conclusion does not follow.** `scrub_positions`
+rewrites every `.hs:N:C` to `.hs:LINE:COL` *before* the cosmetic check, so a diff whose
+only content is a changed position is already classified `cosmetic`, counted as
+unchanged, and exits 0. A wrapper swap is therefore **already invisible to the runner**
+— keeping the positions verbatim in the files never protected against it. Measured, not
+reasoned: edit `policy/num-subheader-declared-refused/expected/stderr` to cite `mkFAt`'s
+position instead of `mkFsAt`'s — exactly the swap this paragraph claimed to catch — and
+`run-corpus.sh --only num-subheader-declared-refused` reports
+`1 unchanged, 0 POLICY REGRESSION(S)`.
+
+The gloss was wrong too. `mkFsAt` is not "the multi-value cell path": it is the entry
+point for *every* markdown cell, including a single-value one, and `mkFAt` is the
+type-inference re-pass. The pinned pair demonstrates the inversion — `0x10` (one value)
+raises at `mkFsAt`, `0x10, 5` (two values) raises at `mkFAt`.
+
+So the discriminator does not live in this directory. It lives in `test/Spec.hs`, in the
+`located cell refusals (mkFsAt / mkFAt)` block, which calls each wrapper by name and asserts
+its contract: a readable cell is a `Right`, a refused one a located `Left`, and — the one
+thing the two genuinely disagree about — `mkFsAt` splits `4, 5` on the comma while `mkFAt`
+refuses it. A test that names the function it is testing cannot be silently invalidated by a
+line moving, which is exactly what the positions could not manage.
+
+`policy/num-subheader-declared-refused` and `policy/num-subheader-inferred-refused` are two
+cases either way. They have **different inputs** — one column is declared `: Number`, the
+other is inferred — so they were never held apart only by the position, and each
+independently pins that its input is refused, with this message, at exit 1, emitting
+nothing. All the position ever added was the proof, readable from the recording alone, that
+the two took different internal paths — and only to a human reader, never to the runner.
+Since D-7 there is no `CallStack` in either recording to compare; both `WHY` blocks say so.
+
+Positions still stay verbatim rather than being scrubbed in the files, for the smaller
+and true reason: they are repo-relative, they cost nothing to keep, and a reader
+auditing a diff would rather see them than not.
 
 (No line numbers are quoted in this file, or in the runner, on purpose. They are the
 part that goes stale: this paragraph spent several commits asserting `:121` and

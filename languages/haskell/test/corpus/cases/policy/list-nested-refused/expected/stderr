@@ -1,6 +1,2 @@
-dmnmd: error: table "Nest": column "tags": dmnmd supports a list of scalars, not a list of lists. DMN's isCollection is a flag, not a depth (DMN 1.3 Table 26). Declare the column ": [Number]".
-CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
-  error, called at src/DMN/DecisionTable.hs:572:15 in dmnmd:DMN.DecisionTable
-
-
+error: input.md: table "Nest": column "tags": dmnmd supports a list of scalars, not a list of lists. DMN's isCollection is a flag, not a depth (DMN 1.3 Table 26). Declare the column ": [Number]".
+dmnmd: one or more decision tables in input.md could not be read

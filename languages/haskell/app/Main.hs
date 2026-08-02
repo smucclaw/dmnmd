@@ -39,7 +39,7 @@ import DMN.Translate.L4 ( toL4File, L4Opts(..), defaultL4Opts )
 import DMN.Translate.XML ( toXMLFile, defaultXMLOpts )
 import DMN.Translate.FEELhelpers ( showFeels )
 import DMN.XML.ParseDMN (parseDMNEither)
-import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError, Diagnostic)
+import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError, anyErrors, Diagnostic)
 
 import Options
     ( ArgOptions(propstyle, verbose, out, pick, query, informat, input,
@@ -156,12 +156,24 @@ crash = errorWithoutStackTrace
 --   markdown, and DMN with no @<decision>@, are legitimate inputs.
 parseTables :: ArgOptions -> IO [DecisionTable]
 parseTables opts = case informat opts of
+  -- D-7. Same shape as 'parseDmnXml' below, and for the same reason: print
+  -- every diagnostic, then decide on the SEVERITIES rather than on the length
+  -- of the list. A Warning here is something dropped and worth saying; an Error
+  -- is a table we refused, and the tables list already excludes it, so exiting
+  -- is what stops a partial answer being presented as a whole one.
   Md -> do
-    (errs, tables) <- parseMarkdown opts
-    unless (null errs) $ do
-      mapM_ (hPutStrLn stderr . ("error: " ++)) errs
+    (diags, tables) <- parseMarkdown opts
+    mapM_ (hPutStrLn stderr . renderDiagnostic) diags
+    when (anyErrors diags) $ do
+      -- NOT @length (filter isError diags)@: a Diagnostic is a message, not a
+      -- table, and one table can raise several (a column with two bad cells
+      -- collects one per cell). Counting diagnostics and calling the total
+      -- "decision table(s)" printed "2 decision table(s) … could not be read"
+      -- for a single-table file. There is no table identity in a Diagnostic to
+      -- count instead, so say what is actually known — the same wording the Xml
+      -- arm below already uses. @length tables@ IS a table count and stays.
       hPutStrLn stderr $
-        "dmnmd: " ++ show (length errs) ++ " decision table(s) in "
+        "dmnmd: one or more decision tables in "
           ++ intercalate ", " (input opts) ++ " could not be read"
           ++ (if null tables then "" else "; refusing to emit the "
                 ++ show (length tables) ++ " that could, because partial output is"

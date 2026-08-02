@@ -13,7 +13,8 @@ import Data.Maybe ( catMaybes, fromMaybe )
 import Data.Either (isRight)
 
 import DMN.Types ( DecisionTable )
-import DMN.ParseTable ( parseTable, parseHitPolicy, pipeSeparator )
+import DMN.Diagnostic ( Diagnostic (..), errorAt )
+import DMN.ParseTable ( parseTableD, parseHitPolicy, pipeSeparator )
 
 import Text.Megaparsec
     ( MonadParsec(try, eof), takeRest, satisfy, manyTill, many, (<?>), (<|>) )
@@ -45,7 +46,15 @@ import Options ( ArgOptions(input, verbose) )
 -- decision tables here": a prose document, with or without pipe tables in it,
 -- is a perfectly good input that happens to contain nothing to transpile, and
 -- comes back as @([], [])@.
-parseMarkdown :: ArgOptions -> IO ([String], [DecisionTable])
+--
+-- D-7: the list is @['Diagnostic']@ rather than @[String]@, and it now carries
+-- the CELL-level refusals too. Those used to leave by a different door — GHC's
+-- @error@, with a Haskell @CallStack@ attached — so the reader had one rule and
+-- two mechanisms while the XML reader had one of each. Every entry still
+-- carries its file name inside the message, which is how the two diagnostics
+-- this module already produced were spelled, and is what lets several input
+-- files share one list.
+parseMarkdown :: ArgOptions -> IO ([Diagnostic], [DecisionTable])
 parseMarkdown opts1 = do
   let infiles = input opts1
   chunkResults <- mapM (fileChunks opts1) (zip [1..] infiles)
@@ -55,7 +64,7 @@ parseMarkdown opts1 = do
   return (chunkErrs ++ tableErrs, mydtables)
 
   where
-    fileChunks :: ArgOptions -> (Int, FilePath) -> IO ([String], [(FilePath, InputChunk)])
+    fileChunks :: ArgOptions -> (Int, FilePath) -> IO ([Diagnostic], [(FilePath, InputChunk)])
     fileChunks opts (inum,infile) = do
       mylog opts $ "* opening file: " ++ infile
       -- NOTE: Lazy IO
@@ -65,7 +74,7 @@ parseMarkdown opts1 = do
 
       case rawchunksEither of
         Left errstr ->
-          pure ([infile ++ ": parser failure in grepMarkdown: " ++ errstr], [])
+          pure ([errorAt (infile ++ ": parser failure in grepMarkdown: " ++ errstr)], [])
         Right chunks -> pure ([], [(infile, c) | c <- chunks])
 
     myerr :: ArgOptions -> String -> IO ()
@@ -74,7 +83,7 @@ parseMarkdown opts1 = do
     mylog :: ArgOptions -> String -> IO ()
     mylog opts msg = when (verbose opts) $ myerr opts msg
 
-    parseChunk :: ArgOptions -> (FilePath, InputChunk) -> IO ([String], [DecisionTable])
+    parseChunk :: ArgOptions -> (FilePath, InputChunk) -> IO ([Diagnostic], [DecisionTable])
     parseChunk opts (infile, mychunk)
      | chunkLines mychunk == ["|]"] = pure ([], []) -- special case, sometimes |] closes a quasiquotation block
      -- A pipe table whose top-left cell is not a hit policy is not a decision
@@ -88,12 +97,21 @@ parseMarkdown opts1 = do
            ++ " so this is prose rather than a decision table."
          pure ([], [])
      | otherwise = do
-      let parseResult = parseOnly (parseTable (chunkName mychunk) <?> "parseTable")
+      let parseResult = parseOnly (parseTableD (chunkName mychunk) <?> "parseTableD")
             $ T.pack $ unlines $ chunkLines mychunk
       case parseResult of
         Left myPTfail ->
-          pure ([infile ++ ": failed to parse table " ++ chunkName mychunk ++ " at " ++ myPTfail], [])
-        Right t -> pure ([], [t])
+          pure ([errorAt (infile ++ ": failed to parse table " ++ chunkName mychunk ++ " at " ++ myPTfail)], [])
+        -- The file name is added HERE, not inside 'parseTableD': the cell layer
+        -- is shared with the XML reader and one file name has to serve a list
+        -- that several input files contribute to. This closes the gap
+        -- 'DMN.DecisionTable.CellSite' records as "no file name on the markdown
+        -- path", and matches how the two diagnostics either side of this call
+        -- are already spelled.
+        Right (diags, ts) -> pure (atFile infile <$> diags, ts)
+
+    atFile :: FilePath -> Diagnostic -> Diagnostic
+    atFile infile d = d { diagMessage = infile ++ ": " ++ diagMessage d }
 
 -- | Does this chunk claim to be a decision table?
 --
