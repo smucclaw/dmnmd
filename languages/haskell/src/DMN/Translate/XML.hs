@@ -52,6 +52,7 @@ module DMN.Translate.XML
     -- * Exposed for the test suite
   , showFeelXML
   , cellText
+  , fidelityDiags
   ) where
 
 import Data.Char (toLower)
@@ -574,7 +575,7 @@ fidelityDiags :: XMLOpts -> DecisionTable -> [Diagnostic]
 fidelityDiags _opts dt = concat
   [ noOutputErrs, ruleArityErrs
   , aggregateErrs, outputTestErrs, outputWildcardWarns, collectionWarns
-  , rowNumberWarns, eqDomainWarns ]
+  , rowNumberWarns, eqDomainWarns, uniqueCatchAllWarns ]
   where
     inTable msg = "table " ++ show (tableName dt) ++ ": " ++ msg
     at ch row msg =
@@ -729,6 +730,55 @@ fidelityDiags _opts dt = concat
       where
         authored = mapMaybe row_number [ row | row@DTrow{} <- allrows dt ]
         showNums = intercalate ", " . map show
+
+    -- D-16 phase 1. A row with `-` in every input column matches everything, so
+    -- under @U@ it overlaps every other rule — the one thing §8.2.10 says a @U@
+    -- table must not contain.
+    --
+    -- __Why this is an emit-time warning and not a reader one.__ The shape is
+    -- idiomatic: 40 of the corpus's 221 fixtures have it, the README's own
+    -- example among them. Nothing dmnmd itself answers is wrong — 'evalTable'
+    -- is first-match and @--to=l4@ renders the row as @OTHERWISE@ — so on the
+    -- js/ts/py/l4 paths there is no hazard to report, and a warning printed
+    -- there would fire on a fifth of all input and teach people to ignore it.
+    -- Putting it in 'DMN.DecisionTable.tableWarnings' was tried and measured:
+    -- 33 policy recordings gained a paragraph about a problem they do not have.
+    --
+    -- The hazard is real and exclusive to THIS backend: under @U@ a conforming
+    -- engine may evaluate rules in any order, so a foreign engine reading this
+    -- document may return the catch-all instead of a more specific rule. That
+    -- is a wrong answer at exit 0 in the one backend whose output is read by
+    -- something other than a language toolchain.
+    --
+    -- Warned rather than refused, like 'eqDomainWarns': the emitted document is
+    -- correct DMN and says exactly what the author wrote. What it cannot say is
+    -- that the rules are ordered — DMN spells that as a default output value
+    -- (§8.2.11), which 'DecisionTable' has no slot for. That absent field is
+    -- also why the reader drops a declared @\<defaultOutputEntry\>@; D-16
+    -- phase 2 adds it and closes both directions at once.
+    uniqueCatchAllWarns
+      | hitpolicy dt /= HP_Unique || null (inHeaders dt) = []
+      | otherwise =
+          [ warnAt . inTable $
+              rowLabel i row ++ " has \"-\" in every input column, so it matches"
+                ++ " everything and overlaps every other rule; a table with hit"
+                ++ " policy Unique must not contain overlapping rules (§8.2.10)."
+                ++ " dmnmd reads it as you meant it — matching is first-match —"
+                ++ " but under Unique another engine may evaluate the rules in"
+                ++ " any order and return this row instead of a more specific"
+                ++ " one. DMN spells this as a default output value (§8.2.11)"
+                ++ " rather than as a rule, which dmnmd cannot yet carry. For a"
+                ++ " portable document give the table hit policy F or P, which"
+                ++ " permit overlapping rules."
+          | (i, row) <- zip [1 :: Int ..] [ r | r@DTrow{} <- allrows dt ]
+          , not (null (row_inputs row))
+          , all (all isAnything) (row_inputs row) ]
+      where
+        isAnything FAnything = True
+        isAnything _         = False
+        rowLabel i row = case row_number row of
+          Just n  -> "row " ++ show n
+          Nothing -> "the unnumbered row at position " ++ show i
 
 -- * Small helpers
 

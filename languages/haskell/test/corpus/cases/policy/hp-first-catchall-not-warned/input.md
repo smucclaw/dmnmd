@@ -1,0 +1,6 @@
+## `Dish` — hit policy `F`
+
+| F | Season | Guests | Dish (out) |
+|---|--------|--------|------------|
+| 1 | Fall   | <= 8   | Spareribs  |
+| 2 | -      | -      | Takeaway   |
