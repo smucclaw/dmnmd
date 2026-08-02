@@ -1,2 +1,2 @@
 error: input.md: table "OpenOut": column "Fee": row 1: the output cell reads "[1..5)". dmnmd can emit a range as an output VALUE only when both endpoints are included: an excluded endpoint has no value to name. Write a closed range [a..b], or move the test to an input column.
-dmnmd: 1 decision table(s) in input.md could not be read
+dmnmd: one or more decision tables in input.md could not be read

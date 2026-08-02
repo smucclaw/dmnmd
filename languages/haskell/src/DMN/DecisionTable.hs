@@ -261,9 +261,10 @@ locateCell st = either (Left . errorAt . (showSite st ++)) Right
 -- The markdown reader is happy to die on a malformed cell: it has already told
 -- the user which file and table it was reading. The XML reader is not — it has
 -- to name the table, column and rule, and refuse just that table. So the real
--- work lives in 'mkFEither' and 'mkF' is the @error@-ing wrapper, which keeps
--- the markdown path byte-for-byte as it was while giving the XML path something
--- it can report on. Do not reintroduce a second copy of these guards elsewhere:
+-- work lives in 'mkFEither'; 'mkF' is the @error@-ing wrapper, retained for the
+-- test suite and for XML call sites that frame their own message. Since D-7 the
+-- markdown path does NOT go through it — it uses 'mkFsAt'/'mkFAt', which return
+-- a located 'Diagnostic'. Do not reintroduce a second copy of these guards elsewhere:
 -- a validator that drifts from the constructor is worse than no validator.
 mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
 mkFsEither dmntype args
@@ -338,8 +339,10 @@ mkFEither _ "-" = Right FAnything
 -- ambiguous list cell refuse, and it crashes on ordinary tables:
 -- 'reprocessRows' calls @mkFAt (vartype ch)@ with the FULL column type on two
 -- live paths — a list-typed OUTPUT column's cells, and 'retypeEnums' rebuilding
--- a declared domain — and @mkFAt@ is @either error id@ under its location
--- prefix, so a 'Left' there aborts rather than diagnosing. Refusals belong in
+-- a declared domain. Since D-7 a 'Left' there no longer aborts the process; it
+-- becomes an Error diagnostic, which means the table is not emitted. That is a
+-- better failure but it is the same bug: a legitimate @[0..150]@ domain would
+-- be refused rather than crashed. Refusals belong in
 -- 'structuralErrors', which walks 'allrows' and can therefore see which row,
 -- which column, and whether the cell is an input, an output or a domain member.
 mkFEither (Just (DMN_List t)) x    = mkFEither (Just t) x
@@ -788,9 +791,10 @@ inferenceErrors dt =
 --    works today; refusing tests in the constructor would make it unwritable.
 --  * it knows no row number and no column name, so the message could not locate
 --    the offending cell.
---  * the located wrappers are still @either error id@ underneath, and
---    'reprocessRows' calls 'mkFAt' with the full column type on live paths, so a
---    'Left' there crashes ordinary tables.
+--  * 'reprocessRows' calls 'mkFAt' with the full column type on live paths, so
+--    a 'Left' there refuses ordinary tables. (Before D-7 it crashed them; the
+--    located wrappers were @either error id@ underneath. Now it is a diagnostic
+--    and the table is dropped instead — different blast radius, same defect.)
 --
 -- Walking 'allrows' fixes all three: the sub-header row is excluded __by
 -- construction__ rather than by a special case that could rot.

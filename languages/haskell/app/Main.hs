@@ -165,9 +165,15 @@ parseTables opts = case informat opts of
     (diags, tables) <- parseMarkdown opts
     mapM_ (hPutStrLn stderr . renderDiagnostic) diags
     when (anyErrors diags) $ do
-      let errs = filter isError diags
+      -- NOT @length (filter isError diags)@: a Diagnostic is a message, not a
+      -- table, and one table can raise several (a column with two bad cells
+      -- collects one per cell). Counting diagnostics and calling the total
+      -- "decision table(s)" printed "2 decision table(s) … could not be read"
+      -- for a single-table file. There is no table identity in a Diagnostic to
+      -- count instead, so say what is actually known — the same wording the Xml
+      -- arm below already uses. @length tables@ IS a table count and stays.
       hPutStrLn stderr $
-        "dmnmd: " ++ show (length errs) ++ " decision table(s) in "
+        "dmnmd: one or more decision tables in "
           ++ intercalate ", " (input opts) ++ " could not be read"
           ++ (if null tables then "" else "; refusing to emit the "
                 ++ show (length tables) ++ " that could, because partial output is"

@@ -1,2 +1,2 @@
 error: input.md: table "OutTest": column "sides": row 1: the output cell reads "[5..7]". An output column produces a VALUE, and a collection column's value is a comma-separated list of members. A test is not a value.
-dmnmd: 1 decision table(s) in input.md could not be read
+dmnmd: one or more decision tables in input.md could not be read

@@ -121,7 +121,7 @@ normalize() {
 # justification, because scrub_positions below runs BEFORE the cosmetic check --
 # so a swap from one wrapper to the other is already reported as cosmetic and
 # already exits 0. Measured, by editing a recording to cite the other wrapper.
-# The real discriminator is in test/Spec.hs, which calls mkFsAtE and mkFAtE by
+# The real discriminator is in test/Spec.hs, which calls mkFsAt and mkFAt by
 # name. See test/corpus/README.md for the full retraction.
 #
 # A diff that consists of NOTHING BUT moved positions is reported as cosmetic:

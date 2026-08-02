@@ -1,2 +1,2 @@
 error: input.md: table "NotRange": column "Age": dmnmd cannot infer a type for this column: row 1 "not([1..5])" reads as Number, and row 2 "[1..5] [10..20]" reads as String. An undeclared column has to agree with itself, and dmnmd will not pick a winner and read the losing cells as literal text — which is what it used to do, silently. Declare the column: "Age : String" reads every cell as the text the author wrote; "Age : Number" requires every cell to be a number, a comparison, an interval or arithmetic.
-dmnmd: 1 decision table(s) in input.md could not be read
+dmnmd: one or more decision tables in input.md could not be read

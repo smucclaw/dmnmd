@@ -1,2 +1,2 @@
 error: input.md: table "T": column "cat": the declared domain has a wildcard member, so it constrains nothing — check for a stray or doubled comma in the sub-header row
-dmnmd: 1 decision table(s) in input.md could not be read
+dmnmd: one or more decision tables in input.md could not be read

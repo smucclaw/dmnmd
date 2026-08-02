@@ -2,4 +2,4 @@ error: input.md: table "BlankRowNum": column "Season": row 2: value outside the 
 error: input.md: table "BlankRowNum": column "Dish": row 2: value outside the column's declared domain {Stew} — the cell reads Roast
 error: input.md: table "BlankRowNum": column "Season": row 3: value outside the column's declared domain {Fall} — the cell reads Spring
 error: input.md: table "BlankRowNum": column "Dish": row 3: value outside the column's declared domain {Stew} — the cell reads Salad
-dmnmd: 4 decision table(s) in input.md could not be read
+dmnmd: one or more decision tables in input.md could not be read

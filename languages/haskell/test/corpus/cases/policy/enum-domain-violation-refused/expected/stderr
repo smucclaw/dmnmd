@@ -1,3 +1,3 @@
 error: input.md: table "Routing": column "Risk Category": row 1: value outside the column's declared domain {LOW, MEDIUM, HIGH} — the cell reads HIHG
 error: input.md: table "Routing": column "Routing": row 2: value outside the column's declared domain {DECLINE, REFER, ACCEPT} — the cell reads ACCEPTT
-dmnmd: 2 decision table(s) in input.md could not be read
+dmnmd: one or more decision tables in input.md could not be read

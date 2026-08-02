@@ -201,8 +201,10 @@ Things that are only apparent across several files:
   `DecisionTable.structuralErrors`, which walks `allrows`** — not in `mkFEither`, which
   cannot tell an input cell from an output cell from a sub-header domain member, since
   `ParseTable` builds `enums` through the same `mkFsAt`. Putting them there would make a range
-  domain `[0..150]` unwritable, and the located wrappers are still `either error id` underneath,
-  so a `Left` would crash ordinary tables.
+  domain `[0..150]` unwritable, because `reprocessRows` calls `mkFAt` with the full column
+  type on live paths, so a `Left` there refuses ordinary tables. (Before D-7 it *crashed*
+  them — the located wrappers were `either error id` underneath. They now return a
+  `Diagnostic` and the table is dropped instead: different blast radius, same defect.)
   A runtime *value* is a different thing from a cell and is parsed by `mkInputValue`, the
   sole producer of `DMNVal`'s `VL`.
 - **A double-quoted cell is a string literal**, unwrapped **all-or-nothing per cell**
@@ -426,9 +428,11 @@ because `Main.parseTables` checks `anyErrors` before `--pick` and before `withOu
 it used to hold because forcing a table happened to raise. Measured alongside it, and also
 unchanged: `-o` against a pre-existing file leaves it untouched on a refusal (`openFile … WriteMode`
 truncates, so this is a real guarantee and not a tidiness), and all five emitting backends write
-**zero bytes** of stdout for a two-table file whose second table is bad. Note that the last row's
-only in-repo fixture, `test/safe.md`, is not actually a some-parsed-some-did-not case — it fails at
-file level on a missing final newline — so a hand-made two-table probe is what verifies it.
+**zero bytes** of stdout for a two-table file whose second table is bad. The machine-checked
+witness for that last row is `policy/md-partial-failure-emits-nothing`, a two-table case that
+predates D-7. (`test/safe.md` is *not* a witness for it — that file fails at the file level on a
+missing final newline, so it never reaches the some-parsed-some-did-not path. D-7's landing note
+originally said no in-repo fixture existed at all; the corpus case above refutes that.)
 
 A pipe table whose top-left cell is not a hit policy is prose, not a broken decision table:
 `ParseMarkdown.isDecisionTable` asks `parseHitPolicy` itself, skips the chunk, and says so
@@ -500,10 +504,13 @@ Three things there are easy to get wrong on sight:
   worse than leaving it: rule 2 of `~/CLAUDE.md` names this exact move.)
 - **No `policy/` recording cites a cell-path position any more.** Commit 6 had promoted eleven
   that did; D-7 removed the `CallStack` from all of them, so an edit above `mkFsAt`/`mkFAt` no
-  longer dirties any policy recording. Exactly two recordings still carry a `src/DMN/` frame,
-  both `symptom/` and both *evaluation*-time (`eval-hp-first-no-match-crash`,
-  `eval-collect-min-empty-crash`). If a D-7-shaped change ever dirties one of those, that is a
-  scope leak, not a re-record.
+  longer dirties any policy recording. Exactly two recordings still carry a `CallStack`, both
+  `symptom/` and both *evaluation*-time: `eval-hp-first-no-match-crash`, which is the only
+  recording anywhere with a `src/DMN/` frame, and `eval-collect-min-empty-crash`, whose
+  `CallStack (from HasCallStack):` header has **no** frame under it at all. (An earlier draft
+  of this bullet said "two recordings carry a `src/DMN/` frame". One does. The count of
+  `CallStack`s and the count of *frames* are different numbers.) If a D-7-shaped change ever
+  dirties one of those, that is a scope leak, not a re-record.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
   tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
