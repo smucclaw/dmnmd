@@ -263,17 +263,25 @@ validator catches that.
 - **Refused, because DMN has no document for them:** a table with no output column
   (`tDecisionTable` is `output+`), a row with fewer cells than columns (padding with `-` would
   WIDEN the rule silently), a comparison in an output cell, and `HP_Aggregate`.
-- **A catch-all row in a `U` table is warned about HERE and nowhere else (D-16).** A row with `-`
-  in every input column overlaps every other rule, which §8.2.10 says a `U` table must not contain
-  — but the shape is idiomatic (**40 of 221** corpus fixtures, the README example among them),
-  dmnmd's own matching is first-match, and `--to=l4` renders it as `OTHERWISE`. So it is not
-  refused, and it is deliberately **not** a `tableWarnings` entry: put there, it added a paragraph
-  to 33 policy recordings about a problem the js/ts/py/l4 paths do not have. The hazard is only in
-  what this backend emits, because `U` lets a foreign engine reorder the rules and return the
-  catch-all instead of a specific one. DMN's construct for the intent is a default output value
-  (§8.2.11), which `DecisionTable` has no slot for — the same absent field that makes the reader
-  drop a declared `<defaultOutputEntry>`. D-16 phase 2 adds it; until then the warning names `F`
-  and `P` as portable repairs, both of which were run rather than reasoned about.
+- **A trailing catch-all row in a `U` table is PROMOTED to a default output value (D-16 phase 2).**
+  A row with `-` in every input column overlaps every other rule, which §8.2.10 says a `U` table
+  must not contain — but the shape is idiomatic (**40 of 221** corpus fixtures, the README example
+  among them), dmnmd's own matching is first-match, and `--to=l4` renders it as `OTHERWISE`. DMN's
+  construct for the intent is the default output value of §8.2.11, and since phase 2 that is what
+  `promoteTrailingCatchAll` emits: the row's outputs move into `dtDefaultOutput` →
+  `<defaultOutputEntry>`, the `<rule>` is dropped, and the document is genuinely `U`-conformant for
+  any engine, ordered or not. A warning still names the row (its authored NUMBER is genuinely
+  lost — a default has no rule number), and it lives HERE, not in `tableWarnings`: put there in
+  phase 1, it added a paragraph to 33 policy recordings about a problem the js/ts/py/l4 paths do
+  not have. Eligibility is narrow (trailing, comment-free, full arity, not all-wildcard outputs, no
+  default already present); an ineligible catch-all keeps a phase-1-style warning that says why it
+  was not promoted. `dtDefaultOutput` itself is honoured everywhere: the reader carries a declared
+  `<defaultOutputEntry>` (it used to warn-and-drop), `evalTable` answers it exactly when no rule
+  matches under a single-hit policy, js/ts/py render it via `rowsPlusDefault` as the trailing arm
+  it is equivalent to, and L4 feeds it to `OTHERWISE` — which is what keeps the round trip
+  byte-identical on both the ts and l4 legs. Pinned by `policy/hp-unique-catchall-promoted`,
+  `policy/xml-default-output-entry-carried`, negative control `policy/hp-first-catchall-not-warned`,
+  and the promotion block in `TranslateXMLSpec`.
 
 ### The gate is a round trip, not a golden file (`test/roundtrip/`)
 
@@ -285,9 +293,10 @@ cabal build                                # neither script builds
 ./test/roundtrip/backend-baseline.sh --check   # did any OTHER backend move?
 ```
 
-117 of 120 eligible markdown fixtures pass byte-identically, plus the same comparison through
-`--to=l4`; every emitted document validates against `xsd/DMN13.xsd` with `xmllint`. Eight XFAILs,
-each with a reason in the script.
+131 of 183 fixtures pass byte-identically (42 skipped as recorded refusals, 10 XFAILs each with a
+reason in the script), plus the same comparison through `--to=l4`; every emitted document validates
+against `xsd/DMN13.xsd` with `xmllint`. (This paragraph said "117 of 120, eight XFAILs" from an
+earlier count of the fixture set; the numbers above are the D-16-phase-2 run.)
 
 **Two things about that harness are worth knowing before trusting a green run.** TS is a weak
 surface on its own — measured, not assumed: `--to=ts` collapses eleven hit policies into two
@@ -363,8 +372,9 @@ One rule governs both readers:
 > than rejecting it.
 
 So `DMN.XML.XmlToDmnmd` returns `([Diagnostic], [DecisionTable])` rather than calling
-`error`. A `Warning` means something was dropped and says what (`<defaultOutputEntry>`, the
-`<annotation>` column names, a cell that is not a plain FEEL literal). An `Error` means a
+`error`. A `Warning` means something was dropped and says what (the DRG edges, the
+`<annotation>` column names, a cell that is not a plain FEEL literal — no longer
+`<defaultOutputEntry>`, which D-16 phase 2 carries in `dtDefaultOutput`). An `Error` means a
 table could not be represented faithfully — a temporal `typeRef`, a rule whose entry count
 disagrees with the column count, a cell that cannot be built at the column's type — and
 that table is **not emitted**, because a table that can never match, or one whose rules have

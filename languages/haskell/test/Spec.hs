@@ -8,7 +8,8 @@ import DMN.DecisionTable
 import DMN.ParseCell (parseNumberCell)
 import DMN.Diagnostic (Severity (..), Diagnostic (..), renderDiagnostic)
 import Data.Either (isLeft, isRight)
-import Data.List (isPrefixOf)
+import Data.List (isInfixOf, isPrefixOf)
+import DMN.Translate.L4 (toL4, defaultL4Opts)
 import DMN.Types
 import DMN.ParseTable
 import DMN.ParseFEEL
@@ -31,10 +32,58 @@ import TranslateXMLSpec (xmlEmitSpec)
 
 -- * Main content
 
+-- | 'DTable' at its pre-D-16 arity: no default output value. The markdown
+-- parser never sets one, so every expectation in this suite carries 'Nothing'.
+dTable :: String -> HitPolicy -> [ColHeader] -> [DTrow] -> DecisionTable
+dTable n hp chs rows = DTable n hp chs rows Nothing
+
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec] $ hspec
   return ()
+
+-- | D-16 phase 2: the §8.2.11 default output value, as the EVALUATOR and the
+-- backends consume it. How it gets INTO the slot is tested where it happens —
+-- the XML reader in DmnXmlSpec (B3), the emitter's catch-all promotion in
+-- TranslateXMLSpec.
+defaultOutputSpec :: Spec
+defaultOutputSpec = describe "dtDefaultOutput — the §8.2.11 default output value" $ do
+  let inC  = DTCH DTCH_In  "Season" (Just DMN_String) Nothing
+      outC = DTCH DTCH_Out "Dish"   (Just DMN_String) Nothing
+      r1   = DTrow (Just 1) [[FNullary (VS "Fall")]] [[FNullary (VS "Spareribs")]] []
+      t hp = DTable "Dish" hp [inC, outC] [r1] (Just [[FNullary (VS "Takeaway")]])
+
+  describe "evalTable" $ do
+    it "answers the default when no rule matches, under Unique" $
+      evalTable (t HP_Unique) [FNullary (VS "Summer")]
+        `shouldBe` Right [[[FNullary (VS "Takeaway")]]]
+    it "lets a matching rule win — the default is only for the no-match case" $
+      evalTable (t HP_Unique) [FNullary (VS "Fall")]
+        `shouldBe` Right [[[FNullary (VS "Spareribs")]]]
+    it "does not collide with a real match under Any" $
+      evalTable (t HP_Any) [FNullary (VS "Fall")]
+        `shouldBe` Right [[[FNullary (VS "Spareribs")]]]
+    it "answers the default under First, where no match used to crash" $
+      evalTable (t HP_First) [FNullary (VS "Summer")]
+        `shouldBe` Right [[[FNullary (VS "Takeaway")]]]
+    it "does not touch a Collect result — no match IS the empty collection" $
+      evalTable (t (HP_Collect Collect_All)) [FNullary (VS "Summer")]
+        `shouldBe` Right []
+
+  describe "rowsPlusDefault (what js/ts/py render)" $ do
+    it "materialises the default as a trailing catch-all row, numbered past the rules" $ do
+      let rows = rowsPlusDefault (t HP_Unique)
+      length rows `shouldBe` 2
+      row_number (last rows) `shouldBe` Just 2
+      row_inputs (last rows) `shouldBe` [[FAnything]]
+      row_outputs (last rows) `shouldBe` [[FNullary (VS "Takeaway")]]
+    it "adds nothing when there is no default" $
+      length (rowsPlusDefault (dTable "D" HP_Unique [inC, outC] [r1])) `shouldBe` 1
+
+  describe "the table-level default reaches L4's OTHERWISE" $
+    it "renders the default, not the CLI fallback and not a fabricated value" $
+      toL4 defaultL4Opts (t HP_Unique)
+        `shouldSatisfy` (("OTHERWISE " ++ show "Takeaway") `isInfixOf`)
 
 parseHelloWorld :: Parser ()
 parseHelloWorld = do
@@ -193,35 +242,35 @@ spec3 = do
   describe "parseTable" $ do
     it "should parse a null table with no header columns and no body rows"
       $ ("| U |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [] [])
     it "should parse a boring table with one header column and no body rows"
       $ ("| U | varname1 |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing] [])
     it "should parse a boring table with one in header, one explicit out, and no body rows"
       $ ("| U | varname1 | varname2 (out) |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
     it "should parse a boring table with two in headers, which should autoswitch to out"
       $ ("| U | varname1 | varname2 |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
     it "should parse a boring table with one explicit in headers, and the other which should autoswitch to out"
       $ ("| U | varname1 (in) | varname2 |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Out "varname2" Nothing Nothing] [])
     it "should parse a boring table with one header column, one comment column, and no body rows"
       $ ("| U | varname1 | # rem |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
     it "should parse a boring table with one header column, one comment column, and no body rows"
       $ ("| U | varname1 | rem (comment) |\n" :: Text )
-      ~> (parseTable "mytable1") `shouldParse` (DTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
+      ~> (parseTable "mytable1") `shouldParse` (dTable "mytable1" HP_Unique [DTCH DTCH_In "varname1" Nothing Nothing, DTCH DTCH_Comment "rem" Nothing Nothing] [])
     it "should parse a boring table with one header column, one comment column, and one body row"
       $ ("| U | varname1 | rem (comment) |\n| 1 | foo | mycomment |\n" :: Text )
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_Unique
+      (dTable "mytable1" HP_Unique
         [DTCH DTCH_In "varname1" (Just DMN_String) Nothing, DTCH DTCH_Comment "rem" Nothing Nothing]
         [DTrow (Just 1) [mkFs (Just DMN_String) "foo"] [] [Just "mycomment"]])
     it "should parse the standard dmn example 1"
       $ dmn1
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_Unique
+      (dTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
         [DTrow (Just 1) [mkFs Nothing "Fall"]   [mkFs Nothing "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs Nothing "Winter"] [mkFs Nothing "Roastbeef"] [Nothing]
@@ -232,7 +281,7 @@ spec3 = do
     it "should parse the standard dmn example 1b with comma expressions"
       $ dmn1b
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_Unique
+      (dTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
         [DTrow (Just 1) [mkFs Nothing "Fall"]   [mkFs Nothing "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs Nothing "Winter"] [mkFs Nothing "Roastbeef"] [Nothing]
@@ -242,7 +291,7 @@ spec3 = do
     it "should parse the standard dmn example 1c with type annotations and multivalues"
       $ dmn1c
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_Unique
+      (dTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
         [DTrow (Just 1) [mkFs (Just DMN_String) "Fall"]   [mkFs (Just DMN_String) "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs (Just DMN_String) "Winter"] [[FNullary $ VS "Roastbeef", FNullary $ VS "Strawberries"]] [Nothing]
@@ -252,7 +301,7 @@ spec3 = do
     it "should parse the standard dmn example 2 with multiple columns and numeric comparisons"
       $ dmn2
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_Unique
+      (dTable "mytable1" HP_Unique
         [DTCH DTCH_In "Season" (Just DMN_String) Nothing, DTCH DTCH_In "guestCount" (Just DMN_Number) Nothing, DTCH DTCH_Out "Dish" (Just DMN_String) Nothing, DTCH DTCH_Comment "Annotation" Nothing Nothing]
         [DTrow (Just 1) [mkFs (Just DMN_String) "Fall",   mkFs (Just DMN_Number) "<= 8"]    [mkFs (Just DMN_String) "Spareribs"] [Nothing]
         ,DTrow (Just 2) [mkFs (Just DMN_String) "Winter", mkFs (Just DMN_Number) "<= 8"]   [[FNullary $ VS "Roastbeef"]] [Nothing]
@@ -265,7 +314,7 @@ spec3 = do
     it "should parse the Collect table with a subheader row"
       $ dmn3a
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" (HP_Collect Collect_All)
+      (dTable "mytable1" (HP_Collect Collect_All)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_In "RiskCategory"  (Just DMN_String) (Just $ FNullary . VS <$> words "LOW MEDIUM HIGH")
         , DTCH DTCH_In "DebtReview"    (Just DMN_Boolean) Nothing
@@ -282,7 +331,7 @@ spec3 = do
     it "should parse the Output Order table with a subheader and continuation body rows"
       $ dmn3b
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_OutputOrder
+      (dTable "mytable1" HP_OutputOrder
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_In "RiskCategory"  (Just DMN_String) (Just $ FNullary . VS <$> words "LOW MEDIUM HIGH")
         , DTCH DTCH_In "DebtReview"    (Just DMN_Boolean) Nothing
@@ -359,7 +408,7 @@ spec3 = do
 
   describe "evalTable dmn3count - collect count" $ do
     it "should parse table 3c as a Collect Count"   $ dmn3count ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" (HP_Collect Collect_Cnt)
+      (dTable "mytable1" (HP_Collect Collect_Cnt)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_In "RiskCategory"  (Just DMN_String) (Just $ FNullary . VS <$> words "LOW MEDIUM HIGH")
         , DTCH DTCH_In "DebtReview"    (Just DMN_Boolean) Nothing
@@ -394,7 +443,7 @@ spec3 = do
     it "should parse the Zelda Collect Sum table"
       $ dmn4sum
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" (HP_Collect Collect_Sum)
+      (dTable "mytable1" (HP_Collect Collect_Sum)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Number) Nothing
@@ -412,7 +461,7 @@ spec3 = do
     it "should parse the Zelda Collect Count table"
       $ dmn4count
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" (HP_Collect Collect_Cnt)
+      (dTable "mytable1" (HP_Collect Collect_Cnt)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Number) Nothing
@@ -431,7 +480,7 @@ spec3 = do
     it "should parse the Zelda Collect Min table"
       $ dmn4min
       ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" (HP_Collect Collect_Min)
+      (dTable "mytable1" (HP_Collect Collect_Min)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Number) Nothing
@@ -609,7 +658,7 @@ spec3 = do
       $ col ["Non-Participating", "5' 10\""] `shouldBe` VType DMN_String
     it "should infer dmn5a as number, number, bool" $
       dmn5a ~> (parseTable "dmn5a") `shouldParse` 
-      (DTable "dmn5a" (HP_Collect Collect_Max)
+      (dTable "dmn5a" (HP_Collect Collect_Max)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_Number) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Boolean) Nothing
@@ -621,7 +670,7 @@ spec3 = do
         ])
     it "should infer dmn5b as number, number, bool" $
       dmn5b ~> (parseTable "dmn5b") `shouldParse` 
-      (DTable "dmn5b" (HP_Collect Collect_Max)
+      (dTable "dmn5b" (HP_Collect Collect_Max)
         [ DTCH DTCH_In "Age"            (Just DMN_Number) Nothing
         , DTCH DTCH_Out "SpiritOrbs"     (Just DMN_String) Nothing
         , DTCH DTCH_Out "KorokSeeds"     (Just DMN_Boolean) Nothing
@@ -643,7 +692,7 @@ spec3 = do
     -- parseOnly (parseDataRow "mytable1" [ColSig DTCH_In "age" (Just DMN_Number), ColSig DTCH_Out "mayBuy" (Just DMN_Boolean), ColSig DTCH_Out "limit" (Just DMN_Number)]) "| 4 | >25          | True                   | age * 100            |\n"
     it "should parse correctly" $
       dmn6a ~> (parseTable "mytable1") `shouldParse`
-      (DTable "mytable1" HP_First
+      (dTable "mytable1" HP_First
         [ DTCH DTCH_In "age" (Just DMN_Number) Nothing
         , DTCH DTCH_Out "mayBuy" (Just DMN_Boolean) Nothing
         , DTCH DTCH_Out "limit" (Just DMN_Number) Nothing
@@ -883,7 +932,7 @@ listSpec = do
     let inCol n  = DTCH DTCH_In  n (Just DMN_String) Nothing
         outCol n = DTCH DTCH_Out n (Just DMN_String) Nothing
         row n ins = DTrow (Just n) ins [[FNullary (VS "x")]] []
-        tbl hp chs rows = DTable "T" hp chs rows
+        tbl hp chs rows = dTable "T" hp chs rows
         lit s = [FNullary (VS s)]
         num d = [FNullary (VN d)]
 

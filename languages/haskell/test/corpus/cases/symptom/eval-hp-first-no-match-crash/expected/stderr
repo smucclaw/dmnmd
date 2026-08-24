@@ -1,5 +1,5 @@
 dmnmd: dmn error: table FirstEmpty expected at least one row to match, but none did; hit policy HP_First unable to operate.
 CallStack (from HasCallStack):
-  error, called at src/DMN/DecisionTable.hs:79:3 in dmnmd:DMN.DecisionTable
+  error, called at src/DMN/DecisionTable.hs:90:3 in dmnmd:DMN.DecisionTable
 
 

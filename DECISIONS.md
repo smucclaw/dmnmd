@@ -1076,7 +1076,7 @@ column emits `(Non - Participating)` and `n/a` emits `(false / a)`, both throwin
 `< 5` and `[1..5]` in the same position emit an arrow function as the output *value*, which
 `JSON.stringify` drops, so the field silently vanishes.
 
-### D-16 — a catch-all row in a `U` table. **RULED: warn at emit time, do not refuse. Phase 1 LANDED; phase 2 spec'd, not built.**
+### D-16 — a catch-all row in a `U` table. **RULED: warn at emit time, do not refuse. Phase 1 LANDED; phase 2 (`dtDefaultOutput`) LANDED.**
 
 A row with `-` in every input column matches everything, so under hit policy `Unique` it overlaps
 every other rule — the one thing DMN 1.3 §8.2.10 says a `U` table must not contain. The strict
@@ -1123,7 +1123,8 @@ whose output is read by something other than a language toolchain.
 > the same principle as `eqDomainWarns`: the document is correct DMN and says exactly what the
 > author wrote.
 >
-> Pinned by `policy/hp-unique-catchall-warned` and its negative control
+> Pinned by `policy/hp-unique-catchall-warned` (renamed `policy/hp-unique-catchall-promoted` when
+> phase 2 superseded the warn-only behaviour) and its negative control
 > `policy/hp-first-catchall-not-warned`, plus seven examples in `TranslateXMLSpec`. The message
 > recommends `F` or `P`, and **both repairs were run rather than reasoned about**: each silences the
 > warning and each still returns `Takeaway` under `node`. They differ in shape — `F` folds the row
@@ -1131,23 +1132,41 @@ whose output is read by something other than a language toolchain.
 > meaning. An earlier reading of the `P` output mistook that dead arm for a lost default; running it
 > is what settled it.
 
-**Phase 2 — `dtDefaultOutput`, spec'd and NOT built.** `DecisionTable` has no slot for a default
-output value. That one absent field costs three things at once, which is the argument for adding it:
+**Phase 2 — `dtDefaultOutput`, LANDED.** `DecisionTable` had no slot for a default output value.
+That one absent field cost three things at once, which was the argument for adding it:
 
-- the XML **reader** parses `<defaultOutputEntry>`, checks it, and then "genuinely loses" it
-  (`XmlToDmnmd.hs`, which warns and says so) — a documented data loss;
-- the XML **writer** has nowhere to put a trailing catch-all except back into a rule, which is what
-  creates the portability hazard phase 1 can only describe;
-- L4's `OTHERWISE` reads `L4Opts.defaultResult`, set by the CLI, never by the table.
+- the XML **reader** parsed `<defaultOutputEntry>`, checked it, and then "genuinely lost" it
+  (`XmlToDmnmd.hs`, which warned and said so) — a documented data loss;
+- the XML **writer** had nowhere to put a trailing catch-all except back into a rule, which is what
+  created the portability hazard phase 1 could only describe;
+- L4's `OTHERWISE` read `L4Opts.defaultResult`, set by the CLI, never by the table.
 
-With the slot, a trailing all-wildcard row emits as `<defaultOutputEntry>` and the row is dropped,
-making the emitted table genuinely `U`-conformant *and* meaning-preserving for any engine.
-
-**Held separate on purpose, because the cost lands on the gate.** Converting a row into a default
-output perturbs the round trip — `md → xml → ts` stops matching `md → ts` unless the js/ts/py
-backends learn the new field, and they currently render rules only. That is precisely the
-cross-backend perturbation `backend-baseline.sh` exists to catch, and it deserves its own diff
-rather than riding along with a warning.
+> **As built.** The slot is `dtDefaultOutput :: Maybe [[FEELexp]]`, one cell per output column,
+> `[FAnything]` spelling "no default declared for this column" — the same spelling an output
+> wildcard has, so a partial default (legal per the XSD) needs no second representation. Filled by
+> exactly two producers: the reader's `<defaultOutputEntry>` (parsed at the column's settled type
+> through the same `mkCells` as any cell, so an illegal default is refused with the same message
+> shape, and checked by `domainErrors`/`structuralErrors` as the VALUE it is) and the writer's
+> `promoteTrailingCatchAll` — a trailing, comment-free, full-arity `U` catch-all whose outputs are
+> not all wildcards moves into the slot and its `<rule>` is dropped, with a warning naming the one
+> thing genuinely lost (the row's authored number). Ineligible catch-alls keep a phase-1-style
+> warning that now says *why* the row was not promoted.
+>
+> **The round-trip cost predicted above was paid in full and came to zero.** The consumers were
+> taught the field in the same change: `evalTable` answers the default exactly when no rule matches
+> under a single-hit policy (never merged into the rows — under `Any` a materialised row would
+> collide with a real match, under `Collect` it would pollute every result); js/ts/py render it via
+> `Types.rowsPlusDefault`, which materialises it as the trailing catch-all arm it is equivalent to
+> under first-match, numbered one past the rules — which is the number the equivalent authored row
+> carries in a 1..n table; and L4 feeds it to the existing `otherwiseExpr` through `defaultRow`
+> (`derivedMaybe` now keys on `defaultRow`, not `catchAll`, so a table-level default suppresses the
+> `MAYBE` wrapping exactly as a catch-all row does). Result, measured: the full harness runs
+> 131 pass / 0 fail / 0 xpass / 0 XSD-invalid, with the 41 promoted fixtures byte-identical on both
+> the ts and l4 legs. Seven policy recordings changed, all reviewed and re-recorded as this ruling:
+> the case formerly `hp-unique-catchall-warned` is now `hp-unique-catchall-promoted`, the case
+> formerly `xml-default-output-entry-warns` is now `xml-default-output-entry-carried`, and five
+> `xml-*` fixtures gained the promotion. `backend-baseline.sh` remains dead (see CLAUDE.md) and was
+> not consulted; the A/B evidence is the round-trip run plus the corpus.
 
 **This ruling makes the deferred full-overlap project (Calvanese 2016, D-13) *less* attractive, not
 more.** The catch-all is the one place naive overlap detection would fire constantly on legitimate

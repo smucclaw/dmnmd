@@ -18,6 +18,7 @@ module DMN.Translate.L4 where
 import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder)
 import DMN.Diagnostic
 import DMN.Types
+import Control.Applicative ((<|>))
 import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate)
 import Data.Maybe (isJust, isNothing, catMaybes, mapMaybe)
@@ -167,7 +168,12 @@ enumOutsOf dt =
   | (i, o) <- zip [0 :: Int ..] (getOutputHeaders (header dt))
   , Just ms <- [enumCtorsOf o]
   , let cells = [ concat (drop i (take (i+1) (row_outputs r))) | r@DTrow{} <- allrows dt ]
-  , not (any (elem FAnything) cells)
+        -- The §8.2.11 default output value renders through the same OTHERWISE
+        -- as a catch-all row's cell, so it is gated identically: a wildcard
+        -- slice there (a column with no declared default) would render "" under
+        -- a sum-typed GIVETH just as a row wildcard would.
+        dcells = [ concat (drop i (take (i+1) d)) | Just d <- [dtDefaultOutput dt] ]
+  , not (any (elem FAnything) (cells ++ dcells))
   , not (any null cells)
   ]
 
@@ -298,8 +304,13 @@ toL4 opts dt =
     -- a result that can never be NOTHING. Fixing that means feeding the dead
     -- catch-all ARM's own result to otherwiseExpr, which changes non-enum
     -- Priority output too and is deliberately not bundled here.
+    -- Keyed on `defaultRow`, not on `catchAll`: since D-16 phase 2 a table may
+    -- carry a §8.2.11 default output value with no catch-all row (that is what
+    -- the XML reader builds from <defaultOutputEntry>), and otherwiseExpr
+    -- consults defaultRow — so this must too, or the two disagree exactly as
+    -- the Priority note below describes.
     derivedMaybe = not (null enumOuts)
-                && isNothing catchAll
+                && isNothing defaultRow
                 && null defaultResultStr
 
     -- SUBSUMES the caller's wrapMaybe rather than stacking with it: composed,
@@ -354,7 +365,10 @@ toL4 opts dt =
     -- data row (that would give unmatched inputs a confidently-wrong answer —
     -- BUILD-SPEC §1.5). Fall through to L4Opts.defaultResult, else a type-default
     -- sentinel (BUILD-SPEC §4.3). For a faithful "no rule matched" use wrapMaybe.
-    defaultRow = row_outputs <$> catchAll
+    -- An explicit catch-all row wins over the table-level default only in the
+    -- sense that the two cannot coexist honestly — a table with both has an
+    -- unreachable default, and the catch-all is the statement nearer the rules.
+    defaultRow = (row_outputs <$> catchAll) <|> dtDefaultOutput dt
     defaultResultStr = defaultResult opts
 
 -- | A data row is a catch-all when every input cell is the wildcard @-@.

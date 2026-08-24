@@ -19,7 +19,7 @@ import Test.Hspec
 
 import Data.List (isInfixOf)
 
-import DMN.Translate.XML (cellText, defaultXMLOpts, fidelityDiags, showFeelXML, toXMLDoc)
+import DMN.Translate.XML (cellText, defaultXMLOpts, fidelityDiags, showFeelXML, toXMLDoc, toXMLFile)
 import DMN.Types
 
 xmlEmitSpec :: Spec
@@ -144,7 +144,7 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
     let inC n  = DTCH DTCH_In  n (Just DMN_String) Nothing
         outC n = DTCH DTCH_Out n (Just DMN_String) Nothing
         r n ins = DTrow (Just n) ins [[FNullary (VS "x")]] []
-        tb hp chs rows = DTable "T" hp chs rows
+        tb hp chs rows = DTable "T" hp chs rows Nothing
         lit s' = [FNullary (VS s')]
         catchAllWarns = length . filter ("overlaps every other rule" `isInfixOf`)
                       . map show . fidelityDiags defaultXMLOpts
@@ -192,6 +192,77 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
                      [r 1 [lit "Fall"], r 2 [[FAnything]], r 3 [[FAnything]]])
         `shouldBe` 2
 
+  -- D-16 phase 2. 'toXMLFile' promotes the ELIGIBLE shape — a trailing,
+  -- comment-free catch-all in a U table — into <defaultOutputEntry> before
+  -- 'fidelityDiags' ever sees the table, so the warnings tested above survive
+  -- only for rows the promotion must not touch. (The fidelityDiags tests above
+  -- call that function directly and therefore still see the raw table; that is
+  -- the division of labour, not a contradiction.) These go through 'toXMLFile',
+  -- the real entry point.
+  describe "DMN.Translate.XML.toXMLFile — catch-all promotion (D-16 phase 2)" $ do
+    let inC n  = DTCH DTCH_In  n (Just DMN_String) Nothing
+        outC n = DTCH DTCH_Out n (Just DMN_String) Nothing
+        comC n = DTCH DTCH_Comment n Nothing Nothing
+        lit s' = [FNullary (VS s')]
+        rw n ins outs cs = DTrow (Just n) ins outs cs
+        dish hp rows = DTable "Dish" hp [inC "Season", outC "Dish"] rows Nothing
+        run dt = toXMLFile defaultXMLOpts [dt]
+        diagsOf = map show . fst . run
+
+    it "emits a trailing comment-free catch-all as the default output value and drops its rule" $ do
+      let (ds, doc) = run (dish HP_Unique
+                            [ rw 1 [lit "Fall"] [lit "Spareribs"] []
+                            , rw 2 [[FAnything]] [lit "Takeaway"] [] ])
+      doc `shouldSatisfy` ("<defaultOutputEntry" `isInfixOf`)
+      doc `shouldSatisfy` ("<text>\"Takeaway\"</text>" `isInfixOf`)
+      doc `shouldNotSatisfy` ("rule_1_2" `isInfixOf`)
+      map show ds `shouldSatisfy` any ("default output value" `isInfixOf`)
+      map show ds `shouldNotSatisfy` any ("was not promoted" `isInfixOf`)
+
+    it "does not promote a row that carries a comment, and says why" $ do
+      let t = DTable "Dish" HP_Unique [inC "Season", outC "Dish", comC "note"]
+                [ DTrow (Just 1) [lit "Fall"] [lit "Spareribs"] [Nothing]
+                , DTrow (Just 2) [[FAnything]] [lit "Takeaway"] [Just "hey"] ]
+                Nothing
+          (ds, doc) = toXMLFile defaultXMLOpts [t]
+      doc `shouldSatisfy` ("rule_1_2" `isInfixOf`)
+      doc `shouldNotSatisfy` ("<defaultOutputEntry" `isInfixOf`)
+      map show ds `shouldSatisfy` any ("carries a row comment" `isInfixOf`)
+
+    it "does not promote a mid-table catch-all, and says why" $ do
+      let (ds, doc) = run (dish HP_Unique
+                            [ rw 1 [[FAnything]] [lit "Takeaway"] []
+                            , rw 2 [lit "Fall"] [lit "Spareribs"] [] ])
+      doc `shouldSatisfy` ("rule_1_1" `isInfixOf`)
+      doc `shouldNotSatisfy` ("<defaultOutputEntry" `isInfixOf`)
+      map show ds `shouldSatisfy` any ("not the last row" `isInfixOf`)
+
+    it "does not promote an all-wildcard-output catch-all, whose row would vanish" $ do
+      let (ds, doc) = run (dish HP_Unique
+                            [ rw 1 [lit "Fall"] [lit "Spareribs"] []
+                            , rw 2 [[FAnything]] [[FAnything]] [] ])
+      doc `shouldSatisfy` ("rule_1_2" `isInfixOf`)
+      doc `shouldNotSatisfy` ("<defaultOutputEntry" `isInfixOf`)
+      map show ds `shouldSatisfy` any ("no value to declare" `isInfixOf`)
+
+    it "leaves an F table's catch-all alone — it is an ordinary, legal rule there" $ do
+      let (ds, doc) = run (dish HP_First
+                            [ rw 1 [lit "Fall"] [lit "Spareribs"] []
+                            , rw 2 [[FAnything]] [lit "Takeaway"] [] ])
+      doc `shouldSatisfy` ("rule_1_2" `isInfixOf`)
+      doc `shouldNotSatisfy` ("<defaultOutputEntry" `isInfixOf`)
+      diagsOf (dish HP_First
+                [ rw 1 [lit "Fall"] [lit "Spareribs"] []
+                , rw 2 [[FAnything]] [lit "Takeaway"] [] ])
+        `shouldBe` []
+
+    it "writes a table-level default even with no catch-all row to promote" $ do
+      let t = (dish HP_Unique [ rw 1 [lit "Fall"] [lit "Spareribs"] [] ])
+                { dtDefaultOutput = Just [[FNullary (VS "Takeaway")]] }
+          (_, doc) = toXMLFile defaultXMLOpts [t]
+      doc `shouldSatisfy` ("<defaultOutputEntry" `isInfixOf`)
+      doc `shouldSatisfy` ("<text>\"Takeaway\"</text>" `isInfixOf`)
+
   where
     strCol k = DTCH k "Season" (Just DMN_String) Nothing
     listCol k = DTCH k "roles" (Just (DMN_List DMN_String)) Nothing
@@ -202,3 +273,4 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
       [ DTCH DTCH_In "n" (Just DMN_Number) Nothing
       , DTCH DTCH_Out "v" (Just DMN_Number) Nothing ]
       [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FNullary (VN 10)]] [] ]
+      Nothing

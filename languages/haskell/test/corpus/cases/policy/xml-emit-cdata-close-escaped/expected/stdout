@@ -13,21 +13,17 @@
           <text>Note</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="R" label="R" typeRef="string"/>
+      <output id="output_1_1" name="R" label="R" typeRef="string">
+        <defaultOutputEntry id="defaultOutputEntry_1_1">
+          <text>"no"</text>
+        </defaultOutputEntry>
+      </output>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
           <text>"a]]&gt;b"</text>
         </inputEntry>
         <outputEntry id="outputEntry_1_1_1">
           <text>"yes"</text>
-        </outputEntry>
-      </rule>
-      <rule id="rule_1_2">
-        <inputEntry id="inputEntry_1_2_1">
-          <text>-</text>
-        </inputEntry>
-        <outputEntry id="outputEntry_1_2_1">
-          <text>"no"</text>
         </outputEntry>
       </rule>
     </decisionTable>

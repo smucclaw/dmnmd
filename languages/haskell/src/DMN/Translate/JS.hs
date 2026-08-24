@@ -32,7 +32,10 @@ toJS jsopts dt =
                                   else mkArguments jsopts (header dt)
                                 , [ "{"]
                                 ] ]
-             ++ zipWith (\if_ dtrow -> mkIf jsopts (hitpolicy dt) if_ (header dt) dtrow) elsif (datarows dt)
+             -- 'rowsPlusDefault': the §8.2.11 default output value, when the table
+             -- carries one, renders as the trailing catch-all arm it is equivalent
+             -- to under this backend's first-match reading.
+             ++ zipWith (\if_ dtrow -> mkIf jsopts (hitpolicy dt) if_ (header dt) dtrow) elsif (rowsPlusDefault dt)
              ++ [ "}" ]
   where
     elsif = "if" : repeat ( case hitpolicy dt of
