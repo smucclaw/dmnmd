@@ -16,21 +16,17 @@
           <text>1, 2, 3</text>
         </inputValues>
       </input>
-      <output id="output_1_1" name="R" label="R" typeRef="string"/>
+      <output id="output_1_1" name="R" label="R" typeRef="string">
+        <defaultOutputEntry id="defaultOutputEntry_1_1">
+          <text>"other"</text>
+        </defaultOutputEntry>
+      </output>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
           <text>9</text>
         </inputEntry>
         <outputEntry id="outputEntry_1_1_1">
           <text>"nine"</text>
-        </outputEntry>
-      </rule>
-      <rule id="rule_1_2">
-        <inputEntry id="inputEntry_1_2_1">
-          <text>-</text>
-        </inputEntry>
-        <outputEntry id="outputEntry_1_2_1">
-          <text>"other"</text>
         </outputEntry>
       </rule>
     </decisionTable>

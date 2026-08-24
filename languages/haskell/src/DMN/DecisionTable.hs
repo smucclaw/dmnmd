@@ -36,7 +36,18 @@ evalTable table given_input = do
   -- to print.
   outputs <- traverse (\row -> (\os -> row { row_outputs = os })
                                <$> traverse (evalFunctions symtab) (row_outputs row)) matched
-  case hitpolicy table of
+  -- §8.2.11: the default output value answers when NO rule matches, and only
+  -- then — so it is consulted here, after matching, never merged into the rows.
+  -- 'rowsPlusDefault' (the backends' materialisation) must not be used in this
+  -- function: under Any a materialised always-matching row would collide with a
+  -- real match, and under Collect it would contribute to every result.
+  -- Single-hit policies only; a Collect with no matching row already has its
+  -- answer (the empty collection), and a default would quietly replace it.
+  evaledDefault <- traverse (traverse (evalFunctions symtab)) (dtDefaultOutput table)
+  let singleHit = hitpolicy table `elem` [HP_Unique, HP_Any, HP_First, HP_Priority]
+  case (null outputs, evaledDefault) of
+   (True, Just d) | singleHit -> Right [d]
+   _ -> case hitpolicy table of
     HP_Unique -> case length outputs of
                    0 -> Left "no rows returned -- a unique table should have one result!"
                    1 -> Right (row_outputs <$> outputs)
@@ -598,7 +609,7 @@ mkDTable origname orighp origchs origdtrows =
                   (dobs, ro') = reprocessRows origname rn (getOutputHeaders typedchs) ro
               in (di ++ dobs, DTrow rn ri' ro' rc)) <$> origdtrows
       cellDiags = enumDiags ++ concatMap fst rowResults
-      built = DTable origname orighp typedchs (snd <$> rowResults)
+      built = DTable origname orighp typedchs (snd <$> rowResults) Nothing
   in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
         --                 "origchs = " ++ show(origchs) ++ "\n" ++
            --             "newchs = " ++ show(newchs) ++ "\n" )
@@ -804,7 +815,7 @@ inferenceErrors dt =
 structuralErrors :: DecisionTable -> [String]
 structuralErrors dt = concat
   [ nestedCols, listInputErrs, listOutputErrs, listArithErrs, hitPolicyErrs
-  , inputArithErrs, openRangeOutErrs, outputNegationErrs ]
+  , inputArithErrs, openRangeOutErrs, outputNegationErrs, defaultEntryErrs ]
   where
     ins  = getInputHeaders  (header dt)
     outs = getOutputHeaders (header dt)
@@ -1024,6 +1035,31 @@ structuralErrors dt = concat
                , " silently degrades to row order." ]
       | ch <- outs, isListCol ch, Just (_:_) <- [enums ch] ]
 
+    -- A default output value (§8.2.11) is a VALUE, exactly as an output cell
+    -- is, so it refuses the same test-shaped content 'openRangeOutErrs' and
+    -- 'outputNegationErrs' refuse in rows — phrased at the default, because
+    -- there is no row to name. Only the XML reader can populate the slot today,
+    -- and its 'mkCells' happily builds @< 5@ at a Number column, so the shapes
+    -- are reachable, not hypothetical. @FAnything@ is not checked: in this slot
+    -- it is the spelling of "no default declared for this column".
+    defaultEntryErrs =
+      [ concat
+          [ "column ", show (varname ch), ": default output value: the cell reads "
+          , show (showDomainMember cell)
+          , ". A default output value is a literal expression — a VALUE"
+          , " (DMN 1.3 §8.2.11) — and a comparison, a negation or an open range"
+          , " selects values rather than naming one." ]
+      | Just defs <- [dtDefaultOutput dt]
+      , (ch, cells) <- zip outs defs
+      , cell <- cells
+      , isTestish cell
+      ]
+
+    isTestish FSection{}           = True
+    isTestish FNot{}               = True
+    isTestish (FInRange lk _ _ rk) = lk == BOpen || rk == BOpen
+    isTestish _                    = False
+
     nested ch = case vartype ch of
       Just (DMN_List (DMN_List _)) -> True
       _                            -> False
@@ -1116,7 +1152,7 @@ tableWarnings dt = overlapWarn
 -- error. That is why this matches 'FNullary' and lets every other constructor
 -- through.
 domainErrors :: DecisionTable -> [String]
-domainErrors dt = malformedDomains ++ violations
+domainErrors dt = malformedDomains ++ violations ++ defaultViolations
   where
     -- Columns whose declared domain is itself broken. Checked FIRST and
     -- separately, because such a domain silently disables the check below
@@ -1138,6 +1174,25 @@ domainErrors dt = malformedDomains ++ violations
       , domain <- maybe [] pure (enums ch)
       , not (null domain)
       , not (any (== FAnything) domain)   -- already reported as malformed
+      , cell@(FNullary _) <- cells
+      , not (fEvals cell domain)
+      ]
+
+    -- The default output value is a plain VALUE like any output cell, so it is
+    -- checked as a member exactly as 'violations' checks one — same 'fEvals',
+    -- same plain-value gate. Its @FAnything@ spelling means "no default
+    -- declared for this column" and is let through by the 'FNullary' match.
+    defaultViolations =
+      [ concat
+          [ "column ", show (varname ch), ": default output value: "
+          , "value outside the column's declared domain {"
+          , intercalate ", " (showDomainMember <$> domain)
+          , "} — the cell reads ", showDomainMember cell ]
+      | Just defs <- [dtDefaultOutput dt]
+      , (ch, cells) <- zip (getOutputHeaders (header dt)) defs
+      , domain <- maybe [] pure (enums ch)
+      , not (null domain)
+      , not (any (== FAnything) domain)
       , cell@(FNullary _) <- cells
       , not (fEvals cell domain)
       ]

@@ -24,7 +24,11 @@
           <text>Guests</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="Dish" label="Dish" typeRef="string"/>
+      <output id="output_1_1" name="Dish" label="Dish" typeRef="string">
+        <defaultOutputEntry id="defaultOutputEntry_1_1">
+          <text>"Takeaway"</text>
+        </defaultOutputEntry>
+      </output>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
           <text>"Fall"</text>
@@ -45,17 +49,6 @@
         </inputEntry>
         <outputEntry id="outputEntry_1_2_1">
           <text>"Stew"</text>
-        </outputEntry>
-      </rule>
-      <rule id="rule_1_3">
-        <inputEntry id="inputEntry_1_3_1">
-          <text>-</text>
-        </inputEntry>
-        <inputEntry id="inputEntry_1_3_2">
-          <text>-</text>
-        </inputEntry>
-        <outputEntry id="outputEntry_1_3_1">
-          <text>"Takeaway"</text>
         </outputEntry>
       </rule>
     </decisionTable>

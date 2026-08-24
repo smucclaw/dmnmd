@@ -58,7 +58,7 @@ module DMN.Translate.XML
 import Data.Char (toLower)
 import Data.Function (on)
 import Data.List (intercalate, nub, nubBy)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (isJust, mapMaybe)
 import Text.XML.HXT.Core
 import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
 import qualified Text.XML.HXT.DOM.ShowXml as SX
@@ -100,10 +100,77 @@ defaultXMLOpts = XMLOpts
 -- missing one of the decisions it was asked to carry is indistinguishable from
 -- a complete one.
 toXMLFile :: XMLOpts -> [DecisionTable] -> ([Diagnostic], String)
-toXMLFile opts dts
+toXMLFile opts dts0
   | anyErrors diags = (diags, "")
   | otherwise = (diags, toXMLDoc opts dts)
-  where diags = crossTableDiags dts ++ concatMap (fidelityDiags opts) dts
+  where
+    promoted = map promoteTrailingCatchAll dts0
+    dts = map snd promoted
+    diags = concatMap fst promoted
+         ++ crossTableDiags dts ++ concatMap (fidelityDiags opts) dts
+
+-- | D-16 phase 2. A TRAILING all-wildcard row in a @U@ table is the markdown
+-- spelling of DMN's default output value (§8.2.11), so that is what it is
+-- emitted as: the row is moved into 'dtDefaultOutput' and dropped from the
+-- rules, which makes the emitted table genuinely conformant — no rule overlaps
+-- any other — while preserving the meaning for every engine, ordered or not.
+-- dmnmd's own reader reads the document back into the same 'DecisionTable'
+-- this function returns, so the promotion is invisible to a round trip.
+--
+-- Warned rather than silent for the same reason 'rowNumberWarns' is: something
+-- authored is genuinely dropped — the row's NUMBER, which a default has no
+-- field for — and the author should hear that the document spells their row
+-- differently than they wrote it.
+--
+-- Eligibility is deliberately narrow, and each exclusion leaves the row as a
+-- rule for 'fidelityDiags' to handle exactly as phase 1 did:
+--
+--  * @U@ only — under F\/P\/O\/R the row is an ordinary, legal rule, and under
+--    the ordered policies it even participates in ordering.
+--  * trailing only — a mid-table catch-all makes the rules after it dead under
+--    dmnmd's first-match reading, which a default cannot express.
+--  * no row comment — a @\<defaultOutputEntry\>@ has no description slot in
+--    dmnmd's model, and dropping a comment in silence is worse than the warning.
+--  * full arity — a short row is already refused by @ruleArityErrs@; promoting
+--    it would hide that refusal.
+--  * no comparison in its outputs — @outputTestErrs@ refuses those as rules,
+--    and a promotion must not smuggle one past the refusal.
+--  * at least one non-wildcard output — an all-wildcard default writes no
+--    element at all, so the row would vanish rather than move.
+--  * no default already present — a table cannot honestly carry two.
+promoteTrailingCatchAll :: DecisionTable -> ([Diagnostic], DecisionTable)
+promoteTrailingCatchAll dt
+  | hitpolicy dt == HP_Unique
+  , Nothing <- dtDefaultOutput dt
+  , (lastR : restRev) <- reverse (allrows dt)
+  , eligible lastR
+  = ( [ warnAt $ "table " ++ show (tableName dt) ++ ": " ++ rowLabel lastR
+          ++ " has \"-\" in every input column, so it is this table's answer for"
+          ++ " any input no other rule matches. Under hit policy Unique that must"
+          ++ " not be a rule — it would overlap every other rule (§8.2.10) — so it"
+          ++ " is emitted as the table's default output value (§8.2.11) instead,"
+          ++ " and the rule count drops by one. The meaning is preserved for every"
+          ++ " engine; the row's own number is not, because a default has no rule"
+          ++ " number." ]
+    , dt { allrows = reverse restRev, dtDefaultOutput = Just (row_outputs lastR) } )
+  | otherwise = ([], dt)
+  where
+    eligible r =
+      not (null (row_inputs r))
+        && all (all isAnything) (row_inputs r)
+        && length (row_inputs r) == length (inHeaders dt)
+        && length (row_outputs r) == length (outHeaders dt)
+        && all (== Nothing) (row_comments r)
+        && not (any (any isSection) (row_outputs r))
+        && not (all (all isAnything) (row_outputs r))
+    isAnything FAnything = True
+    isAnything _         = False
+    isSection FSection{} = True
+    isSection _          = False
+    rowLabel r = case row_number r of
+      Just n  -> "row " ++ show n
+      Nothing -> "the unnumbered row at position "
+                   ++ show (length [ x | x@DTrow{} <- allrows dt ])
 
 -- | Diagnostics that no single table can see, because they are about the
 -- document the tables are assembled INTO.
@@ -276,11 +343,19 @@ decisionTableOf t dt = X.DecisionTable
   { X.dtLabel = X.DmnCommon (Just (idOf "decisionTable" [show t])) Nothing
   , X.dtHitPolicy = hitpolicy dt
   , X.dtInput = zipWith (inputClauseOf t) [1 ..] (inHeaders dt)
-  , X.dtOutput = zipWith (outputClauseOf t) [1 ..] (outHeaders dt)
+  , X.dtOutput = zipWith3 (outputClauseOf t) [1 ..] (outHeaders dt) defaultCells
+  -- The default output value, sliced per output column. A wildcard slice is a
+  -- column with no declared default and writes no element; that is why an
+  -- all-wildcard default is not promotable (see 'promoteTrailingCatchAll').
   , X.dtAnnotations =
       [ X.AnnotationClause (Just (varname ch)) | ch <- drop 1 (commentHeaders dt) ]
   , X.dtRules = zipWith (ruleOf t dt) [1 ..] (allrows dt)
   }
+  where
+    defaultCells = case dtDefaultOutput dt of
+      Nothing -> repeat Nothing
+      Just ds -> [ if all (== FAnything) d then Nothing else Just d | d <- ds ]
+                   ++ repeat Nothing
 
 -- | @\<input\>@.
 --
@@ -312,17 +387,28 @@ inputClauseOf t c ch = X.TableInput
 -- | @\<output\>@. @\@name@ and @\@label@ both carry the column name: the reader
 -- prefers @label@, other DMN tools prefer @name@, and a document where they
 -- disagree is a document that renames a column depending on who reads it.
-outputClauseOf :: Int -> Int -> ColHeader -> X.TableOutput
-outputClauseOf t c ch = X.TableOutput
+outputClauseOf :: Int -> Int -> ColHeader -> Maybe [FEELexp] -> X.TableOutput
+outputClauseOf t c ch dflt = X.TableOutput
   { X.toutName = X.DmnCommon (Just (idOf "output" [show t, show c])) (Just (varname ch))
   , X.toutLabel = Just (X.ColumnLabel (varname ch))
   , X.toutTypeRef = X.TypeRef <$> typeRefOf (vartype ch)
   , X.toutValues = X.OutputValues <$> unaryTestsOf ch
-  , X.toutDefault = Nothing
-    -- ^ dmnmd has no slot for a default output — the reader warns that it drops
-    -- one — so there is never anything to write here. An OTHERWISE synthesised
-    -- by a backend belongs to that backend, not to the table.
+  , X.toutDefault = mkDefault <$> dflt
+    -- ^ 'dtDefaultOutput', D-16 phase 2: filled by the XML reader's
+    -- @\<defaultOutputEntry\>@ and by 'promoteTrailingCatchAll', and written
+    -- through the same 'cellText' an @\<outputEntry>@ uses, so the reader
+    -- rebuilds the identical cell.
   }
+  where
+    mkDefault d = X.DefaultOutputEntry X.TLiteralExpression
+      { X.tleExpr = X.TExpr
+          { X.exprLabel =
+              X.DmnCommon (Just (idOf "defaultOutputEntry" [show t, show c])) Nothing
+          , X.exprTypeRef = Nothing
+          }
+      , X.tleExpressionLanguage = Nothing
+      , X.tleContent = Just (X.TextElement (cellText ch d))
+      }
 
 -- | A column's declared domain — the markdown sub-header row — as
 -- @\<inputValues\>@ \/ @\<outputValues\>@. DMN's own spelling for the same idea,
@@ -751,11 +837,12 @@ fidelityDiags _opts dt = concat
     -- something other than a language toolchain.
     --
     -- Warned rather than refused, like 'eqDomainWarns': the emitted document is
-    -- correct DMN and says exactly what the author wrote. What it cannot say is
-    -- that the rules are ordered — DMN spells that as a default output value
-    -- (§8.2.11), which 'DecisionTable' has no slot for. That absent field is
-    -- also why the reader drops a declared @\<defaultOutputEntry\>@; D-16
-    -- phase 2 adds it and closes both directions at once.
+    -- correct DMN and says exactly what the author wrote. Since D-16 phase 2
+    -- the ELIGIBLE version of this shape — a trailing, comment-free catch-all —
+    -- never reaches here at all: 'promoteTrailingCatchAll' has already turned
+    -- it into the default output value DMN spells the intent as (§8.2.11). What
+    -- is left to warn about is a catch-all this backend could not promote, and
+    -- the message says why not.
     uniqueCatchAllWarns
       | hitpolicy dt /= HP_Unique || null (inHeaders dt) = []
       | otherwise =
@@ -766,14 +853,33 @@ fidelityDiags _opts dt = concat
                 ++ " dmnmd reads it as you meant it — matching is first-match —"
                 ++ " but under Unique another engine may evaluate the rules in"
                 ++ " any order and return this row instead of a more specific"
-                ++ " one. DMN spells this as a default output value (§8.2.11)"
-                ++ " rather than as a rule, which dmnmd cannot yet carry. For a"
-                ++ " portable document give the table hit policy F or P, which"
-                ++ " permit overlapping rules."
-          | (i, row) <- zip [1 :: Int ..] [ r | r@DTrow{} <- allrows dt ]
+                ++ " one. DMN spells this as a default output value (§8.2.11),"
+                ++ " and dmnmd emits a trailing comment-free catch-all row as"
+                ++ " exactly that; this row was not promoted because " ++ why
+                ++ ". For a portable document make the row eligible, or give the"
+                ++ " table hit policy F or P, which permit overlapping rules."
+          | (i, row) <- zip [1 :: Int ..] rows
           , not (null (row_inputs row))
-          , all (all isAnything) (row_inputs row) ]
+          , all (all isAnything) (row_inputs row)
+          , let why
+                  | i /= length rows =
+                      "it is not the last row"
+                  | any (/= Nothing) (row_comments row) =
+                      "it carries a row comment, which a default output value"
+                        ++ " has no place for"
+                  | isJust (dtDefaultOutput dt) =
+                      "the table already carries a default output value"
+                  | all (all isAnything) (row_outputs row) =
+                      "its outputs are all wildcards, so there is no value to"
+                        ++ " declare"
+                  | any (\case FSection{} -> True; _ -> False)
+                        (concat (row_outputs row)) =
+                      "an output cell holds a comparison, which is not a value"
+                  | otherwise =
+                      "its cells do not line up with the table's columns"
+          ]
       where
+        rows = [ r | r@DTrow{} <- allrows dt ]
         isAnything FAnything = True
         isAnything _         = False
         rowLabel i row = case row_number row of

@@ -141,12 +141,50 @@ data DecisionTable = DTable { tableName :: String
                             , hitpolicy :: HitPolicy
                             , header    :: [ColHeader]
                             , allrows   :: [DTrow]
+                            , dtDefaultOutput :: Maybe [[FEELexp]]
+                              -- ^ DMN §8.2.11's default output value: what the table answers
+                              -- when __no rule matches__. One cell per output column, aligned
+                              -- with 'getOutputHeaders'; a column with no declared default
+                              -- holds @[FAnything]@, the same spelling an output wildcard has.
+                              -- 'Nothing' means the table says nothing about unmatched inputs.
+                              --
+                              -- Markdown has no syntax for this — its spelling of the same
+                              -- intent is a trailing all-wildcard row, which the XML emitter
+                              -- promotes into this slot (D-16 phase 2). It is populated by the
+                              -- XML reader's @\<defaultOutputEntry\>@ and by that promotion,
+                              -- and by nothing else.
                             }
                deriving (Show, Eq)
 
 -- | get the data rows out of a decision table
 datarows :: DecisionTable -> [DTrow]
 datarows = allrows
+
+-- | The table's rules plus, when it carries one, the §8.2.11 default output
+-- value materialised as a trailing catch-all row — the markdown spelling of the
+-- same statement.
+--
+-- For the first-match renderings the js\/ts\/py backends emit, "a row that
+-- matches whatever nothing above matched" and "the value taken when no rule
+-- matches" are the same function, so those backends consume this and need no
+-- other knowledge of the field. 'DMN.DecisionTable.evalTable' deliberately does
+-- __not__: under Any every matching row must agree and under Collect every
+-- matching row contributes, so a materialised always-matching row would let the
+-- default collide with (or pollute) real matches, which a default must never
+-- do. The evaluator consults 'dtDefaultOutput' only after finding no match.
+--
+-- The synthetic row is numbered one past the row count, which is the number the
+-- equivalent authored catch-all row carries in a 1..n table.
+rowsPlusDefault :: DecisionTable -> [DTrow]
+rowsPlusDefault dt = allrows dt ++ case dtDefaultOutput dt of
+  Nothing -> []
+  Just d  ->
+    [ DTrow { row_number   = Just (length (allrows dt) + 1)
+            , row_inputs   = [ [FAnything] | ch <- header dt, label ch == DTCH_In ]
+            , row_outputs  = d
+            , row_comments = [ Nothing | ch <- header dt, label ch == DTCH_Comment ]
+            }
+    ]
 
 -- | a data row is numbered, and has input and output columns, also comment columns.
 data DTrow = DTrow { row_number   :: Maybe Int

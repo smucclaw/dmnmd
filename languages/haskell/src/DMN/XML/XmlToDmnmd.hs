@@ -26,6 +26,7 @@ import DMN.Diagnostic
 import qualified DMN.Types as T
 import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
+import Data.Maybe (fromMaybe, isNothing)
 import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, tableErrors, tableWarnings, trim)
 import DMN.ParsingUtils (Parser, parseOnly)
 import qualified Data.Text as Text
@@ -206,6 +207,11 @@ data Col = Col
   , colValuesText :: Maybe String
     -- ^ the FEEL text of @<inputValues>@ / @<outputValues>@, the column's
     -- declared domain. Becomes 'T.enums'.
+  , colDefaultText :: Maybe String
+    -- ^ the FEEL text of @<defaultOutputEntry>@ — the value this column takes
+    -- when no rule matches (§8.2.11). Output columns only; becomes this
+    -- column's slice of 'T.dtDefaultOutput'. An empty @<text/>@ is 'Nothing':
+    -- it declares no value, which is what absence declares.
   }
 
 -- | Convert one @<decisionTable>@.
@@ -327,11 +333,19 @@ convTable env name X.DecisionTable
       | (i, r, ins, outs) <- zip4 [1 ..] dtRules inByRow outByRow
       ]
 
+    -- The default output value, when any column declares one. Aligned with the
+    -- output columns; a column that declared none holds @[T.FAnything]@, the
+    -- same spelling an output wildcard has, meaning "no value for this column".
+    defaults
+      | all isNothing (map rcDefault outResolved) = Nothing
+      | otherwise = Just [ fromMaybe [T.FAnything] (rcDefault rc) | rc <- outResolved ]
+
     table = T.DTable
       { T.tableName = name
       , T.hitpolicy = dtHitPolicy
       , T.header = header
       , T.allrows = rows
+      , T.dtDefaultOutput = defaults
       }
 
 -- | @<input>@ → column descriptor. The variable name is the FEEL text of the
@@ -344,6 +358,7 @@ convInputCol env inTable ix TableInput { tinpLabel, tinpExpr = InputExpression i
           , colName = nm
           , colDeclared = ty
           , colValuesText = domain
+          , colDefaultText = Nothing
           }
     )
   where
@@ -362,11 +377,14 @@ convInputCol env inTable ix TableInput { tinpLabel, tinpExpr = InputExpression i
 -- @typeRef@ all optional on @<output>@, so none can be assumed present.
 convOutputCol :: TypeEnv -> (String -> String) -> Int -> TableOutput -> (Diagnostics, Col)
 convOutputCol env inTable ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
-    ( diags ++ domDiags ++ defaultDiags
+    ( diags ++ domDiags
     , Col { colKind = T.DTCH_Out
           , colName = nm
           , colDeclared = ty
           , colValuesText = domain
+          , colDefaultText = case defaultOutputText <$> toutDefault of
+              Just t | not (null t) -> Just t
+              _                     -> Nothing
           }
     )
   where
@@ -380,21 +398,6 @@ convOutputCol env inTable ix TableOutput { toutName, toutLabel, toutTypeRef, tou
     (domDiags, domain) =
       pickDomain locate "<outputValues>"
         (fmap (innerText . utText . unOutputValues) toutValues) inherited
-
-    -- <defaultOutputEntry> is the value the table takes when no rule matches.
-    -- dmnmd's DecisionTable has no slot for it — the L4 backend's own
-    -- L4Opts.defaultResult is set by the CLI, not by the table — so it is
-    -- parsed, checked, and then genuinely lost. Say so, with the value, rather
-    -- than emitting an OTHERWISE that quietly disagrees with the source file.
-    defaultDiags = case toutDefault of
-      Nothing -> []
-      Just d ->
-        [ warnAt . inTable $
-            "output column " ++ show nm ++ " declares <defaultOutputEntry> "
-              ++ show (defaultOutputText d)
-              ++ ", which dmnmd does not carry into its decision table."
-              ++ " The generated code will fall back to its own default instead."
-              ++ " Pass the value to the backend explicitly if it matters." ]
 
 defaultOutputText :: DefaultOutputEntry -> String
 defaultOutputText (DefaultOutputEntry tle) = maybe "" innerText (tleContent tle)
@@ -412,6 +415,11 @@ type Diagnostics = [Diagnostic]
 data ResolvedCol = ResolvedCol
   { rcHeader :: T.ColHeader
   , rcCells :: [[T.FEELexp]]
+  , rcDefault :: Maybe [T.FEELexp]
+    -- ^ the @<defaultOutputEntry>@, built at the column's settled type by the
+    -- same 'mkCells' its ordinary cells go through — so a default that would
+    -- not be legal as a cell is refused the same way, with the same message
+    -- shape. Always 'Nothing' for input and comment columns.
   , rcDiags :: Diagnostics
   }
 
@@ -431,7 +439,8 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
         , T.enums = enums
         }
     , rcCells = map snd built
-    , rcDiags = concatMap fst built ++ enumDiags
+    , rcDefault = snd <$> builtDefault
+    , rcDiags = concatMap fst built ++ enumDiags ++ maybe [] fst builtDefault
     }
   where
     where_ = inTable . ((kindWord ++ " column " ++ show (colName col) ++ ": ") ++)
@@ -470,6 +479,10 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
       Just vtext ->
         let (ds, fs) = mkCells (\m -> where_ ("declared value list: " ++ m)) ty vtext
         in (ds, Just fs)
+
+    builtDefault =
+      mkCells (\m -> where_ ("default output value: " ++ m)) ty
+        <$> colDefaultText col
 
 -- | Build the FEEL expressions for one cell, given the column's settled type.
 --

@@ -25,8 +25,9 @@ toPY jsopts dt =
                                 , [ ":"]
                                 ] ] 
              -- this section creates the relevant function body
-             ++ zipWith (\if_ dtrow -> mkIf jsopts (hitpolicy dt) if_ (header dt) dtrow) elsif (datarows dt)             
-            )   
+             -- 'rowsPlusDefault': see the twin note in "DMN.Translate.JS".
+             ++ zipWith (\if_ dtrow -> mkIf jsopts (hitpolicy dt) if_ (header dt) dtrow) elsif (rowsPlusDefault dt)
+            )
   where
     elsif = "if" : repeat ( case hitpolicy dt of
                                HP_Unique    -> "elif"

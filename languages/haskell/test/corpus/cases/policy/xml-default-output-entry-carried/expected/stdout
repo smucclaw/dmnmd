@@ -9,5 +9,8 @@ export function Band ( age : number ) {
   else if (age > 65.0) { // 3
     return {"Band":"senior"};
   }
+  else if ("default") { // 4
+    return {"Band":"unknown"};
+  }
 }
 

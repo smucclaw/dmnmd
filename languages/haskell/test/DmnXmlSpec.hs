@@ -138,12 +138,14 @@ dmn13Spec = describe "DMN 1.3" $ do
 
     it "<output> with a <defaultOutputEntry> (B3)" $ do
       (warns, tables) <- readDmn13 "default-output-entry"
-      -- dmnmd's DecisionTable has nowhere to put a default output, so the value
-      -- IS lost. That must be said out loud, with the value in the message —
-      -- the alternative is an OTHERWISE arm that quietly contradicts the file.
-      warns `shouldSatisfy` hasDiag Warning "<defaultOutputEntry> \"\\\"unknown\\\"\""
-      warns `shouldNotSatisfy` any ((== Error) . diagSeverity)
+      -- D-16 phase 2: the value is CARRIED, in dtDefaultOutput, parsed at the
+      -- column's type exactly as a cell would be — it used to be warned about
+      -- and dropped. No warning, no error: nothing is lost any more.
+      shouldBeOnlyDrgWarnings 1 warns
       shouldBeAgeBand "Band" tables
+      case tables of
+        [t] -> dtDefaultOutput t `shouldBe` Just [[FNullary (VS "unknown")]]
+        _   -> expectationFailure "expected exactly one decision table"
 
     it "<outputValues> and <inputValues> (B3)" $ do
       (warns, tables) <- readDmn13 "output-values"
@@ -335,6 +337,7 @@ convertedSimulation =
   [ DTable
       { tableName = "Beverages",
         hitpolicy = HP_Collect Collect_All,
+        dtDefaultOutput = Nothing,
         header =
           [ DTCH
               { label = DTCH_In,
@@ -418,6 +421,7 @@ convertedSimulation =
     DTable
       { tableName = "Dish",
         hitpolicy = HP_Unique,
+        dtDefaultOutput = Nothing,
         header =
           [ DTCH
               { label = DTCH_In,
