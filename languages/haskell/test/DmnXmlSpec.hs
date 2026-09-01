@@ -564,6 +564,7 @@ simulationDmn =
         defsDescisions =
           [ Decision
               { decLabel = dmnNamed' "beverages" "Beverages",
+                decVariable = Nothing,
                 decInfoReq =
                   [ InformationRequirement
                       { infrLabel = dmnWithId "InformationRequirement_1xvojck",
@@ -758,6 +759,7 @@ simulationDmn =
               },
             Decision
               { decLabel = dmnNamed' "dish" "Dish",
+                decVariable = Nothing,
                 decInfoReq =
                   [ InformationRequirement
                       { infrLabel = dmnWithId "InformationRequirement_0xbr982",

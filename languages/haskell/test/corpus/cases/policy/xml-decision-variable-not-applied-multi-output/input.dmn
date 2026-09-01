@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The negative control for xml-decision-variable-types-single-output.
+
+     Same decision, same <variable typeRef="string">, but TWO output columns.
+     The variable now names the composite result, whose type would be an
+     <itemDefinition> and is not any one column's, so it must not be applied to
+     either column: "rank" declares no typeRef of its own and must still be
+     inferred, which makes it Number. Applying the variable here would give
+     every untyped column in a multi-output table the same wrong type. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="multiOutputVariable" name="Multi Output Variable"
+             namespace="https://example.org/dmnmd/test/multiOutputVariable">
+  <inputData id="InputData_tier" name="Tier"/>
+  <decision id="Decision_band" name="Band">
+    <variable id="Variable_band" name="Band" typeRef="string"/>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_score" name="score" label="score" typeRef="number"/>
+      <output id="Output_rank" name="rank" label="rank"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1a"><text>1</text></outputEntry>
+        <outputEntry id="LiteralExpression_1b"><text>7</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2a"><text>2</text></outputEntry>
+        <outputEntry id="LiteralExpression_2b"><text>8</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

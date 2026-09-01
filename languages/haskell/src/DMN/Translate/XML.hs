@@ -318,6 +318,23 @@ definitionsOf opts dts = X.Definitions
 
 -- | One table as a @\<decision\>@ wrapping a @\<decisionTable\>@.
 --
+-- __The @\<variable\>@ is where a single-output table's result type belongs__,
+-- so it is emitted rather than left out: a consumer that follows the
+-- specification looks there and not at @\<output\>\/\@typeRef@, and until this
+-- was written dmnmd stated the type in only the place such a consumer ignores.
+-- Its @name@ repeats the decision\'s, which is the DMN convention and what KIE
+-- checks for. With two or more outputs the variable names a composite whose
+-- type would be a synthesised @\<itemDefinition\>@ dmnmd does not build, so it
+-- is emitted with a name and no @typeRef@ rather than with a type that is only
+-- one column\'s.
+--
+-- @\<output\>\/\@typeRef@ is still written as well. Dropping it is a separate
+-- question — DMN reserves it for multi-output tables and KIE enforces that with
+-- @ILLEGAL_USE_OF_TYPEREF@ — and it is what every version of this backend has
+-- emitted, so removing it is a change to make deliberately and not as a side
+-- effect of adding this. ('DMN.XML.ParseDMN.Decision' carries the note on why no
+-- clause number is cited for the rule.)
+--
 -- The @\<informationRequirement\>@ edges are not invented: an input column IS
 -- the statement that this decision reads that input, which is exactly what the
 -- DRG edge means. dmnmd's own reader parses them into @decInfoReq@ and then
@@ -327,6 +344,12 @@ definitionsOf opts dts = X.Definitions
 decisionOf :: (String -> String) -> Int -> DecisionTable -> X.Decision
 decisionOf inputDataId t dt = X.Decision
   { X.decLabel = X.dmnNamed' (idOf "decision" [show t]) (tableName dt)
+  , X.decVariable = Just X.InformationItem
+      { X.iiLabel = X.dmnNamed' (idOf "variable" [show t]) (tableName dt)
+      , X.iiTypeRef = case outHeaders dt of
+          [ch] -> X.TypeRef <$> typeRefOf (vartype ch)
+          _    -> Nothing
+      }
   , X.decInfoReq =
       [ X.InformationRequirement
           { X.infrLabel = X.DmnCommon (Just (idOf "informationRequirement" [show t, show c])) Nothing

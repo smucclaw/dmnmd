@@ -188,9 +188,51 @@ Things that are only apparent across several files:
   contains `inferenceErrors`. So an inference change reaches the XML path in full: a DMN
   document with an untyped column and disagreeing cells went exit 0 to exit 1 under D-2.
   That is the right outcome (trunk read a *number* cell as literal text and emitted
-  `shade === "5"`), but no fixture omitted `typeRef`, so nothing in the tree covered it until
-  `test/dmn13/no-typeref-inferred.dmn` and `policy/xml-untyped-column-inference-refused`.
+  `shade === "5"`), but no fixture omitted an `<inputExpression>`'s `typeRef`, so nothing in
+  the tree covered it until `test/dmn13/no-typeref-inferred.dmn` and
+  `policy/xml-untyped-column-inference-refused`. (The qualifier is load-bearing:
+  `output-without-label.dmn` has always omitted it on the `<output>` side. `test/dmn13/README.md`
+  carried the same claim unqualified, where it was flatly false, and is corrected there.)
   **Do not assume a change to `DecisionTable` inference is markdown-only.**
+
+  **A single-output column is typed by the DECISION, not by the `<output>` clause, and that is
+  the second-largest thing that stops inference running.** DMN reserves an output clause's
+  `name` and `typeRef` for a table with more than one output; a single-output table states its
+  result type on the enclosing `<decision>`'s own `<variable>`. (**No clause number.** l4-ide's
+  `Emit.hs` cites §8.2.11 for this, but D-13 established against the OMG PDF that §8.2.11 is
+  *Default output values* — the miscite this repo has already corrected twice. The rule's
+  *behaviour* is measured; its numbering is not, so it is not written down. Worth telling the
+  l4-ide side, which may have inherited the same wrong number.) The XSD cannot say
+  so — `tOutputClause` declares both attributes unconditionally — so such a document validates
+  either way and **only the reader can get it wrong, silently, at exit 0**. dmnmd used to get it
+  wrong: `<variable>` was an `xpIgnoredElemOpt` beside `<question>` and `<allowedAnswers>`, so
+  a declared type was parsed and thrown away and the column was inferred instead.
+  `ParseDMN.Decision` now keeps it as `decVariable`, `convdec` hands its `typeRef` to
+  `convTable`, and `convTable` applies it **only when there is exactly one output** — with two
+  or more, each `<output>` is keyed by name and carries its own `typeRef`, and the variable
+  names a composite whose type is an `<itemDefinition>` and not any one column's. A `typeRef`
+  actually present on the clause still wins. Pinned from both sides by
+  `policy/xml-decision-variable-types-single-output` and its negative control
+  `policy/xml-decision-variable-not-applied-multi-output`.
+
+  This is not a hypothetical shape. Measured over 355 DMN documents exported from
+  `legalese/l4-ide`: `<inputExpression>` carries `typeRef` **429 of 429** times and `<output>`
+  **0 of 271** — the exporter omits it deliberately and says why in
+  `jl4-core/src/L4/Dmn/Emit.hs` (KIE reports `ILLEGAL_USE_OF_TYPEREF` on one that has it). On
+  that corpus the change turned **8 of the 36** documents that emitted anything from a wrong
+  answer at exit 0 into either a refusal naming the cell (6: a declared `number` column whose
+  cells were arithmetic dmnmd cannot read, previously emitted as *quoted strings* —
+  `{"output1":"1000 + (if a.isVeteran then 250 else 0)"}`) or a corrected one (2: a FEEL string
+  literal `"yes"` against a declared `string`, previously emitted as the boolean `true`).
+
+  **`typeRef="Any"` is a declaration that declares nothing, and infers.** It is FEEL's top
+  type, so it says exactly what an absent `typeRef` says. It is deliberately not routed to the
+  unknown-typeRef refusal, whose reasoning does not reach it: that refusal exists because a
+  type dmnmd cannot model names a domain it would then misread — a `date` column read as a
+  string turns every guard into a comparison that can never match — and `Any` names no domain.
+  It only became reachable often once `<variable>` stopped being ignored, and it is reached
+  often: **136 of those 355** documents declare it, being what the l4-ide exporter writes
+  wherever an L4 type has no DMN counterpart. `policy/xml-any-typeref-infers`.
 - **A collection column's cell means membership, and the ambiguous shapes are refused.**
   `tags : [Number]` is DMN's `isCollection`. `mkFEither` parses such a cell at the *element*
   type (`elemType`, which does **not** recurse — nested `[[T]]` is refused), so `FEELexp`
@@ -260,6 +302,17 @@ validator catches that.
 - **A collection column forces a synthesized `<itemDefinition>`.** DMN has no column-level
   `isCollection`; it is an `<itemDefinition>` attribute. This is the only element in the document
   with no markdown counterpart, and the invention is confined to its name.
+- **Each `<decision>` gets a `<variable>`, typed from the single output column.** DMN puts a
+  single-output table's result type there, so a specification-following consumer looks at the
+  variable and not at `<output>/@typeRef` — and until `decisionOf` emitted one, dmnmd stated the
+  type in only the place such a consumer ignores. Its `name` repeats the decision's, which is the
+  DMN convention. With two or more outputs it is emitted with a name and **no** `typeRef`, because
+  the variable then names a composite whose type would be a synthesized `<itemDefinition>` dmnmd
+  does not build. A collection output names the `dmnmd_list_of_*` type, which `collectionItemDefs`
+  already declares (it walks `header`, inputs *and* outputs), so the reference never dangles.
+  `<output>/@typeRef` is still written as well: dropping it is what DMN and KIE actually ask
+  for, but it is what every version of this backend has emitted, so that is a deliberate change
+  and not a side effect of this one.
 - **Refused, because DMN has no document for them:** a table with no output column
   (`tDecisionTable` is `output+`), a row with fewer cells than columns (padding with `-` would
   WIDEN the rule silently), a comparison in an output cell, and `HP_Aggregate`.

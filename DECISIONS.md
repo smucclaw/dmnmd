@@ -1172,3 +1172,87 @@ That one absent field cost three things at once, which was the argument for addi
 more.** The catch-all is the one place naive overlap detection would fire constantly on legitimate
 input; understanding it as a misplaced default rather than as an overlap removes the main motivation
 for rushing general overlap analysis.
+
+### D-17 — a single-output column's type comes from the decision's `<variable>`. **RULED: honour it. LANDED.**
+
+**The defect.** `ParseDMN` parsed a `<decision>`'s `<variable>` with `xpIgnoredElemOpt`, beside
+`<question>` and `<allowedAnswers>` — right for those two and wrong for this one. DMN reserves an
+`<output>` clause's `name` and `typeRef` for a table with **more than one** output; a single-output
+table states its result type on the enclosing decision's own variable. So for every conformant
+single-output document dmnmd threw the declared type away and inferred one from the cells instead.
+
+The XSD cannot catch this. `tOutputClause` declares both attributes unconditionally, so a document
+that puts the type in the right place and a document that puts it in the wrong place both validate.
+Only the reader can get it wrong, and it gets it wrong *silently, at exit 0* — which is the failure
+mode the XML backend exists to prevent, arriving through the reader instead of the writer.
+
+**No clause number is recorded for the rule, deliberately.** `legalese/l4-ide`'s
+`jl4-core/src/L4/Dmn/Emit.hs` attributes it to §8.2.11, and that is where this investigation got the
+number — but D-13 above established against the OMG PDF (formal/2021-01-01) that §8.2.11 is
+*Default output values*, and the same wrong cite has already had to be corrected twice in this
+repository. The rule's **behaviour** is measured and is what is written down; its numbering is not
+verifiable here, so it is not asserted. The l4-ide side may have inherited the same wrong number and
+is worth telling.
+
+**What is measured, and is the whole argument:**
+
+* Over 355 DMN documents exported from `legalese/l4-ide`, `<inputExpression>` carries `typeRef`
+  **429 of 429** times and `<output>` **0 of 271**. That asymmetry looked like an exporter defect
+  until `Emit.hs:384` turned out to document it as deliberate, citing KIE's `ILLEGAL_USE_OF_NAME`
+  and `ILLEGAL_USE_OF_TYPEREF` — six warnings on one exhibit, taken to zero by dropping both.
+  A real producer therefore depends on the reader looking at the variable.
+* Of the **36** of those documents that emitted any TypeScript at all, **8 were emitting a wrong
+  answer at exit 0**, and this change resolves every one:
+  * **6** now refuse, naming the cell. All six declare a `number` output whose cells are
+    expressions dmnmd cannot read, and all six previously emitted them as **quoted strings** —
+    `return {"output1":"1000 + (if a.isVeteran then 250 else 0)"};`, with the numeric default `0`
+    rendered as `"0"`. A generated function returning text where the document says number.
+  * **2** now emit correctly. The document declares `string` and the cell is the FEEL string
+    literal `"yes"`; inference had read the unquoted `yes` as a boolean word and emitted `true`.
+* Four of those six carried **zero** blocking findings in the exporter's own fidelity report, so
+  this is signal dmnmd contributes rather than confirms — though the underlying cause is a dmnmd
+  limitation (no `if`/`then`/`else`, no chained arithmetic in an output cell) rather than an
+  exporter defect, and the refusal says so.
+
+**Scope, and the two guards that keep it narrow.**
+
+*Only when there is exactly one output.* With two or more, each `<output>` is keyed by name and
+carries its own `typeRef`, and the variable names a composite whose type would be an
+`<itemDefinition>`, not any one column's. Applying it there would give every untyped column in the
+table the same wrong type. `nOut` is visible in `convTable` and not in `convOutputCol`, so the guard
+lives in the former. Negative control: `policy/xml-decision-variable-not-applied-multi-output`.
+
+*A `typeRef` present on the clause still wins.* It is the more specific statement, and refusing it
+would reject documents that read correctly today.
+
+**A necessary companion ruling: `typeRef="Any"` infers rather than refuses.** `Any` is FEEL's top
+type — a declaration that declares no restriction, saying exactly what an absent `typeRef` says. It
+was reaching the unknown-typeRef refusal, whose reasoning does not extend to it: that refusal exists
+because a type dmnmd cannot model names a domain it would then misread (a `date` column read as a
+string turns every guard into a comparison that can never match), and `Any` names no domain, so
+there is nothing to misread. Inference is not a guess at what such a document meant — it *is* what
+it asked for. This was latent before D-17 and became load-bearing with it: **136 of the 355**
+documents declare `Any` on a decision variable, being what the l4-ide exporter writes wherever an L4
+type has no DMN counterpart. Without this arm D-17 would have turned 2 further documents from a
+working answer into a refusal for no reason. `policy/xml-any-typeref-infers`.
+
+**The writer half, and what was deliberately NOT done.** `decisionOf` now emits a `<variable>`,
+named after the decision and typed from the single output column (name-only when there are several,
+since dmnmd builds no composite `<itemDefinition>`). Without it dmnmd's own output stated the type
+only in the place a specification-following consumer ignores. A collection output names the
+`dmnmd_list_of_*` type, which `collectionItemDefs` already declares — it walks `header`, inputs and
+outputs — so the reference cannot dangle; checked on a probe.
+
+**Not done:** dropping `name`/`typeRef` from a single-output `<output>` clause, which is what the
+rule and KIE actually ask for. It is what every version of this backend has emitted, it rests on a
+claim borrowed from another repository rather than measured here, and it is a change to make
+deliberately rather than as a side effect of this one.
+
+**Evidence for the landing.** `cabal test` green (144/33/2/35/26/25/8, 0 failures). `make corpus`
+224 cases, 0 policy regressions, with 3 new policy cases. The round trip runs 131 pass / 0 FAIL /
+0 xpass / 0 XSD-invalid — unchanged from D-16 — so the emitted `<variable>` is XSD-valid and
+round-trip-neutral. The 12 re-recorded policy expectations are **12 added lines and 0 removed**, and
+every one of the 12 is the new `<variable>` element; a thirteenth change re-recorded the
+"Known types are:" enumeration in `xml-unknown-typeref-refused`, which gained `Any` while the
+refusal it pins stayed intact. `backend-baseline.sh` remains dead (see CLAUDE.md) and was not
+consulted; the A/B evidence is the corpus, the round trip, and the 355-document re-sweep above.
