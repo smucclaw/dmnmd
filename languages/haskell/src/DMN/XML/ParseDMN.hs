@@ -1286,13 +1286,28 @@ parseDMNEither filename = do
 -- change: adding them alters recordings this one must leave untouched.
 unmodelledConstructs :: [(String, (String, String))]
 unmodelledConstructs =
-  [ ("conditional",    ("DMN 1.4", "a boxed conditional (if / then / else)"))
-  , ("for",            ("DMN 1.4", "a boxed iterator (for / in / return)"))
-  , ("some",           ("DMN 1.4", "a boxed quantifier (some / in / satisfies)"))
-  , ("every",          ("DMN 1.4", "a boxed quantifier (every / in / satisfies)"))
-  , ("filter",         ("DMN 1.4", "a boxed filter (in / match)"))
-  , ("typeConstraint", ("DMN 1.5", "a unary test constraining an <itemDefinition>'s values"))
-  ]
+  -- DMN 1.3. Seven global elements substitute for @expression@ in @DMN13.xsd@;
+  -- dmnmd models two of them, @<decisionTable>@ (as 'DecisionTable') and
+  -- @<literalExpression>@ (as 'LiteralExpression', which 'convdec' then skips
+  -- with a warning). These are the other five. They were unmodelled from the
+  -- start and were reaching the generic @readerRefusal@ fallback plus a raw
+  -- @xpCheckEmptyContents@ dump, because 'readerRefusal' scans only the DIRECT
+  -- CHILDREN of @<definitions>@ and a boxed expression sits inside a
+  -- @<decision>@. This scan is document-wide, so it reaches them.
+    ("context",           ("DMN 1.3", "a boxed context (a list of name/value entries)"))
+  : ("invocation",        ("DMN 1.3", "a boxed invocation (calling a business knowledge model)"))
+  : ("functionDefinition",("DMN 1.3", "a boxed function definition"))
+  : ("relation",          ("DMN 1.3", "a boxed relation (a table of expressions)"))
+  : ("list",              ("DMN 1.3", "a boxed list"))
+  -- DMN 1.4's five boxed expressions, all @substitutionGroup="expression"@, plus
+  -- @<typeConstraint>@, the single structural addition DMN 1.5 made over 1.4.
+  : [ ("conditional",    ("DMN 1.4", "a boxed conditional (if / then / else)"))
+    , ("for",            ("DMN 1.4", "a boxed iterator (for / in / return)"))
+    , ("some",           ("DMN 1.4", "a boxed quantifier (some / in / satisfies)"))
+    , ("every",          ("DMN 1.4", "a boxed quantifier (every / in / satisfies)"))
+    , ("filter",         ("DMN 1.4", "a boxed filter (in / match)"))
+    , ("typeConstraint", ("DMN 1.5", "a unary test constraining an <itemDefinition>'s values"))
+    ]
 
 -- | Refuse the constructs in 'unmodelledConstructs' by name, before unpickling.
 --
@@ -1331,8 +1346,15 @@ refuseUnmodelled filename release root
            ++ " and dmnmd cannot represent it faithfully.")
           : map ("  " ++) problems
           ++ [ "dmnmd models decision tables: a <decision> must hold a"
-                 ++ " <decisionTable>, and an <itemDefinition> may carry"
-                 ++ " <allowedValues> but not <typeConstraint>."
+                 ++ " <decisionTable>."
+                 -- Only when a <typeConstraint> is actually among the offenders.
+                 -- It is a DMN 1.5 element and does not exist in 1.3 or 1.4, so
+                 -- advising every refused document about it is advice about a
+                 -- construct most of them could not have written.
+                 ++ (if any ((== "typeConstraint") . snd) unmodelled
+                       then " An <itemDefinition> may carry <allowedValues> but"
+                              ++ " not <typeConstraint>."
+                       else "")
              | not (null unmodelled)
              ]
   where
