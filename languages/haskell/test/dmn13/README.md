@@ -31,8 +31,9 @@ fail to unpickle, so a regression points at one thing:
 | `unknown-type.dmn` | `typeRef="tuple<number>"` — must warn and degrade, not crash (B4) |
 | `annotations.dmn` | `<annotation>` columns and per-rule `<annotationEntry>` text |
 | `is-collection.dmn` | `isCollection="true"` on an `<itemDefinition>`, and a collection `typeRef` derived from another named type |
-| `decision-variable-typeref.dmn` | a `<decision>` with a `<variable typeRef>` and a single `<output>` that carries **no** `typeRef` — DMN's conformant spelling for a single output. The two cells discriminate: honour the variable and the outputs are the strings `"1"`/`"2"`, ignore it and inference calls the column Number and they become `1.0`/`2.0`. Both exit 0 |
+| `decision-variable-typeref.dmn` | a `<decision>` with a `<variable typeRef>` and a single `<output>` that carries **no** `typeRef` — §8.3.2's conformant spelling for a single output. The two cells discriminate: honour the variable and the outputs are the strings `"1"`/`"2"`, ignore it and inference calls the column Number and they become `1.0`/`2.0`. Both exit 0 |
 | `any-typeref.dmn` | `typeRef="Any"`, FEEL's top type — a declaration that declares no restriction, so it must infer like an absent `typeRef` rather than hit the unknown-type refusal |
+| `decision-service.dmn` | a `<decisionService>`. Byte-identical to `baseline.dmn` otherwise, and that identity is asserted: the element must be dropped with a warning and change nothing else |
 
 `not-dmn13.dmn` is a DMN 1.2 file: it must be *rejected*, with a message naming
 the version. Fixtures whose names start with `bad-` must be rejected too; they
@@ -50,7 +51,7 @@ produced and nothing is emitted:
 | `bad-unknown-element.dmn` | an element the XSD does not allow there |
 | `bad-unknown-attribute.dmn` | an attribute in DMN's own vocabulary that the XSD does not declare |
 | `bad-misordered-child.dmn` | children out of schema order |
-| `unsupported-drgelement.dmn` | a `<businessKnowledgeModel>`: legal DMN 1.3, but not modelled. The message must say *that*, not "this is not DMN 1.3" |
+| `unsupported-drgelement.dmn` | a `<businessKnowledgeModel>`: legal DMN 1.3, but not modelled. The message must say *that*, not "this is not DMN 1.3". **Contrast `decision-service.dmn`**, which is accepted — a BKM carries `<encapsulatedLogic>`, so it *is* a definition, while a decision service is only a bundle of `href`s |
 
 *Refused by the converter* — the document reads fine, but the table cannot be
 represented faithfully, so that table is dropped with an `error` diagnostic and

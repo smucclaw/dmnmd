@@ -234,6 +234,34 @@ dmn13Spec = describe "DMN 1.3" $ do
       diags `shouldSatisfy` hasDiag Error "hit policy Unique"
       tables `shouldBe` []
 
+  -- A decision service is DRG *packaging*: every child of tDecisionService is a
+  -- tDMNElementReference, a bare href, so it names decisions rather than adding
+  -- logic. Dropping it loses the wiring and nothing else — the same trade D-6
+  -- already makes for <informationRequirement>, and warned about the same way.
+  -- Refusing the whole document for one was refusing a file we could read.
+  --
+  -- <businessKnowledgeModel> is deliberately NOT included: it carries
+  -- <encapsulatedLogic>, so it IS decision logic, and dropping it would silently
+  -- discard a definition the document's decisions may invoke.
+  describe "drops a <decisionService> with a warning, rather than refusing the document" $ do
+    it "still reads the decisions in the file" $ do
+      (_, tables) <- readDmn13 "decision-service"
+      map tableName tables `shouldBe` ["Band"]
+
+    it "warns, naming the element and what was lost" $ do
+      (diags, _) <- readDmn13 "decision-service"
+      diags `shouldSatisfy` hasDiag Warning "<decisionService>"
+      diags `shouldSatisfy` hasDiag Warning "Band Service"
+
+    it "does not raise an Error, so the run still exits 0" $ do
+      (diags, _) <- readDmn13 "decision-service"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+
+    it "reads the same tables the file would give with the element removed" $ do
+      (_, withService) <- readDmn13 "decision-service"
+      (_, withoutIt)   <- readDmn13 "baseline"
+      map allrows withService `shouldBe` map allrows withoutIt
+
   describe "rejects" $ do
     let shouldReject name expected = do
           parsed <- parseDMNEither (dmn13File name)
