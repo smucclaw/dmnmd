@@ -1322,3 +1322,64 @@ every one of the 12 is the new `<variable>` element; a thirteenth change re-reco
 "Known types are:" enumeration in `xml-unknown-typeref-refused`, which gained `Any` while the
 refusal it pins stayed intact. `backend-baseline.sh` remains dead (see CLAUDE.md) and was not
 consulted; the A/B evidence is the corpus, the round trip, and the 355-document re-sweep above.
+
+### D-18 — `<decisionService>` is packaging, not logic. **RULED: read and drop with a warning. LANDED.**
+
+**The defect.** `<decisionService>` sat in `unmodelledDrgElements` beside `<businessKnowledgeModel>`,
+so a document containing one failed to unpickle and **nothing at all** was emitted — for a file
+dmnmd could otherwise read in full.
+
+**The distinction that settles it.** Every child of `tDecisionService` is a `tDMNElementReference`
+(`<outputDecision>`, `<encapsulatedDecision>`, `<inputDecision>`, `<inputData>` — checked in
+`xsd/DMN13.xsd`): a bare `href`. The element therefore *names* decisions that the document already
+states in full and contributes no logic of its own. Dropping it loses the **wiring** and nothing
+else — which is exactly the trade `drgEdgeDropped` already makes for `<informationRequirement>`
+under D-6, and warns about in the same words.
+
+`<businessKnowledgeModel>` stays a refusal, and the asymmetry is the governing rule applied rather
+than an exception to it: a BKM carries `<encapsulatedLogic>`, so it **is** a definition, and
+consuming one wholesale would silently discard logic the document's decisions may invoke. That is
+the case the rule calls strictly worse than rejection.
+
+**A warning, not an error.** Every table emitted is exactly the decision logic the document states.
+What is missing is the service boundary — which decisions were outputs, which encapsulated, which
+inputs — and the warning says so in those terms. Exit status is unaffected.
+
+**Measured.** Over the same 355 DMN documents exported from `legalese/l4-ide` that D-17 used,
+readable documents went **253 → 280**, a gain of 27.
+
+Three earlier figures in that series are worth keeping straight, because two of them describe trees
+that will never be merged and it would be easy to quote the wrong one:
+
+| tree | exit 0 |
+|---|---|
+| trunk, before either ruling | 259 |
+| D-17 alone | 253 |
+| **D-17 + D-18 — what actually lands** | **280** |
+| D-18 alone, branched off trunk | 284 |
+
+The 284 is the one to distrust: this work was written on a branch off trunk and measured there before
+being rebased onto D-17, so it describes a combination that never ships. D-17 costs 6 documents from
+trunk (all six previously emitting a wrong answer at exit 0) and only 4 from the D-18 base, because
+two of its six were already unreadable for a `<decisionService>` and so cannot be lost twice. The
+first draft of this entry quoted 284, and the error was caught only by re-measuring after the
+rebase rather than trusting the number already written down.
+
+The +25 predicted beforehand — by stripping the element from the 36 decisionService-only failures
+and re-reading them — remains the right check on *this* ruling's own contribution, and it held: the
+other 11 of those 36 refuse for independent reasons and still do.
+
+**Test-first, unlike D-17.** The four `DmnXmlSpec` examples were written before the implementation
+and observed to fail for the right reason (the whole document refused). One of the four — "reads the
+same tables the file would give with the element removed" — then failed a second time for a reason
+that was the *test's* fault rather than the code's, because the fixture was not yet byte-identical to
+`baseline.dmn`; it is now, and that identity is itself the assertion.
+
+**One diagnostic had to change to stay true.** `readerRefusal` ended "Only `<decision>`,
+`<inputData>` and `<knowledgeSource>` are read", which this ruling falsifies — a `<decisionService>`
+*is* now read. It says "are modelled" and names the drop instead. That is the one re-recorded policy
+expectation; the BKM refusal it pins is otherwise untouched.
+
+**Evidence.** `cabal test` green (144/37/2/35/26/25/8, 0 failures, 4 of them new). `make corpus` 222
+cases, 0 policy regressions, 1 new policy case. Round trip 131 pass / 0 FAIL / 0 XSD-invalid,
+unchanged.

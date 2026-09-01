@@ -1,4 +1,4 @@
-dmnmd: input.dmn: this is valid DMN 1.3, but it contains <businessKnowledgeModel>, which dmnmd does not model. Only <decision>, <inputData> and <knowledgeSource> are read.
+dmnmd: input.dmn: this is valid DMN 1.3, but it contains <businessKnowledgeModel>, which dmnmd does not model. Only <decision>, <inputData> and <knowledgeSource> are modelled; a <decisionService> is read and dropped with a warning.
 xpCheckEmptyContents: unprocessed XML content detected
 context:    element "{https://www.omg.org/spec/DMN/20191111/MODEL/}definitions"
 contents:   <businessKnowledgeModel id="BKM_1" name="Band Of"><encapsulatedLogic id="Functio...
