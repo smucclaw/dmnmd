@@ -2,13 +2,14 @@
 <!-- A SINGLE-output decision table whose <output> carries no typeRef, and whose
      enclosing <decision> declares the result type on its <variable> instead.
 
-     That is not an omission, it is the conformant spelling: DMN reserves the
-     output clause's name and typeRef for a table with more than one output, and
-     a single-output table states its result type on the decision's own variable.
-     The XSD cannot express the distinction — tOutputClause declares both
-     attributes unconditionally — so a document like this one validates either
-     way and only the reader can get it wrong. (No clause number is cited: see
-     the note on Decision's pickler in src/DMN/XML/ParseDMN.hs.)
+     That is not an omission, it is the conformant spelling. DMN 1.3 section 8.3.2,
+     Table 34: "The OutputClause of a single output decision table SHALL NOT
+     specify a typeRef", and likewise SHALL NOT specify a name. A single-output
+     table states its result type on the decision's own variable instead, which
+     the same specification calls "the instance of InformationItem that stores the
+     result of this Decision". The XSD cannot express the distinction —
+     tOutputClause declares both attributes unconditionally — so a document like
+     this one validates either way and only the reader can get it wrong.
 
      The two cells DISCRIMINATE, which is the point of the fixture. Read the
      variable and the column is a string: the outputs are the text "1" and "2".

@@ -1186,13 +1186,32 @@ that puts the type in the right place and a document that puts it in the wrong p
 Only the reader can get it wrong, and it gets it wrong *silently, at exit 0* — which is the failure
 mode the XML backend exists to prevent, arriving through the reader instead of the writer.
 
-**No clause number is recorded for the rule, deliberately.** `legalese/l4-ide`'s
-`jl4-core/src/L4/Dmn/Emit.hs` attributes it to §8.2.11, and that is where this investigation got the
-number — but D-13 above established against the OMG PDF (formal/2021-01-01) that §8.2.11 is
-*Default output values*, and the same wrong cite has already had to be corrected twice in this
-repository. The rule's **behaviour** is measured and is what is written down; its numbering is not
-verifiable here, so it is not asserted. The l4-ide side may have inherited the same wrong number and
-is worth telling.
+**The clause is DMN 1.3 §8.3.2, "Decision Table Input and Output metamodel", Table 34.**
+
+> **typeRef: String [1]** — "The OutputClause of a single output decision table SHALL NOT specify a
+> typeRef. OutputClauses of a multiple output decision table MAY specify a typeRef."
+>
+> **name: string [0..1]** — "The OutputClause of a single output decision table SHALL NOT specify a
+> name. OutputClauses of a multiple output decision table SHALL specify a name."
+
+and in the same section's prose: "When a DecisionTable has a single OutputClause, the OutputClause
+SHALL NOT have a name."
+
+The other half is confirmed by two further clauses: `Decision.variable` is "the instance of
+InformationItem that **stores the result of this Decision**", and §7's Expression clause adds that a
+`typeRef` on the expression defining a decision's output "SHALL be the same as the type of the
+containing Decision element". So for a single-output table the decision's variable is not merely
+*a* place the type may appear — it is the only one left, and the `nOut == 1` guard below is
+normative (SHALL NOT for single, MAY for multiple) rather than merely prudential.
+
+**That number was hard-won.** `legalese/l4-ide`'s `jl4-core/src/L4/Dmn/Emit.hs` attributes the rule
+to §8.2.11, and that is where this investigation first got it — but D-13 above had already
+established against the OMG PDF that §8.2.11 is *Default output values*, so this entry was first
+landed with **no number at all** rather than repeat a miscite the repository has twice had to
+correct. §8.3.2 is read directly out of `~/Documents/omg-specs/DMN-1.3.pdf`, fetched from
+`https://www.omg.org/spec/DMN/<version>/PDF` — a pattern that is not linked from any OMG About page,
+whose "Normative Documents" table renders empty. 1.3, 1.4 and 1.5 resolve; **1.6 and 1.7/Beta1 return
+404**. The l4-ide side inherited the wrong number and is worth telling.
 
 **What is measured, and is the whole argument:**
 
@@ -1243,10 +1262,14 @@ only in the place a specification-following consumer ignores. A collection outpu
 `dmnmd_list_of_*` type, which `collectionItemDefs` already declares — it walks `header`, inputs and
 outputs — so the reference cannot dangle; checked on a probe.
 
-**Not done:** dropping `name`/`typeRef` from a single-output `<output>` clause, which is what the
-rule and KIE actually ask for. It is what every version of this backend has emitted, it rests on a
-claim borrowed from another repository rather than measured here, and it is a change to make
-deliberately rather than as a side effect of this one.
+**Not done:** dropping `name`/`typeRef` from a single-output `<output>` clause, which §8.3.2 says
+SHALL NOT be there and which KIE enforces. dmnmd's writer therefore has a real conformance defect,
+not a style wart — but it is what every version of this backend has emitted, and the reader must
+honour the `<variable>` before the writer can stop repeating itself, which is what this entry lands.
+Removing the two attributes is the deliberate follow-up. One trap for whoever takes it: the reader
+picks a column's NAME from `@label` then `@name`, so dropping both renames every single-output
+column to `output1` unless `decisionTable/@outputLabel` — which the reader does not read today — is
+wired up first.
 
 **Evidence for the landing.** `cabal test` green (144/33/2/35/26/25/8, 0 failures). `make corpus`
 224 cases, 0 policy regressions, with 3 new policy cases. The round trip runs 131 pass / 0 FAIL /

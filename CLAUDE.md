@@ -196,13 +196,16 @@ Things that are only apparent across several files:
   **Do not assume a change to `DecisionTable` inference is markdown-only.**
 
   **A single-output column is typed by the DECISION, not by the `<output>` clause, and that is
-  the second-largest thing that stops inference running.** DMN reserves an output clause's
-  `name` and `typeRef` for a table with more than one output; a single-output table states its
-  result type on the enclosing `<decision>`'s own `<variable>`. (**No clause number.** l4-ide's
-  `Emit.hs` cites §8.2.11 for this, but D-13 established against the OMG PDF that §8.2.11 is
-  *Default output values* — the miscite this repo has already corrected twice. The rule's
-  *behaviour* is measured; its numbering is not, so it is not written down. Worth telling the
-  l4-ide side, which may have inherited the same wrong number.) The XSD cannot say
+  the second-largest thing that stops inference running.** DMN 1.3 **§8.3.2**, Table 34: "The
+  OutputClause of a single output decision table SHALL NOT specify a typeRef", and likewise SHALL
+  NOT specify a name. A single-output table states its result type on the enclosing
+  `<decision>`'s own `<variable>` instead — "the instance of InformationItem that **stores the
+  result of this Decision**" — so for such a table that is not merely *a* place the type may
+  appear, it is the only one left. (**Mind that number.** l4-ide's `Emit.hs` cites §8.2.11, and
+  D-13 established against the OMG PDF that §8.2.11 is *Default output values* — the miscite this
+  repo has already corrected twice. §8.3.2 is read out of `~/Documents/omg-specs/DMN-1.3.pdf`;
+  the fetch pattern is `https://www.omg.org/spec/DMN/<version>/PDF`, undocumented and not linked
+  from any About page. Worth telling the l4-ide side.) The XSD cannot say
   so — `tOutputClause` declares both attributes unconditionally — so such a document validates
   either way and **only the reader can get it wrong, silently, at exit 0**. dmnmd used to get it
   wrong: `<variable>` was an `xpIgnoredElemOpt` beside `<question>` and `<allowedAnswers>`, so
@@ -302,15 +305,15 @@ validator catches that.
 - **A collection column forces a synthesized `<itemDefinition>`.** DMN has no column-level
   `isCollection`; it is an `<itemDefinition>` attribute. This is the only element in the document
   with no markdown counterpart, and the invention is confined to its name.
-- **Each `<decision>` gets a `<variable>`, typed from the single output column.** DMN puts a
-  single-output table's result type there, so a specification-following consumer looks at the
+- **Each `<decision>` gets a `<variable>`, typed from the single output column.** DMN §8.3.2 puts
+  a single-output table's result type there, so a specification-following consumer looks at the
   variable and not at `<output>/@typeRef` — and until `decisionOf` emitted one, dmnmd stated the
   type in only the place such a consumer ignores. Its `name` repeats the decision's, which is the
   DMN convention. With two or more outputs it is emitted with a name and **no** `typeRef`, because
   the variable then names a composite whose type would be a synthesized `<itemDefinition>` dmnmd
   does not build. A collection output names the `dmnmd_list_of_*` type, which `collectionItemDefs`
   already declares (it walks `header`, inputs *and* outputs), so the reference never dangles.
-  `<output>/@typeRef` is still written as well: dropping it is what DMN and KIE actually ask
+  `<output>/@typeRef` is still written as well: dropping it is what §8.3.2 and KIE actually ask
   for, but it is what every version of this backend has emitted, so that is a deliberate change
   and not a side effect of this one.
 - **Refused, because DMN has no document for them:** a table with no output column

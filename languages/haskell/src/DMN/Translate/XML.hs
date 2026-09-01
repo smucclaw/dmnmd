@@ -329,11 +329,13 @@ definitionsOf opts dts = X.Definitions
 -- one column\'s.
 --
 -- @\<output\>\/\@typeRef@ is still written as well. Dropping it is a separate
--- question — DMN reserves it for multi-output tables and KIE enforces that with
--- @ILLEGAL_USE_OF_TYPEREF@ — and it is what every version of this backend has
--- emitted, so removing it is a change to make deliberately and not as a side
--- effect of adding this. ('DMN.XML.ParseDMN.Decision' carries the note on why no
--- clause number is cited for the rule.)
+-- question, and a real conformance defect rather than a style point: DMN 1.3
+-- §8.3.2, Table 34 says a single-output clause SHALL NOT specify a @typeRef@ OR a
+-- @name@, and KIE enforces it with @ILLEGAL_USE_OF_TYPEREF@ \/
+-- @ILLEGAL_USE_OF_NAME@. It is nevertheless what every version of this backend
+-- has emitted, and the reader must honour the @\<variable\>@ before the writer
+-- can stop repeating itself — which is what this change lands. Removing the two
+-- attributes is the deliberate follow-up, not a side effect of adding this.
 --
 -- The @\<informationRequirement\>@ edges are not invented: an input column IS
 -- the statement that this decision reads that input, which is exactly what the

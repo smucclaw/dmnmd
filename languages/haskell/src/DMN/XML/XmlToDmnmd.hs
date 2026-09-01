@@ -263,8 +263,8 @@ convTable env name decVarType X.DecisionTable
     -- A decision table with ONE output states that output's type on the
     -- enclosing @<decision>@'s @<variable>@, and a conformant producer leaves
     -- @typeRef@ off the @<output>@ clause entirely (see the @<variable>@ note
-    -- on 'X.Decision'\'s pickler, which also says why no clause number is cited
-    -- for this rule). So for a single-output table the decision variable is a
+    -- on 'X.Decision'\'s pickler, which quotes DMN 1.3 §8.3.2 for the rule).
+    -- So for a single-output table the decision variable is a
     -- declaration, and reading it is the difference between honouring the type
     -- the document states and guessing at it from the cells.
     --

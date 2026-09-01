@@ -965,20 +965,25 @@ makePrisms ''Decision
 -- __The @<variable>@ is kept.__ It used to be an 'xpIgnoredElemOpt' beside
 -- @question@ and @allowedAnswers@, which is right for those two and wrong for
 -- this one: a decision table with a single output carries its result type
--- __only__ here. @tOutputClause@ does declare a @typeRef@ attribute, but DMN
--- reserves it for a table with MORE than one output, so a conformant producer
--- must leave it off — which the @l4-ide@ DMN exporter does, measured at 0 of 271
--- output clauses against 429 of 429 input expressions, and documents the reason
--- for in @jl4-core\/src\/L4\/Dmn\/Emit.hs@ (KIE reports
+-- __only__ here. @tOutputClause@ does declare a @typeRef@ attribute, but DMN 1.3
+-- __§8.3.2__, Table 34 says "The OutputClause of a single output decision table
+-- SHALL NOT specify a typeRef" (and likewise SHALL NOT specify a name), so a
+-- conformant producer must leave it off — which the @l4-ide@ DMN exporter does,
+-- measured at 0 of 271 output clauses against 429 of 429 input expressions, and
+-- documents the reason for in @jl4-core\/src\/L4\/Dmn\/Emit.hs@ (KIE reports
 -- @ILLEGAL_USE_OF_TYPEREF@ on one that has it). Dropping this element left
 -- dmnmd inferring a type that the document had stated.
 --
--- __No clause number is cited here on purpose.__ @Emit.hs@ attributes the rule
--- to §8.2.11, but @DECISIONS.md@ D-13 established against the OMG PDF
--- (formal\/2021-01-01) that §8.2.11 is /Default output values/ — the same
--- miscite this repository has already had to correct once, in two places. What
--- is verified here is the behaviour and not the numbering: KIE's two error
--- codes are a measurement, and so is the 0-of-271.
+-- The same section is why the type is HERE and nowhere else: @Decision.variable@
+-- is "the instance of InformationItem that stores the result of this Decision",
+-- and §7's Expression clause adds that a @typeRef@ on the expression defining a
+-- decision's output SHALL be the same as the containing decision's type.
+--
+-- __That number was hard-won and is worth not re-breaking.__ @Emit.hs@ attributes
+-- the rule to §8.2.11; @DECISIONS.md@ D-13 established against the OMG PDF that
+-- §8.2.11 is /Default output values/, and this entry was landed with no number at
+-- all rather than repeat a miscite. §8.3.2 is the verified one, read out of
+-- @~\/Documents\/omg-specs\/DMN-1.3.pdf@.
 --
 -- 'DMN.XML.XmlToDmnmd.convdec' is what reads it back out.
 instance DmnPU Decision where
