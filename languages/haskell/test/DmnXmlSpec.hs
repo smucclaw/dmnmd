@@ -320,6 +320,47 @@ dmn13Spec = describe "DMN 1.3" $ do
       [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_Out ]
         `shouldBe` [Just DMN_String]
 
+  -- The five DMN 1.3 global elements in the "expression" substitution group that
+  -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
+  -- dmnmd models <decisionTable> and <literalExpression>.) These used to fall
+  -- through to "dmnmd could not read this DMN 1.3 document" plus a raw hxt
+  -- xpCheckEmptyContents dump -- a message that names neither the construct nor
+  -- where it is. readerRefusal could never have caught them: it scans the DIRECT
+  -- CHILDREN of <definitions>, and a boxed expression sits inside a <decision>.
+  -- refuseUnmodelled scans the whole document (multi) and already knew how to
+  -- name an element, what it is and which parent it sits under; it just did not
+  -- know about the 1.3 five.
+  describe "refuses an unmodelled DMN 1.3 boxed expression by name" $ do
+    let shouldRefuse name expected = do
+          parsed <- parseDMNEither (dmn13File name)
+          case parsed of
+            Right _  -> expectationFailure $ dmn13File name ++ " should not have been accepted"
+            Left err -> do
+              T.pack err `shouldSatisfy` T.isInfixOf (T.pack expected)
+              -- and NOT the generic fallback, nor hxt's internal complaint
+              T.pack err `shouldNotSatisfy` T.isInfixOf "could not read this"
+              T.pack err `shouldNotSatisfy` T.isInfixOf "xpCheckEmptyContents"
+
+    it "names <context> and says what it is" $
+      shouldRefuse "boxed-context" "<context> is a boxed context"
+    -- on the CONSTRUCT sentence. Asserting bare "DMN 1.3" would pass against the
+    -- generic message too, which names the release as well -- the first draft of
+    -- this example did exactly that and reported "predicate succeeded" while red.
+    it "says which release introduced it" $
+      shouldRefuse "boxed-context" "added in DMN 1.3"
+    it "locates it under the <decision> that holds it, by that decision's name" $
+      shouldRefuse "boxed-context" "decision \"Band\""
+
+    -- <typeConstraint> is a DMN 1.5 element; it does not exist in 1.3 at all, so
+    -- advising a 1.3 author not to use one is advice about a construct they
+    -- could not have written. The closing line carries that clause only when a
+    -- <typeConstraint> is actually among the offenders.
+    it "does not advise a DMN 1.3 document about <typeConstraint>" $ do
+      parsed <- parseDMNEither (dmn13File "boxed-context")
+      case parsed of
+        Right _  -> expectationFailure "should not have been accepted"
+        Left err -> T.pack err `shouldNotSatisfy` T.isInfixOf "typeConstraint"
+
   describe "FEEL string quoting" $
     it "does not double-quote a FEEL string literal" $ do
       -- <text>\"minor\"</text> must land in the IR as VS \"minor\", the same as

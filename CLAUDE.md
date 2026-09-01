@@ -686,9 +686,23 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   which the XSD writes in seven positions and dmnmd models one of; and a pre-flight needs
   nothing from hxt that `Text.XML.HXT.Core` does not re-export.
 
-  `unmodelledConstructs` is the extension point. The DMN **1.3** boxed expressions dmnmd has
-  never modelled — `<context>`, `<invocation>`, `<relation>`, `<list>`, `<functionDefinition>`
-  — belong there too and still produce a generic error today.
+  **The DMN 1.3 boxed expressions are in that list too, as of D-19.** Seven global elements
+  substitute for `expression` in `DMN13.xsd`; dmnmd models `<decisionTable>` and
+  `<literalExpression>`, and the other five — `<context>`, `<invocation>`, `<functionDefinition>`,
+  `<relation>`, `<list>` — were reaching the generic `readerRefusal` fallback plus a raw
+  `xpCheckEmptyContents` dump. `readerRefusal` could never have caught them at any price: it scans
+  the **direct children** of `<definitions>`, and a boxed expression sits inside a `<decision>`.
+  `refuseUnmodelled` scans the whole document (`multi`) and already knew how to name an element,
+  say what it is, say which release added it and locate it under its owner. Measured over 355
+  documents exported from `legalese/l4-ide`: **every** refusal now names its cause, where 8
+  documents carrying a `<context>` previously did not. `policy/xml-boxed-context-refused`.
+
+  The closing advice line is now conditional. It used to end "...and an `<itemDefinition>` may
+  carry `<allowedValues>` but not `<typeConstraint>`" on *every* refusal, which is advice about a
+  construct most refused documents could not have written. That clause appears only when a
+  `<typeConstraint>` is actually among the offenders — the predicate is the offender, not the
+  release, because `policy/xml-typeconstraint-refused`'s own document is DMN **1.3** and does
+  contain one.
 - **Multi-table Markdown works — `test/safe.md` is a bad fixture, not a chunking limit.**
   Its file-level failure is a **missing final newline** (the last byte is `|`); append one
   and `grepMarkdown` succeeds and 3 of its 13 tables import. Also, the reported position is
