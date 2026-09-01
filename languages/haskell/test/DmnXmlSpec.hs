@@ -260,6 +260,38 @@ dmn13Spec = describe "DMN 1.3" $ do
         Right _ -> expectationFailure "should not have been accepted"
         Left e -> T.pack e `shouldNotSatisfy` T.isInfixOf "not DMN 1.3"
 
+  -- Both of these are regressions found by adversarial review of D-17 AFTER it
+  -- was written, not by the tests that shipped with it. Each is an interaction
+  -- between two separately-reasonable rules, which is why neither showed up in
+  -- the suite, the corpus or the round trip -- all three were green.
+  describe "the decision <variable> fallback does not double-count list-ness" $ do
+    -- resolveTypeRef wraps a collection's element type with `DMN_List <$> ty`,
+    -- which is safe only while every Nothing carries a diagnostic. Reading
+    -- typeRef="Any" as "infer" introduced the first diagnostic-free Nothing, and
+    -- fmap over Nothing silently DROPPED the DMN_List: `roles === "admin"` against
+    -- an array, false for every input, exit 0, empty stderr.
+    it "refuses a collection <itemDefinition> whose element type is Any" $ do
+      (diags, tables) <- readDmn13 "collection-of-any"
+      diags `shouldSatisfy` hasDiag Error "isCollection"
+      tables `shouldBe` []
+
+    it "never reads a collection column as a scalar" $ do
+      (_, tables) <- readDmn13 "collection-of-any"
+      -- the refusal above is the point; this pins the SYMPTOM it prevents, so a
+      -- future fix that types the column instead of refusing still has to keep
+      -- the column a collection rather than silently flattening it
+      [ vartype ch | t <- tables, ch <- header t, varname ch == "roles" ]
+        `shouldNotBe` [Just DMN_String]
+
+    -- Under C, R or O the decision's result IS a list, so the variable types the
+    -- collection of results ACROSS RULES, not the output column, whose cells are
+    -- each one scalar. Applying it to the column double-counted the list-ness and
+    -- emitted ["gold"] for a cell the document spells "gold".
+    it "does not apply the variable's type to a COLLECT table's output column" $ do
+      (_, tables) <- readDmn13 "collect-variable-is-list"
+      [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_Out ]
+        `shouldBe` [Just DMN_String]
+
   describe "FEEL string quoting" $
     it "does not double-quote a FEEL string literal" $ do
       -- <text>\"minor\"</text> must land in the IR as VS \"minor\", the same as

@@ -337,6 +337,17 @@ definitionsOf opts dts = X.Definitions
 -- can stop repeating itself — which is what this change lands. Removing the two
 -- attributes is the deliberate follow-up, not a side effect of adding this.
 --
+-- __The typeRef is omitted when the hit policy makes the result a LIST.__ The
+-- variable states the type of the decision's RESULT, so under @C@ (with no
+-- aggregation), @RULE ORDER@ or @OUTPUT ORDER@ the scalar column type is simply
+-- the wrong answer — it tells a conformant consumer the decision returns a
+-- number when the engine will hand it a list of numbers. The four aggregations
+-- are NOT list-valued and keep the scalar: @C+@, @C\<@ and @C\>@ reduce to one
+-- value of the column's type, and @C#@ counts. dmnmd could name a
+-- @dmnmd_list_of_*@ type here instead, but 'collectionItemDefs' declares one
+-- only for a type some COLUMN actually uses, so pointing at it would be a
+-- dangling reference in exactly the documents this affects.
+--
 -- The @\<informationRequirement\>@ edges are not invented: an input column IS
 -- the statement that this decision reads that input, which is exactly what the
 -- DRG edge means. dmnmd's own reader parses them into @decInfoReq@ and then
@@ -349,8 +360,9 @@ decisionOf inputDataId t dt = X.Decision
   , X.decVariable = Just X.InformationItem
       { X.iiLabel = X.dmnNamed' (idOf "variable" [show t]) (tableName dt)
       , X.iiTypeRef = case outHeaders dt of
-          [ch] -> X.TypeRef <$> typeRefOf (vartype ch)
-          _    -> Nothing
+          [ch] | not (listValuedResult (hitpolicy dt))
+                 -> X.TypeRef <$> typeRefOf (vartype ch)
+          _      -> Nothing
       }
   , X.decInfoReq =
       [ X.InformationRequirement
@@ -362,6 +374,17 @@ decisionOf inputDataId t dt = X.Decision
       ]
   , X.decDTable = Just (X.ExprDTable (decisionTableOf t dt))
   }
+
+-- | Does this hit policy make the decision's result a LIST rather than one value?
+--
+-- Only bare @COLLECT@, @RULE ORDER@ and @OUTPUT ORDER@. The four Collect
+-- aggregations reduce to a single value — @SUM@, @MIN@ and @MAX@ to one of the
+-- column's own type, @COUNT@ to a number — so they are single-valued here.
+listValuedResult :: HitPolicy -> Bool
+listValuedResult (HP_Collect Collect_All) = True
+listValuedResult HP_RuleOrder             = True
+listValuedResult HP_OutputOrder           = True
+listValuedResult _                        = False
 
 decisionTableOf :: Int -> DecisionTable -> X.DecisionTable
 decisionTableOf t dt = X.DecisionTable

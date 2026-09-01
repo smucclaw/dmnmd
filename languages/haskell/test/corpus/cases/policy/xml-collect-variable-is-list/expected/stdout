@@ -1,0 +1,9 @@
+export function Bands ( age : number ) {
+  if (age < 18.0) { // 1
+    return {"output1":"gold"};
+  }
+  if (age < 21.0) { // 2
+    return {"output1":"silver"};
+  }
+}
+

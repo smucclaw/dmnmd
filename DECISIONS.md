@@ -1207,8 +1207,9 @@ normative (SHALL NOT for single, MAY for multiple) rather than merely prudential
 **That number was hard-won.** `legalese/l4-ide`'s `jl4-core/src/L4/Dmn/Emit.hs` attributes the rule
 to §8.2.11, and that is where this investigation first got it — but D-13 above had already
 established against the OMG PDF that §8.2.11 is *Default output values*, so this entry was first
-landed with **no number at all** rather than repeat a miscite the repository has twice had to
-correct. §8.3.2 is read directly out of `~/Documents/omg-specs/DMN-1.3.pdf`, fetched from
+landed with **no number at all** rather than repeat a miscite the repository has already had to
+correct in two places (one occasion, two files — D-13 fixed `DECISIONS.md` and
+`DMN-CORE-HACKAGE-FINDINGS.md` in a single commit; "twice" would imply two separate lapses). §8.3.2 is read directly out of `~/Documents/omg-specs/DMN-1.3.pdf`, fetched from
 `https://www.omg.org/spec/DMN/<version>/PDF` — a pattern that is not linked from any OMG About page,
 whose "Normative Documents" table renders empty. 1.3, 1.4 and 1.5 resolve; **1.6 and 1.7/Beta1 return
 404**. The l4-ide side inherited the wrong number and is worth telling.
@@ -1270,6 +1271,48 @@ Removing the two attributes is the deliberate follow-up. One trap for whoever ta
 picks a column's NAME from `@label` then `@name`, so dropping both renames every single-output
 column to `output1` unless `decisionTable/@outputLabel` — which the reader does not read today — is
 wired up first.
+
+**Amendment, from adversarial review after the entry was written.** A 44-agent review of this
+change raised 13 findings, of which 7 survived a three-lens refutation pass. Two were real
+regressions introduced *by this ruling*, and both are fixed on the same branch. Recording them
+because each is an interaction between two separately-reasonable rules — the kind a green suite
+cannot catch, and all three gates (hspec, the corpus, the round trip) **were** green.
+
+1. **A collection of `Any` silently stopped being a collection.** `resolveTypeRef` wraps a
+   collection's element type with `DMN_List <$> ty`, which is safe only while every `Nothing`
+   carries a diagnostic. Reading `typeRef="Any"` as "no restriction, infer" produced the **first
+   diagnostic-free `Nothing`** in `convertType`'s history, and `fmap` over `Nothing` dropped the
+   `DMN_List` in silence. An `<itemDefinition isCollection="true"><typeRef>Any</typeRef>` then read
+   as a scalar, and every membership cell was emitted as an EQUALITY test against the whole list —
+   `roles === "admin"` against an array, false for every input, so every rule in that column became
+   unreachable, at exit 0 with an empty stderr. Trunk **refused** that document, so this ruling had
+   turned a loud refusal into a silent wrong answer: exactly the failure the XML backend exists to
+   prevent, arriving through the one arm added to make the ruling usable. Now refused, with a
+   message naming `isCollection` and the offending element type — guessing is not available,
+   because inference runs per column and yields scalars, so nothing here can supply an ELEMENT
+   type. `policy/xml-collection-of-any`.
+
+2. **A list-valued hit policy double-counted its list-ness.** Under `C` (no aggregation),
+   `RULE ORDER` or `OUTPUT ORDER` the decision's result IS a list, so the variable types the
+   collection of results ACROSS RULES — not the output column, whose cells are each one scalar.
+   Applying the fallback there emitted `["gold"]` for a cell the document spells `"gold"`. The
+   fallback now excludes those three policies. The four Collect **aggregations** are single-valued
+   and keep it (`C+`/`C<`/`C>` reduce to one value of the column's type, `C#` counts) — the
+   reviewer's claim covered all of `COLLECT`, which is too wide; the `aggregation` attribute is
+   what decides it. The writer half is the same fact from the other side: `decisionOf` no longer
+   claims the scalar column type on the `<variable>` of a list-valued table, where it was telling
+   a conformant consumer the decision returns a number while the engine returns a list of numbers.
+   `policy/xml-collect-variable-is-list`.
+
+Neither costs a real document: the 355-document export corpus is unchanged at 253/102 across the
+fix. A third surviving finding was a documentation defect: this entry says the six refused cells
+are "expressions dmnmd cannot read", and the copy in `CLAUDE.md` had sharpened that to
+"arithmetic", which is true of only 4 of the 6 — `~/CLAUDE.md` rule 2 broken in the act of copying,
+by the same session that quoted the rule. Corrected there.
+
+**What this says about the evidence below.** Every gate in it passed, and two real regressions
+shipped anyway. The gates are load-bearing but they are not a substitute for someone actively
+trying to break the change.
 
 **Evidence for the landing.** `cabal test` green (144/33/2/35/26/25/8, 0 failures). `make corpus`
 224 cases, 0 policy regressions, with 3 new policy cases. The round trip runs 131 pass / 0 FAIL /

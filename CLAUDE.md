@@ -224,9 +224,26 @@ Things that are only apparent across several files:
   `jl4-core/src/L4/Dmn/Emit.hs` (KIE reports `ILLEGAL_USE_OF_TYPEREF` on one that has it). On
   that corpus the change turned **8 of the 36** documents that emitted anything from a wrong
   answer at exit 0 into either a refusal naming the cell (6: a declared `number` column whose
-  cells were arithmetic dmnmd cannot read, previously emitted as *quoted strings* —
+  cells dmnmd cannot read, previously emitted as *quoted strings* —
   `{"output1":"1000 + (if a.isVeteran then 250 else 0)"}`) or a corrected one (2: a FEEL string
   literal `"yes"` against a declared `string`, previously emitted as the boolean `true`).
+
+  > That first parenthesis said "cells were **arithmetic** dmnmd cannot read", which is rule 2 of
+  > `~/CLAUDE.md` broken in the act of copying: `DECISIONS.md` says "expressions dmnmd cannot
+  > read" and the narrowing was added here. Only 4 of the 6 are arithmetic
+  > (`1000 + (if …)`, `500 + h.dependents * 100`). The other two are a bare name —
+  > `ok/fixity-nary-guard.l4`, cells `t` and default `e` — and an invocation,
+  > `openfisca/housing.l4`'s `max OF 200`. A reader hunting a related defect in the arithmetic
+  > parser would have found nothing for a third of the cases.
+
+  **Two traps this fallback fell into, both found only by adversarial review after it landed.**
+  A collection's element type is wrapped with `DMN_List <$> ty`, so a `Nothing` that carries no
+  diagnostic silently *deletes* the `isCollection` declaration — and `Any` was the first
+  diagnostic-free `Nothing` in `convertType`. A collection of `Any` is therefore **refused**, not
+  inferred. And the fallback does not apply under a list-valued hit policy (bare `C`, `R`, `O`),
+  where the variable types the result *list* rather than the column; the four Collect aggregations
+  are single-valued and unaffected. `policy/xml-collection-of-any`,
+  `policy/xml-collect-variable-is-list`.
 
   **`typeRef="Any"` is a declaration that declares nothing, and infers.** It is FEEL's top
   type, so it says exactly what an absent `typeRef` says. It is deliberately not routed to the

@@ -277,9 +277,25 @@ convTable env name decVarType X.DecisionTable
     -- A @typeRef@ that IS present on the clause still wins: it is the more
     -- specific statement, and refusing it would reject documents that read
     -- correctly today.
+    --
+    -- __And not under a list-valued hit policy either.__ Under @C@, @R@ or @O@
+    -- the decision's result IS a list, so the variable types the collection of
+    -- results ACROSS RULES — not the output column, whose cells are each a
+    -- single scalar. The list-ness comes from the hit policy and is already
+    -- accounted for downstream, so applying the variable here double-counts it:
+    -- a @COLLECT@ table whose variable is an @isCollection@ @<itemDefinition>@
+    -- emitted @["gold"]@ for a cell the document spells @"gold"@, at exit 0.
+    -- @U@, @A@, @P@ and @F@ each yield ONE value, so for those the variable does
+    -- describe the output column and the fallback is right.
     outFallback = case dtOutput of
-      [_] -> decVarType
-      _   -> Nothing
+      [_] | not listValuedHitPolicy -> decVarType
+      _                             -> Nothing
+
+    listValuedHitPolicy = case dtHitPolicy of
+      T.HP_Collect _   -> True
+      T.HP_RuleOrder   -> True
+      T.HP_OutputOrder -> True
+      _                -> False
 
     nIn = length dtInput
     nOut = length dtOutput
@@ -648,7 +664,42 @@ resolveTypeRef env = go []
                 -- message the markdown side gives — one rule, not two.
                 ty' | isCollectionOf itd = T.DMN_List <$> ty
                     | otherwise          = ty
-            in (ds, ty', allowedValuesText itd `orElse` inherited)
+                -- __@DMN_List \<$\> Nothing@ is @Nothing@, and that is a silent
+                -- loss of the @isCollection@ declaration.__ The @fmap@ above is
+                -- safe only while every 'Nothing' arrives with a diagnostic
+                -- attached — which was true until 'convertType' learned to read
+                -- @typeRef="Any"@ as "no restriction, infer" and produced the
+                -- first diagnostic-free 'Nothing'. A collection of @Any@ then
+                -- stopped being a collection at all, with no warning, at exit 0,
+                -- and every membership cell was emitted as an EQUALITY test
+                -- against the whole list: @roles === "admin"@, false for every
+                -- input, so every rule in that column became unreachable.
+                --
+                -- Refusing rather than guessing, for the reason the unknown-typeRef
+                -- branch of 'convertType' already gives: inference runs per column
+                -- and yields scalars, so there is nothing here that could supply an
+                -- ELEMENT type, and picking one wrong turns membership into a test
+                -- that can never match. This also restores exactly what the tree
+                -- did before @Any@ was recognised, so no document that worked is
+                -- lost — only the silent wrong answer.
+                --
+                -- Guarded on @null ds@: when the element type failed for some other
+                -- reason there is already a located error, and two messages about
+                -- one cause is worse than one.
+                collectionOfUnknown
+                  | isCollectionOf itd, isNothing ty, null ds =
+                      [ errorAt $ "typeRef " ++ show raw ++ " names an <itemDefinition>"
+                          ++ " with isCollection=\"true\" whose element type is <typeRef>"
+                          ++ base ++ "</typeRef>, which places no restriction on the"
+                          ++ " elements. dmnmd infers a column's type from its cells and"
+                          ++ " can only infer a scalar, so there is nothing here to make"
+                          ++ " the ELEMENT type — and reading the column as a scalar"
+                          ++ " would turn every membership cell into an equality test"
+                          ++ " against the whole collection, which can never match."
+                          ++ " Name the element type (for example <typeRef>string</typeRef>)."
+                          ++ " Refusing to convert this table." ]
+                  | otherwise = []
+            in (ds ++ collectionOfUnknown, ty', allowedValuesText itd `orElse` inherited)
 
     orElse a b = maybe b Just a
 
