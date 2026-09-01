@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A SINGLE-output decision table whose <output> carries no typeRef, and whose
+     enclosing <decision> declares the result type on its <variable> instead.
+
+     That is not an omission, it is the conformant spelling. DMN 1.3 section 8.3.2,
+     Table 34: "The OutputClause of a single output decision table SHALL NOT
+     specify a typeRef", and likewise SHALL NOT specify a name. A single-output
+     table states its result type on the decision's own variable instead, which
+     the same specification calls "the instance of InformationItem that stores the
+     result of this Decision". The XSD cannot express the distinction —
+     tOutputClause declares both attributes unconditionally — so a document like
+     this one validates either way and only the reader can get it wrong.
+
+     The two cells DISCRIMINATE, which is the point of the fixture. Read the
+     variable and the column is a string: the outputs are the text "1" and "2".
+     Ignore it and inference sees two bare numerals and calls the column Number:
+     the outputs become the numbers 1 and 2. Both exit 0, so nothing but a
+     comparison of the emitted text catches the difference — which is the failure
+     mode the XML backend's own notes call the worst kind.
+
+     Producers really do write documents like this: the l4-ide DMN exporter
+     leaves typeRef off every one of its output clauses on purpose, and
+     documents KIE's ILLEGAL_USE_OF_TYPEREF as the reason. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="decisionVariableTypeRef" name="Decision Variable TypeRef"
+             namespace="https://example.org/dmnmd/test/decisionVariableTypeRef">
+  <inputData id="InputData_tier" name="Tier"/>
+  <decision id="Decision_band" name="Band">
+    <variable id="Variable_band" name="Band" typeRef="string"/>
+    <informationRequirement id="InformationRequirement_band_1">
+      <requiredInput href="#InputData_tier"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>1</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>2</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

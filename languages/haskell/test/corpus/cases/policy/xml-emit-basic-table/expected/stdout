@@ -4,6 +4,7 @@
     <variable id="informationItem_1" name="age" typeRef="number"/>
   </inputData>
   <decision id="decision_1" name="Rates">
+    <variable id="variable_1" name="Rates" typeRef="number"/>
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>

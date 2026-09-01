@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- typeRef="Any" — FEEL's top type, which every value conforms to.
+
+     It is a declaration that declares no restriction, so it says exactly what an
+     absent typeRef says and must be answered the same way: infer from the cells.
+     It is deliberately NOT the unknown-typeRef refusal. That refusal exists
+     because a type dmnmd cannot model names a domain it would then misread — a
+     date column read as a string turns every guard into a comparison that can
+     never match — and "Any" names no domain, so there is nothing to misread.
+
+     Here the cells are numerals, so the column infers Number and the emitted
+     values are unquoted. If this fixture ever starts being refused, "Any" has
+     been folded back into the unknown-type branch and every document that says
+     "unconstrained" out loud is being rejected for saying so; real producers do
+     say it, on 136 of 355 documents in one corpus export from l4-ide. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="anyTypeRef" name="Any TypeRef"
+             namespace="https://example.org/dmnmd/test/anyTypeRef">
+  <inputData id="InputData_tier" name="Tier"/>
+  <decision id="Decision_band" name="Band">
+    <variable id="Variable_band" name="Band" typeRef="Any"/>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>1</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>2</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

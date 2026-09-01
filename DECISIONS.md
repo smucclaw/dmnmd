@@ -1172,3 +1172,153 @@ That one absent field cost three things at once, which was the argument for addi
 more.** The catch-all is the one place naive overlap detection would fire constantly on legitimate
 input; understanding it as a misplaced default rather than as an overlap removes the main motivation
 for rushing general overlap analysis.
+
+### D-17 — a single-output column's type comes from the decision's `<variable>`. **RULED: honour it. LANDED.**
+
+**The defect.** `ParseDMN` parsed a `<decision>`'s `<variable>` with `xpIgnoredElemOpt`, beside
+`<question>` and `<allowedAnswers>` — right for those two and wrong for this one. DMN reserves an
+`<output>` clause's `name` and `typeRef` for a table with **more than one** output; a single-output
+table states its result type on the enclosing decision's own variable. So for every conformant
+single-output document dmnmd threw the declared type away and inferred one from the cells instead.
+
+The XSD cannot catch this. `tOutputClause` declares both attributes unconditionally, so a document
+that puts the type in the right place and a document that puts it in the wrong place both validate.
+Only the reader can get it wrong, and it gets it wrong *silently, at exit 0* — which is the failure
+mode the XML backend exists to prevent, arriving through the reader instead of the writer.
+
+**The clause is DMN 1.3 §8.3.2, "Decision Table Input and Output metamodel", Table 34.**
+
+> **typeRef: String [1]** — "The OutputClause of a single output decision table SHALL NOT specify a
+> typeRef. OutputClauses of a multiple output decision table MAY specify a typeRef."
+>
+> **name: string [0..1]** — "The OutputClause of a single output decision table SHALL NOT specify a
+> name. OutputClauses of a multiple output decision table SHALL specify a name."
+
+and in the same section's prose: "When a DecisionTable has a single OutputClause, the OutputClause
+SHALL NOT have a name."
+
+The other half is confirmed by two further clauses: `Decision.variable` is "the instance of
+InformationItem that **stores the result of this Decision**", and §7's Expression clause adds that a
+`typeRef` on the expression defining a decision's output "SHALL be the same as the type of the
+containing Decision element". So for a single-output table the decision's variable is not merely
+*a* place the type may appear — it is the only one left, and the `nOut == 1` guard below is
+normative (SHALL NOT for single, MAY for multiple) rather than merely prudential.
+
+**That number was hard-won.** `legalese/l4-ide`'s `jl4-core/src/L4/Dmn/Emit.hs` attributes the rule
+to §8.2.11, and that is where this investigation first got it — but D-13 above had already
+established against the OMG PDF that §8.2.11 is *Default output values*, so this entry was first
+landed with **no number at all** rather than repeat a miscite the repository has already had to
+correct in two places (one occasion, two files — D-13 fixed `DECISIONS.md` and
+`DMN-CORE-HACKAGE-FINDINGS.md` in a single commit; "twice" would imply two separate lapses). §8.3.2 is read directly out of `~/Documents/omg-specs/DMN-1.3.pdf`, fetched from
+`https://www.omg.org/spec/DMN/<version>/PDF` — a pattern that is not linked from any OMG About page,
+whose "Normative Documents" table renders empty. 1.3, 1.4 and 1.5 resolve; **1.6 and 1.7/Beta1 return
+404**. The l4-ide side inherited the wrong number and is worth telling.
+
+**What is measured, and is the whole argument:**
+
+* Over 355 DMN documents exported from `legalese/l4-ide`, `<inputExpression>` carries `typeRef`
+  **429 of 429** times and `<output>` **0 of 271**. That asymmetry looked like an exporter defect
+  until `Emit.hs:384` turned out to document it as deliberate, citing KIE's `ILLEGAL_USE_OF_NAME`
+  and `ILLEGAL_USE_OF_TYPEREF` — six warnings on one exhibit, taken to zero by dropping both.
+  A real producer therefore depends on the reader looking at the variable.
+* Of the **36** of those documents that emitted any TypeScript at all, **8 were emitting a wrong
+  answer at exit 0**, and this change resolves every one:
+  * **6** now refuse, naming the cell. All six declare a `number` output whose cells are
+    expressions dmnmd cannot read, and all six previously emitted them as **quoted strings** —
+    `return {"output1":"1000 + (if a.isVeteran then 250 else 0)"};`, with the numeric default `0`
+    rendered as `"0"`. A generated function returning text where the document says number.
+  * **2** now emit correctly. The document declares `string` and the cell is the FEEL string
+    literal `"yes"`; inference had read the unquoted `yes` as a boolean word and emitted `true`.
+* Four of those six carried **zero** blocking findings in the exporter's own fidelity report, so
+  this is signal dmnmd contributes rather than confirms — though the underlying cause is a dmnmd
+  limitation (no `if`/`then`/`else`, no chained arithmetic in an output cell) rather than an
+  exporter defect, and the refusal says so.
+
+**Scope, and the two guards that keep it narrow.**
+
+*Only when there is exactly one output.* With two or more, each `<output>` is keyed by name and
+carries its own `typeRef`, and the variable names a composite whose type would be an
+`<itemDefinition>`, not any one column's. Applying it there would give every untyped column in the
+table the same wrong type. `nOut` is visible in `convTable` and not in `convOutputCol`, so the guard
+lives in the former. Negative control: `policy/xml-decision-variable-not-applied-multi-output`.
+
+*A `typeRef` present on the clause still wins.* It is the more specific statement, and refusing it
+would reject documents that read correctly today.
+
+**A necessary companion ruling: `typeRef="Any"` infers rather than refuses.** `Any` is FEEL's top
+type — a declaration that declares no restriction, saying exactly what an absent `typeRef` says. It
+was reaching the unknown-typeRef refusal, whose reasoning does not extend to it: that refusal exists
+because a type dmnmd cannot model names a domain it would then misread (a `date` column read as a
+string turns every guard into a comparison that can never match), and `Any` names no domain, so
+there is nothing to misread. Inference is not a guess at what such a document meant — it *is* what
+it asked for. This was latent before D-17 and became load-bearing with it: **136 of the 355**
+documents declare `Any` on a decision variable, being what the l4-ide exporter writes wherever an L4
+type has no DMN counterpart. Without this arm D-17 would have turned 2 further documents from a
+working answer into a refusal for no reason. `policy/xml-any-typeref-infers`.
+
+**The writer half, and what was deliberately NOT done.** `decisionOf` now emits a `<variable>`,
+named after the decision and typed from the single output column (name-only when there are several,
+since dmnmd builds no composite `<itemDefinition>`). Without it dmnmd's own output stated the type
+only in the place a specification-following consumer ignores. A collection output names the
+`dmnmd_list_of_*` type, which `collectionItemDefs` already declares — it walks `header`, inputs and
+outputs — so the reference cannot dangle; checked on a probe.
+
+**Not done:** dropping `name`/`typeRef` from a single-output `<output>` clause, which §8.3.2 says
+SHALL NOT be there and which KIE enforces. dmnmd's writer therefore has a real conformance defect,
+not a style wart — but it is what every version of this backend has emitted, and the reader must
+honour the `<variable>` before the writer can stop repeating itself, which is what this entry lands.
+Removing the two attributes is the deliberate follow-up. One trap for whoever takes it: the reader
+picks a column's NAME from `@label` then `@name`, so dropping both renames every single-output
+column to `output1` unless `decisionTable/@outputLabel` — which the reader does not read today — is
+wired up first.
+
+**Amendment, from adversarial review after the entry was written.** A 44-agent review of this
+change raised 13 findings, of which 7 survived a three-lens refutation pass. Two were real
+regressions introduced *by this ruling*, and both are fixed on the same branch. Recording them
+because each is an interaction between two separately-reasonable rules — the kind a green suite
+cannot catch, and all three gates (hspec, the corpus, the round trip) **were** green.
+
+1. **A collection of `Any` silently stopped being a collection.** `resolveTypeRef` wraps a
+   collection's element type with `DMN_List <$> ty`, which is safe only while every `Nothing`
+   carries a diagnostic. Reading `typeRef="Any"` as "no restriction, infer" produced the **first
+   diagnostic-free `Nothing`** in `convertType`'s history, and `fmap` over `Nothing` dropped the
+   `DMN_List` in silence. An `<itemDefinition isCollection="true"><typeRef>Any</typeRef>` then read
+   as a scalar, and every membership cell was emitted as an EQUALITY test against the whole list —
+   `roles === "admin"` against an array, false for every input, so every rule in that column became
+   unreachable, at exit 0 with an empty stderr. Trunk **refused** that document, so this ruling had
+   turned a loud refusal into a silent wrong answer: exactly the failure the XML backend exists to
+   prevent, arriving through the one arm added to make the ruling usable. Now refused, with a
+   message naming `isCollection` and the offending element type — guessing is not available,
+   because inference runs per column and yields scalars, so nothing here can supply an ELEMENT
+   type. `policy/xml-collection-of-any`.
+
+2. **A list-valued hit policy double-counted its list-ness.** Under `C` (no aggregation),
+   `RULE ORDER` or `OUTPUT ORDER` the decision's result IS a list, so the variable types the
+   collection of results ACROSS RULES — not the output column, whose cells are each one scalar.
+   Applying the fallback there emitted `["gold"]` for a cell the document spells `"gold"`. The
+   fallback now excludes those three policies. The four Collect **aggregations** are single-valued
+   and keep it (`C+`/`C<`/`C>` reduce to one value of the column's type, `C#` counts) — the
+   reviewer's claim covered all of `COLLECT`, which is too wide; the `aggregation` attribute is
+   what decides it. The writer half is the same fact from the other side: `decisionOf` no longer
+   claims the scalar column type on the `<variable>` of a list-valued table, where it was telling
+   a conformant consumer the decision returns a number while the engine returns a list of numbers.
+   `policy/xml-collect-variable-is-list`.
+
+Neither costs a real document: the 355-document export corpus is unchanged at 253/102 across the
+fix. A third surviving finding was a documentation defect: this entry says the six refused cells
+are "expressions dmnmd cannot read", and the copy in `CLAUDE.md` had sharpened that to
+"arithmetic", which is true of only 4 of the 6 — `~/CLAUDE.md` rule 2 broken in the act of copying,
+by the same session that quoted the rule. Corrected there.
+
+**What this says about the evidence below.** Every gate in it passed, and two real regressions
+shipped anyway. The gates are load-bearing but they are not a substitute for someone actively
+trying to break the change.
+
+**Evidence for the landing.** `cabal test` green (144/33/2/35/26/25/8, 0 failures). `make corpus`
+224 cases, 0 policy regressions, with 3 new policy cases. The round trip runs 131 pass / 0 FAIL /
+0 xpass / 0 XSD-invalid — unchanged from D-16 — so the emitted `<variable>` is XSD-valid and
+round-trip-neutral. The 12 re-recorded policy expectations are **12 added lines and 0 removed**, and
+every one of the 12 is the new `<variable>` element; a thirteenth change re-recorded the
+"Known types are:" enumeration in `xml-unknown-typeref-refused`, which gained `Any` while the
+refusal it pins stayed intact. `backend-baseline.sh` remains dead (see CLAUDE.md) and was not
+consulted; the A/B evidence is the corpus, the round trip, and the 355-document re-sweep above.

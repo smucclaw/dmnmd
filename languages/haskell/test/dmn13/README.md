@@ -31,6 +31,8 @@ fail to unpickle, so a regression points at one thing:
 | `unknown-type.dmn` | `typeRef="tuple<number>"` — must warn and degrade, not crash (B4) |
 | `annotations.dmn` | `<annotation>` columns and per-rule `<annotationEntry>` text |
 | `is-collection.dmn` | `isCollection="true"` on an `<itemDefinition>`, and a collection `typeRef` derived from another named type |
+| `decision-variable-typeref.dmn` | a `<decision>` with a `<variable typeRef>` and a single `<output>` that carries **no** `typeRef` — DMN's conformant spelling for a single output. The two cells discriminate: honour the variable and the outputs are the strings `"1"`/`"2"`, ignore it and inference calls the column Number and they become `1.0`/`2.0`. Both exit 0 |
+| `any-typeref.dmn` | `typeRef="Any"`, FEEL's top type — a declaration that declares no restriction, so it must infer like an absent `typeRef` rather than hit the unknown-type refusal |
 
 `not-dmn13.dmn` is a DMN 1.2 file: it must be *rejected*, with a message naming
 the version. Fixtures whose names start with `bad-` must be rejected too; they
@@ -61,4 +63,13 @@ have been silently widened, is worse than emitting none:
 | `bad-rule-arity.dmn` | a rule with more `<inputEntry>` elements than the table has `<input>` columns |
 | `bad-rule-no-output.dmn` | a rule with no `<outputEntry>` at all (the XSD requires at least one) |
 | `bad-duplicate-unique-rules.dmn` | two rules with identical `<inputEntry>` text in a table with **no** `hitPolicy` attribute — which the XSD and `ParseDMN` both default to `UNIQUE`, so the second rule can never fire (D-13) |
-| `no-typeref-inferred.dmn` | an `<inputExpression>` with **no** `typeRef`, which the XSD allows — so dmnmd infers the column's type, and D-2 refuses a column whose cells disagree. The only fixture here that omits `typeRef`, and so the only one exercising the XML reader's coupling to `inferTypes` |
+| `no-typeref-inferred.dmn` | an `<inputExpression>` with **no** `typeRef`, which the XSD allows — so dmnmd infers the column's type, and D-2 refuses a column whose cells disagree. This is the fixture that pins the XML reader's coupling to `inferTypes`: the cells here disagree on purpose, so the inference *refusal* is what it exercises |
+
+> This row used to end "The only fixture here that omits `typeRef`, and so the only
+> one exercising the XML reader's coupling to `inferTypes`." Both halves were false
+> when written, not drift: `output-without-label.dmn` has carried
+> `<output id="Output_band" name="band"/>` — no `typeRef` — since `7741ce9`, its only
+> commit, so it omits `typeRef` too and its output column is inferred as well. What
+> is distinctive about `no-typeref-inferred.dmn` is that its cells *disagree*, so it
+> reaches the refusal rather than a quiet inference. `decision-variable-typeref.dmn`
+> and `any-typeref.dmn` now omit it as well.
