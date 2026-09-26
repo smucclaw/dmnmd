@@ -1211,8 +1211,10 @@ landed with **no number at all** rather than repeat a miscite the repository has
 correct in two places (one occasion, two files — D-13 fixed `DECISIONS.md` and
 `DMN-CORE-HACKAGE-FINDINGS.md` in a single commit; "twice" would imply two separate lapses). §8.3.2 is read directly out of `~/Documents/omg-specs/DMN-1.3.pdf`, fetched from
 `https://www.omg.org/spec/DMN/<version>/PDF` — a pattern that is not linked from any OMG About page,
-whose "Normative Documents" table renders empty. 1.3, 1.4 and 1.5 resolve; **1.6 and 1.7/Beta1 return
-404**. The l4-ide side inherited the wrong number and is worth telling.
+whose "Normative Documents" table renders empty. On 2026-09-01, 1.3, 1.4 and 1.5 resolved and
+**1.6 and 1.7/Beta1 returned 404**. That went stale within the month: DMN 1.6 went formal in
+September 2026 (OMG formal/25-12-02), and re-checked on 2026-09-26 only 1.7 and 1.7/Beta1 still
+return 404. §8.3.2's wording is unchanged in 1.5 and 1.6. The l4-ide side inherited the wrong number and is worth telling.
 
 **What is measured, and is the whole argument:**
 
@@ -1383,3 +1385,65 @@ expectation; the BKM refusal it pins is otherwise untouched.
 **Evidence.** `cabal test` green (144/37/2/35/26/25/8, 0 failures, 4 of them new). `make corpus` 222
 cases, 0 policy regressions, 1 new policy case. Round trip 131 pass / 0 FAIL / 0 XSD-invalid,
 unchanged.
+
+### D-19 — the DMN 1.3 boxed expressions are refused by name. **RULED: name them. LANDED.**
+
+**The defect.** Seven global elements substitute for `expression` in `xsd/DMN13.xsd`. dmnmd models
+two — `<decisionTable>` and `<literalExpression>` (the latter parsed, then skipped by `convdec` with
+a warning). The other five, `<context>`, `<invocation>`, `<functionDefinition>`, `<relation>` and
+`<list>`, have been unmodelled since the beginning and produced this:
+
+```
+dmnmd: f.dmn: dmnmd could not read this DMN 1.3 document.
+xpCheckEmptyContents: unprocessed XML content detected
+context:    element "{https://www.omg.org/spec/DMN/20191111/MODEL/}decision"
+contents:   <context id="Context_band"><contextEntry><variable id="Variable_ctx" name="thres...
+```
+
+which names neither the construct nor where it is, and leaks hxt's internals to the author.
+
+**Why `readerRefusal` could never have caught them.** It scans the **direct children** of
+`<definitions>` — that is what makes it the right place for `<businessKnowledgeModel>` — and a boxed
+expression sits inside a `<decision>`. No widening of that list would help. `refuseUnmodelled` is
+the one that scans the whole document (`multi`, deliberately, because hxt's `deep` stops at the
+first success on each branch), and it already knew how to name an element, say what it is, say which
+release introduced it, and locate it under its owning `<decision>` or `<itemDefinition>`. It simply
+had no entries for the 1.3 five. CLAUDE.md has named `unmodelledConstructs` as the extension point
+for exactly this since the DMN 1.4/1.5 work; this is that extension.
+
+**Measured.** Over the same 355 documents exported from `legalese/l4-ide`: 8 carry a `<context>`,
+and **every refusal across the whole corpus now names its cause** — the generic-fallback count is 0,
+where it was not before. Exit statuses are unchanged at 280/75: this ruling changes what the author
+is told, not what is accepted. That is worth stating plainly, because a message-only change is
+exactly the kind whose scope is easy to overstate.
+
+**Written test-first, and the first draft of the test was wrong in an instructive way.** Three
+`DmnXmlSpec` examples were added and observed red before implementation. One of them asserted the
+message contained `"DMN 1.3"` — and reported **"predicate succeeded"** while red, because the
+*generic* message names the release too. An assertion that passes against the behaviour you are
+trying to remove is worse than no assertion. It then asserted `"added in DMN 1.3"`, which only the
+construct sentence can satisfy, and the block asserts the **absence** of both `"could not read
+this"` and `"xpCheckEmptyContents"`.
+
+**Correction, 2026-09-26: "added in DMN 1.3" was false, and the test pinned it.** All five
+elements are declared in `xsd/dmn11.xsd` (DMN 1.1, namespace `20151101`) and in `xsd/DMN12.xsd`.
+None of them is new in 1.3, and dmnmd vendors no schema old enough to say which release introduced
+them. An adversarial review of this PR's bench card found it; the PR itself had no review. The
+release field of `unmodelledConstructs` is now a `Maybe String`, these five carry `Nothing`, and
+the refusal names no release for them. The construct sentence is now asserted in full
+("…(a list of name/value entries). dmnmd does not model it.") together with the absence of
+`"added in"`. A new `DmnXmlSpec` block checks **every** release a refusal names against the vendored
+schema of the release before it, so a claim of this kind is now machine-checked rather than
+trusted. `policy/xml-boxed-context-refused` was re-recorded for exactly that one clause.
+
+**One message correction rides along.** The closing advice ended "...and an `<itemDefinition>` may
+carry `<allowedValues>` but not `<typeConstraint>`" on *every* refusal. `<typeConstraint>` is a DMN
+1.5 element, so for most refused documents that is advice about a construct the author could not
+have written. It is now emitted only when a `<typeConstraint>` is actually among the offenders. The
+predicate is the **offender**, not the release — `policy/xml-typeconstraint-refused`'s own fixture
+is a DMN 1.3 document that contains one, and it must keep the advice.
+
+**Evidence.** `cabal test` green (144/41/2/35/26/25/8, 0 failures, 4 new examples). `make corpus`
+226 cases, 0 policy regressions, 1 new policy case, 3 re-recorded messages — two losing the
+irrelevant `<typeConstraint>` clause, one keeping it reworded. Round trip 131 pass / 0 FAIL /
+0 XSD-invalid, unchanged.

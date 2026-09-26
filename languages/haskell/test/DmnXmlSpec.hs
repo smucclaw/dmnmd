@@ -320,6 +320,76 @@ dmn13Spec = describe "DMN 1.3" $ do
       [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_Out ]
         `shouldBe` [Just DMN_String]
 
+  -- The five DMN 1.3 global elements in the "expression" substitution group that
+  -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
+  -- dmnmd models <decisionTable> and <literalExpression>.) These used to fall
+  -- through to "dmnmd could not read this DMN 1.3 document" plus a raw hxt
+  -- xpCheckEmptyContents dump -- a message that names neither the construct nor
+  -- where it is. readerRefusal could never have caught them: it scans the DIRECT
+  -- CHILDREN of <definitions>, and a boxed expression sits inside a <decision>.
+  -- refuseUnmodelled scans the whole document (multi) and already knew how to
+  -- name an element, what it is and which parent it sits under; it just did not
+  -- know about the 1.3 five.
+  describe "refuses an unmodelled DMN 1.3 boxed expression by name" $ do
+    let shouldRefuse name expected = do
+          parsed <- parseDMNEither (dmn13File name)
+          case parsed of
+            Right _  -> expectationFailure $ dmn13File name ++ " should not have been accepted"
+            Left err -> do
+              T.pack err `shouldSatisfy` T.isInfixOf (T.pack expected)
+              -- and NOT the generic fallback, nor hxt's internal complaint
+              T.pack err `shouldNotSatisfy` T.isInfixOf "could not read this"
+              T.pack err `shouldNotSatisfy` T.isInfixOf "xpCheckEmptyContents"
+
+    it "names <context> and says what it is" $
+      shouldRefuse "boxed-context" "<context> is a boxed context"
+    -- D-19 first shipped "added in DMN 1.3" here. That was false: DMN 1.1's
+    -- schema (xsd/dmn11.xsd) already declares all five of these elements, and a
+    -- test pinned the false text. The sentence now names no release at all,
+    -- because dmnmd has no schema old enough to say which one introduced them.
+    it "does not claim a release introduced it" $ do
+      parsed <- parseDMNEither (dmn13File "boxed-context")
+      case parsed of
+        Right _  -> expectationFailure "should not have been accepted"
+        Left err -> T.pack err `shouldNotSatisfy` T.isInfixOf "added in"
+    it "goes straight from what it is to the refusal" $
+      shouldRefuse "boxed-context"
+        "<context> is a boxed context (a list of name/value entries). dmnmd does not model it."
+    it "locates it under the <decision> that holds it, by that decision's name" $
+      shouldRefuse "boxed-context" "decision \"Band\""
+
+    -- <typeConstraint> is a DMN 1.5 element; it does not exist in 1.3 at all, so
+    -- advising a 1.3 author not to use one is advice about a construct they
+    -- could not have written. The closing line carries that clause only when a
+    -- <typeConstraint> is actually among the offenders.
+    it "does not advise a DMN 1.3 document about <typeConstraint>" $ do
+      parsed <- parseDMNEither (dmn13File "boxed-context")
+      case parsed of
+        Right _  -> expectationFailure "should not have been accepted"
+        Left err -> T.pack err `shouldNotSatisfy` T.isInfixOf "typeConstraint"
+
+  -- Every "added in DMN X" in a refusal is a factual claim about the standard,
+  -- so it is checked against the vendored schema of the release BEFORE X: the
+  -- element must be absent there. DMN 1.5's predecessor schema is not vendored,
+  -- so a 1.5 claim is checked against 1.3, the latest one we have. D-19's
+  -- "added in DMN 1.3" failed exactly this check and shipped anyway.
+  describe "unmodelledConstructs release claims, checked against the vendored XSDs" $ do
+    let declares xsd nm = T.pack ("<xsd:element name=\"" ++ nm ++ "\"") `T.isInfixOf` xsd
+        priorSchema since = lookup since
+          [ ("DMN 1.3", "xsd/DMN12.xsd"), ("DMN 1.4", "xsd/DMN13.xsd"), ("DMN 1.5", "xsd/DMN13.xsd") ]
+    it "names only releases whose predecessor schema lacks the element" $
+      sequence_
+        [ case priorSchema since of
+            Nothing -> expectationFailure ("no predecessor schema known for " ++ since ++ " (" ++ nm ++ ")")
+            Just path -> do
+              xsd <- T.pack <$> readFile path
+              (nm, declares xsd nm) `shouldBe` (nm, False)
+        | (nm, (Just since, _)) <- unmodelledConstructs ]
+    it "leaves the release unnamed only for elements DMN 1.1 already declares" $ do
+      xsd <- T.pack <$> readFile "xsd/dmn11.xsd"
+      sequence_ [ (nm, declares xsd nm) `shouldBe` (nm, True)
+                | (nm, (Nothing, _)) <- unmodelledConstructs ]
+
   describe "FEEL string quoting" $
     it "does not double-quote a FEEL string literal" $ do
       -- <text>\"minor\"</text> must land in the IR as VS \"minor\", the same as

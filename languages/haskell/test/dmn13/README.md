@@ -33,6 +33,7 @@ fail to unpickle, so a regression points at one thing:
 | `is-collection.dmn` | `isCollection="true"` on an `<itemDefinition>`, and a collection `typeRef` derived from another named type |
 | `decision-variable-typeref.dmn` | a `<decision>` with a `<variable typeRef>` and a single `<output>` that carries **no** `typeRef` — §8.3.2's conformant spelling for a single output. The two cells discriminate: honour the variable and the outputs are the strings `"1"`/`"2"`, ignore it and inference calls the column Number and they become `1.0`/`2.0`. Both exit 0 |
 | `any-typeref.dmn` | `typeRef="Any"`, FEEL's top type — a declaration that declares no restriction, so it must infer like an absent `typeRef` rather than hit the unknown-type refusal |
+| `boxed-context.dmn` | a `<decision>` whose logic is a `<context>` — one of the five DMN 1.3 boxed expressions dmnmd has never modelled. Must be refused **by name**, naming the construct, the release and the owning decision, with neither the generic "could not read this" nor hxt's `xpCheckEmptyContents` |
 | `decision-service.dmn` | a `<decisionService>`. Byte-identical to `baseline.dmn` otherwise, and that identity is asserted: the element must be dropped with a warning and change nothing else |
 
 `not-dmn13.dmn` is a DMN 1.2 file: it must be *rejected*, with a message naming

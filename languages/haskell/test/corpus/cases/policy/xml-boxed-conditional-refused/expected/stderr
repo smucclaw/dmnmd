@@ -1,4 +1,4 @@
 dmnmd: input.dmn: this document declares DMN 1.5 and dmnmd cannot represent it faithfully.
   decision "Fee": <conditional> is a boxed conditional (if / then / else), added in DMN 1.4. dmnmd does not model it.
-dmnmd models decision tables: a <decision> must hold a <decisionTable>, and an <itemDefinition> may carry <allowedValues> but not <typeConstraint>.
+dmnmd models decision tables: a <decision> must hold a <decisionTable>.
 

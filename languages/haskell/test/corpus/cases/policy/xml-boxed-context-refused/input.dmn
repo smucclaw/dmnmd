@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A <decision> whose logic is a <context>, not a <decisionTable>.
+
+     A boxed context is one of the seven DMN 1.3 global elements in the
+     "expression" substitution group; dmnmd models two of them,
+     <decisionTable> and <literalExpression>. The other five are legal DMN 1.3
+     that dmnmd has never represented, and until this fixture they produced the
+     generic "could not read this DMN 1.3 document" plus a raw hxt
+     xpCheckEmptyContents dump, which tells the author nothing about which
+     construct is the problem or where it is.
+
+     refuseUnmodelled already knows how to name an element, what it is, the
+     release that introduced it, and the <decision> it sits under; it just did
+     not know about the DMN 1.3 five. Note the scan is document-wide (multi),
+     not a scan of <definitions>' direct children, so it reaches this nested
+     position where readerRefusal never could. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="ageBand" name="Age Band"
+             namespace="https://example.org/dmnmd/test/boxedContext">
+  <inputData id="InputData_age" name="Age"/>
+  <decision id="Decision_band" name="Band">
+    <context id="Context_band">
+      <contextEntry>
+        <variable id="Variable_ctx" name="threshold" typeRef="number"/>
+        <literalExpression id="LiteralExpression_ctx"><text>18</text></literalExpression>
+      </contextEntry>
+    </context>
+  </decision>
+</definitions>

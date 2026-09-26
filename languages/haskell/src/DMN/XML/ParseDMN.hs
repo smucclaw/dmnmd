@@ -73,6 +73,10 @@ data DmnRelease = DmnRelease
 -- here: the beta text pins @…\/20240513\/FEEL\/@ but never spells its MODEL or
 -- DMNDI URI, and guessing one from the pattern would put an unverified string in
 -- an accept list. Measure it from a published @DMN16.xsd@, then add the record.
+-- That condition is now met: DMN 1.6 went formal in September 2026 (OMG
+-- @formal\/25-12-02@) and publishes
+-- @https:\/\/www.omg.org\/spec\/DMN\/20240513\/DMN16.xsd@. It has not been
+-- measured yet, so the record is still absent and a 1.6 document is refused.
 dmn13, dmn14, dmn15 :: DmnRelease
 dmn13 =
   DmnRelease "DMN 1.3"
@@ -1248,7 +1252,11 @@ parseDMNEither filename = do
 
 -- | Elements dmnmd does not model, refused by NAME before unpickling starts.
 --
--- Each entry is @(local name, (release that introduced it, what it is))@.
+-- Each entry is @(local name, (release that introduced it, what it is))@. The
+-- release is 'Nothing' when dmnmd cannot say which release introduced the
+-- element, and then the refusal names none: a release in a refusal is a claim
+-- about the standard, and @DmnXmlSpec@ checks every one against the vendored
+-- schema of the release before it.
 --
 -- These are the five boxed expressions DMN 1.4 added — @\<conditional\>@,
 -- @\<for\>@, @\<some\>@, @\<every\>@, @\<filter\>@, all
@@ -1279,20 +1287,38 @@ parseDMNEither filename = do
 -- @test\/corpus\/cases\/symptom\/xml-typeconstraint-dropped-silently@ as it
 -- behaved before.
 --
--- The list is the extension point. The DMN /1.3/ boxed expressions dmnmd has
--- never modelled — @\<context\>@, @\<invocation\>@, @\<relation\>@,
--- @\<list\>@, @\<functionDefinition\>@ — belong here too and would turn a
--- generic @xpCheckEmptyContents@ into a named refusal, but they are a separate
--- change: adding them alters recordings this one must leave untouched.
-unmodelledConstructs :: [(String, (String, String))]
+-- The list is the extension point, and D-19 used it: the five boxed expressions
+-- that are older than DMN 1.4 are in it too (see below).
+unmodelledConstructs :: [(String, (Maybe String, String))]
 unmodelledConstructs =
-  [ ("conditional",    ("DMN 1.4", "a boxed conditional (if / then / else)"))
-  , ("for",            ("DMN 1.4", "a boxed iterator (for / in / return)"))
-  , ("some",           ("DMN 1.4", "a boxed quantifier (some / in / satisfies)"))
-  , ("every",          ("DMN 1.4", "a boxed quantifier (every / in / satisfies)"))
-  , ("filter",         ("DMN 1.4", "a boxed filter (in / match)"))
-  , ("typeConstraint", ("DMN 1.5", "a unary test constraining an <itemDefinition>'s values"))
-  ]
+  -- Older than DMN 1.4. Seven global elements substitute for @expression@ in
+  -- @DMN13.xsd@;
+  -- dmnmd models two of them, @<decisionTable>@ (as 'DecisionTable') and
+  -- @<literalExpression>@ (as 'LiteralExpression', which 'convdec' then skips
+  -- with a warning). These are the other five. They were unmodelled from the
+  -- start and were reaching the generic @readerRefusal@ fallback plus a raw
+  -- @xpCheckEmptyContents@ dump, because 'readerRefusal' scans only the DIRECT
+  -- CHILDREN of @<definitions>@ and a boxed expression sits inside a
+  -- @<decision>@. This scan is document-wide, so it reaches them.
+  --
+  -- __No release is named for these five.__ D-19 first said "added in DMN 1.3",
+  -- which is false: @xsd/dmn11.xsd@ (DMN 1.1) already declares all five, and
+  -- dmnmd vendors no schema older than that, so it cannot say which release
+  -- introduced them.
+    ("context",           (Nothing, "a boxed context (a list of name/value entries)"))
+  : ("invocation",        (Nothing, "a boxed invocation (calling a business knowledge model)"))
+  : ("functionDefinition",(Nothing, "a boxed function definition"))
+  : ("relation",          (Nothing, "a boxed relation (a table of expressions)"))
+  : ("list",              (Nothing, "a boxed list"))
+  -- DMN 1.4's five boxed expressions, all @substitutionGroup="expression"@, plus
+  -- @<typeConstraint>@, the single structural addition DMN 1.5 made over 1.4.
+  : [ ("conditional",    (Just "DMN 1.4", "a boxed conditional (if / then / else)"))
+    , ("for",            (Just "DMN 1.4", "a boxed iterator (for / in / return)"))
+    , ("some",           (Just "DMN 1.4", "a boxed quantifier (some / in / satisfies)"))
+    , ("every",          (Just "DMN 1.4", "a boxed quantifier (every / in / satisfies)"))
+    , ("filter",         (Just "DMN 1.4", "a boxed filter (in / match)"))
+    , ("typeConstraint", (Just "DMN 1.5", "a unary test constraining an <itemDefinition>'s values"))
+    ]
 
 -- | Refuse the constructs in 'unmodelledConstructs' by name, before unpickling.
 --
@@ -1331,8 +1357,15 @@ refuseUnmodelled filename release root
            ++ " and dmnmd cannot represent it faithfully.")
           : map ("  " ++) problems
           ++ [ "dmnmd models decision tables: a <decision> must hold a"
-                 ++ " <decisionTable>, and an <itemDefinition> may carry"
-                 ++ " <allowedValues> but not <typeConstraint>."
+                 ++ " <decisionTable>."
+                 -- Only when a <typeConstraint> is actually among the offenders.
+                 -- It is a DMN 1.5 element and does not exist in 1.3 or 1.4, so
+                 -- advising every refused document about it is advice about a
+                 -- construct most of them could not have written.
+                 ++ (if any ((== "typeConstraint") . snd) unmodelled
+                       then " An <itemDefinition> may carry <allowedValues> but"
+                              ++ " not <typeConstraint>."
+                       else "")
              | not (null unmodelled)
              ]
   where
@@ -1352,7 +1385,8 @@ refuseUnmodelled filename release root
     renderUnmodelled (who, nm) =
       case lookup nm unmodelledConstructs of
         Just (since, what) ->
-          who ++ ": <" ++ nm ++ "> is " ++ what ++ ", added in " ++ since
+          who ++ ": <" ++ nm ++ "> is " ++ what
+            ++ maybe "" (", added in " ++) since
             ++ ". dmnmd does not model it."
         Nothing -> who ++ ": <" ++ nm ++ "> is not modelled by dmnmd."
 

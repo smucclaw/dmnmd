@@ -49,7 +49,8 @@ or it is silently not compiled into the library.
 GHC 9.10.3 (recorded in `tested-with`, and pinned in CI) with **megaparsec ≥ 9.7.0**, which
 is a real lower bound in `dmnmd.cabal` rather than a convention: `DMN.Translate.L4` imports
 `Text.Megaparsec.Unicode (isWideChar)`, which does not exist before it. CI runs
-`cabal test` and then `make corpus`.
+`cabal test`, then `make corpus`, then `make roundtrip` — the round trip without its XSD half,
+which needs `xmllint` and stays a local check (`make roundtrip-xsd`).
 
 **There are no system dependencies.** `regex-pcre` — and with it `pkg-config` + `libpcre`,
 which every install line in this repo used to name — was retired once the cell layer stopped
@@ -202,8 +203,10 @@ Things that are only apparent across several files:
   `<decision>`'s own `<variable>` instead — "the instance of InformationItem that **stores the
   result of this Decision**" — so for such a table that is not merely *a* place the type may
   appear, it is the only one left. (**Mind that number.** l4-ide's `Emit.hs` cites §8.2.11, and
-  D-13 established against the OMG PDF that §8.2.11 is *Default output values* — the miscite this
-  repo has already corrected twice. §8.3.2 is read out of `~/Documents/omg-specs/DMN-1.3.pdf`;
+  D-13 established against the OMG PDF that §8.2.11 is *Default output values*. This repo has
+  had to correct that number once before, in D-13, where it had been cited for a different rule,
+  hit-policy uniqueness (§8.2.10); an earlier version of this sentence said "corrected twice",
+  which was wrong on both counts. §8.3.2 is read out of `~/Documents/omg-specs/DMN-1.3.pdf`;
   the fetch pattern is `https://www.omg.org/spec/DMN/<version>/PDF`, undocumented and not linked
   from any About page. Worth telling the l4-ide side.) The XSD cannot say
   so — `tOutputClause` declares both attributes unconditionally — so such a document validates
@@ -686,9 +689,26 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   which the XSD writes in seven positions and dmnmd models one of; and a pre-flight needs
   nothing from hxt that `Text.XML.HXT.Core` does not re-export.
 
-  `unmodelledConstructs` is the extension point. The DMN **1.3** boxed expressions dmnmd has
-  never modelled — `<context>`, `<invocation>`, `<relation>`, `<list>`, `<functionDefinition>`
-  — belong there too and still produce a generic error today.
+  **The DMN 1.3 boxed expressions are in that list too, as of D-19.** Seven global elements
+  substitute for `expression` in `DMN13.xsd`; dmnmd models `<decisionTable>` and
+  `<literalExpression>`, and the other five — `<context>`, `<invocation>`, `<functionDefinition>`,
+  `<relation>`, `<list>` — were reaching the generic `readerRefusal` fallback plus a raw
+  `xpCheckEmptyContents` dump. `readerRefusal` could never have caught them at any price: it scans
+  the **direct children** of `<definitions>`, and a boxed expression sits inside a `<decision>`.
+  `refuseUnmodelled` scans the whole document (`multi`) and already knew how to name an element,
+  say what it is, say which release added it and locate it under its owner. (For these five it
+  names **no** release. They are not new in 1.3: `xsd/dmn11.xsd` already declares all five. D-19
+  first shipped "added in DMN 1.3" and a test pinned it; `DmnXmlSpec` now checks every release a
+  refusal names against the vendored schema of the release before it.) Measured over 355
+  documents exported from `legalese/l4-ide`: **every** refusal now names its cause, where 8
+  documents carrying a `<context>` previously did not. `policy/xml-boxed-context-refused`.
+
+  The closing advice line is now conditional. It used to end "...and an `<itemDefinition>` may
+  carry `<allowedValues>` but not `<typeConstraint>`" on *every* refusal, which is advice about a
+  construct most refused documents could not have written. That clause appears only when a
+  `<typeConstraint>` is actually among the offenders — the predicate is the offender, not the
+  release, because `policy/xml-typeconstraint-refused`'s own document is DMN **1.3** and does
+  contain one.
 - **Multi-table Markdown works — `test/safe.md` is a bad fixture, not a chunking limit.**
   Its file-level failure is a **missing final newline** (the last byte is `|`); append one
   and `grepMarkdown` succeeds and 3 of its 13 tables import. Also, the reported position is
