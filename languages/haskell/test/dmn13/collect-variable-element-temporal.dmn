@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A COLLECT table whose <decision> variable names a collection of DATES.
+
+     Under a list-valued hit policy the column's type is the collection's
+     ELEMENT type, and dmnmd has no temporal type, so this table is refused
+     exactly as a FIRST table whose variable says typeRef="date" is refused
+     (see temporal-type.dmn for the input-side twin).
+
+     Before this fixture the reader discarded the element type's error along
+     with the variable, so the column was inferred from its cells and the date
+     was emitted as the string "2020-01-01" at exit 0 with an empty stderr, on
+     trunk 18481de and on 2c64890 alike. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="dates" name="Dates"
+             namespace="https://example.org/dmnmd/test/dates">
+  <itemDefinition name="DateList" isCollection="true">
+    <typeRef>date</typeRef>
+  </itemDefinition>
+  <decision id="Decision_dates" name="Dates">
+    <variable id="Variable_dates" name="Dates" typeRef="DateList"/>
+    <decisionTable id="DecisionTable_dates" hitPolicy="COLLECT">
+      <input id="Input_score" label="score">
+        <inputExpression id="InputExpression_score" typeRef="number"><text>score</text></inputExpression>
+      </input>
+      <output id="Output_date"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>&gt; 90</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"2020-01-01"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

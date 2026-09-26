@@ -509,6 +509,62 @@ dmn13Spec = describe "DMN 1.3" $ do
                           attrs "" "string"
           types `shouldBe` [Just DMN_Number]
 
+  -- Docket queue item #10 (2026-09-26): the ResultIsListOfColumn arm's
+  -- catch-all was a diagnostic-free Nothing. It discarded the variable's own
+  -- errors along with it, so a collection of `date` was emitted as text at exit
+  -- 0 where FIRST refuses a `date` variable, and it ignored a scalar variable
+  -- without a word. Both were measured on 2c64890.
+  describe "under C, R and O a variable that is not a clean collection is not dropped in silence" $ do
+    let run slug dtAttrs itemDefs varTypeRef =
+          readDmnText slug $
+            oneDecisionXml itemDefs
+              ("<variable id=\"V\" name=\"Band\" typeRef=\"" ++ varTypeRef ++ "\"/>")
+              (dtAttrs ++ " outputLabel=\"band\"") ["<output id=\"O1\"/>"]
+        listOf name ty = "<itemDefinition name=\"" ++ name ++ "\" isCollection=\"true\">"
+                         ++ "<typeRef>" ++ ty ++ "</typeRef></itemDefinition>"
+        slugOf = map (\c -> if c == ' ' then '-' else c)
+
+    it "refuses a collection of date under COLLECT, as FIRST refuses a date variable (fixture)" $ do
+      (diags, tables) <- readDmn13 "collect-variable-element-temporal"
+      diags `shouldSatisfy` hasDiag Error "temporal"
+      tables `shouldBe` []
+
+    it "warns about a SCALAR variable under COLLECT, and infers the column (fixture)" $ do
+      (diags, tables) <- readDmn13 "collect-variable-scalar-warned"
+      diags `shouldSatisfy` hasDiag Warning "a single value"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      let (_, types, _) = outputColumns tables
+      types `shouldBe` [Just DMN_String]
+
+    forM_ [ ("COLLECT", "hitPolicy=\"COLLECT\"")
+          , ("RULE ORDER", "hitPolicy=\"RULE ORDER\"")
+          , ("OUTPUT ORDER", "hitPolicy=\"OUTPUT ORDER\"") ] $
+      \(hp, attrs) -> do
+        it ("keeps the element type's own error under " ++ hp) $ do
+          (diags, tables) <- run ("var-list-date-" ++ slugOf hp) attrs (listOf "DateList" "date") "DateList"
+          diags `shouldSatisfy` hasDiag Error "temporal"
+          tables `shouldBe` []
+
+        it ("keeps a scalar variable's own error under " ++ hp) $ do
+          (diags, tables) <- run ("var-scalar-date-" ++ slugOf hp) attrs "" "date"
+          diags `shouldSatisfy` hasDiag Error "temporal"
+          tables `shouldBe` []
+
+        it ("warns about a scalar variable under " ++ hp) $ do
+          (diags, _) <- run ("var-scalar-warn-" ++ slugOf hp) attrs "" "string"
+          diags `shouldSatisfy` hasDiag Warning "a single value"
+
+        -- A guard, not a red test: this passed on 2c64890 too, but only because
+        -- the catch-all swallowed resolveTypeRef's collection-of-Any REFUSAL.
+        -- Propagating errors must not start refusing it. Here the list-ness is
+        -- the hit policy's, so "each result is anything" is what an absent
+        -- declaration says, and the column is inferred without a word.
+        it ("infers, silently, under a collection-of-Any variable under " ++ hp) $ do
+          (diags, tables) <- run ("var-list-any-" ++ slugOf hp) attrs (listOf "AnyList" "Any") "AnyList"
+          diags `shouldBe` []
+          let (_, types, _) = outputColumns tables
+          types `shouldBe` [Just DMN_Number]
+
   -- The five DMN 1.3 global elements in the "expression" substitution group that
   -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
   -- dmnmd models <decisionTable> and <literalExpression>.) These used to fall

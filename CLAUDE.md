@@ -253,6 +253,8 @@ Things that are only apparent across several files:
   diagnostic-free `Nothing` in `convertType`. A collection of `Any` is therefore **refused**, not
   inferred.
   And under a list-valued hit policy (bare `C`, `R`, `O`) the variable types the result *list* rather than the column, so the column takes that collection's **element** type, and a variable that is not a collection is not applied at all.
+  Neither case may drop in silence, which that arm did until docket queue item #10: `resolveElementType` keeps the element type's own error (a collection of `date` refuses, as `FIRST` refuses a `date` variable), and a scalar variable warns.
+  `policy/xml-collect-variable-element-temporal-refused`, `policy/xml-collect-variable-scalar-warned`.
   The aggregations `C+`, `C<` and `C>` reduce to one value of the column's type and read the variable as the column's type.
   `C#` does not: DMN 1.3 §8.2.10 says "# (count): the result of the decision table is the number of outputs", so the variable types the count, is never applied to the column, and the column is inferred.
   `policy/xml-collection-of-any`, `policy/xml-collect-variable-is-list`, `policy/xml-count-variable-number-column-inferred`.

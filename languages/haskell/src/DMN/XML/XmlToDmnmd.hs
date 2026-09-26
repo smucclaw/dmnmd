@@ -488,9 +488,8 @@ data SingleOutput = SingleOutput
 --    the list-ness — a @COLLECT@ table whose variable is an @isCollection@
 --    @<itemDefinition>@ emitted @["gold"]@ for a cell the document spells
 --    @"gold"@, at exit 0 (D-17's amendment). A variable that does not resolve
---    cleanly to a collection there says nothing reliable about the column and
---    is not applied — which is what happened to EVERY variable under those
---    three policies before the writer began stating the column's type this way.
+--    cleanly to a collection there is not applied, but it is not dropped in
+--    silence either: see 'resolveElementType'.
 --  * 'T.ResultIsCount' (@C#@): the variable is not applied, whatever it names,
 --    and the column is inferred from its cells. §8.2.10: "# (count): the result
 --    of the decision table is the number of outputs", so the variable types the
@@ -521,14 +520,53 @@ convOutputCol env inTable single ix TableOutput { toutName, toutLabel, toutTypeR
       (Just own, _) -> resolveType env locate (Just own)
       (Nothing, Just so) -> case soShape so of
         T.ResultIsColumn -> resolveType env locate (soVarType so)
-        T.ResultIsListOfColumn -> case resolveType env locate (soVarType so) of
-          (ds, Just (T.DMN_List elemTy), dom) | not (anyErrors ds) -> (ds, Just elemTy, dom)
-          _                                                      -> ([], Nothing, Nothing)
+        T.ResultIsListOfColumn -> resolveElementType env locate (soVarType so)
         T.ResultIsCount -> ([], Nothing, Nothing)
       (Nothing, Nothing) -> ([], Nothing, Nothing)
     (domDiags, domain) =
       pickDomain locate "<outputValues>"
         (fmap (innerText . utText . unOutputValues) toutValues) inherited
+
+-- | The output column's type under 'T.ResultIsListOfColumn', where the
+-- decision's @<variable>@ types the LIST of results, so the column's type is
+-- that list's ELEMENT type.
+--
+-- A collection type loses exactly its outermost layer and keeps its
+-- @\<allowedValues\>@, which constrain the elements. What it does NOT do any
+-- more is fall through to a diagnostic-free 'Nothing' for everything else,
+-- which is what this arm's catch-all was until docket queue item #10: it
+-- discarded the variable's own errors with it, so a collection of @date@ was
+-- emitted as text at exit 0 where @FIRST@ refuses a @date@ variable, and it
+-- ignored a scalar variable without a word.
+--
+--  * A type that does not resolve keeps its own error, whichever layer it
+--    failed at, so @COLLECT@ refuses exactly what @FIRST@ refuses.
+--  * A collection of @Any@ infers, silently. 'resolveTypeRef' refuses one for a
+--    COLUMN because a scalar reading would drop the column's list-ness; here the
+--    list-ness is the hit policy's, and "each result is anything" is what an
+--    absent declaration says. Peeling in 'resolveTypeRefFrom' rather than
+--    unwrapping 'resolveTypeRef''s answer is what keeps that refusal out.
+--  * A type that resolves to a SINGLE value contradicts the hit policy. dmnmd
+--    does not pick a reading of a self-contradictory document: it warns, and the
+--    column is inferred.
+resolveElementType :: TypeEnv -> (String -> String) -> Maybe TypeRef -> (Diagnostics, Maybe T.DMNType, Maybe String)
+resolveElementType _ _ Nothing = ([], Nothing, Nothing)
+resolveElementType env locate (Just (TypeRef raw)) = case resolveTypeRefFrom env True raw of
+    (ds, ty, dom, True)     -> (located ds, ty, dom)
+    (ds, Nothing, _, False) -> (located ds, Nothing, Nothing)
+    (ds, Just _, _, False)  ->
+      ( located ds ++
+        [ warnAt . locate $
+            "the decision's <variable> declares typeRef " ++ show raw
+              ++ ", a single value, but under this table's hit policy the decision's"
+              ++ " result is a list with one entry per matching rule, so that type"
+              ++ " cannot be the result's. dmnmd does not apply it to the output column"
+              ++ " and infers the column from its cells instead. To type the column,"
+              ++ " name a collection type: an <itemDefinition isCollection=\"true\">"
+              ++ " whose <typeRef> is the type of ONE result." ]
+      , Nothing, Nothing )
+  where
+    located = map (\d -> d { diagMessage = locate (diagMessage d) })
 
 defaultOutputText :: DefaultOutputEntry -> String
 defaultOutputText (DefaultOutputEntry tle) = maybe "" innerText (tleContent tle)
@@ -717,29 +755,47 @@ resolveType env locate (Just (TypeRef raw)) =
 -- @B@ deriving from @A@; without the visited set that document hangs the
 -- converter instead of being reported.
 resolveTypeRef :: TypeEnv -> String -> (Diagnostics, Maybe T.DMNType, Maybe String)
-resolveTypeRef env = go []
+resolveTypeRef env raw = case resolveTypeRefFrom env False raw of
+  (ds, ty, dom, _) -> (ds, ty, dom)
+
+-- | 'resolveTypeRef', optionally CONSUMING the outermost collection layer
+-- rather than wrapping it — which is what 'resolveElementType' needs, and the
+-- only difference between the two. The final 'Bool' says whether a layer was
+-- consumed.
+--
+-- One walk rather than two, because the chain-following, the cycle guard and
+-- the 'unusable' refusals are the part that must not drift: a second walker
+-- written for the element case would be a second description of the data
+-- model, free to disagree with this one about which documents are readable.
+resolveTypeRefFrom :: TypeEnv -> Bool -> String -> (Diagnostics, Maybe T.DMNType, Maybe String, Bool)
+resolveTypeRefFrom env = go []
   where
-    go seen raw = case lookupItemDef env raw of
+    go seen peel raw = case lookupItemDef env raw of
       Nothing ->
         -- Not a declared type, so it must be a FEEL built-in. If it is not, the
         -- existing "unknown typeRef" error stands — but it can now say whether
         -- the document DECLARED that name and we refused it, which is the whole
         -- point of the document-level warnings above.
         let (ds, ty) = convertType (TypeRef raw)
-        in (map (enrich raw) ds, ty, Nothing)
+        in (map (enrich raw) ds, ty, Nothing, False)
       Just (nm, itd)
         | nm `elem` seen ->
             ( [ errorAt $ "typeRef " ++ show raw ++ " is circular: "
                   ++ intercalate " -> " (reverse seen) ++ " -> " ++ nm
                   ++ ". Refusing to convert this table." ]
-            , Nothing, Nothing )
+            , Nothing, Nothing, False )
         | Just why <- unusable itd ->
             ( [ errorAt $ "typeRef " ++ show raw ++ " names an <itemDefinition> dmnmd"
                   ++ " cannot use: " ++ why ++ " Refusing to convert this table." ]
-            , Nothing, Nothing )
+            , Nothing, Nothing, False )
+        -- The layer being consumed: neither wrapped nor checked for an unknown
+        -- element, because the list-ness it declares is the hit policy's and is
+        -- not being dropped. Everything beneath it resolves as a column type.
+        | peel, isCollectionOf itd ->
+            let (ds, ty, inherited, _) = go (nm : seen) False base
+            in (ds, ty, allowedValuesText itd `orElse` inherited, True)
         | otherwise ->
-            let base = maybe "" X.unItemTypeRef (X.itdTypeRef itd)
-                (ds, ty, inherited) = go (nm : seen) base
+            let (ds, ty, inherited, peeled) = go (nm : seen) peel base
                 -- Wrap AFTER the recursive resolve, so a collection derived from
                 -- a named base composes for free. A collection OF a collection
                 -- yields [[T]], which 'structuralErrors' R1 refuses with the same
@@ -781,7 +837,8 @@ resolveTypeRef env = go []
                           ++ " Name the element type (for example <typeRef>string</typeRef>)."
                           ++ " Refusing to convert this table." ]
                   | otherwise = []
-            in (ds ++ collectionOfUnknown, ty', allowedValuesText itd `orElse` inherited)
+            in (ds ++ collectionOfUnknown, ty', allowedValuesText itd `orElse` inherited, peeled)
+        where base = maybe "" X.unItemTypeRef (X.itdTypeRef itd)
 
     orElse a b = maybe b Just a
 
