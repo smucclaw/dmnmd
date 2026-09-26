@@ -1388,6 +1388,16 @@ None of those 49 uses `COLLECT`, `RULE ORDER` or `OUTPUT ORDER`, so the aggregat
 All 11 were checked mechanically before re-recording: each new stdout equals the old recording with exactly those two edits per single-output table, and nothing else; stderr and exit are identical.
 The `C#` change moved none of them.
 
+*2026-09-26, docket queue item #10: the list-valued arm no longer drops in silence.*
+The audit looked for every `Maybe DMNType` whose `Nothing` carries no diagnostic, the shape of amendment 1 above.
+Measured on `2c64890`, the reader's `ResultIsListOfColumn` arm still had one: its catch-all returned no type and no diagnostics.
+So a collection-of-`date` variable under `COLLECT` emitted `"2020-01-01"` as a string at exit 0, where `FIRST` refuses a `date` variable, and a scalar variable was ignored without a word.
+`resolveElementType` now consumes the collection's outermost layer through `resolveTypeRefFrom`, the walker `resolveTypeRef` also uses, and keeps every error beneath it.
+A scalar variable is still not applied, but it now warns.
+A collection of `Any` still infers silently: the list-ness is the hit policy's, so `resolveTypeRef`'s column refusal does not apply; on `2c64890` it inferred only because the catch-all swallowed that refusal.
+The writer's `inputVars` had the same shape: one `<inputData>` per name took the first column's type, so an untyped first column hid a later table's declared type; it now takes the first declared one.
+`policy/xml-collect-variable-element-temporal-refused`, `policy/xml-collect-variable-scalar-warned`, `policy/xml-emit-inputdata-typed-from-later-table`; 3 new corpus cases, no existing recording changed.
+
 ### D-18 — `<decisionService>` is packaging, not logic. **RULED: read and drop with a warning. LANDED.**
 
 **The defect.** `<decisionService>` sat in `unmodelledDrgElements` beside `<businessKnowledgeModel>`,
