@@ -313,7 +313,8 @@ validator catches that.
 - **DMN 1.3, with the release as an `XMLOpts` field and no CLI flag.** `xsd/` stops at 1.3, so 1.3
   is the only release whose output this repo can validate; a `--to=xml15` would ship an
   unverifiable capability. The parameter exists (D-4's point) and a flag is one line once a DMN14
-  or DMN15 schema arrives.
+  or DMN15 schema arrives. D-20 (2026-09-26) re-ruled this after DMN 1.6 went formal: the writer
+  stays on 1.3, and D-20 names what would reopen it.
 - **A wildcard is spelled differently on the two sides of a rule.** `-` is DMN 1.3 §9.2 rule 12
   syntax: legal in an `<inputEntry>` (a `tUnaryTests`) and meaningless in an `<outputEntry>` (a
   `tLiteralExpression`). An output wildcard becomes an EMPTY `<text/>`, which dmnmd reads back as

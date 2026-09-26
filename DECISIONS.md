@@ -1447,3 +1447,35 @@ is a DMN 1.3 document that contains one, and it must keep the advice.
 226 cases, 0 policy regressions, 1 new policy case, 3 re-recorded messages — two losing the
 irrelevant `<typeConstraint>` clause, one keeping it reworded. Round trip 131 pass / 0 FAIL /
 0 XSD-invalid, unchanged.
+
+### D-20 — `--to=xml` keeps writing DMN 1.3. **RULED: stay (Meng, 2026-09-26, bench card R4, word FOSSIL).**
+
+**The question.** DMN 1.3 is what `--to=xml` writes (D-8).
+Should the writer move to a newer release now that there are three?
+
+**The evidence, each item checked on 2026-09-26.**
+
+- The newest release OMG publishes is **DMN 1.6**, formal since September 2026 (OMG `formal/25-12-02`).
+  `curl -sI https://www.omg.org/spec/DMN/<version>/PDF` returns a PDF for 1.3, 1.4, 1.5, 1.6 and 1.6/Beta1, and 404 for 1.7 and 1.7/Beta1.
+  On 2026-09-01 the same probe returned 404 for 1.6 as well; D-17's text records that reading and now dates it.
+- §8.3.2's single-output rule (Table 34) is worded the same in 1.3, 1.5 and 1.6, so a later release changes nothing about the one conformance fix still owed (a single-output `<output>` carries no `name` or `typeRef`).
+- The decision-table complex types were byte-identical from 1.3 to 1.5 (the `DmnRelease` comment in `ParseDMN.hs`), which is why one pickler tree reads all three.
+  1.6 has not been measured.
+  What a decision table can express does not change with the release; only the namespace would.
+- `xsd/` vendors DMN 1.1, 1.2 and 1.3 only, so 1.3 is the only release whose output this repo can validate.
+- `legalese/l4-ide`'s exporter writes the 1.3 namespace (`jl4-core/src/L4/Dmn/Emit.hs:120` on `origin/unstable` `c76e6b041`), so the two emitters agree.
+
+**The ruling.** `--to=xml` stays on DMN 1.3.
+The release is already an `XMLOpts` field (D-4), so moving later means vendoring that release's schema, adding one flag, and running the round trip against it.
+
+**What reopens it.** A consumer that needs a later release, or l4-ide moving its exporter to one.
+
+**D-4's "do not vendor `DMN15.xsd`" is not reversed here, but its stated reason has aged.**
+D-4 said `xsd/` "is referenced by no code".
+Since then `test/roundtrip/run-roundtrip.sh:99` validates against `xsd/DMN13.xsd`, and `DmnXmlSpec` reads `xsd/dmn11.xsd`, `xsd/DMN12.xsd` and `xsd/DMN13.xsd` to check every release a refusal names.
+Whoever next vendors a schema should cite this paragraph, not D-4's reason.
+
+**Not part of this ruling: reading DMN 1.6.**
+The reader refuses a 1.6 document by namespace today, because `readableReleases` stops at 1.5.
+The condition `ParseDMN.hs` sets for adding a release, a published `DMN16.xsd` to measure the decision-table types against, is now met (`https://www.omg.org/spec/DMN/20240513/DMN16.xsd`).
+That is reader work, and it does not need this ruling.
