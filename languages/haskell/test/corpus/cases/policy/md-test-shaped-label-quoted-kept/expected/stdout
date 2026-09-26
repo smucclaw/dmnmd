@@ -1,0 +1,12 @@
+export function Tenure ( tenure : string ) {
+  if (tenure === "<1 year") { // 1
+    return {"band":"new"};
+  }
+  else if (tenure === "1-5 years") { // 2
+    return {"band":"settled"};
+  }
+  else if (tenure === ">5 years") { // 3
+    return {"band":"veteran"};
+  }
+}
+

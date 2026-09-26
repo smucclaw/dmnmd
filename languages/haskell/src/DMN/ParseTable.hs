@@ -3,7 +3,7 @@
 module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
-import DMN.DecisionTable ( CellSite(..), mkFsAt, trim, mkDTable )
+import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, trim, mkDTable )
 import DMN.Diagnostic ( Diagnostic, anyErrors, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
@@ -298,10 +298,17 @@ parseDataRow tableName csigs =
     getComments ColSig{csLabel = DTCH_Comment} (DTComment mcs) = Just mcs
     getComments _ _ = Nothing
 
+-- | An input cell and an output cell are read by different pass-1 wrappers,
+-- because they are different things: an input entry is a unary TEST, and a
+-- test-shaped cell dmnmd cannot read is refused ('mkInputFsAt'); an output
+-- entry is a VALUE, where @\<none\>@ or @>5 years@ is plausible text and the
+-- same check would refuse working tables. This is the one place in pass 1 that
+-- knows which is which — 'reviseInOut' has already run — and it is why that
+-- refusal is not in 'DMN.DecisionTable.mkFEither', which cannot tell.
 mkFEELCol :: String -> Maybe Int -> ColumnSignature -> String -> ([Diagnostic], ColBody)
 mkFEELCol _         _     (ColSig DTCH_Comment _  _        ) = (,) [] . mkDataColComment
-mkFEELCol tableName myrow (ColSig DTCH_In      nm maybe_type) = mkDataCol (CellSite tableName nm myrow) maybe_type
-mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (CellSite tableName nm myrow) maybe_type
+mkFEELCol tableName myrow (ColSig DTCH_In      nm maybe_type) = mkDataCol (mkInputFsAt (CellSite tableName nm myrow) maybe_type)
+mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (mkFsAt      (CellSite tableName nm myrow) maybe_type)
 
 -- | What a data row needs to know about a column: which kind it is, what it is
 -- called, and what type its cells are read at.
@@ -336,8 +343,8 @@ reviseInOut hr = let noncomments = filter ((DTCH_Comment /= ) . label) $ cols hr
 -- | A refused data cell keeps an empty cell body in its place; nothing reads it,
 -- because an Error anywhere in the returned list means 'parseTableD' emits no
 -- table. See 'DMN.DecisionTable.reprocessRows' for the same choice in pass 2.
-mkDataCol :: CellSite -> Maybe DMNType -> String -> ([Diagnostic], ColBody)
-mkDataCol site dmntype cell = case mkFsAt site dmntype cell of
+mkDataCol :: (String -> Either Diagnostic [FEELexp]) -> String -> ([Diagnostic], ColBody)
+mkDataCol readCell cell = case readCell cell of
   Left d   -> ([d], DTCBFeels [FAnything])
   Right fs -> ([],  DTCBFeels fs)
 mkDataColComment :: String -> ColBody

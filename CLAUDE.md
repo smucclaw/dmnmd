@@ -141,6 +141,14 @@ Things that are only apparent across several files:
   (`VAmbiguous`, today only a redundant leading zero — `007`). A column with **no** evidence at all
   (`VNone`, an all-wildcard column) is a legitimate shape and stays silent: that distinction is the
   whole predicate, and `policy/infer-all-wildcard-column-silent` is the only thing pinning it.
+
+  **A test-shaped cell dmnmd cannot read is refused in pass 1, before inference sees it.**
+  An input cell of an undeclared column shaped like a comparison (`>= date("2026-09-24")`, `>= Age`, `>5 years`, `!= 5`) or an interval (`[date(…)..date(…)]`, `[a..b]`) that `parseNumberCell` refuses used to be String evidence, so the column typed String and the rule became an equality test against the cell's own spelling, at exit 0.
+  `DMN.ParseCell.unreadableTestShape` is the predicate, and its haddock states it exactly and says what each clause keeps out; `DecisionTable.mkInputFsAt` applies it, and `ParseTable.mkFEELCol` calls that for input columns only.
+  It is in pass 1 and not in `inferenceErrors` because `unquoteCell` strips quotes in pass 1: afterwards `"<1 year"` and `<1 year` are the same `VS`, so only the raw text can tell a quoted label from a test.
+  A declared column is exempt, because `: String` is the repair the refusal names (as `VConflict` and `VAmbiguous` already do), and so is every output cell, which is a value rather than a test.
+  The XML reader does not call it: an untyped or `typeRef="string"` `<inputEntry>` reading `>= start` is still kept as text at exit 0, recorded as `symptom/xml-unreadable-test-kept-as-text`.
+  Pinned by `policy/md-unreadable-comparison-refused`, `policy/md-unreadable-interval-refused` and the negative controls `policy/md-test-shaped-label-quoted-kept` and `policy/md-test-shaped-label-declared-string-kept`; `symptom/md-dash-written-interval-silent` records the one shape deliberately left out.
 - **`FEELexp` is the cell IR** for both inputs and outputs: `FSection` (a comparison
   section like `<= 8`), `FInRange` (`[5..8]`), `FAnything` (`-`), `FNullary` (a literal),
   `FFunction` (arithmetic like `age * 100`). Cells are `[[FEELexp]]` — the inner list is a

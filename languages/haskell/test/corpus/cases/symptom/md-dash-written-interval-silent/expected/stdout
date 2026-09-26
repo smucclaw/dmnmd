@@ -1,0 +1,6 @@
+export function Treatment ( day : string ) {
+  if (day === "[24 Sep 2026 -- 24 Oct 2026]") { // 1
+    return {"apply":"protopic"};
+  }
+}
+
