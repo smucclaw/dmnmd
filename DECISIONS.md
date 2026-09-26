@@ -1211,8 +1211,10 @@ landed with **no number at all** rather than repeat a miscite the repository has
 correct in two places (one occasion, two files — D-13 fixed `DECISIONS.md` and
 `DMN-CORE-HACKAGE-FINDINGS.md` in a single commit; "twice" would imply two separate lapses). §8.3.2 is read directly out of `~/Documents/omg-specs/DMN-1.3.pdf`, fetched from
 `https://www.omg.org/spec/DMN/<version>/PDF` — a pattern that is not linked from any OMG About page,
-whose "Normative Documents" table renders empty. 1.3, 1.4 and 1.5 resolve; **1.6 and 1.7/Beta1 return
-404**. The l4-ide side inherited the wrong number and is worth telling.
+whose "Normative Documents" table renders empty. On 2026-09-01, 1.3, 1.4 and 1.5 resolved and
+**1.6 and 1.7/Beta1 returned 404**. That went stale within the month: DMN 1.6 went formal in
+September 2026 (OMG formal/25-12-02), and re-checked on 2026-09-26 only 1.7 and 1.7/Beta1 still
+return 404. §8.3.2's wording is unchanged in 1.5 and 1.6. The l4-ide side inherited the wrong number and is worth telling.
 
 **What is measured, and is the whole argument:**
 
@@ -1419,9 +1421,20 @@ exactly the kind whose scope is easy to overstate.
 `DmnXmlSpec` examples were added and observed red before implementation. One of them asserted the
 message contained `"DMN 1.3"` — and reported **"predicate succeeded"** while red, because the
 *generic* message names the release too. An assertion that passes against the behaviour you are
-trying to remove is worse than no assertion. It now asserts `"added in DMN 1.3"`, which only the
+trying to remove is worse than no assertion. It then asserted `"added in DMN 1.3"`, which only the
 construct sentence can satisfy, and the block asserts the **absence** of both `"could not read
 this"` and `"xpCheckEmptyContents"`.
+
+**Correction, 2026-09-26: "added in DMN 1.3" was false, and the test pinned it.** All five
+elements are declared in `xsd/dmn11.xsd` (DMN 1.1, namespace `20151101`) and in `xsd/DMN12.xsd`.
+None of them is new in 1.3, and dmnmd vendors no schema old enough to say which release introduced
+them. An adversarial review of this PR's bench card found it; the PR itself had no review. The
+release field of `unmodelledConstructs` is now a `Maybe String`, these five carry `Nothing`, and
+the refusal names no release for them. The construct sentence is now asserted in full
+("…(a list of name/value entries). dmnmd does not model it.") together with the absence of
+`"added in"`. A new `DmnXmlSpec` block checks **every** release a refusal names against the vendored
+schema of the release before it, so a claim of this kind is now machine-checked rather than
+trusted. `policy/xml-boxed-context-refused` was re-recorded for exactly that one clause.
 
 **One message correction rides along.** The closing advice ended "...and an `<itemDefinition>` may
 carry `<allowedValues>` but not `<typeConstraint>`" on *every* refusal. `<typeConstraint>` is a DMN

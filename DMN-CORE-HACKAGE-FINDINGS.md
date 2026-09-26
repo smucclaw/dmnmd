@@ -177,10 +177,15 @@ not contest:
 |---|---|---|
 | md → IR | **yes** | no (but #173 is merged doctrine, so a second parser is now sanctioned) |
 | DMN XML → IR | **yes**, XSD-shaped, strict | **no. Nothing in l4-ide reads DMN.** |
-| IR → DMN XML | no (issue #13) | **yes**, engine-checked against KIE 8.44 and Camunda 8.7.6 |
+| IR → DMN XML | no (issue #13) — *see the note below* | **yes**, engine-checked against KIE 8.44 and Camunda 8.7.6 |
 | IR → dmnmd markdown | no | **yes** |
 | IR → TS/JS/Py/L4 | **yes** | no |
 | L4 → IR | no | **yes** |
+
+> **Stale row, noted 2026-09-26.** This table describes 2026-07-30.
+> dmnmd gained IR → DMN XML on 2026-08-01 (`--to=xml`, D-8b, PR #45), so that capability is now in both repos and the sentence above it no longer holds for that row.
+> dmnmd's output is XSD-valid and reads back through dmnmd's own reader, but it has not been engine-checked, and until the single-output `name`/`typeRef` fix lands it breaks DMN 1.3 §8.3.2.
+
 
 **Every measured divergence between the two is a dmnmd-side bug in dmnmd's cell layer, and zero
 of them need a line of l4-ide code to fix.** That is the strongest argument against urgency: there
