@@ -783,6 +783,10 @@ Four decisions inside it, each made deliberately:
 - **Zero input columns decline rather than refuse.** Every guard would be the empty conjunction and
   every pair vacuously identical. Unreachable from markdown (`reviseInOut` guarantees an input
   column) but legal DMN, and the one false-refusal trap the surveys found.
+  **Correction, 2026-09-26:** the parenthesis is false.
+  `reviseInOut` (`ParseTable.hs`) relabels the rightmost column as an output when every column is an input, so it guarantees an *output* column, not an input one.
+  A markdown table whose every column is marked `(out)` parses with zero input columns and exits 0: on trunk `ea4df4a`, `--to=ts` emits `if ("default")` for each of its guards.
+  The decline itself is unaffected, and D-22 part 1 pins what the interpreter does with such a table.
 
 It is **sound** against the runtime, not merely agreeing with it by luck: `fEval` dispatches on
 constructor structure alone, so equal guards imply identical matching behaviour for every input.
@@ -1611,7 +1615,7 @@ Meng marked the card "accept" with no note.
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
 
-### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Not implemented.**
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Part 1 (the interpreter) landed; parts 2 and 3 not implemented.**
 
 This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
 It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
@@ -1658,3 +1662,21 @@ Ruled, not implemented.
 Implementation is ordinary work, test-first.
 It needs a region computation for conflict detection, which today's `uniquenessErrors` (D-13, identical guards only) does not have.
 The step 0 counter in the ROOTSTOCK memo computed regions over 145 tables, so the approach is measured, but its code is throwaway and is not the implementation.
+
+**Implementation, part 1: the interpreter (2026-09-26, branch `feat/d22-interpreter`).**
+Rule 1 and the interpreter half of rule 3 are implemented in `evalTable`; rule 2 and the L4 half of rule 3 are not.
+Under `U`, `uniqueCatchAll` splits a trailing catch-all off before matching and makes it the default output value, using the predicate `--to=l4` uses for `OTHERWISE`.
+A catch-all that is not the last row, or sits under another hit policy, is still a rule.
+A genuine overlap under `U` is still refused at run time, and so is disagreement under `A`.
+When a table carries both a trailing catch-all and a declared default, the catch-all wins, as it already did in `--to=l4` and js/ts/py.
+Under `U`, `A`, `P` and `F`, a no-match with no default now answers null, which `evalTable` returns as `Right []`; `head0` is deleted.
+A declared default still wins over null, and is now evaluated only when it is the answer.
+The `-q` REPL prints null as `T: null` whatever `-t` says.
+This discharges D-21 condition 2: the no-match fix now precedes `emitAsserts`.
+`symptom/eval-hp-first-no-match-crash` moved to `policy/` under its old slug.
+`policy/md-eval-unique-conflict` was re-fixtured with a genuine overlap (`<= 20` / `>= 10`), and its old table is now `policy/md-eval-unique-catchall-default`.
+The four readings of that table agree: `-q`, `--to=l4`, `--to=xml`, and that XML read back.
+No emitter output changed: an A/B against trunk `ea4df4a` over 191 fixtures and five formats gave 955 identical runs out of 955.
+`symptom/eval-collect-min-empty-crash` is a different defect (`Prelude.minimum`, not `head0`) and is untouched.
+§10.3.2.10 step 2 would also make its answer null, but this ruling covers only the single-hit policies.
+Still to do: rule 2's static refusal of conflict regions, which needs a region enumerator, and `NOTHING`/`MAYBE` in L4.
