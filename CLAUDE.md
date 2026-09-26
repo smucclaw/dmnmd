@@ -641,6 +641,23 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   by namespace with a message naming the version. Fixtures live in `test/dmn13/` and
   `test/dmn15/`; each README says which refusal each one exercises.
 
+  **`<decisionService>` is read and dropped; `<businessKnowledgeModel>` is refused. The
+  asymmetry is the rule, not an exception to it (D-18).** Every child of `tDecisionService` is
+  a `tDMNElementReference` — a bare `href` — so the element names decisions the document
+  already states in full and contributes no logic; dropping it loses the *wiring* and nothing
+  else, which is precisely the trade `drgEdgeDropped` already makes for
+  `<informationRequirement>` (D-6). A BKM carries `<encapsulatedLogic>`, so it **is** a
+  definition, and consuming one wholesale would silently discard logic the document's decisions
+  may invoke — the case the governing rule calls strictly worse than rejection. So
+  `unmodelledDrgElements` now holds only `businessKnowledgeModel`, `DrgElems` gained a
+  `DrgSvc` arm parsed like `KnowledgeSource` (consumed wholesale, label kept for the warning),
+  and `decisionServiceDiags` warns once per service. Measured on 355 documents exported from
+  `legalese/l4-ide`: readable documents went **253 → 280** with D-17 already in place (259 → 284
+  measured against trunk without D-17, which is a combination that never shipped — see D-18's own
+  table). Pinned by
+  `policy/xml-decision-service-dropped` and its companion
+  `policy/xml-unsupported-drgelement-rejected`.
+
   **The namespace is a parameter, not a constant.** `DmnRelease` (`ParseDMN.hs`) is a name
   plus *two independent* URIs — model and DMNDI — because DMN 1.4 pairs a 1.4 model
   namespace with the **1.3** DMNDI one, so a date-into-a-template scheme is wrong on its

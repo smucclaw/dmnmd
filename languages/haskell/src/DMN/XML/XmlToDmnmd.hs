@@ -54,7 +54,8 @@ convertAll :: [XDMN] -> ([Diagnostic], [T.DecisionTable])
 convertAll = mconcat . map convertIt
 
 convertIt :: X.XDMN -> ([Diagnostic], [T.DecisionTable])
-convertIt d = (itemDefDiags (X.defItemDefs d), []) <> mconcat (map (convdec env) (allDecisions d))
+convertIt d = (itemDefDiags (X.defItemDefs d) ++ decisionServiceDiags d, [])
+           <> mconcat (map (convdec env) (allDecisions d))
   where env = typeEnvOf d
 
 -- * DMN's data model (@\<itemDefinition\>@)
@@ -143,6 +144,40 @@ isCollectionOf = maybe False ((== "true") . map toLower . trim) . X.itdIsCollect
 -- rest in 'X.defDrgElems', and those used to be dropped on the floor.
 allDecisions :: X.XDMN -> [X.Decision]
 allDecisions d = X.defsDescisions d ++ [dec | X.DrgDec dec <- X.defDrgElems d]
+
+-- | One 'Warning' per @\<decisionService\>@, because dmnmd reads the element and
+-- then models nothing of it.
+--
+-- This is the governing rule applied, not an exception to it. A decision service
+-- is DRG /packaging/: every child of @tDecisionService@ is a
+-- @tDMNElementReference@, so it names decisions that are already written
+-- elsewhere in the document and contributes no logic. Dropping it therefore
+-- loses the wiring and nothing else — the same trade 'drgEdgeDropped' makes for
+-- @\<informationRequirement\>@ (D-6), and warned about the same way. What is
+-- NOT acceptable is dropping it in silence, and what used to happen was worse
+-- than either: the whole document was refused, so a file dmnmd could read
+-- perfectly well produced nothing at all.
+--
+-- __A warning, not an error.__ Every table emitted is exactly the decision logic
+-- the document states; what is missing is the packaging, and the caller can
+-- supply it. Exit status is unaffected.
+--
+-- @\<businessKnowledgeModel\>@ is deliberately still refused by name in
+-- 'X.unmodelledDrgElements': it carries @\<encapsulatedLogic\>@, so it IS a
+-- definition, and consuming one wholesale would silently discard logic the
+-- document's decisions may invoke.
+decisionServiceDiags :: X.XDMN -> [Diagnostic]
+decisionServiceDiags d =
+  [ warnAt $ "<decisionService> " ++ show (X.dmnnName lbl)
+      ++ maybe "" (\i -> " (" ++ i ++ ")") (X.dmnnId lbl)
+      ++ " is not modelled and is dropped. It packages decisions that this"
+      ++ " document already states in full, so no decision logic is lost -- but"
+      ++ " the service boundary is: dmnmd emits one independent function per"
+      ++ " <decision>, and nothing records which of them were this service's"
+      ++ " outputs, its encapsulated internals, or its inputs."
+  | X.DrgSvc svc <- X.defDrgElems d
+  , let lbl = X.dsvLabel svc
+  ]
 
 convdec :: TypeEnv -> X.Decision -> ([Diagnostic], [T.DecisionTable])
 convdec env dec = (drgDiags, []) <> case X.decDTable dec of

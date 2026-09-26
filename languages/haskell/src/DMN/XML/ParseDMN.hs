@@ -1045,6 +1045,38 @@ instance DmnPU KnowledgeSource where
       . xpFilterCont none
       $ (dmnPU r)
 
+-- | @tDecisionService@: DRG /packaging/, not decision logic. Consumed wholesale,
+-- exactly as 'KnowledgeSource' is, but for a different reason worth writing down.
+--
+-- Every child of @tDecisionService@ is a @tDMNElementReference@ — @<outputDecision>@,
+-- @<encapsulatedDecision>@, @<inputDecision>@, @<inputData>@, all of them a bare
+-- @href@ — so the element names decisions that are already written elsewhere in
+-- the document and adds no logic of its own. Dropping it loses the WIRING and
+-- nothing else, which is the same trade 'DMN.XML.XmlToDmnmd.drgEdgeDropped'
+-- already makes for @<informationRequirement>@ (D-6) and warns about in the same
+-- way. Before this it was in 'unmodelledDrgElements' and cost the whole document.
+--
+-- __@<businessKnowledgeModel>@ stays a refusal, and the asymmetry is the point.__
+-- A BKM carries @<encapsulatedLogic>@ — it IS a definition — so consuming one
+-- wholesale would silently discard logic the document's decisions may invoke,
+-- which is the case the governing rule calls strictly worse than rejection.
+--
+-- The label is kept because the warning names it; the references are dropped
+-- because nothing downstream models the graph.
+data DecisionService = DecisionService
+  { dsvLabel :: DmnNamed
+  }
+  deriving (Show, Eq)
+
+makePrisms ''DecisionService
+
+instance DmnPU DecisionService where
+  dmnPU r =
+    xpDMNElem r "decisionService" _DecisionService
+      . xpIgnoredAttrs ["label"]
+      . xpFilterCont none
+      $ (dmnPU r)
+
 data Namespace = Namespace { namespace :: String }
   deriving (Show, Eq)
 
@@ -1053,13 +1085,18 @@ makePrisms ''Namespace
 instance DmnPU Namespace where
   dmnPU r = wrapIso _Namespace $ xpAttr "namespace" xpText
 
-data DrgElems = DrgDec Decision | DrgInpData InputData | DrgKS KnowledgeSource
+data DrgElems
+  = DrgDec Decision
+  | DrgInpData InputData
+  | DrgKS KnowledgeSource
+  | DrgSvc DecisionService
   deriving (Show, Eq)
 
 drgNr :: DrgElems -> Int
 drgNr (DrgDec _) = 0
 drgNr (DrgInpData _) = 1
 drgNr (DrgKS _) = 2
+drgNr (DrgSvc _) = 3
 
 instance DmnPU DrgElems where
   dmnPU r =
@@ -1068,6 +1105,7 @@ instance DmnPU DrgElems where
       [ xpWrap (DrgDec, \(DrgDec x) -> x) (dmnPU r)
       , xpWrap (DrgInpData, \(DrgInpData x) -> x) (dmnPU r)
       , xpWrap (DrgKS, \(DrgKS x) -> x) (dmnPU r)
+      , xpWrap (DrgSvc, \(DrgSvc x) -> x) (dmnPU r)
       ]
 
 
@@ -1382,9 +1420,13 @@ refuseUnmodelled filename release root
 -- The document has already been confirmed to be a readable @<definitions>@ by
 -- 'checkDmnRoot', so blaming the version — as this message used to, for every
 -- unpickling failure whatsoever — was simply false. The commonest real cause is
--- a DRG element that DMN permits and dmnmd does not model
--- (@<businessKnowledgeModel>@, @<decisionService>@ …); name those when they are
--- present, and otherwise admit that we only have the unpickler's complaint.
+-- a DRG element that DMN permits and dmnmd does not model; name those when they
+-- are present, and otherwise admit that we only have the unpickler's complaint.
+--
+-- That list used to include @<decisionService>@ as well as
+-- @<businessKnowledgeModel>@. It no longer does — a decision service is read and
+-- dropped with a warning ('DecisionService') — so the closing sentence says
+-- "modelled" rather than "read", which are now different things.
 --
 -- The release is named from the document rather than hardcoded, so a DMN 1.5
 -- file is not told it is a DMN 1.3 one.
@@ -1394,7 +1436,8 @@ readerRefusal release root
       "this is valid " ++ relName release ++ ", but it contains "
         ++ intercalate ", " (map (\n -> "<" ++ n ++ ">") unmodelled)
         ++ ", which dmnmd does not model. Only <decision>, <inputData> and"
-        ++ " <knowledgeSource> are read."
+        ++ " <knowledgeSource> are modelled; a <decisionService> is read and"
+        ++ " dropped with a warning."
   | otherwise = "dmnmd could not read this " ++ relName release ++ " document."
   where
     childNames = runLA (getChildren >>> isElem >>> getQName >>> arr localPart) root
@@ -1403,9 +1446,12 @@ readerRefusal release root
 -- | Children of @<definitions>@ that the DMN XSD allows but this reader has
 -- no representation for. Listing them is what lets 'readerRefusal' tell the
 -- truth instead of guessing at the version.
+-- @<decisionService>@ is NOT here any more: it is read and dropped with a
+-- warning ('DecisionService'), because it is packaging rather than logic.
+-- @<businessKnowledgeModel>@ carries @<encapsulatedLogic>@ and stays.
 unmodelledDrgElements :: [String]
 unmodelledDrgElements =
-  [ "businessKnowledgeModel", "decisionService" ]
+  [ "businessKnowledgeModel" ]
 
 -- | Identify the release, or refuse the document up front naming what we found.
 -- Without this, a DMN 1.1 or 1.2 file (correctly refused) failed with
