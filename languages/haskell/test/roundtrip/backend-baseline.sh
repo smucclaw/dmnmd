@@ -14,8 +14,9 @@
 # Formats. `ts js py l4` and no more. There is NO json backend in dmnmd:
 # `showToJSON` in app/Main.hs is despite its name the interactive `-q` REPL's
 # result printer, not an output format, and it has no FileFormat constructor.
-# `md` and `xml` are FileFormat constructors with no implementation, so they are
-# excluded here and are the subject of the work itself.
+# `md` is a FileFormat constructor with no implementation. `xml` was one when this
+# was written; it has been implemented since D-8 but is not added here, and
+# run-roundtrip.sh is its gate.
 #
 # Usage:
 #   ./backend-baseline.sh --record [DIR]   write the baseline (default DIR below)
@@ -57,13 +58,16 @@ echo "backend-baseline: using $DMNMD"
 
 FORMATS="ts js py l4"
 
+# Dot-directories are pruned. `cabal test` writes scratch .dmn files into the
+# git-ignored test/golden/.out/ (45 of them at ea4df4a), and collecting them made
+# --check report 360 MISSING FROM MANIFEST lines after any test run in the tree.
 collect_fixtures() {
   echo "$REPO_ROOT/README.md"
-  find "$PKG_ROOT/test" -name '*.md' ! -name 'README.md' -print | sort
+  find "$PKG_ROOT/test" -type d -name '.?*' -prune -o -name '*.md' ! -name 'README.md' -print | sort
   find "$PKG_ROOT/test/corpus/cases" -name 'input.md' -print | sort
   echo "$PKG_ROOT/test/golden/README.md"
   # the XML reader's own fixtures, exercised through every writer
-  find "$PKG_ROOT/test" -name '*.dmn' -print | sort
+  find "$PKG_ROOT/test" -type d -name '.?*' -prune -o -name '*.dmn' -print | sort
 }
 
 slug_for() {
