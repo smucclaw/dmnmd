@@ -319,34 +319,17 @@ definitionsOf opts dts = X.Definitions
 -- | One table as a @\<decision\>@ wrapping a @\<decisionTable\>@.
 --
 -- __The @\<variable\>@ is where a single-output table's result type belongs__,
--- so it is emitted rather than left out: a consumer that follows the
--- specification looks there and not at @\<output\>\/\@typeRef@, and until this
--- was written dmnmd stated the type in only the place such a consumer ignores.
--- Its @name@ repeats the decision\'s, which is the DMN convention and what KIE
--- checks for. With two or more outputs the variable names a composite whose
--- type would be a synthesised @\<itemDefinition\>@ dmnmd does not build, so it
--- is emitted with a name and no @typeRef@ rather than with a type that is only
--- one column\'s.
+-- and since DMN 1.3 §8.3.2, Table 34 forbids a @typeRef@ on that table's
+-- @\<output\>@ clause ("SHALL NOT specify a typeRef"), it is the ONLY place the
+-- document states the column's type — see 'outputClauseOf'. Its @name@ repeats
+-- the decision\'s, which is the DMN convention and what KIE checks for. With two
+-- or more outputs the variable names a composite whose type would be a
+-- synthesised @\<itemDefinition\>@ dmnmd does not build, so it is emitted with a
+-- name and no @typeRef@; each of those clauses keeps its own @typeRef@, which
+-- §8.3.2 permits there.
 --
--- @\<output\>\/\@typeRef@ is still written as well. Dropping it is a separate
--- question, and a real conformance defect rather than a style point: DMN 1.3
--- §8.3.2, Table 34 says a single-output clause SHALL NOT specify a @typeRef@ OR a
--- @name@, and KIE enforces it with @ILLEGAL_USE_OF_TYPEREF@ \/
--- @ILLEGAL_USE_OF_NAME@. It is nevertheless what every version of this backend
--- has emitted, and the reader must honour the @\<variable\>@ before the writer
--- can stop repeating itself — which is what this change lands. Removing the two
--- attributes is the deliberate follow-up, not a side effect of adding this.
---
--- __The typeRef is omitted when the hit policy makes the result a LIST.__ The
--- variable states the type of the decision's RESULT, so under @C@ (with no
--- aggregation), @RULE ORDER@ or @OUTPUT ORDER@ the scalar column type is simply
--- the wrong answer — it tells a conformant consumer the decision returns a
--- number when the engine will hand it a list of numbers. The four aggregations
--- are NOT list-valued and keep the scalar: @C+@, @C\<@ and @C\>@ reduce to one
--- value of the column's type, and @C#@ counts. dmnmd could name a
--- @dmnmd_list_of_*@ type here instead, but 'collectionItemDefs' declares one
--- only for a type some COLUMN actually uses, so pointing at it would be a
--- dangling reference in exactly the documents this affects.
+-- What the typeRef says is 'resultTypeOf': the column's type when the hit
+-- policy yields one value, and a LIST of it when the policy is list-valued.
 --
 -- The @\<informationRequirement\>@ edges are not invented: an input column IS
 -- the statement that this decision reads that input, which is exactly what the
@@ -359,10 +342,7 @@ decisionOf inputDataId t dt = X.Decision
   { X.decLabel = X.dmnNamed' (idOf "decision" [show t]) (tableName dt)
   , X.decVariable = Just X.InformationItem
       { X.iiLabel = X.dmnNamed' (idOf "variable" [show t]) (tableName dt)
-      , X.iiTypeRef = case outHeaders dt of
-          [ch] | not (listValuedResult (hitpolicy dt))
-                 -> X.TypeRef <$> typeRefOf (vartype ch)
-          _      -> Nothing
+      , X.iiTypeRef = X.TypeRef <$> typeRefOf (resultTypeOf dt)
       }
   , X.decInfoReq =
       [ X.InformationRequirement
@@ -375,23 +355,50 @@ decisionOf inputDataId t dt = X.Decision
   , X.decDTable = Just (X.ExprDTable (decisionTableOf t dt))
   }
 
--- | Does this hit policy make the decision's result a LIST rather than one value?
+-- | The type of a single-output decision's RESULT, which is what its
+-- @\<variable typeRef\>@ states (DMN 1.3 §6.3.7: the variable "stores the
+-- result of this Decision"). 'Nothing' for a multi-output table (a composite
+-- dmnmd does not declare) and for an untyped column. Decided by
+-- 'resultShape', the same classifier the reader uses to read it back.
 --
--- Only bare @COLLECT@, @RULE ORDER@ and @OUTPUT ORDER@. The four Collect
--- aggregations reduce to a single value — @SUM@, @MIN@ and @MAX@ to one of the
--- column's own type, @COUNT@ to a number — so they are single-valued here.
-listValuedResult :: HitPolicy -> Bool
-listValuedResult (HP_Collect Collect_All) = True
-listValuedResult HP_RuleOrder             = True
-listValuedResult HP_OutputOrder           = True
-listValuedResult _                        = False
+-- * 'ResultIsColumn' (@U A P F@, @C+ C\< C\>@): the column's own type.
+--
+-- * 'ResultIsListOfColumn' (bare @C@, @RULE ORDER@, @OUTPUT ORDER@): a LIST of
+--   the column's type. Writing the scalar there tells a conformant consumer the
+--   decision returns a number when the engine will hand it a list of numbers.
+--   D-17 avoided that by writing no typeRef at all, which was harmless while
+--   @\<output\>@ repeated the column's type and is a lost type now that §8.3.2
+--   has taken it off the clause. So the variable names @dmnmd_list_of_\<T\>@,
+--   which 'collectionItemDefs' declares because it walks this function's answer
+--   as well as the columns, and the reader recovers @T@ as the element type.
+--
+-- * 'ResultIsCount' (@C#@): @number@, whatever the column holds. §8.2.10: "#
+--   (count): the result of the decision table is the number of outputs". The
+--   counted column's own type is then written nowhere — the clause may not
+--   carry it and the variable is the count's — so the reader infers it from
+--   the cells. That loses a declared type only when the cells cannot supply
+--   one (an all-wildcard column), and a count never depends on it.
+resultTypeOf :: DecisionTable -> Maybe DMNType
+resultTypeOf dt = case outHeaders dt of
+  [ch] -> case resultShape (hitpolicy dt) of
+    ResultIsColumn       -> vartype ch
+    ResultIsListOfColumn -> DMN_List <$> vartype ch
+    ResultIsCount        -> Just DMN_Number
+  _ -> Nothing
 
 decisionTableOf :: Int -> DecisionTable -> X.DecisionTable
 decisionTableOf t dt = X.DecisionTable
   { X.dtLabel = X.DmnCommon (Just (idOf "decisionTable" [show t])) Nothing
   , X.dtHitPolicy = hitpolicy dt
+  , X.dtOutputLabel = case outHeaders dt of
+      [ch] -> Just (varname ch)
+      _    -> Nothing
+    -- ^ The one output column's name, which §8.3.2 bars from the clause itself.
+    -- Table 32 describes @outputLabel@ as "a description of the decision table
+    -- output", so with several outputs there is no one column for it to
+    -- describe, and it is left off rather than made to name one of them.
   , X.dtInput = zipWith (inputClauseOf t) [1 ..] (inHeaders dt)
-  , X.dtOutput = zipWith3 (outputClauseOf t) [1 ..] (outHeaders dt) defaultCells
+  , X.dtOutput = zipWith3 (outputClauseOf single t) [1 ..] (outHeaders dt) defaultCells
   -- The default output value, sliced per output column. A wildcard slice is a
   -- column with no declared default and writes no element; that is why an
   -- all-wildcard default is not promotable (see 'promoteTrailingCatchAll').
@@ -400,6 +407,7 @@ decisionTableOf t dt = X.DecisionTable
   , X.dtRules = zipWith (ruleOf t dt) [1 ..] (allrows dt)
   }
   where
+    single = length (outHeaders dt) == 1
     defaultCells = case dtDefaultOutput dt of
       Nothing -> repeat Nothing
       Just ds -> [ if all (== FAnything) d then Nothing else Just d | d <- ds ]
@@ -432,14 +440,34 @@ inputClauseOf t c ch = X.TableInput
   , X.tinpValues = X.InputValues <$> unaryTestsOf ch
   }
 
--- | @\<output\>@. @\@name@ and @\@label@ both carry the column name: the reader
--- prefers @label@, other DMN tools prefer @name@, and a document where they
--- disagree is a document that renames a column depending on who reads it.
-outputClauseOf :: Int -> Int -> ColHeader -> Maybe [FEELexp] -> X.TableOutput
-outputClauseOf t c ch dflt = X.TableOutput
-  { X.toutName = X.DmnCommon (Just (idOf "output" [show t, show c])) (Just (varname ch))
+-- | @\<output\>@.
+--
+-- __The clause of a SINGLE-output table carries neither @name@ nor @typeRef@.__
+-- DMN 1.3 §8.3.2, Table 34: "The OutputClause of a single output decision table
+-- SHALL NOT specify a typeRef" and "SHALL NOT specify a name"; the section's
+-- prose repeats the second ("the OutputClause SHALL NOT have a name"). The XSD
+-- cannot say so — @tOutputClause@ declares both attributes unconditionally — so
+-- a document that has them validates, and KIE reports @ILLEGAL_USE_OF_NAME@ and
+-- @ILLEGAL_USE_OF_TYPEREF@ on it. Every version of this backend before this one
+-- emitted both. The type is on the decision's @\<variable\>@ ('decisionOf',
+-- 'resultTypeOf') and the name on @decisionTable\/\@outputLabel@
+-- ('decisionTableOf'), which is where l4-ide's exporter and the OMG's own
+-- Chapter 11 examples put them, and where 'DMN.XML.XmlToDmnmd' reads them back.
+--
+-- @\@label@ is kept: it is a @tDMNElement@ attribute, which §8.3.2 does not
+-- restrict, and the reader looks there first — so a single-output column keeps
+-- its name even for a reader that has never heard of @outputLabel@.
+--
+-- A clause of a MULTI-output table is unchanged: it SHALL have a name (§8.3.2)
+-- and MAY have a typeRef, and it keeps both, with @\@label@ repeating the name.
+-- A document where @name@ and @label@ disagree renames a column depending on
+-- who reads it.
+outputClauseOf :: Bool -> Int -> Int -> ColHeader -> Maybe [FEELexp] -> X.TableOutput
+outputClauseOf single t c ch dflt = X.TableOutput
+  { X.toutName = X.DmnCommon (Just (idOf "output" [show t, show c]))
+                   (if single then Nothing else Just (varname ch))
   , X.toutLabel = Just (X.ColumnLabel (varname ch))
-  , X.toutTypeRef = X.TypeRef <$> typeRefOf (vartype ch)
+  , X.toutTypeRef = if single then Nothing else X.TypeRef <$> typeRefOf (vartype ch)
   , X.toutValues = X.OutputValues <$> unaryTestsOf ch
   , X.toutDefault = mkDefault <$> dflt
     -- ^ 'dtDefaultOutput', D-16 phase 2: filled by the XML reader's
@@ -525,9 +553,10 @@ ruleOf t dt r row = X.Rule
 -- all__. @isCollection@ is an @\<itemDefinition\>@ attribute; there is no such
 -- attribute on @tInputClause@, @tOutputClause@ or @tLiteralExpression@. So a
 -- @tags : [Number]@ column forces the emitter to declare a named type. That is
--- the one element in the document with no markdown counterpart, and it is
--- invention only in its NAME — the isCollection flag and the base type are both
--- read straight off the column.
+-- the one kind of element in the document with no markdown counterpart, and it
+-- is invention only in its NAME: the isCollection flag and the base type are
+-- read straight off the column — or, for the result of a list-valued
+-- single-output table ('resultTypeOf'), off the hit policy and the column.
 --
 -- An untyped column (all wildcards; 'DMN.DecisionTable.columnVerdict' says
 -- @VNone@) gets no @typeRef@ at all, which is what the XSD's @use=\"optional\"@
@@ -549,11 +578,21 @@ collectionTypeName :: DMNType -> String
 collectionTypeName t = "dmnmd_list_of_" ++ map toLower (typeRefName t)
 
 -- | The @\<itemDefinition\>@s the document needs, one per distinct collection
--- element type actually used.
+-- element type actually named — by a COLUMN, or by a decision's RESULT.
 --
--- A nested @[[T]]@ cannot reach here: 'DMN.DecisionTable.structuralErrors' R1
--- refuses it for both readers, so the recursive case is named rather than
--- silently flattened.
+-- The result half is 'resultTypeOf' under a list-valued hit policy: a list of
+-- the output column's type, named on the decision's @\<variable\>@. Walking the
+-- same function 'decisionOf' writes from is what keeps that reference from
+-- dangling. When that column is itself a collection the result is a list of
+-- lists, and 'listLevels' declares both levels, because the outer type's
+-- @\<typeRef\>@ names the inner one.
+--
+-- A nested @[[T]]@ COLUMN still cannot reach here: 'DMN.DecisionTable.structuralErrors'
+-- R1 refuses it for both readers. Only a result type nests.
+--
+-- Columns are walked before results, table by table, so a document with no
+-- list-valued single-output table declares exactly what it did before results
+-- were walked at all.
 collectionItemDefs :: [DecisionTable] -> [X.ItemDefinition]
 collectionItemDefs dts =
   [ X.ItemDefinition
@@ -567,7 +606,10 @@ collectionItemDefs dts =
   | t <- nub (concatMap elemTypesOf dts)
   ]
   where
-    elemTypesOf dt = [ t | ch <- header dt, Just (DMN_List t) <- [vartype ch] ]
+    elemTypesOf dt =
+      concatMap listLevels ([ vartype ch | ch <- header dt ] ++ [ resultTypeOf dt ])
+    listLevels (Just (DMN_List t)) = t : listLevels (Just t)
+    listLevels _                   = []
 
 -- * The cell language
 

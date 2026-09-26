@@ -14,7 +14,7 @@
     <informationRequirement id="informationRequirement_1_2">
       <requiredInput href="#inputData_2"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_1">
+    <decisionTable id="decisionTable_1" outputLabel="Dish">
       <input id="input_1_1" label="Season">
         <inputExpression id="inputExpression_1_1" typeRef="string">
           <text>Season</text>
@@ -25,7 +25,7 @@
           <text>Guests</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="Dish" label="Dish" typeRef="string">
+      <output id="output_1_1" label="Dish">
         <defaultOutputEntry id="defaultOutputEntry_1_1">
           <text>"Takeaway"</text>
         </defaultOutputEntry>

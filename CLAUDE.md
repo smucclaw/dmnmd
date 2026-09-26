@@ -251,10 +251,24 @@ Things that are only apparent across several files:
   A collection's element type is wrapped with `DMN_List <$> ty`, so a `Nothing` that carries no
   diagnostic silently *deletes* the `isCollection` declaration — and `Any` was the first
   diagnostic-free `Nothing` in `convertType`. A collection of `Any` is therefore **refused**, not
-  inferred. And the fallback does not apply under a list-valued hit policy (bare `C`, `R`, `O`),
-  where the variable types the result *list* rather than the column; the four Collect aggregations
-  are single-valued and unaffected. `policy/xml-collection-of-any`,
-  `policy/xml-collect-variable-is-list`.
+  inferred.
+  And under a list-valued hit policy (bare `C`, `R`, `O`) the variable types the result *list* rather than the column, so the column takes that collection's **element** type, and a variable that is not a collection is not applied at all.
+  The aggregations `C+`, `C<` and `C>` reduce to one value of the column's type and read the variable as the column's type.
+  `C#` does not: DMN 1.3 §8.2.10 says "# (count): the result of the decision table is the number of outputs", so the variable types the count, is never applied to the column, and the column is inferred.
+  `policy/xml-collection-of-any`, `policy/xml-collect-variable-is-list`, `policy/xml-count-variable-number-column-inferred`.
+
+  **What the variable says about the column is ONE classifier, `DMN.Types.resultShape`, and both XML directions ask it:** `ResultIsColumn` (`U A P F`, `C+ C< C>`), `ResultIsListOfColumn` (`C R O`), `ResultIsCount` (`C#`).
+  Two disagreements came before it.
+  The reader's own predicate once matched every `HP_Collect`, so it ignored the variable under all four aggregations while the writer, `DECISIONS.md` D-17 and the corpus WHY all said the aggregations kept the fallback; that cost nothing while the writer repeated the type on the clause.
+  And the first cut of the §8.3.2 follow-up below classified `C#` with the column-typed policies, so the reader applied a `C#` table's `number` variable to its string column and refused a valid document at exit 1.
+
+  **The NAME half: a single-output column is named from `decisionTable/@outputLabel`** when its own clause names it neither by `@label` nor by `@name`, because §8.3.2 bars `name` from that clause too ("SHALL NOT specify a name").
+  Table 32 (§8.3.1) calls `outputLabel` "a description of the decision table output", and it is where the l4-ide exporter and the OMG's own Chapter 11 examples put the name.
+  The order is `@label`, `@name`, `@outputLabel`, `output<i>`: the clause's attributes are statements about that column, `outputLabel` is the table's, and the more specific statement wins, as a clause `typeRef` beats the variable's.
+  In a conformant document the clause has no `name`, so the order only decides documents that break §8.3.2.
+  Multi-output tables never use `outputLabel` for a column: it describes the output as a whole.
+  `ParseDMN.DecisionTable` models it as `dtOutputLabel` (it was an `xpIgnoredAttrs` entry).
+  `policy/xml-output-label-names-single-output`, from `test/dmn13/output-label.dmn`.
 
   **`typeRef="Any"` is a declaration that declares nothing, and infers.** It is FEEL's top
   type, so it says exactly what an absent `typeRef` says. It is deliberately not routed to the
@@ -332,19 +346,28 @@ validator catches that.
   both `<annotationEntry/>` and `<annotationEntry><text/></annotationEntry>` to `Just ""`, so
   routing a comment column through annotations turns every comment-LESS row into an EMPTY comment.
 - **A collection column forces a synthesized `<itemDefinition>`.** DMN has no column-level
-  `isCollection`; it is an `<itemDefinition>` attribute. This is the only element in the document
-  with no markdown counterpart, and the invention is confined to its name.
-- **Each `<decision>` gets a `<variable>`, typed from the single output column.** DMN §8.3.2 puts
-  a single-output table's result type there, so a specification-following consumer looks at the
-  variable and not at `<output>/@typeRef` — and until `decisionOf` emitted one, dmnmd stated the
-  type in only the place such a consumer ignores. Its `name` repeats the decision's, which is the
-  DMN convention. With two or more outputs it is emitted with a name and **no** `typeRef`, because
-  the variable then names a composite whose type would be a synthesized `<itemDefinition>` dmnmd
-  does not build. A collection output names the `dmnmd_list_of_*` type, which `collectionItemDefs`
-  already declares (it walks `header`, inputs *and* outputs), so the reference never dangles.
-  `<output>/@typeRef` is still written as well: dropping it is what §8.3.2 and KIE actually ask
-  for, but it is what every version of this backend has emitted, so that is a deliberate change
-  and not a side effect of this one.
+  `isCollection`; it is an `<itemDefinition>` attribute.
+  So does the result of a list-valued single-output table (see the `<variable>` bullet below).
+  These are the only elements in the document with no markdown counterpart, and the invention is confined to their names.
+- **The `<output>` clause of a single-output table carries neither `name` nor `typeRef`.**
+  DMN 1.3 §8.3.2, Table 34: it "SHALL NOT specify a typeRef" and "SHALL NOT specify a name".
+  The XSD declares both attributes unconditionally, so the old output validated, and KIE reports `ILLEGAL_USE_OF_NAME` and `ILLEGAL_USE_OF_TYPEREF` on it; every version of this backend before the D-17 follow-up wrote both.
+  The clause keeps `id` and `label` (a `tDMNElement` attribute §8.3.2 does not restrict, and the first place the reader looks), the name also goes on `decisionTable/@outputLabel`, and the type goes only on the decision's `<variable>`.
+  A multi-output table's clauses are unchanged: each SHALL have a name and MAY have a `typeRef`, and keeps both, and no `outputLabel` is written.
+- **Each `<decision>` gets a `<variable>`, typed with `resultTypeOf`.** DMN §8.3.2 puts
+  a single-output table's result type there, and since the clause may not carry it, it is now the **only** statement of the column's type in the document.
+  Its `name` repeats the decision's, which is the DMN convention.
+  With two or more outputs it is emitted with a name and **no** `typeRef`, because the variable then names a composite whose type would be a synthesized `<itemDefinition>` dmnmd does not build.
+  What it says is decided by `DMN.Types.resultShape`, the classifier the reader uses to read it back.
+  Under a list-valued hit policy (bare `C`, `R`, `O`) the result is a list, so the variable names `dmnmd_list_of_<T>` and the reader recovers `T` as its element type.
+  D-17 had written no `typeRef` there, which was harmless only while the clause repeated the type.
+  `collectionItemDefs` walks `resultTypeOf` as well as `header`, so that reference never dangles, and a collection column under `C` gets a list of lists with both levels declared.
+  **Under `C#` the variable says `number`, whatever the column holds.** DMN 1.3 §8.2.10: "# (count): the result of the decision table is the number of outputs", and §6.3.7 makes the variable "the instance of InformationItem that stores the result of this Decision".
+  The counted column's own type is then written nowhere, and the reader infers it from the cells.
+  That changes nothing a count depends on, but dmnmd's `--to=ts` does not count — it returns each matching rule's cell — so what inference gets wrong shows there.
+  Measured: a `C#` table with a declared `String` column whose cells are `5` and `6` is written as the FEEL strings `"5"` and `"6"` and read back as the numbers `5.0` and `6.0`, because the XML reader's inference pre-pass strips the quotes it is documented to keep; that is a pre-existing reader defect, recorded as `symptom/xml-untyped-quoted-numeral-inferred-number`, which this rule makes reachable from dmnmd's own output.
+  An all-wildcard declared column comes back untyped, and a column of ordinary strings comes back `String`.
+  Pinned by `policy/xml-list-valued-variable-names-list-type`, `policy/xml-count-variable-number-column-inferred`, the §8.3.2 block and the per-hit-policy round trips in `TranslateXMLSpec`, and the per-hit-policy reader block in `DmnXmlSpec`.
 - **Refused, because DMN has no document for them:** a table with no output column
   (`tDecisionTable` is `output+`), a row with fewer cells than columns (padding with `-` would
   WIDEN the rule silently), a comparison in an output cell, and `HP_Aggregate`.
@@ -380,17 +403,25 @@ cabal build                                # neither script builds
 ./test/roundtrip/backend-baseline.sh --check   # did any OTHER backend move?
 ```
 
-131 of 183 fixtures pass byte-identically (42 skipped as recorded refusals, 10 XFAILs each with a
+132 of 184 fixtures pass byte-identically (42 skipped as recorded refusals, 10 XFAILs each with a
 reason in the script), plus the same comparison through `--to=l4`; every emitted document validates
 against `xsd/DMN13.xsd` with `xmllint`. (This paragraph said "117 of 120, eight XFAILs" from an
-earlier count of the fixture set; the numbers above are the D-16-phase-2 run.)
+earlier count of the fixture set, and then "131 of 183" from the D-16-phase-2 run.
+The numbers above are the §8.3.2 follow-up's run, whose one new fixture is the markdown input of a corpus case it added.)
 
-**Two things about that harness are worth knowing before trusting a green run.** TS is a weak
+**Three things about that harness are worth knowing before trusting a green run.** TS is a weak
 surface on its own — measured, not assumed: `--to=ts` collapses eleven hit policies into two
 outputs, so L4 is compared as well; and even L4 collapses `C`, `C+`, `C<`, `C>` and `C#` onto one
 another, so **nothing here would notice a `COLLECT` emitted without its `aggregation` attribute**.
 And `--xsd` is not a proxy for correctness in either direction: `test/dmn13/bad-rule-arity.dmn`
 XSD-validates and dmnmd's reader refuses it.
+
+**The third: it cannot see a column TYPE the reader failed to read, whenever the cells let inference recover it.**
+Measured during the §8.3.2 follow-up: with only the writer half landed (the type off the `<output>` clause, and the reader still ignoring the `<variable>` under all four aggregations and reading no collection variable under `C`, `R` or `O`), this harness stayed at **131 pass, 0 FAIL** — its trunk result — while the column type was being lost under seven of the eleven hit policies.
+The writer quotes every string cell and a quoted cell is hard String evidence to inference, so on every eligible fixture the type came back anyway.
+The gate that does see it is in-process: `TranslateXMLSpec`'s "survives --to=xml | --from=xml" block round-trips one table per hit policy whose output column is **declared but all-wildcard**, so inference has nothing to go on — and it went red on exactly those seven.
+`C#` has since left that promise on purpose: its variable types the count, so its column is inferred, and the block says so in the name of its own `C#` example rather than dropping it.
+The same blind spot hides the quoted-numeral case above, which no fixture in the harness exercises.
 
 `backend-baseline.sh` is the other half: every fixture × every implemented format, byte for byte.
 Adding a `FileFormat` constructor is exactly the kind of edit that perturbs an unrelated format's

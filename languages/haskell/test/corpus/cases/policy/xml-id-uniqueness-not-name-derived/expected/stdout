@@ -14,7 +14,7 @@
     <informationRequirement id="informationRequirement_1_2">
       <requiredInput href="#inputData_2"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_1">
+    <decisionTable id="decisionTable_1" outputLabel="Level">
       <input id="input_1_1" label="a b">
         <inputExpression id="inputExpression_1_1" typeRef="string">
           <text>a b</text>
@@ -25,7 +25,7 @@
           <text>a_b</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="Level" label="Level" typeRef="string"/>
+      <output id="output_1_1" label="Level"/>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
           <text>"x"</text>

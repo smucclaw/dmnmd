@@ -17,10 +17,14 @@ module TranslateXMLSpec (xmlEmitSpec) where
 
 import Test.Hspec
 
-import Data.List (isInfixOf, isPrefixOf)
+import Control.Monad (forM_)
+import Data.List (isInfixOf, isPrefixOf, tails)
+import System.Directory (createDirectoryIfMissing)
 
 import DMN.Translate.XML (cellText, defaultXMLOpts, fidelityDiags, showFeelXML, toXMLDoc, toXMLFile)
 import DMN.Types
+import DMN.XML.ParseDMN (parseDMNEither)
+import DMN.XML.XmlToDmnmd (convertAll)
 
 xmlEmitSpec :: Spec
 xmlEmitSpec = describe "DMN.Translate.XML" $ do
@@ -139,27 +143,144 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
     -- column's scalar type there tells a conformant consumer the decision
     -- returns a number when the engine will hand it a list of numbers. Only
     -- Collect-with-no-aggregation, RULE ORDER and OUTPUT ORDER are list-valued:
-    -- C+ / C< / C> reduce to one value OF the column's type, and C# counts, so
-    -- all four aggregations keep a scalar typeRef. (Found by adversarial review
-    -- of D-17; the reviewer's claim covered all of COLLECT, which is too wide --
-    -- the aggregation attribute is what decides it.)
-    it "omits the decision <variable> typeRef exactly when the result is a list" $ do
-      let varTypeRef hp =
-            [ w | w <- words (toXMLDoc defaultXMLOpts [table hp])
-                , "typeRef=" `isPrefixOf` w ]
-          scalarKept hp = varTypeRef hp == varTypeRef HP_Unique
-      -- list-valued: the scalar claim must be gone
-      scalarKept (HP_Collect Collect_All) `shouldBe` False
-      scalarKept HP_RuleOrder `shouldBe` False
-      scalarKept HP_OutputOrder `shouldBe` False
-      -- single-valued: unchanged
-      scalarKept HP_First `shouldBe` True
-      scalarKept HP_Any `shouldBe` True
-      scalarKept HP_Priority `shouldBe` True
-      scalarKept (HP_Collect Collect_Sum) `shouldBe` True
-      scalarKept (HP_Collect Collect_Min) `shouldBe` True
-      scalarKept (HP_Collect Collect_Max) `shouldBe` True
-      scalarKept (HP_Collect Collect_Cnt) `shouldBe` True
+    -- the four aggregations each yield one value and keep a scalar typeRef.
+    -- (Found by adversarial review of D-17; the reviewer's claim covered all of
+    -- COLLECT, which is too wide -- the aggregation attribute is what decides
+    -- it.) Which scalar is the next example's business: the column's own type
+    -- under C+ / C< / C>, and a number under C#.
+    --
+    -- D-17 answered the list case by writing NO typeRef, which was harmless
+    -- while <output> repeated the column's type. Once §8.3.2 takes that off the
+    -- clause, an omitted variable typeRef would lose the type outright, so the
+    -- variable now names what the result actually is: a collection of the
+    -- column's type, declared as a synthesised <itemDefinition>.
+    it "types the decision <variable> as a LIST of the column's type exactly when the result is a list" $ do
+      let variableOf hp = tagsStarting "<variable id=\"variable_1\"" (toXMLDoc defaultXMLOpts [table hp])
+          docOf hp = toXMLDoc defaultXMLOpts [table hp]
+          listDecl = "<itemDefinition name=\"dmnmd_list_of_number\" isCollection=\"true\">"
+      forM_ [HP_Collect Collect_All, HP_RuleOrder, HP_OutputOrder] $ \hp -> do
+        variableOf hp `shouldBe` ["<variable id=\"variable_1\" name=\"T\" typeRef=\"dmnmd_list_of_number\"/"]
+        -- and the name it uses is declared, so the reference cannot dangle
+        docOf hp `shouldSatisfy` (listDecl `isInfixOf`)
+      forM_ [ HP_Unique, HP_First, HP_Any, HP_Priority
+            , HP_Collect Collect_Sum, HP_Collect Collect_Min
+            , HP_Collect Collect_Max, HP_Collect Collect_Cnt ] $ \hp -> do
+        variableOf hp `shouldBe` ["<variable id=\"variable_1\" name=\"T\" typeRef=\"number\"/"]
+        docOf hp `shouldNotSatisfy` (listDecl `isInfixOf`)
+
+    -- DMN 1.3 §8.2.10: "# (count): the result of the decision table is the
+    -- number of outputs", and the variable is what "stores the result of this
+    -- Decision" (§6.3.7). So under C# it says number whatever the column holds.
+    -- The table above has a Number column and cannot tell the two readings
+    -- apart; a String column can.
+    it "types a C# decision's <variable> as number, whatever the column holds" $ do
+      let t = DTable "T" (HP_Collect Collect_Cnt)
+                [ DTCH DTCH_In "n" (Just DMN_Number) Nothing
+                , DTCH DTCH_Out "flag" (Just DMN_String) Nothing ]
+                [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FNullary (VS "vip")]] [] ]
+                Nothing
+          doc = toXMLDoc defaultXMLOpts [t]
+      tagsStarting "<variable id=\"variable_1\"" doc
+        `shouldBe` ["<variable id=\"variable_1\" name=\"T\" typeRef=\"number\"/"]
+      -- and the column's own type is written nowhere: §8.3.2 bars it from the
+      -- clause, and the variable is the count's
+      tagsStarting "<output " doc `shouldBe` ["<output id=\"output_1_1\" label=\"flag\"/"]
+
+    -- A collection output column under a list-valued policy: the result is a
+    -- list OF collections. Both levels have to be declared, because the outer
+    -- type's <typeRef> names the inner one.
+    it "declares both levels when a list-valued table's column is itself a collection" $ do
+      let t = DTable "T" (HP_Collect Collect_All)
+                [ DTCH DTCH_In "n" (Just DMN_Number) Nothing
+                , DTCH DTCH_Out "tags" (Just (DMN_List DMN_String)) Nothing ]
+                [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FNullary (VS "a")]] [] ]
+                Nothing
+          doc = toXMLDoc defaultXMLOpts [t]
+      tagsStarting "<variable id=\"variable_1\"" doc
+        `shouldBe` ["<variable id=\"variable_1\" name=\"T\" typeRef=\"dmnmd_list_of_dmnmd_list_of_string\"/"]
+      doc `shouldSatisfy` ("<itemDefinition name=\"dmnmd_list_of_dmnmd_list_of_string\" isCollection=\"true\">\n    <typeRef>dmnmd_list_of_string</typeRef>" `isInfixOf`)
+      doc `shouldSatisfy` ("<itemDefinition name=\"dmnmd_list_of_string\" isCollection=\"true\">\n    <typeRef>string</typeRef>" `isInfixOf`)
+
+  -- DMN 1.3 §8.3.2, Table 34: "The OutputClause of a single output decision
+  -- table SHALL NOT specify a typeRef" and "SHALL NOT specify a name". The XSD
+  -- declares both attributes unconditionally, so a document that has them
+  -- validates -- and KIE reports ILLEGAL_USE_OF_NAME / ILLEGAL_USE_OF_TYPEREF.
+  -- Neither the round trip nor xmllint can see this, which is why it is pinned
+  -- here, on the text.
+  describe "the <output> clause (§8.3.2)" $ do
+    let single = toXMLDoc defaultXMLOpts [table HP_Unique]
+
+    it "carries neither name nor typeRef when the table has ONE output" $
+      tagsStarting "<output " single `shouldBe` ["<output id=\"output_1_1\" label=\"v\"/"]
+
+    -- The name moves to decisionTable/@outputLabel (Table 32: "a description of
+    -- the decision table output"), which is where l4-ide's exporter and the
+    -- OMG's own Chapter 11 examples carry it. The type moves nowhere: it is
+    -- already on the decision's <variable>.
+    it "names the one output column on decisionTable/@outputLabel" $
+      tagsStarting "<decisionTable " single
+        `shouldBe` ["<decisionTable id=\"decisionTable_1\" outputLabel=\"v\""]
+
+    -- Multi-output is the other side of the same rule: each clause SHALL have a
+    -- name and MAY have a typeRef, and there is no single column for a table
+    -- label to describe.
+    it "keeps name and typeRef on every clause of a MULTI-output table, and writes no outputLabel" $ do
+      let doc = toXMLDoc defaultXMLOpts [twoOutputs]
+      tagsStarting "<output " doc
+        `shouldBe` [ "<output id=\"output_1_1\" name=\"v\" label=\"v\" typeRef=\"number\"/"
+                   , "<output id=\"output_1_2\" name=\"w\" label=\"w\" typeRef=\"string\"/" ]
+      doc `shouldNotSatisfy` ("outputLabel" `isInfixOf`)
+
+  -- The gate that decides whether the two attributes may go at all: with them
+  -- gone the column's name and type exist only on @outputLabel/@label and the
+  -- <variable>, so dmnmd's own reader has to bring back exactly the column it
+  -- was given. The column is DECLARED but every cell is a wildcard, so
+  -- inference has nothing to go on and cannot paper over a type the reader
+  -- failed to read -- which is how a green round-trip harness could otherwise
+  -- miss this. One example per hit policy, because the variable is written
+  -- differently for the list-valued ones. C# is outside the promise, and has
+  -- its own two examples below saying so.
+  describe "a single-output column survives --to=xml | --from=xml with its name and type" $ do
+    let hps = [ ("U", HP_Unique), ("A", HP_Any), ("P", HP_Priority), ("F", HP_First)
+              , ("O", HP_OutputOrder), ("R", HP_RuleOrder), ("C", HP_Collect Collect_All)
+              , ("Csum", HP_Collect Collect_Sum), ("Cmin", HP_Collect Collect_Min)
+              , ("Cmax", HP_Collect Collect_Max) ]
+        undecidable hp ty = DTable "T" hp
+          [ DTCH DTCH_In "n" (Just DMN_Number) Nothing
+          , DTCH DTCH_Out "band" (Just ty) Nothing ]
+          [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FAnything]] []
+          , DTrow (Just 2) [[FSection Fgte (VN 5)]] [[FAnything]] [] ]
+          Nothing
+        outCols dts = [ (varname ch, vartype ch) | dt <- dts, ch <- header dt, label ch == DTCH_Out ]
+
+    forM_ hps $ \(slug, hp) ->
+      it ("under " ++ slug) $ do
+        (_, back) <- roundTrip ("rt-" ++ slug) [undecidable hp DMN_String]
+        outCols back `shouldBe` [("band", Just DMN_String)]
+
+    -- R7 refuses a collection output column under the four aggregations, so
+    -- the list-of-lists case exists only under C, R and O.
+    forM_ (take 3 (drop 4 hps)) $ \(slug, hp) ->
+      it ("under " ++ slug ++ ", with a collection output column") $ do
+        (_, back) <- roundTrip ("rt-list-" ++ slug) [undecidable hp (DMN_List DMN_String)]
+        outCols back `shouldBe` [("band", Just (DMN_List DMN_String))]
+
+    -- Under C# the <variable> types the COUNT (§8.2.10), and §8.3.2 bars the
+    -- clause, so a conformant document has nowhere to state the counted
+    -- column's type and the reader infers it. With every cell a wildcard there
+    -- is nothing to infer from, and the declared type is lost. That costs
+    -- nothing a count depends on: a count is the number of outputs, whatever
+    -- their type. The name still survives, through @label.
+    it "under Ccnt, keeps the name but does NOT promise an all-wildcard declared column's type, which a count never depends on" $ do
+      (_, back) <- roundTrip "rt-Ccnt" [undecidable (HP_Collect Collect_Cnt) DMN_String]
+      outCols back `shouldBe` [("band", Nothing)]
+
+    it "under Ccnt, still brings back a column whose cells say what they are" $ do
+      let t = (undecidable (HP_Collect Collect_Cnt) DMN_String)
+                { allrows = [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FNullary (VS "vip")]] []
+                            , DTrow (Just 2) [[FSection Fgte (VN 5)]] [[FNullary (VS "member")]] [] ] }
+      (_, back) <- roundTrip "rt-Ccnt-cells" [t]
+      outCols back `shouldBe` [("band", Just DMN_String)]
 
   -- D-16 phase 1. The catch-all 'uniquenessErrors' deliberately leaves alone
   -- (it is legal, unambiguous, and dmnmd evaluates it first-match) becomes a
@@ -301,3 +422,29 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
       , DTCH DTCH_Out "v" (Just DMN_Number) Nothing ]
       [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FNullary (VN 10)]] [] ]
       Nothing
+
+    twoOutputs = DTable "T" HP_Unique
+      [ DTCH DTCH_In "n" (Just DMN_Number) Nothing
+      , DTCH DTCH_Out "v" (Just DMN_Number) Nothing
+      , DTCH DTCH_Out "w" (Just DMN_String) Nothing ]
+      [ DTrow (Just 1) [[FSection Flt (VN 5)]] [[FNullary (VN 10)], [FNullary (VS "x")]] [] ]
+      Nothing
+
+    -- | The opening tag of every element whose text starts with @prefix@, up to
+    -- but not including its closing @>@ — so a self-closing tag keeps its @/@.
+    -- @"<output "@ with the space matches @\<output\>@ and not @\<outputEntry\>@.
+    tagsStarting prefix doc =
+      [ takeWhile (/= '>') rest | rest <- tails doc, prefix `isPrefixOf` rest ]
+
+    -- | Write the tables with the emitter and read them back with the reader, in
+    -- process: the same two halves @test\/roundtrip\/@ drives through the binary.
+    -- Written under @test\/golden\/.out\/@ (git-ignored) because the reader takes
+    -- a path.
+    roundTrip name dts = do
+      createDirectoryIfMissing True "test/golden/.out"
+      let file = "test/golden/.out/" ++ name ++ ".dmn"
+      writeFile file (toXMLDoc defaultXMLOpts dts)
+      parsed <- parseDMNEither file
+      case parsed of
+        Left err   -> expectationFailure err >> pure ([], [])
+        Right defs -> pure (convertAll defs)

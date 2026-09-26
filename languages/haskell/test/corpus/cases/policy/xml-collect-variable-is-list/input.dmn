@@ -7,10 +7,18 @@
      comes from the hit policy, and it is already accounted for.
 
      Applying the variable's type to the column double-counts it: the cell "gold"
-     was emitted as ["gold"], a value the document never states, at exit 0. So the
-     single-output fallback does not apply under C, R or O. It still applies under
-     U, A, P and F, whose result is one value and whose variable therefore does
-     describe the output column. -->
+     was emitted as ["gold"], a value the document never states, at exit 0. So
+     under C, R or O the column takes the collection's ELEMENT type (string, here)
+     and never the collection itself, and a variable that is not a collection is
+     not applied at all. Under U, A, P, F and the Collect aggregations + < >
+     the result is one value of the column's type, so the variable's type IS the
+     column's. Under COLLECT COUNT the result is "the number of outputs" (DMN 1.3
+     section 8.2.10), so the variable types the count and the column is inferred.
+
+     (This comment used to say the fallback "does not apply under C, R or O" and
+     "still applies under U, A, P and F". Both went stale with the section 8.3.2
+     follow-up to D-17, which made the variable the only place left that states
+     the column's type: see DMN.Types.resultShape.) -->
 <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
              id="b" name="B" namespace="https://example.org/dmnmd/test/b">
   <itemDefinition name="BandList" isCollection="true"><typeRef>string</typeRef></itemDefinition>

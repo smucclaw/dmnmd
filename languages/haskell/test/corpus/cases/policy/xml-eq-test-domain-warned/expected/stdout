@@ -8,7 +8,7 @@
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_1">
+    <decisionTable id="decisionTable_1" outputLabel="R">
       <input id="input_1_1" label="N">
         <inputExpression id="inputExpression_1_1" typeRef="number">
           <text>N</text>
@@ -17,7 +17,7 @@
           <text>1, 2, 3</text>
         </inputValues>
       </input>
-      <output id="output_1_1" name="R" label="R" typeRef="string">
+      <output id="output_1_1" label="R">
         <defaultOutputEntry id="defaultOutputEntry_1_1">
           <text>"other"</text>
         </defaultOutputEntry>
