@@ -1,7 +1,7 @@
 # DMN 1.3 fixtures
 
 These exercise the DMN 1.3 reader one feature at a time. `test/dmn15/` does the
-same for the 1.4 and 1.5 namespaces.
+same for the 1.4 and 1.5 namespaces, and `test/dmn16/` for 1.6.
 
 > An earlier version of this paragraph said "every other `.dmn` / `.xml` file
 > under `test/` is DMN 1.1 or 1.2, which is why none of them ever exercised the

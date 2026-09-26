@@ -26,7 +26,7 @@ reader consumes and drops.
 | fixture | what it pins |
 |---|---|
 | `baseline15.dmn` | the DMN 1.5 MODEL and DMNDI namespaces are read, and a decision table means the same thing in 1.5 as in 1.3 |
-| `baseline14.dmn` | **DMN 1.4 pairs a 1.4 MODEL namespace with the 1.3 DMNDI namespace.** `DMN14.xsd` declares `xmlns=".../20211108/MODEL/"` and then imports `namespace=".../20191111/DMNDI/" schemaLocation="DMNDI13.xsd"`; the OMG ships no `DMNDI14.xsd`. So a release is two independent URIs, not a date substituted into a template — and both are `String`, so getting it wrong compiles, matches nothing, and makes the `<dmndi:DMNDI>` subtree resurface as a generic `xpCheckEmptyContents` |
+| `baseline14.dmn` | **DMN 1.4 pairs a 1.4 MODEL namespace with the 1.3 DMNDI namespace.** `DMN14.xsd` declares `xmlns=".../20211108/MODEL/"` and then imports `namespace=".../20191111/DMNDI/" schemaLocation="DMNDI13.xsd"`; the OMG ships no `DMNDI14.xsd`. So a release is two independent URIs, not a date substituted into a template — and both are `String`, so getting it wrong compiles, matches nothing, and refuses this correct document (by name, as a stray `(DMN 1.3 DMNDI)` namespace; see below) |
 
 Both baselines carry a real `<dmndi:DMNDI>` element, which is the only reason either
 can catch a namespace mistake at all: the pickler is `xpOption`, so a fixture that
@@ -41,10 +41,15 @@ introducing them and watching what went red.
   `policy/` cases fail, including the pre-existing `xml-no-decision-exits-zero`,
   because in every release `.../MODEL/` and `.../DMNDI/` differ.
 - Writing `.../20211108/DMNDI/` for DMN 1.4 — the plausible guess, and the one a
-  date-into-a-template design makes automatically — is caught by
-  **`policy/xml-dmn14-accepted` and nothing else in the repo**. DMN 1.4 is the only
-  release whose DMNDI date differs from its model date, so no other fixture can
-  distinguish the two.
+  date-into-a-template design makes automatically — is caught by this fixture and
+  nothing else: `policy/xml-dmn14-accepted` (its corpus copy) and the hspec example
+  over it are the only two things that go red.
+  DMN 1.6 is the same shape, pairing its model namespace with 1.5's DMNDI, and its guess is caught only by `test/dmn16/baseline16.dmn` in the same two ways; see `test/dmn16/README.md`.
+  So 1.4 and 1.6 are the only releases whose DMNDI date differs from their model date, and no 1.3 or 1.5 fixture can distinguish the two designs.
+
+  The mistake is loud, but it is no longer the generic `xpCheckEmptyContents`, which is what this README used to say.
+  The right URI is some other readable release's DMNDI namespace (1.3's for 1.4, 1.5's for 1.6), so `refuseUnmodelled` names the diagram as a stray namespace from that release.
+  Measured 2026-09-26 by introducing each guess; the change dates from `6a030ae`, which taught the stray-namespace scan the DMNDI URIs.
 
 ## Rejected by the reader, by name
 
@@ -110,4 +115,6 @@ misplaced declaration would otherwise produce a dozen lines about one mistake.
 the version — see `test/dmn13/not-dmn13.dmn` and
 `test/corpus/cases/policy/xml-dmn1{1,2}-rejected`. Widening acceptance from one
 release to three is not accepting everything, and the refusal message's second
-line is now a list of the three readable releases rather than a single URI.
+line is now a list of the readable releases rather than a single URI.
+(It said "the three readable releases" until DMN 1.6 made them four; the list is
+`readableReleases`, so it grows with each release and moves those two recordings.)

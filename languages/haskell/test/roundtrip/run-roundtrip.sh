@@ -3,7 +3,7 @@
 # run-roundtrip.sh — the semantic gate on the `--to=xml` backend (DECISIONS.md D-8).
 #
 # The claim a hand-written expectation cannot make, and this can: dmnmd ALREADY
-# READS DMN 1.3/1.4/1.5. So for every markdown fixture in the tree we can compare
+# READS DMN 1.3/1.4/1.5/1.6. So for every markdown fixture in the tree we can compare
 #
 #     F.md --to=ts                          (direct)
 #     F.md --to=xml | --from=xml --to=ts    (round trip)
