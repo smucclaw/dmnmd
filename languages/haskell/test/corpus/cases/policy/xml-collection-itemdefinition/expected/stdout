@@ -11,13 +11,13 @@
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_1">
+    <decisionTable id="decisionTable_1" outputLabel="Level">
       <input id="input_1_1" label="roles">
         <inputExpression id="inputExpression_1_1" typeRef="dmnmd_list_of_string">
           <text>roles</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="Level" label="Level" typeRef="string">
+      <output id="output_1_1" label="Level">
         <defaultOutputEntry id="defaultOutputEntry_1_1">
           <text>"none"</text>
         </defaultOutputEntry>

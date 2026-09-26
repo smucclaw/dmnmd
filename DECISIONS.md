@@ -1273,6 +1273,7 @@ Removing the two attributes is the deliberate follow-up. One trap for whoever ta
 picks a column's NAME from `@label` then `@name`, so dropping both renames every single-output
 column to `output1` unless `decisionTable/@outputLabel` — which the reader does not read today — is
 wired up first.
+(Taken since, with `outputLabel` wired first: see **Follow-up** at the end of this entry.)
 
 **Amendment, from adversarial review after the entry was written.** A 44-agent review of this
 change raised 13 findings, of which 7 survived a three-lens refutation pass. Two were real
@@ -1305,6 +1306,10 @@ cannot catch, and all three gates (hspec, the corpus, the round trip) **were** g
    claims the scalar column type on the `<variable>` of a list-valued table, where it was telling
    a conformant consumer the decision returns a number while the engine returns a list of numbers.
    `policy/xml-collect-variable-is-list`.
+   (The reader half of "the four aggregations keep it" was not true of the code until the
+   **Follow-up** below: the reader's own predicate matched every `HP_Collect`. And it is true of
+   only three of them: under `C#` the result is a count, so the variable is not the column's
+   type at all — see the Follow-up.)
 
 Neither costs a real document: the 355-document export corpus is unchanged at 253/102 across the
 fix. A third surviving finding was a documentation defect: this entry says the six refused cells
@@ -1324,6 +1329,64 @@ every one of the 12 is the new `<variable>` element; a thirteenth change re-reco
 "Known types are:" enumeration in `xml-unknown-typeref-refused`, which gained `Any` while the
 refusal it pins stayed intact. `backend-baseline.sh` remains dead (see CLAUDE.md) and was not
 consulted; the A/B evidence is the corpus, the round trip, and the 355-document re-sweep above.
+
+**Follow-up — the single-output `<output>` clause loses `name` and `typeRef` (§8.3.2).**
+Not a new ruling: this is the "deliberate follow-up" the **Not done** paragraph above names, and it wires `outputLabel` first, as that paragraph warns it must.
+Written test-first; branch `fix/single-output-clause-conformance`.
+
+*Writer.*
+A single-output table's `<output>` now carries only `id` and `label`.
+§8.3.2, Table 34: that clause "SHALL NOT specify a typeRef" and "SHALL NOT specify a name".
+The name also goes on `decisionTable/@outputLabel` (§8.3.1, Table 32: "a description of the decision table output"), which is where the l4-ide exporter and the OMG's own Chapter 11 examples carry it.
+The type goes only on the decision's `<variable>`, which is now the only statement of it.
+Multi-output clauses are unchanged: they SHALL have a name and MAY have a `typeRef`.
+
+*The list-valued case, which reverses one choice in amendment 2 above.*
+That amendment answered bare `C`, `R` and `O` by writing **no** variable `typeRef`, which was harmless only while the clause repeated the column's type.
+With the clause silent, that would have lost the type outright, so the variable now names what the result actually is — `dmnmd_list_of_<T>` — and `collectionItemDefs` declares it, because it now walks the decision's result type (`resultTypeOf`) as well as the columns.
+A collection column under `C` gives a list of lists, and both levels are declared.
+The reader takes the collection's **element** type as the column's; a variable that is not a collection is still not applied under those three policies.
+
+*The reader's aggregations.*
+Amendment 2 says the four aggregations keep the fallback, but the reader's predicate matched every `HP_Collect`, so under `C+ C< C> C#` it ignored the variable.
+That cost nothing while the clause repeated the type.
+Reader and writer now ask one classifier, `DMN.Types.resultShape`: `ResultIsColumn` for `U A P F` and `C+ C< C>`, `ResultIsListOfColumn` for `C R O`, `ResultIsCount` for `C#`.
+
+*The name, in the reader.*
+First non-empty of the clause's `@label`, the clause's `@name`, `decisionTable/@outputLabel` (single-output tables only), then `output<i>`.
+`@name` beats `@outputLabel` because it is a statement about that column and `outputLabel` is the table's, the same reason a clause `typeRef` beats the variable's; in a conformant document the clause has no `name`, so the order only decides documents that break §8.3.2.
+`ParseDMN.DecisionTable` models the attribute as `dtOutputLabel`; it was an `xpIgnoredAttrs` entry.
+
+*`C#`: the variable types the count.*
+DMN 1.3 §8.2.10: "# (count): the result of the decision table is the number of outputs".
+§6.3.7 makes the decision's variable "the instance of InformationItem that stores the result of this Decision", so under `C#` the variable is a number whatever the column holds.
+(The review that asked for this cited §8.2.11 for that sentence; it is at line 3490 of the 1.3 text, inside §8.2.10 Hit policy, which runs to §8.2.11 Default output values at line 3515.)
+The writer therefore writes `typeRef="number"` on a `C#` table's variable, and the reader never applies a `C#` variable to the column, which it infers instead.
+The first cut of this follow-up had carried the column's type on the variable under `C#`, as for the other three aggregations, and the reader applied it; measured, that refused a valid foreign document — `number` variable, string column — cell by cell at exit 1.
+That document now reads at exit 0 with the column inferred `String`: `policy/xml-count-variable-number-column-inferred`.
+
+The cost is that a counted column's own type is written nowhere, because §8.3.2 bars the clause and the variable is the count's.
+A count never depends on it, but dmnmd's `--to=ts` does not count — it returns each matching rule's cell — so anything inference gets wrong is visible there.
+Measured on probes: a column of ordinary strings comes back `String`, and an all-wildcard declared column comes back untyped with identical TS.
+One shape comes back wrong: a declared `String` column whose cells are `5` and `6` is written as the FEEL strings `"5"` and `"6"` and read back as the numbers `5.0` and `6.0`, where the direct `--to=ts` returns `"5"`.
+That is not new: trunk infers an untyped XML column of `"5"` and `"6"` as Number too, because `XmlToDmnmd.resolveColumn`'s inference pre-pass calls `mkFsEither`, whose `unquoteCell` strips the quotes that the pre-pass and `inferEvidence` both document it as keeping.
+Before this rule, dmnmd's own `C#` output never reached that path; now it does.
+Recorded as `symptom/xml-untyped-quoted-numeral-inferred-number`, and not fixed here: it is a reader inference change with its own blast radius.
+
+*What the gates could and could not see.*
+With only the writer half in place, `run-roundtrip.sh` stayed at **131 pass, 0 FAIL** — its trunk result — while the column type was being lost under seven of the eleven hit policies: dmnmd writes strings quoted and numbers bare, so on every eligible fixture inference recovered the type from the cells.
+The new in-process round trips in `TranslateXMLSpec` use a declared but all-wildcard column, which inference cannot recover, and those went red on exactly those seven, which is what showed the reader change was needed.
+
+*Evidence.*
+`cabal test` 144/67/2/35/47/25/8/1/1, 0 failures (DmnXmlSpec 47 → 67, TranslateXMLSpec 27 → 47).
+`make roundtrip-xsd` 184 fixtures: 132 pass / 0 FAIL / 10 xfail / 0 xpass / 42 skipped / 0 XSD-invalid — trunk's 131 of 183, plus the markdown input of the new `xml-list-valued-variable-names-list-type` case, which the harness collects like every corpus `input.md`.
+A/B against a binary built from `18481de`: 1,073 paired invocations; every markdown fixture × `ts js py l4` identical; all 129 markdown differences are `--to=xml`.
+On the reader side the differences are this change's own fixtures and 7 of l4-ide's 49 checked-in DMN fixtures, each of those 7 only renaming `output1` to that table's `outputLabel` (for example `"reporting duty"`), with no exit status changed.
+None of those 49 uses `COLLECT`, `RULE ORDER` or `OUTPUT ORDER`, so the aggregation and list-valued reader paths are covered by `DmnXmlSpec` and dmnmd's own fixtures only.
+`make corpus`: 232 cases, 0 policy regressions, with 3 new policy cases (`xml-output-label-names-single-output`, `xml-list-valued-variable-names-list-type`, `xml-count-variable-number-column-inferred`) and 1 new symptom case (`xml-untyped-quoted-numeral-inferred-number`).
+11 existing `--to=xml` policy recordings were re-recorded, and that is a change to what the project promises: each now omits `name` and `typeRef` from a single-output `<output>` and adds `outputLabel` to its `<decisionTable>`.
+All 11 were checked mechanically before re-recording: each new stdout equals the old recording with exactly those two edits per single-output table, and nothing else; stderr and exit are identical.
+The `C#` change moved none of them.
 
 ### D-18 — `<decisionService>` is packaging, not logic. **RULED: read and drop with a warning. LANDED.**
 

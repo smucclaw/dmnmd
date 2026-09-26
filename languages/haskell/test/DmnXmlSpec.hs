@@ -4,8 +4,10 @@
 
 module DmnXmlSpec where
 
+import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DMN.XML.ParseDMN
+import System.Directory (createDirectoryIfMissing)
 import DMN.XML.XmlToDmnmd (convertAll, Diagnostic (..), Severity (..))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -71,6 +73,63 @@ readDmn13 name = do
   case parsed of
     Left err   -> expectationFailure err >> pure ([], [])
     Right defs -> pure (convertAll defs)
+
+-- | Read a DMN document given as TEXT, through the real reader.
+--
+-- Written to a file under @test\/golden\/.out\/@ (git-ignored, and where
+-- @TranslateL4Spec@ already writes) because 'parseDMNEither' takes a path. That
+-- is the point rather than a workaround: an example built from text exercises
+-- the picklers — an attribute the pickler ignores cannot reach the converter —
+-- where one built from 'Definitions' values would test the converter alone.
+readDmnText :: FilePath -> String -> IO ([Diagnostic], [DT.DecisionTable])
+readDmnText name xml = do
+  createDirectoryIfMissing True scratchDir
+  let file = scratchDir ++ "/" ++ name ++ ".dmn"
+  writeFile file xml
+  parsed <- parseDMNEither file
+  case parsed of
+    Left err   -> expectationFailure err >> pure ([], [])
+    Right defs -> pure (convertAll defs)
+  where scratchDir = "test/golden/.out"
+
+-- | A one-decision DMN 1.3 document around the pieces an example varies.
+--
+-- Every rule reads @"gold"@ \/ @"silver"@ off one string input and writes the
+-- BARE numerals @1@ and @2@ to every output. So the declared type is the only
+-- thing that can make an output a string: honour it and the cells are
+-- @VS "1"@ \/ @VS "2"@, ignore it and inference calls them numbers. Both exit 0.
+oneDecisionXml
+  :: String   -- ^ @\<itemDefinition\>@s, verbatim
+  -> String   -- ^ the decision's @\<variable\>@, verbatim ("" for none)
+  -> String   -- ^ extra attributes on @\<decisionTable\>@
+  -> [String] -- ^ the @\<output\>@ clauses, verbatim
+  -> String
+oneDecisionXml itemDefs variable dtAttrs outputs = concat
+  [ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+  , "<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\""
+  , " id=\"d\" name=\"D\" namespace=\"https://example.org/dmnmd/test/d\">"
+  , itemDefs
+  , "<decision id=\"D_band\" name=\"Band\">", variable
+  , "<decisionTable id=\"DT_band\" ", dtAttrs, ">"
+  , "<input id=\"I1\" label=\"tier\"><inputExpression id=\"IE1\" typeRef=\"string\">"
+  , "<text>tier</text></inputExpression></input>"
+  , concat outputs
+  , rule "1" "\"gold\"" "1", rule "2" "\"silver\"" "2"
+  , "</decisionTable></decision></definitions>\n"
+  ]
+  where
+    rule n i o = concat $
+      [ "<rule id=\"R", n, "\"><inputEntry id=\"U", n, "\"><text>", i, "</text></inputEntry>" ]
+      ++ [ "<outputEntry id=\"L" ++ n ++ "_" ++ show k ++ "\"><text>" ++ o ++ "</text></outputEntry>"
+         | k <- [1 .. length outputs] ]
+      ++ [ "</rule>" ]
+
+-- | The output columns of whatever tables came back: names, types, cells.
+outputColumns :: [DT.DecisionTable] -> ([String], [Maybe DMNType], [[[FEELexp]]])
+outputColumns tables =
+  ( [ varname ch | t <- tables, ch <- header t, label ch == DTCH_Out ]
+  , [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_Out ]
+  , [ row_outputs r | t <- tables, r <- allrows t ] )
 
 -- | Does any diagnostic of the given severity mention this text?
 hasDiag :: Severity -> String -> [Diagnostic] -> Bool
@@ -319,6 +378,136 @@ dmn13Spec = describe "DMN 1.3" $ do
       (_, tables) <- readDmn13 "collect-variable-is-list"
       [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_Out ]
         `shouldBe` [Just DMN_String]
+
+  -- DMN 1.3 §8.3.2, Table 34: the <output> clause of a single-output table SHALL
+  -- NOT specify a name, nor a typeRef. A conformant document therefore states
+  -- that column's NAME on decisionTable/@outputLabel and its TYPE on the
+  -- decision's <variable>, and dmnmd's own writer now emits exactly that shape,
+  -- so the reader has to find both there or a round trip renames the column to
+  -- "output1" and re-infers its type.
+  describe "a single-output column whose <output> clause carries no name and no typeRef (§8.3.2)" $ do
+    it "is named from decisionTable/@outputLabel, and typed from the <variable>" $ do
+      (_, tables) <- readDmn13 "output-label"
+      outputColumns tables
+        `shouldBe` ( ["band"]
+                   , [Just DMN_String]
+                   , [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ] )
+
+    -- The precedence. @label and @name are statements about THIS column, while
+    -- @outputLabel is the table's description of its output (Table 32), so a
+    -- column-level attribute wins whenever a document carries one -- the same
+    -- rule as "a typeRef on the clause beats the variable's". Only a
+    -- non-conformant document can carry @name and @outputLabel together.
+    let nameOf slug dtAttrs output = do
+          (_, tables) <- readDmnText slug $
+            oneDecisionXml "" "<variable id=\"V\" name=\"Band\" typeRef=\"string\"/>"
+              dtAttrs [output]
+          let (names, _, _) = outputColumns tables
+          pure names
+
+    it "prefers the clause's own @label to @outputLabel" $
+      nameOf "outlabel-vs-label" "outputLabel=\"fromTable\""
+        "<output id=\"O1\" label=\"fromLabel\"/>"
+        `shouldReturn` ["fromLabel"]
+
+    it "prefers the clause's own @name to @outputLabel" $
+      nameOf "outlabel-vs-name" "outputLabel=\"fromTable\""
+        "<output id=\"O1\" name=\"fromName\"/>"
+        `shouldReturn` ["fromName"]
+
+    it "falls back to output1 when neither the clause nor the table names it" $
+      nameOf "outlabel-none" "" "<output id=\"O1\"/>" `shouldReturn` ["output1"]
+
+    -- @outputLabel describes the table's output as a whole. With two or more
+    -- columns it names none of them, and handing it to one would invent a
+    -- column name the document never gave that column.
+    it "does not hand @outputLabel to a column of a MULTI-output table" $ do
+      (_, tables) <- readDmnText "outlabel-multi" $
+        oneDecisionXml "" "" "outputLabel=\"fromTable\""
+          [ "<output id=\"O1\" typeRef=\"string\"/>"
+          , "<output id=\"O2\" typeRef=\"string\"/>" ]
+      let (names, _, _) = outputColumns tables
+      names `shouldBe` ["output1", "output2"]
+
+  -- The TYPE half, across every hit policy. With the clause's typeRef gone the
+  -- <variable> is the only statement of the column's type left in the document,
+  -- so the reader has to read it back exactly as the writer wrote it -- one
+  -- classifier, DMN.Types.resultShape, decides both directions.
+  describe "a single-output column's type comes from the <variable> under every hit policy" $ do
+    let typeOf slug dtAttrs itemDefs varTypeRef = do
+          (_, tables) <- readDmnText slug $
+            oneDecisionXml itemDefs
+              ("<variable id=\"V\" name=\"Band\" typeRef=\"" ++ varTypeRef ++ "\"/>")
+              (dtAttrs ++ " outputLabel=\"band\"") ["<output id=\"O1\"/>"]
+          let (_, types, cells) = outputColumns tables
+          pure (types, cells)
+        asStrings = ( [Just DMN_String]
+                    , [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ] )
+        bandList = "<itemDefinition name=\"BandList\" isCollection=\"true\">"
+                   ++ "<typeRef>string</typeRef></itemDefinition>"
+
+    -- These three were EXCLUDED from the fallback by a `HP_Collect _` pattern
+    -- while DECISIONS.md D-17, its commit message and the corpus WHY all said
+    -- they kept it. That did not matter while the writer repeated the type on
+    -- the clause; it does now. C+ / C< / C> reduce the hits to one value of the
+    -- column's own type, so the variable's type IS the column's.
+    forM_ [ ("SUM", "sum"), ("MIN", "min"), ("MAX", "max") ] $
+      \(agg, slug) ->
+        it ("reads the variable as the column's type under COLLECT " ++ agg) $
+          typeOf ("var-collect-" ++ slug)
+            ("hitPolicy=\"COLLECT\" aggregation=\"" ++ agg ++ "\"") "" "string"
+            `shouldReturn` asStrings
+
+    -- C# is the fourth aggregation and the odd one out. DMN 1.3 §8.2.10:
+    -- "# (count): the result of the decision table is the number of outputs",
+    -- and §6.3.7 makes the variable "the instance of InformationItem that stores
+    -- the result of this Decision". So under C# the variable is the COUNT's
+    -- type, a number whatever the column holds, and says nothing about the
+    -- column. Applying it refuses a valid document: the first example here.
+    it "reads a COLLECT COUNT document whose variable is number over a STRING column, inferring the column" $ do
+      (diags, tables) <- readDmn13 "count-variable-number"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      outputColumns tables
+        `shouldBe` ( ["flag"]
+                   , [Just DMN_String]
+                   , [ [[FNullary (VS "vip")]], [[FNullary (VS "member")]] ] )
+
+    -- The same rule from the other side: a variable under C# is never the
+    -- column's type, whatever it says, so a string variable over bare numerals
+    -- leaves the column to inference, which calls them numbers.
+    it "does not apply the variable to the column under COLLECT COUNT, whatever type it names" $
+      typeOf "var-collect-count" "hitPolicy=\"COLLECT\" aggregation=\"COUNT\"" "" "string"
+        `shouldReturn` ( [Just DMN_Number]
+                       , [ [[FNullary (VN 1)]], [[FNullary (VN 2)]] ] )
+
+    forM_ [ ("UNIQUE", ""), ("FIRST", "hitPolicy=\"FIRST\"")
+          , ("ANY", "hitPolicy=\"ANY\""), ("PRIORITY", "hitPolicy=\"PRIORITY\"") ] $
+      \(hp, attrs) ->
+        it ("reads the variable as the column's type under " ++ hp) $
+          typeOf ("var-" ++ map (\c -> if c == ' ' then '-' else c) hp) attrs "" "string"
+            `shouldReturn` asStrings
+
+    -- Under C, R and O the decision's result IS a list, so a conformant variable
+    -- names a COLLECTION type, and the column's type is that collection's
+    -- element type. This is how the writer now states a list-valued table's
+    -- column type; before, it wrote no variable typeRef there and the column's
+    -- type survived only on the clause.
+    forM_ [ ("COLLECT", "hitPolicy=\"COLLECT\"")
+          , ("RULE ORDER", "hitPolicy=\"RULE ORDER\"")
+          , ("OUTPUT ORDER", "hitPolicy=\"OUTPUT ORDER\"") ] $
+      \(hp, attrs) -> do
+        it ("takes the ELEMENT type of a collection variable under " ++ hp) $
+          typeOf ("var-list-" ++ map (\c -> if c == ' ' then '-' else c) hp)
+            attrs bandList "BandList"
+            `shouldReturn` asStrings
+
+        -- Negative control, unchanged from D-17's amendment: a SCALAR variable
+        -- on a list-valued decision describes neither the result nor, reliably,
+        -- the column, so it is not applied and the column is inferred.
+        it ("does not apply a SCALAR variable under " ++ hp) $ do
+          (types, _) <- typeOf ("var-scalar-" ++ map (\c -> if c == ' ' then '-' else c) hp)
+                          attrs "" "string"
+          types `shouldBe` [Just DMN_Number]
 
   -- The five DMN 1.3 global elements in the "expression" substitution group that
   -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
@@ -711,7 +900,7 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [],
+                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [], dtOutputLabel = Nothing,
                               dtHitPolicy = HP_Collect Collect_All,
                               dtInput =
                                 [ TableInput
@@ -906,7 +1095,7 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [],
+                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [], dtOutputLabel = Nothing,
                               dtHitPolicy = HP_Unique,
                               dtInput =
                                 [ TableInput

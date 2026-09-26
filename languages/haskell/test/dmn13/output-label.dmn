@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A SINGLE-output decision table spelled the way DMN 1.3 section 8.3.2 requires:
+     the <output> clause carries NO name and NO typeRef, because Table 34 says
+     "The OutputClause of a single output decision table SHALL NOT specify a
+     typeRef" and "SHALL NOT specify a name". It carries no label either.
+
+     So the document says two things about that column, and says each of them
+     somewhere other than on the column:
+
+     - its TYPE on the enclosing decision's <variable typeRef> (D-17), and
+     - its NAME on decisionTable/@outputLabel, which Table 32 describes as "a
+       description of the decision table output ... often the same as the name
+       of the InformationItem for which the decision table is the value
+       expression".
+
+     This is the l4-ide exporter's shape (jl4-core/src/L4/Dmn/Emit.hs,
+     decisionTableXml and outputXml), including preferredOrientation, and it is
+     the shape of the OMG's own Chapter 11 examples under test/examples/.
+
+     Both halves DISCRIMINATE. The outputLabel is "band", deliberately not the
+     decision's name "Band", so a reader that named the column after the
+     decision instead would be caught; a reader that ignored outputLabel names
+     it "output1". And the cells are bare numerals under a string variable:
+     honour the variable and the outputs are the TEXT "1" and "2", ignore it and
+     inference calls the column Number. Every one of those readings exits 0. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="outputLabel" name="Output Label"
+             namespace="https://example.org/dmnmd/test/outputLabel">
+  <inputData id="InputData_tier" name="Tier"/>
+  <decision id="Decision_band" name="Band">
+    <variable id="Variable_band" name="Band" typeRef="string"/>
+    <informationRequirement id="InformationRequirement_band_1">
+      <requiredInput href="#InputData_tier"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST"
+                   preferredOrientation="Rule-as-Row" outputLabel="band">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>1</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>2</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

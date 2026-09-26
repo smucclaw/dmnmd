@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The shape dmnmd itself writes for a COLLECT COUNT table whose output column
+     is String and whose cells look like numerals: the variable types the COUNT
+     (number), the <output> clause carries no typeRef (section 8.3.2), and the
+     cells are FEEL STRING literals "5" and "6". The column type therefore
+     comes from inference, and inference reads them as the numbers 5 and 6. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="quotedNumerals" name="Quoted Numerals"
+             namespace="https://example.org/dmnmd/test/quotedNumerals">
+  <decision id="Decision_codes" name="Codes">
+    <variable id="Variable_codes" name="Codes" typeRef="number"/>
+    <decisionTable id="DecisionTable_codes" hitPolicy="COLLECT" aggregation="COUNT"
+                   outputLabel="code">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_code" label="code"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"5"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"6"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

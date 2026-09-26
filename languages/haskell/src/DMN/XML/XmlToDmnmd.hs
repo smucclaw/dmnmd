@@ -263,6 +263,7 @@ data Col = Col
 convTable :: TypeEnv -> String -> Maybe TypeRef -> X.DecisionTable -> ([Diagnostic], [T.DecisionTable])
 convTable env name decVarType X.DecisionTable
   { X.dtHitPolicy
+  , X.dtOutputLabel
   , X.dtInput
   , X.dtOutput
   , X.dtAnnotations
@@ -293,44 +294,32 @@ convTable env name decVarType X.DecisionTable
     -- ---- columns -------------------------------------------------------
     (inColDiags,  inCols)  = unzip' (zipWith (convInputCol  env inTable) [1 ..] dtInput)
     (outColDiags, outCols) =
-      unzip' (zipWith (convOutputCol env inTable outFallback) [1 ..] dtOutput)
+      unzip' (zipWith (convOutputCol env inTable singleOutput) [1 ..] dtOutput)
 
-    -- A decision table with ONE output states that output's type on the
-    -- enclosing @<decision>@'s @<variable>@, and a conformant producer leaves
-    -- @typeRef@ off the @<output>@ clause entirely (see the @<variable>@ note
-    -- on 'X.Decision'\'s pickler, which quotes DMN 1.3 §8.3.2 for the rule).
-    -- So for a single-output table the decision variable is a
-    -- declaration, and reading it is the difference between honouring the type
-    -- the document states and guessing at it from the cells.
+    -- A decision table with ONE output is barred by DMN 1.3 §8.3.2, Table 34
+    -- from naming that output or typing it on the @<output>@ clause ("SHALL NOT
+    -- specify a name", "SHALL NOT specify a typeRef"). A conformant document
+    -- therefore says both somewhere else, and this is where they are collected
+    -- for 'convOutputCol': the TYPE on the enclosing decision's @<variable>@
+    -- (see the note on 'X.Decision'\'s pickler), read through 'T.resultShape',
+    -- and the NAME on @decisionTable/\@outputLabel@ (see 'X.dtOutputLabel').
+    -- Reading them is the difference between honouring what the document states
+    -- and guessing — a column named @output1@ with a type inferred from its
+    -- cells.
     --
     -- __Only when there is exactly one output.__ With two or more, the outputs
     -- are keyed by name and each carries its own @typeRef@; the decision
     -- variable then names the composite, whose type is an @<itemDefinition>@
-    -- and not any one column's. Applying it there would give every column the
-    -- same wrong type.
-    --
-    -- A @typeRef@ that IS present on the clause still wins: it is the more
-    -- specific statement, and refusing it would reject documents that read
-    -- correctly today.
-    --
-    -- __And not under a list-valued hit policy either.__ Under @C@, @R@ or @O@
-    -- the decision's result IS a list, so the variable types the collection of
-    -- results ACROSS RULES — not the output column, whose cells are each a
-    -- single scalar. The list-ness comes from the hit policy and is already
-    -- accounted for downstream, so applying the variable here double-counts it:
-    -- a @COLLECT@ table whose variable is an @isCollection@ @<itemDefinition>@
-    -- emitted @["gold"]@ for a cell the document spells @"gold"@, at exit 0.
-    -- @U@, @A@, @P@ and @F@ each yield ONE value, so for those the variable does
-    -- describe the output column and the fallback is right.
-    outFallback = case dtOutput of
-      [_] | not listValuedHitPolicy -> decVarType
-      _                             -> Nothing
-
-    listValuedHitPolicy = case dtHitPolicy of
-      T.HP_Collect _   -> True
-      T.HP_RuleOrder   -> True
-      T.HP_OutputOrder -> True
-      _                -> False
+    -- and not any one column's, and @outputLabel@ describes the output as a
+    -- whole rather than any one column. Applying either there would give every
+    -- column the same wrong type, or one column a name it was never given.
+    singleOutput = case dtOutput of
+      [_] -> Just SingleOutput
+               { soVarType = decVarType
+               , soShape = T.resultShape dtHitPolicy
+               , soOutputLabel = dtOutputLabel
+               }
+      _   -> Nothing
 
     nIn = length dtInput
     nOut = length dtOutput
@@ -451,15 +440,65 @@ convInputCol env inTable ix TableInput { tinpLabel, tinpExpr = InputExpression i
       pickDomain locate "<inputValues>"
         (fmap (innerText . utText . unInputValues) tinpValues) inherited
 
+-- | What a SINGLE-output table says about its one column somewhere other than
+-- on the column's own @<output>@ clause — which DMN 1.3 §8.3.2 bars from saying
+-- it. Built by 'convTable', which is the only place the output count is seen.
+data SingleOutput = SingleOutput
+  { soVarType :: Maybe TypeRef
+    -- ^ the enclosing decision's @<variable typeRef>@: the type of the
+    -- decision's RESULT (§6.3.7), which is not always the column's
+  , soShape :: T.ResultShape
+    -- ^ 'T.resultShape' of the hit policy: is that result the column's type, a
+    -- LIST of it, or a COUNT, which says nothing about the column at all?
+  , soOutputLabel :: Maybe String
+    -- ^ @decisionTable/\@outputLabel@
+  }
+
 -- | @<output>@ → column descriptor. DMN 1.3 makes @label@, @name@ and
--- @typeRef@ all optional on @<output>@, so none can be assumed present.
+-- @typeRef@ all optional on @<output>@, so none can be assumed present — and
+-- for a single-output table §8.3.2 says @name@ and @typeRef@ SHALL NOT be.
 --
--- @fallbackTypeRef@ is the enclosing decision's @<variable>@ type, and is
--- 'Nothing' unless the table has exactly one output — 'convTable' decides that,
--- because the output count is not visible from here. A @typeRef@ on the clause
--- itself takes precedence over it.
-convOutputCol :: TypeEnv -> (String -> String) -> Maybe TypeRef -> Int -> TableOutput -> (Diagnostics, Col)
-convOutputCol env inTable fallbackTypeRef ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
+-- __The name__, first non-empty of:
+--
+--  1. the clause's @\@label@;
+--  2. the clause's @\@name@;
+--  3. @decisionTable/\@outputLabel@ — single-output tables only;
+--  4. @output\<i\>@.
+--
+-- @\@name@ goes before @\@outputLabel@ because it is a statement about THIS
+-- column, where @outputLabel@ is the table's "description of the decision
+-- table output" (§8.3.1, Table 32) — the same reason a clause @typeRef@ beats
+-- the variable's below: the more specific statement wins. In a conformant
+-- single-output document the clause has no @name@ and the order never comes
+-- up; it decides only a document that states both, which §8.3.2 forbids. And
+-- it keeps every document that names its column on the clause, which is every
+-- document dmnmd itself wrote until now and every multi-output one, reading
+-- exactly as it did.
+--
+-- __The type__: a @typeRef@ on the clause wins, being the more specific
+-- statement, and refusing it would reject documents that read correctly today.
+-- Without one, a single-output column reads the decision's @<variable>@
+-- through 'T.resultShape', the classifier the writer used to write it:
+--
+--  * 'T.ResultIsColumn' (@U A P F@, @C+ C< C>@): the variable's type IS the
+--    column's.
+--  * 'T.ResultIsListOfColumn' (bare @C@, @R@, @O@): the variable types the
+--    collection of results ACROSS RULES, so the column's type is that
+--    collection's ELEMENT type. Applying the collection itself double-counts
+--    the list-ness — a @COLLECT@ table whose variable is an @isCollection@
+--    @<itemDefinition>@ emitted @["gold"]@ for a cell the document spells
+--    @"gold"@, at exit 0 (D-17's amendment). A variable that does not resolve
+--    cleanly to a collection there says nothing reliable about the column and
+--    is not applied — which is what happened to EVERY variable under those
+--    three policies before the writer began stating the column's type this way.
+--  * 'T.ResultIsCount' (@C#@): the variable is not applied, whatever it names,
+--    and the column is inferred from its cells. §8.2.10: "# (count): the result
+--    of the decision table is the number of outputs", so the variable types the
+--    COUNT — a number over a column of any type. Applying it refused a valid
+--    document, one whose variable says @number@ over a column of strings, at
+--    exit 1 (@policy/xml-count-variable-number-column-inferred@).
+convOutputCol :: TypeEnv -> (String -> String) -> Maybe SingleOutput -> Int -> TableOutput -> (Diagnostics, Col)
+convOutputCol env inTable single ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
     ( diags ++ domDiags
     , Col { colKind = T.DTCH_Out
           , colName = nm
@@ -474,11 +513,19 @@ convOutputCol env inTable fallbackTypeRef ix TableOutput { toutName, toutLabel, 
     nm = firstNonEmpty
       [ maybe "" columnLabel toutLabel
       , maybe "" id (dmnLabel toutName)
+      , maybe "" id (single >>= soOutputLabel)
       , "output" ++ show ix
       ]
     locate = inTable . (("output column " ++ show nm ++ ": ") ++)
-    (diags, ty, inherited) =
-      resolveType env locate (maybe fallbackTypeRef Just toutTypeRef)
+    (diags, ty, inherited) = case (toutTypeRef, single) of
+      (Just own, _) -> resolveType env locate (Just own)
+      (Nothing, Just so) -> case soShape so of
+        T.ResultIsColumn -> resolveType env locate (soVarType so)
+        T.ResultIsListOfColumn -> case resolveType env locate (soVarType so) of
+          (ds, Just (T.DMN_List elemTy), dom) | not (anyErrors ds) -> (ds, Just elemTy, dom)
+          _                                                      -> ([], Nothing, Nothing)
+        T.ResultIsCount -> ([], Nothing, Nothing)
+      (Nothing, Nothing) -> ([], Nothing, Nothing)
     (domDiags, domain) =
       pickDomain locate "<outputValues>"
         (fmap (innerText . utText . unOutputValues) toutValues) inherited

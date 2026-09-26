@@ -882,6 +882,19 @@ instance DmnPU Rule where
 data DecisionTable = DecisionTable
   { dtLabel :: DmnCommon,
     dtHitPolicy :: DT.HitPolicy,
+    dtOutputLabel :: Maybe String,
+    -- ^ @\@outputLabel@: "a description of the decision table output, [...]
+    -- often the same as the name of the InformationItem for which the decision
+    -- table is the value expression" (DMN 1.3 §8.3.1, Table 32).
+    --
+    -- Modelled rather than ignored because of §8.3.2, Table 34: the
+    -- @\<output\>@ clause of a SINGLE-output table "SHALL NOT specify a name",
+    -- so for a conformant single-output table this attribute is the only place
+    -- left that names the column. The l4-ide exporter writes it there, the
+    -- OMG's own Chapter 11 examples write it there, and since the writer
+    -- stopped repeating @name@ on that clause dmnmd writes it there too.
+    -- 'DMN.XML.XmlToDmnmd.convOutputCol' reads it, after the clause's own
+    -- @label@ and @name@.
     dtInput :: [TableInput],
     dtOutput :: [TableOutput], -- TODO: Should be NonEmpty
     dtAnnotations :: [AnnotationClause],
@@ -893,13 +906,18 @@ makePrisms ''DecisionTable
 
 -- | @tDecisionTable@: @description?@, @extensionElements?@, @input*@,
 -- @output+@, @annotation*@, @rule*@.
+--
+-- One pickler, both directions: 'DMN.Translate.XML' writes @outputLabel@ by
+-- running this backwards, so the attribute the writer emits is by construction
+-- the attribute the reader reads.
 instance DmnPU DecisionTable where
   dmnPU r =
     xpDMNElem r "decisionTable" _DecisionTable
-      . xpIgnoredAttrs ["label", "typeRef", "preferredOrientation", "outputLabel"]
-      $ xp6Tuple
+      . xpIgnoredAttrs ["label", "typeRef", "preferredOrientation"]
+      $ xp7Tuple
         (dmnPU r)
         xpHitPolicy
+        (xpOption (xpAttr "outputLabel" xpText))
         (xpSeq' (xpDmnAnnotations r) (dmnPU r))
         (xpList1 (dmnPU r))
         (dmnPU r)

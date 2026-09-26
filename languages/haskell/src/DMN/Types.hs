@@ -30,6 +30,47 @@ data CollectOperator = Collect_Sum -- +
                      | Collect_All --
                deriving (Show, Eq)
 
+-- | What a single-output decision's RESULT is, in terms of its output column —
+-- which is what the decision's @\<variable typeRef\>@ states, since DMN 1.3
+-- §6.3.7 makes the variable "the instance of InformationItem that stores the
+-- result of this Decision".
+data ResultShape
+  = ResultIsColumn
+    -- ^ one value of the column's own type: @U A P F@, and the Collect
+    -- aggregations @+ < >@, which reduce the hits to one value of that type.
+  | ResultIsListOfColumn
+    -- ^ a list of the column's values: bare @COLLECT@, @RULE ORDER@ and
+    -- @OUTPUT ORDER@, each of which "returns all hits" (§8.2.10).
+  | ResultIsCount
+    -- ^ a number, whatever the column holds: @C#@. §8.2.10: "# (count): the
+    -- result of the decision table is the number of outputs".
+  deriving (Show, Eq)
+
+-- | Classify a hit policy by 'ResultShape'.
+--
+-- __One classifier, and both XML directions ask it.__ The writer
+-- ("DMN.Translate.XML") uses it to decide what a single-output decision's
+-- @\<variable typeRef\>@ says, and the reader ("DMN.XML.XmlToDmnmd") uses it to
+-- decide what that typeRef says about the column. Since DMN 1.3 §8.3.2 forbids
+-- a @typeRef@ on a single-output @\<output\>@ clause, the variable is the only
+-- declaration left near the column, so the two halves disagreeing is a type
+-- silently lost in transit — or a valid document refused. Both have happened:
+-- the reader once had its own predicate that matched every @HP_Collect@, so it
+-- ignored the variable under @+ < >@ while the writer and D-17's text said it
+-- applied; and an earlier cut of this classifier folded @#@ into
+-- 'ResultIsColumn', so the reader applied a @C#@ table's @number@ variable to
+-- its string column and refused the document at exit 1.
+--
+-- @HP_Aggregate@ has no DMN spelling and the XML writer refuses it, so the
+-- reader never produces it; it is classified with the single-valued policies
+-- only because the function must be total.
+resultShape :: HitPolicy -> ResultShape
+resultShape (HP_Collect Collect_All) = ResultIsListOfColumn
+resultShape HP_RuleOrder             = ResultIsListOfColumn
+resultShape HP_OutputOrder           = ResultIsListOfColumn
+resultShape (HP_Collect Collect_Cnt) = ResultIsCount
+resultShape _                        = ResultIsColumn
+
 -- * INSIGHT
 -- input columns always evaluate to a boolean somehow
 --   usually this is something like ">= 21"

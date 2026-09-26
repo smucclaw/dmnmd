@@ -8,13 +8,13 @@
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_1">
+    <decisionTable id="decisionTable_1" outputLabel="Dish">
       <input id="input_1_1" label="Season">
         <inputExpression id="inputExpression_1_1" typeRef="string">
           <text>Season</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="Dish" label="Dish" typeRef="string"/>
+      <output id="output_1_1" label="Dish"/>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
           <text>"Fall"</text>

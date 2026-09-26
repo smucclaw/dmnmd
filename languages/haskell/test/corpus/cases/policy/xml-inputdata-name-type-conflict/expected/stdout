@@ -8,13 +8,13 @@
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_1">
+    <decisionTable id="decisionTable_1" outputLabel="r">
       <input id="input_1_1" label="x">
         <inputExpression id="inputExpression_1_1" typeRef="number">
           <text>x</text>
         </inputExpression>
       </input>
-      <output id="output_1_1" name="r" label="r" typeRef="string"/>
+      <output id="output_1_1" label="r"/>
       <rule id="rule_1_1">
         <inputEntry id="inputEntry_1_1_1">
           <text>5</text>
@@ -30,13 +30,13 @@
     <informationRequirement id="informationRequirement_2_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>
-    <decisionTable id="decisionTable_2">
+    <decisionTable id="decisionTable_2" outputLabel="r">
       <input id="input_2_1" label="x">
         <inputExpression id="inputExpression_2_1" typeRef="string">
           <text>x</text>
         </inputExpression>
       </input>
-      <output id="output_2_1" name="r" label="r" typeRef="string"/>
+      <output id="output_2_1" label="r"/>
       <rule id="rule_2_1">
         <inputEntry id="inputEntry_2_1_1">
           <text>"hello"</text>

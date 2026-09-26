@@ -1,0 +1,9 @@
+export function HowMany ( tier : string ) {
+  if (tier === "gold") { // 1
+    return {"flag":"vip"};
+  }
+  if (tier === "silver") { // 2
+    return {"flag":"member"};
+  }
+}
+
