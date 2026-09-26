@@ -1099,6 +1099,29 @@ than it looked.
    as `OTHERWISE` — verified by *running* the emitted JavaScript under `node`, where the catch-all
    path returns `Takeaway`, rather than by reading it.
 
+   **Correction, 2026-09-26: `evalTable` is not first-match for `U`.** Its `HP_Unique` arm
+   (`DecisionTable.hs`, the `case length outputs` under `HP_Unique`) refuses any input that matches
+   two rows, and an input that matches an earlier row also matches the trailing catch-all.
+   Probed with `| 1 | < 18 | minor |` and `| 2 | - | adult |` under `-q`: 40 answers `adult`, but
+   10 answers "multiple rows returned -- this was supposed to be a unique table!".
+   What *is* first-match is the generated code: js/ts/py and `--to=l4`, which is what the `node` run
+   above measured.
+   So inside dmnmd a trailing catch-all under `U` has three readings: the interpreter refuses,
+   the code generators take the first match, and `--to=xml` promotes the row to a default output.
+   The routes also disagree with each other through the interpreter itself:
+   `policy/md-eval-unique-conflict`'s table (row 1 `Fall, <= 8`, row 2 all `-`) refuses `Fall, 5`
+   when read as markdown, and answers `Spareribs` after `--to=xml` and `--from=xml -q`, because the
+   catch-all has become a default by then.
+   The reason's conclusion (warn, don't refuse) is not affected, because the interpreter's answer is a
+   loud refusal rather than a wrong one; but "nothing dmnmd answers is wrong" rested partly on a false
+   premise.
+   The refusal is already pinned, as **policy**, by `policy/md-eval-unique-conflict`, whose fixture is
+   exactly this shape.
+   Whether a trailing catch-all under `U` is an authoring error or an accepted idiom is the question
+   D-13 said "needs its own ruling first"; it is still open, and is posed on the "Tables, Trees, Prose"
+   bench (card T6, 2026-09-26).
+   Found by the ROOTSTOCK planning memo (2026-09-26), sharpened by that bench's adversarial review.
+
 **The hazard is real, and exclusive to `--to=xml`.** Under `U` a conforming engine may evaluate
 rules in any order, so a foreign engine reading our emitted document is entitled to return the
 catch-all instead of a more specific rule. That is a wrong answer at exit 0, in the one backend
