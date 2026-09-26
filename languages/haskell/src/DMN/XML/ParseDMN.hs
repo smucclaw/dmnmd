@@ -916,8 +916,36 @@ instance DmnPU Expression where
       , xpWrap (ExprLiteral, \(ExprLiteral x) -> x) (dmnPU r)
       ]
 
+-- | @tInformationItem@ in the @<variable>@ position. On an @<inputData>@ node
+-- it is that node's name and type ('InputData'); on a @<decision>@ it is the
+-- name and type of the decision's RESULT, which for a single-output decision
+-- table is the only place DMN lets the output type be written
+-- ('Decision').
+--
+-- Defined here rather than beside 'InputData' because a top-level Template
+-- Haskell splice ends a declaration group: 'Decision' mentions this type, so
+-- this type has to precede @makePrisms ''Decision@.
+data InformationItem = InformationItem
+  { iiLabel :: DmnNamed
+  , iiTypeRef :: Maybe TypeRef
+  }
+  deriving (Show, Eq)
+
+makePrisms ''InformationItem
+
+xpVariable :: DmnRelease -> PU InformationItem
+xpVariable r =
+  xpDMNElem r "variable" _InformationItem
+    . xpIgnoredAttr "label"
+    $ xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (xpOption (dmnPU r)))
+
 data Decision = Decision
   { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
+    decVariable :: Maybe InformationItem,
+    -- ^ @<variable>@: the name and type of the value this decision produces.
+    -- Kept, not ignored, because for a table with a SINGLE output it is the
+    -- only place the output's type may be written — see 'Decision'\'s
+    -- 'DmnPU' instance.
     decInfoReq :: [InformationRequirement],
     decDTable :: Maybe Expression -- Schema says this could be any "expression", not just table
   }
@@ -933,38 +961,54 @@ makePrisms ''Decision
 -- The previous version used name-based content filters for @variable@ and
 -- @authorityRequirement@, which accepted them anywhere among the children.
 -- These are positional: an element out of schema order is still an error.
+--
+-- __The @<variable>@ is kept.__ It used to be an 'xpIgnoredElemOpt' beside
+-- @question@ and @allowedAnswers@, which is right for those two and wrong for
+-- this one: a decision table with a single output carries its result type
+-- __only__ here. @tOutputClause@ does declare a @typeRef@ attribute, but DMN 1.3
+-- __§8.3.2__, Table 34 says "The OutputClause of a single output decision table
+-- SHALL NOT specify a typeRef" (and likewise SHALL NOT specify a name), so a
+-- conformant producer must leave it off — which the @l4-ide@ DMN exporter does,
+-- measured at 0 of 271 output clauses against 429 of 429 input expressions, and
+-- documents the reason for in @jl4-core\/src\/L4\/Dmn\/Emit.hs@ (KIE reports
+-- @ILLEGAL_USE_OF_TYPEREF@ on one that has it). Dropping this element left
+-- dmnmd inferring a type that the document had stated.
+--
+-- The same section is why the type is HERE and nowhere else: @Decision.variable@
+-- is "the instance of InformationItem that stores the result of this Decision",
+-- and §7's Expression clause adds that a @typeRef@ on the expression defining a
+-- decision's output SHALL be the same as the containing decision's type.
+--
+-- __That number was hard-won and is worth not re-breaking.__ @Emit.hs@ attributes
+-- the rule to §8.2.11; @DECISIONS.md@ D-13 established against the OMG PDF that
+-- §8.2.11 is /Default output values/, and this entry was landed with no number at
+-- all rather than repeat a miscite. §8.3.2 is the verified one, read out of
+-- @~\/Documents\/omg-specs\/DMN-1.3.pdf@.
+--
+-- 'DMN.XML.XmlToDmnmd.convdec' is what reads it back out.
 instance DmnPU Decision where
   dmnPU r =
     xpDMNElem r "decision" _Decision
       . xpIgnoredAttr "label"
-      $ xpTriple
+      $ xp4Tuple
           (dmnPU r)
-          (xpSeq' decisionPrelude (dmnPU r))
+          (xpSeq' decisionPrelude (xpOption (xpVariable r)))
+          (dmnPU r)
           (xpSeq' decisionInterlude (dmnPU r))
     where
       decisionPrelude =
-        xpWrap (const (), const ((), ((), ((), ())))) $
+        xpWrap (const (), const ((), ((), ()))) $
           xpPair
             (xpDmnAnnotations r)
             (xpPair
               (xpIgnoredElemOpt r "question")
-              (xpPair (xpIgnoredElemOpt r "allowedAnswers") (xpIgnoredElemOpt r "variable")))
+              (xpIgnoredElemOpt r "allowedAnswers"))
       decisionInterlude =
         xpIgnoredElemsOf r
           [ "knowledgeRequirement", "authorityRequirement"
           , "supportedObjective", "impactedPerformanceIndicator"
           , "decisionMaker", "decisionOwner", "usingProcess", "usingTask"
           ]
-
--- | @tInformationItem@ in the @<variable>@ position. Parsed but not modelled
--- beyond its existence — see 'InputData'.
-data InformationItem = InformationItem
-  { iiLabel :: DmnNamed
-  , iiTypeRef :: Maybe TypeRef
-  }
-  deriving (Show, Eq)
-
-makePrisms ''InformationItem
 
 -- | @tInputData@: @description?@, @extensionElements?@, @variable?@.
 --
@@ -978,12 +1022,6 @@ data InputData = InputData
   deriving (Show, Eq)
 
 makePrisms ''InputData
-
-xpVariable :: DmnRelease -> PU InformationItem
-xpVariable r =
-  xpDMNElem r "variable" _InformationItem
-    . xpIgnoredAttr "label"
-    $ xpPair (dmnPU r) (xpSeq' (xpDmnAnnotations r) (xpOption (dmnPU r)))
 
 instance DmnPU InputData where
   dmnPU r =
@@ -1060,7 +1098,7 @@ ex3 =
     { defLabel = dmnNamed' "hi" "there",
       defsNamespace = Namespace xmlns_camunda,
       defsDescisions = [
-        Decision (dmnNamed' "a" "b") [
+        Decision (dmnNamed' "a" "b") Nothing [
           InformationRequirement (dmnLabeled "c" "d") RequiredInput (Href "#url")
           ]
           Nothing],

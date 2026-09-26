@@ -4,6 +4,7 @@
     <variable id="informationItem_1" name="Season" typeRef="string"/>
   </inputData>
   <decision id="decision_1" name="Fallback">
+    <variable id="variable_1" name="Fallback" typeRef="string"/>
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>

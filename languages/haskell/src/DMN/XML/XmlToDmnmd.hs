@@ -146,7 +146,7 @@ allDecisions d = X.defsDescisions d ++ [dec | X.DrgDec dec <- X.defDrgElems d]
 
 convdec :: TypeEnv -> X.Decision -> ([Diagnostic], [T.DecisionTable])
 convdec env dec = (drgDiags, []) <> case X.decDTable dec of
-    Just (X.ExprDTable tabl) -> convTable env decisionName tabl
+    Just (X.ExprDTable tabl) -> convTable env decisionName decVarType tabl
     Just (X.ExprLiteral _)   ->
       ([ warnAt $ "decision " ++ show decisionName
           ++ ": its decision logic is a <literalExpression>, not a <decisionTable>; skipped." ], [])
@@ -155,6 +155,11 @@ convdec env dec = (drgDiags, []) <> case X.decDTable dec of
   where
     decisionName = dmnnName $ decLabel dec
     drgDiags     = map (drgEdgeDropped decisionName) (X.decInfoReq dec)
+
+    -- The type of a single-output decision table is written on the DECISION's
+    -- variable, not on the @<output>@ clause. 'convTable' decides whether that
+    -- applies; all this does is hand over what the document said.
+    decVarType   = X.decVariable dec >>= X.iiTypeRef
 
 -- | One 'Warning' per @\<informationRequirement\>@ edge, because dmnmd does not
 -- model the decision requirement graph and each @\<decision\>@ becomes an
@@ -220,8 +225,8 @@ data Col = Col
 -- no middle setting: a table whose guards can never fire, or whose rules have
 -- been silently widened by a dropped entry, is not a lesser version of the
 -- right answer — it is a wrong answer that exits 0.
-convTable :: TypeEnv -> String -> X.DecisionTable -> ([Diagnostic], [T.DecisionTable])
-convTable env name X.DecisionTable
+convTable :: TypeEnv -> String -> Maybe TypeRef -> X.DecisionTable -> ([Diagnostic], [T.DecisionTable])
+convTable env name decVarType X.DecisionTable
   { X.dtHitPolicy
   , X.dtInput
   , X.dtOutput
@@ -252,7 +257,45 @@ convTable env name X.DecisionTable
 
     -- ---- columns -------------------------------------------------------
     (inColDiags,  inCols)  = unzip' (zipWith (convInputCol  env inTable) [1 ..] dtInput)
-    (outColDiags, outCols) = unzip' (zipWith (convOutputCol env inTable) [1 ..] dtOutput)
+    (outColDiags, outCols) =
+      unzip' (zipWith (convOutputCol env inTable outFallback) [1 ..] dtOutput)
+
+    -- A decision table with ONE output states that output's type on the
+    -- enclosing @<decision>@'s @<variable>@, and a conformant producer leaves
+    -- @typeRef@ off the @<output>@ clause entirely (see the @<variable>@ note
+    -- on 'X.Decision'\'s pickler, which quotes DMN 1.3 §8.3.2 for the rule).
+    -- So for a single-output table the decision variable is a
+    -- declaration, and reading it is the difference between honouring the type
+    -- the document states and guessing at it from the cells.
+    --
+    -- __Only when there is exactly one output.__ With two or more, the outputs
+    -- are keyed by name and each carries its own @typeRef@; the decision
+    -- variable then names the composite, whose type is an @<itemDefinition>@
+    -- and not any one column's. Applying it there would give every column the
+    -- same wrong type.
+    --
+    -- A @typeRef@ that IS present on the clause still wins: it is the more
+    -- specific statement, and refusing it would reject documents that read
+    -- correctly today.
+    --
+    -- __And not under a list-valued hit policy either.__ Under @C@, @R@ or @O@
+    -- the decision's result IS a list, so the variable types the collection of
+    -- results ACROSS RULES — not the output column, whose cells are each a
+    -- single scalar. The list-ness comes from the hit policy and is already
+    -- accounted for downstream, so applying the variable here double-counts it:
+    -- a @COLLECT@ table whose variable is an @isCollection@ @<itemDefinition>@
+    -- emitted @["gold"]@ for a cell the document spells @"gold"@, at exit 0.
+    -- @U@, @A@, @P@ and @F@ each yield ONE value, so for those the variable does
+    -- describe the output column and the fallback is right.
+    outFallback = case dtOutput of
+      [_] | not listValuedHitPolicy -> decVarType
+      _                             -> Nothing
+
+    listValuedHitPolicy = case dtHitPolicy of
+      T.HP_Collect _   -> True
+      T.HP_RuleOrder   -> True
+      T.HP_OutputOrder -> True
+      _                -> False
 
     nIn = length dtInput
     nOut = length dtOutput
@@ -375,8 +418,13 @@ convInputCol env inTable ix TableInput { tinpLabel, tinpExpr = InputExpression i
 
 -- | @<output>@ → column descriptor. DMN 1.3 makes @label@, @name@ and
 -- @typeRef@ all optional on @<output>@, so none can be assumed present.
-convOutputCol :: TypeEnv -> (String -> String) -> Int -> TableOutput -> (Diagnostics, Col)
-convOutputCol env inTable ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
+--
+-- @fallbackTypeRef@ is the enclosing decision's @<variable>@ type, and is
+-- 'Nothing' unless the table has exactly one output — 'convTable' decides that,
+-- because the output count is not visible from here. A @typeRef@ on the clause
+-- itself takes precedence over it.
+convOutputCol :: TypeEnv -> (String -> String) -> Maybe TypeRef -> Int -> TableOutput -> (Diagnostics, Col)
+convOutputCol env inTable fallbackTypeRef ix TableOutput { toutName, toutLabel, toutTypeRef, toutValues, toutDefault } =
     ( diags ++ domDiags
     , Col { colKind = T.DTCH_Out
           , colName = nm
@@ -394,7 +442,8 @@ convOutputCol env inTable ix TableOutput { toutName, toutLabel, toutTypeRef, tou
       , "output" ++ show ix
       ]
     locate = inTable . (("output column " ++ show nm ++ ": ") ++)
-    (diags, ty, inherited) = resolveType env locate toutTypeRef
+    (diags, ty, inherited) =
+      resolveType env locate (maybe fallbackTypeRef Just toutTypeRef)
     (domDiags, domain) =
       pickDomain locate "<outputValues>"
         (fmap (innerText . utText . unOutputValues) toutValues) inherited
@@ -615,7 +664,42 @@ resolveTypeRef env = go []
                 -- message the markdown side gives — one rule, not two.
                 ty' | isCollectionOf itd = T.DMN_List <$> ty
                     | otherwise          = ty
-            in (ds, ty', allowedValuesText itd `orElse` inherited)
+                -- __@DMN_List \<$\> Nothing@ is @Nothing@, and that is a silent
+                -- loss of the @isCollection@ declaration.__ The @fmap@ above is
+                -- safe only while every 'Nothing' arrives with a diagnostic
+                -- attached — which was true until 'convertType' learned to read
+                -- @typeRef="Any"@ as "no restriction, infer" and produced the
+                -- first diagnostic-free 'Nothing'. A collection of @Any@ then
+                -- stopped being a collection at all, with no warning, at exit 0,
+                -- and every membership cell was emitted as an EQUALITY test
+                -- against the whole list: @roles === "admin"@, false for every
+                -- input, so every rule in that column became unreachable.
+                --
+                -- Refusing rather than guessing, for the reason the unknown-typeRef
+                -- branch of 'convertType' already gives: inference runs per column
+                -- and yields scalars, so there is nothing here that could supply an
+                -- ELEMENT type, and picking one wrong turns membership into a test
+                -- that can never match. This also restores exactly what the tree
+                -- did before @Any@ was recognised, so no document that worked is
+                -- lost — only the silent wrong answer.
+                --
+                -- Guarded on @null ds@: when the element type failed for some other
+                -- reason there is already a located error, and two messages about
+                -- one cause is worse than one.
+                collectionOfUnknown
+                  | isCollectionOf itd, isNothing ty, null ds =
+                      [ errorAt $ "typeRef " ++ show raw ++ " names an <itemDefinition>"
+                          ++ " with isCollection=\"true\" whose element type is <typeRef>"
+                          ++ base ++ "</typeRef>, which places no restriction on the"
+                          ++ " elements. dmnmd infers a column's type from its cells and"
+                          ++ " can only infer a scalar, so there is nothing here to make"
+                          ++ " the ELEMENT type — and reading the column as a scalar"
+                          ++ " would turn every membership cell into an equality test"
+                          ++ " against the whole collection, which can never match."
+                          ++ " Name the element type (for example <typeRef>string</typeRef>)."
+                          ++ " Refusing to convert this table." ]
+                  | otherwise = []
+            in (ds ++ collectionOfUnknown, ty', allowedValuesText itd `orElse` inherited)
 
     orElse a b = maybe b Just a
 
@@ -708,6 +792,23 @@ convertType (TypeRef raw) = case canonical of
     "string"   -> ok T.DMN_String
     "boolean"  -> ok T.DMN_Boolean
     "bool"     -> ok T.DMN_Boolean
+    -- FEEL's top type. It is a declaration that declares NO restriction — every
+    -- value conforms to it — so it says exactly what an absent @typeRef@ says,
+    -- and is answered the same way: no usable declaration, infer from the cells.
+    --
+    -- It is deliberately NOT routed to the unknown-typeRef refusal below, whose
+    -- reasoning does not reach it. That refusal exists because a type we cannot
+    -- model names a domain we would then silently misread — a @date@ column read
+    -- as a string turns every guard into a comparison that can never match.
+    -- @Any@ names no domain, so there is nothing to misread: inference is not a
+    -- guess at what the document meant, it IS what the document asked for.
+    -- Refusing it means refusing a file for saying "unconstrained" out loud
+    -- instead of by silence.
+    --
+    -- Real producers say it out loud. The l4-ide DMN exporter writes
+    -- @typeRef="Any"@ wherever an L4 type has no DMN counterpart, on 136 of the
+    -- 355 documents in a corpus export.
+    "any"      -> ([], Nothing)
     t | t `elem` temporalTypes ->
           ( [ errorAt $
                 "typeRef " ++ show raw ++ " is a FEEL temporal type. dmnmd has no temporal"
@@ -746,7 +847,7 @@ convertType (TypeRef raw) = case canonical of
     -- send the reader looking for a type that is already supported.
     knownTypes =
       [ "number", "integer", "int", "long", "short", "double", "float", "decimal"
-      , "string", "boolean", "bool"
+      , "string", "boolean", "bool", "Any"
       ]
 
 -- * Small helpers

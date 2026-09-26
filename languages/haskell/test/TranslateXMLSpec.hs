@@ -17,7 +17,7 @@ module TranslateXMLSpec (xmlEmitSpec) where
 
 import Test.Hspec
 
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, isPrefixOf)
 
 import DMN.Translate.XML (cellText, defaultXMLOpts, fidelityDiags, showFeelXML, toXMLDoc, toXMLFile)
 import DMN.Types
@@ -133,6 +133,33 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
       attrs (HP_Collect Collect_Min) `shouldBe` ["hitPolicy=\"COLLECT\"", "aggregation=\"MIN\""]
       attrs (HP_Collect Collect_Max) `shouldBe` ["hitPolicy=\"COLLECT\"", "aggregation=\"MAX\""]
       attrs (HP_Collect Collect_Cnt) `shouldBe` ["hitPolicy=\"COLLECT\"", "aggregation=\"COUNT\""]
+
+    -- The decision's <variable> states the type of the decision's RESULT. Under
+    -- a list-valued hit policy that result is a LIST, so claiming the output
+    -- column's scalar type there tells a conformant consumer the decision
+    -- returns a number when the engine will hand it a list of numbers. Only
+    -- Collect-with-no-aggregation, RULE ORDER and OUTPUT ORDER are list-valued:
+    -- C+ / C< / C> reduce to one value OF the column's type, and C# counts, so
+    -- all four aggregations keep a scalar typeRef. (Found by adversarial review
+    -- of D-17; the reviewer's claim covered all of COLLECT, which is too wide --
+    -- the aggregation attribute is what decides it.)
+    it "omits the decision <variable> typeRef exactly when the result is a list" $ do
+      let varTypeRef hp =
+            [ w | w <- words (toXMLDoc defaultXMLOpts [table hp])
+                , "typeRef=" `isPrefixOf` w ]
+          scalarKept hp = varTypeRef hp == varTypeRef HP_Unique
+      -- list-valued: the scalar claim must be gone
+      scalarKept (HP_Collect Collect_All) `shouldBe` False
+      scalarKept HP_RuleOrder `shouldBe` False
+      scalarKept HP_OutputOrder `shouldBe` False
+      -- single-valued: unchanged
+      scalarKept HP_First `shouldBe` True
+      scalarKept HP_Any `shouldBe` True
+      scalarKept HP_Priority `shouldBe` True
+      scalarKept (HP_Collect Collect_Sum) `shouldBe` True
+      scalarKept (HP_Collect Collect_Min) `shouldBe` True
+      scalarKept (HP_Collect Collect_Max) `shouldBe` True
+      scalarKept (HP_Collect Collect_Cnt) `shouldBe` True
 
   -- D-16 phase 1. The catch-all 'uniquenessErrors' deliberately leaves alone
   -- (it is legal, unambiguous, and dmnmd evaluates it first-match) becomes a

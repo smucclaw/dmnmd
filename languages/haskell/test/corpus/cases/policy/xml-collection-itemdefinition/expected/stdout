@@ -7,6 +7,7 @@
     <variable id="informationItem_1" name="roles" typeRef="dmnmd_list_of_string"/>
   </inputData>
   <decision id="decision_1" name="Access">
+    <variable id="variable_1" name="Access" typeRef="string"/>
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>

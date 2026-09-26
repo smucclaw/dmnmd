@@ -318,6 +318,36 @@ definitionsOf opts dts = X.Definitions
 
 -- | One table as a @\<decision\>@ wrapping a @\<decisionTable\>@.
 --
+-- __The @\<variable\>@ is where a single-output table's result type belongs__,
+-- so it is emitted rather than left out: a consumer that follows the
+-- specification looks there and not at @\<output\>\/\@typeRef@, and until this
+-- was written dmnmd stated the type in only the place such a consumer ignores.
+-- Its @name@ repeats the decision\'s, which is the DMN convention and what KIE
+-- checks for. With two or more outputs the variable names a composite whose
+-- type would be a synthesised @\<itemDefinition\>@ dmnmd does not build, so it
+-- is emitted with a name and no @typeRef@ rather than with a type that is only
+-- one column\'s.
+--
+-- @\<output\>\/\@typeRef@ is still written as well. Dropping it is a separate
+-- question, and a real conformance defect rather than a style point: DMN 1.3
+-- §8.3.2, Table 34 says a single-output clause SHALL NOT specify a @typeRef@ OR a
+-- @name@, and KIE enforces it with @ILLEGAL_USE_OF_TYPEREF@ \/
+-- @ILLEGAL_USE_OF_NAME@. It is nevertheless what every version of this backend
+-- has emitted, and the reader must honour the @\<variable\>@ before the writer
+-- can stop repeating itself — which is what this change lands. Removing the two
+-- attributes is the deliberate follow-up, not a side effect of adding this.
+--
+-- __The typeRef is omitted when the hit policy makes the result a LIST.__ The
+-- variable states the type of the decision's RESULT, so under @C@ (with no
+-- aggregation), @RULE ORDER@ or @OUTPUT ORDER@ the scalar column type is simply
+-- the wrong answer — it tells a conformant consumer the decision returns a
+-- number when the engine will hand it a list of numbers. The four aggregations
+-- are NOT list-valued and keep the scalar: @C+@, @C\<@ and @C\>@ reduce to one
+-- value of the column's type, and @C#@ counts. dmnmd could name a
+-- @dmnmd_list_of_*@ type here instead, but 'collectionItemDefs' declares one
+-- only for a type some COLUMN actually uses, so pointing at it would be a
+-- dangling reference in exactly the documents this affects.
+--
 -- The @\<informationRequirement\>@ edges are not invented: an input column IS
 -- the statement that this decision reads that input, which is exactly what the
 -- DRG edge means. dmnmd's own reader parses them into @decInfoReq@ and then
@@ -327,6 +357,13 @@ definitionsOf opts dts = X.Definitions
 decisionOf :: (String -> String) -> Int -> DecisionTable -> X.Decision
 decisionOf inputDataId t dt = X.Decision
   { X.decLabel = X.dmnNamed' (idOf "decision" [show t]) (tableName dt)
+  , X.decVariable = Just X.InformationItem
+      { X.iiLabel = X.dmnNamed' (idOf "variable" [show t]) (tableName dt)
+      , X.iiTypeRef = case outHeaders dt of
+          [ch] | not (listValuedResult (hitpolicy dt))
+                 -> X.TypeRef <$> typeRefOf (vartype ch)
+          _      -> Nothing
+      }
   , X.decInfoReq =
       [ X.InformationRequirement
           { X.infrLabel = X.DmnCommon (Just (idOf "informationRequirement" [show t, show c])) Nothing
@@ -337,6 +374,17 @@ decisionOf inputDataId t dt = X.Decision
       ]
   , X.decDTable = Just (X.ExprDTable (decisionTableOf t dt))
   }
+
+-- | Does this hit policy make the decision's result a LIST rather than one value?
+--
+-- Only bare @COLLECT@, @RULE ORDER@ and @OUTPUT ORDER@. The four Collect
+-- aggregations reduce to a single value — @SUM@, @MIN@ and @MAX@ to one of the
+-- column's own type, @COUNT@ to a number — so they are single-valued here.
+listValuedResult :: HitPolicy -> Bool
+listValuedResult (HP_Collect Collect_All) = True
+listValuedResult HP_RuleOrder             = True
+listValuedResult HP_OutputOrder           = True
+listValuedResult _                        = False
 
 decisionTableOf :: Int -> DecisionTable -> X.DecisionTable
 decisionTableOf t dt = X.DecisionTable

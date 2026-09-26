@@ -7,6 +7,7 @@
     <variable id="informationItem_2" name="a_b" typeRef="boolean"/>
   </inputData>
   <decision id="decision_1" name="Ids">
+    <variable id="variable_1" name="Ids" typeRef="string"/>
     <informationRequirement id="informationRequirement_1_1">
       <requiredInput href="#inputData_1"/>
     </informationRequirement>

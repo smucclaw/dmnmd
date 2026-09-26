@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A COLLECT table whose <decision> variable is declared as a COLLECTION.
+
+     Under a list-valued hit policy the decision's result IS a list, so the
+     variable's type describes the collection of results ACROSS RULES — not the
+     type of the output column, whose cells are each a single scalar. The list-ness
+     comes from the hit policy, and it is already accounted for.
+
+     Applying the variable's type to the column double-counts it: the cell "gold"
+     was emitted as ["gold"], a value the document never states, at exit 0. So the
+     single-output fallback does not apply under C, R or O. It still applies under
+     U, A, P and F, whose result is one value and whose variable therefore does
+     describe the output column. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="b" name="B" namespace="https://example.org/dmnmd/test/b">
+  <itemDefinition name="BandList" isCollection="true"><typeRef>string</typeRef></itemDefinition>
+  <inputData id="I_age" name="Age"/>
+  <decision id="D_bands" name="Bands">
+    <variable id="V_bands" name="Bands" typeRef="BandList"/>
+    <decisionTable id="DT_bands" hitPolicy="COLLECT">
+      <input id="I1" label="age">
+        <inputExpression id="IE1" typeRef="number"><text>age</text></inputExpression>
+      </input>
+      <output id="O1"/>
+      <rule id="R1"><inputEntry id="U1"><text>&lt; 18</text></inputEntry><outputEntry id="L1"><text>"gold"</text></outputEntry></rule>
+      <rule id="R2"><inputEntry id="U2"><text>&lt; 21</text></inputEntry><outputEntry id="L2"><text>"silver"</text></outputEntry></rule>
+    </decisionTable>
+  </decision>
+</definitions>
