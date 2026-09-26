@@ -411,6 +411,23 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
       doc `shouldSatisfy` ("<defaultOutputEntry" `isInfixOf`)
       doc `shouldSatisfy` ("<text>\"Takeaway\"</text>" `isInfixOf`)
 
+  -- One <inputData> per NAME serves every table that reads that input, so its
+  -- type has to come from whichever table declares one. It came from the FIRST
+  -- occurrence (nubBy on (name, type) pairs), so an all-wildcard, untyped
+  -- column in an earlier table deleted a later table's declaration from the
+  -- shared node: a diagnostic-free Nothing winning over a Just. Docket queue
+  -- item #10, measured on 18481de and 2c64890.
+  describe "DMN.Translate.XML.definitionsOf — one <inputData> per input name" $ do
+    it "types a shared <inputData> from a later table when the first leaves it untyped" $ do
+      let age ty = DTCH DTCH_In "Age" ty Nothing
+          band   = DTCH DTCH_Out "Band" (Just DMN_String) Nothing
+          first' = DTable "First" HP_First [age Nothing, band]
+                     [ DTrow (Just 1) [[FAnything]] [[FNullary (VS "any")]] [] ] Nothing
+          second = DTable "Second" HP_First [age (Just DMN_Number), band]
+                     [ DTrow (Just 1) [[FSection Flt (VN 18)]] [[FNullary (VS "minor")]] [] ] Nothing
+          doc = toXMLDoc defaultXMLOpts [first', second]
+      doc `shouldSatisfy` ("<variable id=\"informationItem_1\" name=\"Age\" typeRef=\"number\"/>" `isInfixOf`)
+
   where
     strCol k = DTCH k "Season" (Just DMN_String) Nothing
     listCol k = DTCH k "roles" (Just (DMN_List DMN_String)) Nothing

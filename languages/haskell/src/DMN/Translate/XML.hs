@@ -56,9 +56,8 @@ module DMN.Translate.XML
   ) where
 
 import Data.Char (toLower)
-import Data.Function (on)
-import Data.List (intercalate, nub, nubBy)
-import Data.Maybe (isJust, mapMaybe)
+import Data.List (intercalate, nub)
+import Data.Maybe (isJust, listToMaybe, mapMaybe)
 import Text.XML.HXT.Core
 import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
 import qualified Text.XML.HXT.DOM.ShowXml as SX
@@ -294,8 +293,19 @@ definitionsOf opts dts = X.Definitions
   where
     -- Every distinct input column name in the document, in first-seen order.
     -- Distinct by NAME: the same column read by two tables is one input.
-    inputVars = nubBy ((==) `on` fst)
-      [ (varname ch, vartype ch) | dt <- dts, ch <- inHeaders dt ]
+    --
+    -- The TYPE is the first one any of those columns declares, not the first
+    -- column's. An untyped column (all wildcards, so inference found nothing)
+    -- used to win by position and delete a later table's declaration from the
+    -- shared node — a diagnostic-free 'Nothing' displacing a 'Just'. Untyped is
+    -- consistent with every type, so it cannot conflict with one; two columns
+    -- that DO declare different types are 'crossTableDiags'' business, and the
+    -- first declaration still wins there, as it always did.
+    -- @policy/xml-emit-inputdata-typed-from-later-table@.
+    inputVars =
+      [ (nm, listToMaybe [ t | (n, Just t) <- occurrences, n == nm ])
+      | nm <- nub (fst <$> occurrences) ]
+    occurrences = [ (varname ch, vartype ch) | dt <- dts, ch <- inHeaders dt ]
 
     -- __Positional, not name-derived, and that is a correctness fix rather than
     -- a style choice.__ An @xsd:ID@ must be unique across the document, and
