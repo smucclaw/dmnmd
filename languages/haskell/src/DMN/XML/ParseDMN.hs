@@ -46,13 +46,14 @@ xmlns_camunda = "http://camunda.org/schema/1.0/dmn"
 -- @namespace=\"…\/20191111\/DMNDI\/\" schemaLocation=\"DMNDI13.xsd\"@, and the
 -- OMG ships no @DMNDI14.xsd@ at all. A @mkRelease :: Date -> DmnRelease@ would
 -- therefore be wrong on its very first use.
+-- DMN 1.6 does it again: @DMN16.xsd@ declares @xmlns=\"…\/20240513\/MODEL\/\"@ and imports the /1.5/ DMNDI namespace, @…\/20230324\/DMNDI\/@ from @DMNDI15.xsd@.
+-- The OMG publishes no @DMNDI16.xsd@, and its DMN 1.6 page links @DMNDI15.xsd@ among the release's machine-readable files.
 --
--- Both fields are 'String', so getting one wrong compiles, matches nothing, and
--- makes the @\<dmndi:DMNDI\>@ subtree resurface as @xpCheckEmptyContents@ — the
--- generic failure this module exists to avoid. @test\/dmn15\/baseline14.dmn@ and
--- @policy\/xml-dmn14-accepted@ are the guard, and 1.4 is the only release they
--- CAN guard: it is the only one whose DMNDI date differs from its model date, so
--- a 1.3 or 1.5 fixture cannot tell a date-template design from a correct one.
+-- Both fields are 'String', so getting one wrong compiles, matches nothing, and refuses a correct document.
+-- The refusal is by name today, as a stray namespace: the right DMNDI URI for 1.4 and for 1.6 is also another readable release's, so 'refuseUnmodelled' can name it.
+-- (This paragraph used to say the @\<dmndi:DMNDI\>@ subtree resurfaced as the generic @xpCheckEmptyContents@. Measured 2026-09-26 by setting 1.4's and 1.6's DMNDI to their date-template guesses, it does not; that stopped being true when the stray-namespace scan learned 'relDmndiNS', in @6a030ae@.)
+-- @policy\/xml-dmn14-accepted@ and @policy\/xml-dmn16-accepted@ are the guards, and 1.4 and 1.6 are the only releases that CAN guard it.
+-- They are the only two whose DMNDI date differs from their model date, so a 1.3 or 1.5 fixture cannot tell a date-template design from a correct one.
 data DmnRelease = DmnRelease
   { relName :: String
   , relModelNS :: String
@@ -62,22 +63,21 @@ data DmnRelease = DmnRelease
 
 -- | The releases this reader can read.
 --
--- Adding a fourth is one record, /provided/ its decision-table complex types are
+-- Adding another is one record, /provided/ its decision-table complex types are
 -- still byte-identical — which is the property that makes one pickler tree
 -- serve all of them, and which must be re-measured rather than assumed. It held
 -- from 1.3 to 1.5: @tDecisionTable@, @tInputClause@, @tOutputClause@,
 -- @tDecisionRule@, @tUnaryTests@ and @tLiteralExpression@ are byte-identical in
 -- @DMN13.xsd@ and @DMN15.xsd@, and nothing was removed anywhere.
 --
--- DMN 1.6 Beta 1 (OMG @dtc\/24-05-18@) is dated @20240513@ and is /not/ listed
--- here: the beta text pins @…\/20240513\/FEEL\/@ but never spells its MODEL or
--- DMNDI URI, and guessing one from the pattern would put an unverified string in
--- an accept list. Measure it from a published @DMN16.xsd@, then add the record.
--- That condition is now met: DMN 1.6 went formal in September 2026 (OMG
--- @formal\/25-12-02@) and publishes
--- @https:\/\/www.omg.org\/spec\/DMN\/20240513\/DMN16.xsd@. It has not been
--- measured yet, so the record is still absent and a 1.6 document is refused.
-dmn13, dmn14, dmn15 :: DmnRelease
+-- It holds from 1.5 to 1.6 as well, measured on 2026-09-26 against the formal schema (OMG @formal\/25-12-02@), fetched from @https:\/\/www.omg.org\/spec\/DMN\/20240513\/DMN16.xsd@ and not vendored (D-4).
+-- Every top-level declaration in @DMN15.xsd@ and @DMN16.xsd@ was extracted as source text and compared byte for byte: 94 in each, none added, none removed, and all but two identical.
+-- @tDefinitions@ differs only in the defaults of @expressionLanguage@ and @typeLanguage@ (@…\/20230324\/FEEL\/@ becomes @…\/20240513\/FEEL\/@), which 'dmnPickler' consumes and drops, exactly as it did for 1.3 to 1.5.
+-- @tFunctionKind@ gains the enumeration value @ONNX@; it types only the @kind@ attribute of a @tFunctionDefinition@, whose two carriers, @\<functionDefinition\>@ and a @\<businessKnowledgeModel\>@'s @\<encapsulatedLogic\>@, dmnmd already refuses by name.
+-- Apart from those two blocks and the model namespace in the schema header (@xmlns@ and @targetNamespace@), the files are identical, down to the DMNDI import.
+--
+-- What 1.6 adds that the schema cannot show is B-FEEL (clause 11), a FEEL dialect chosen by an @expressionLanguage@ URI; see 'unmodelledExpressionLanguages'.
+dmn13, dmn14, dmn15, dmn16 :: DmnRelease
 dmn13 =
   DmnRelease "DMN 1.3"
     "https://www.omg.org/spec/DMN/20191111/MODEL/"
@@ -90,9 +90,13 @@ dmn15 =
   DmnRelease "DMN 1.5"
     "https://www.omg.org/spec/DMN/20230324/MODEL/"
     "https://www.omg.org/spec/DMN/20230324/DMNDI/"
+dmn16 =
+  DmnRelease "DMN 1.6"
+    "https://www.omg.org/spec/DMN/20240513/MODEL/"
+    "https://www.omg.org/spec/DMN/20230324/DMNDI/" -- not a typo either: 1.5's
 
 readableReleases :: [DmnRelease]
-readableReleases = [dmn13, dmn14, dmn15]
+readableReleases = [dmn13, dmn14, dmn15, dmn16]
 
 -- | Releases we can /name/ but not read. Widening acceptance is not accepting
 -- everything: a DMN 1.1 or 1.2 document is still refused, and the point of this
@@ -115,9 +119,9 @@ releaseOfNamespace ns = lookup ns [(relModelNS r, r) | r <- readableReleases]
 --
 -- Also names a DMNDI namespace, and says so: a message reading @(DMN 1.3)@ for a
 -- stray @xmlns:dmndi@ would send the reader to the wrong attribute. The DMNDI
--- URIs are not one-to-one with releases — DMN 1.4 reuses 1.3's — so this reports
--- the first release declaring it, which is the one whose spelling the author
--- most likely copied.
+-- URIs are not one-to-one with releases — DMN 1.4 reuses 1.3's, and DMN 1.6
+-- reuses 1.5's — so this reports the first release declaring it, which is the
+-- one whose spelling the author most likely copied.
 releaseNameOfNamespace :: String -> Maybe String
 releaseNameOfNamespace ns = case lookup ns refusedReleases of
   Just n -> Just n
@@ -1319,8 +1323,33 @@ unmodelledConstructs =
     , ("filter",         (Just "DMN 1.4", "a boxed filter (in / match)"))
     , ("typeConstraint", (Just "DMN 1.5", "a unary test constraining an <itemDefinition>'s values"))
     ]
+  -- DMN 1.6 adds no entry here. Its one structural change, tFunctionKind gaining
+  -- "ONNX", is an attribute value on a <functionDefinition>, which is already in
+  -- the list above, or on a BKM's <encapsulatedLogic>, which 'readerRefusal'
+  -- refuses; see 'unmodelledExpressionLanguages' for what 1.6 does add.
 
--- | Refuse the constructs in 'unmodelledConstructs' by name, before unpickling.
+-- | Expression languages dmnmd has no semantics for, refused by URI before unpickling.
+--
+-- The URI-keyed twin of 'unmodelledConstructs', with the same shape: @(URI, (release that introduced it, what it is))@.
+-- It is a separate list because what it names is not an element but the value of an @expressionLanguage@ attribute, which @tDefinitions@, @tLiteralExpression@, @tUnaryTests@ and @tImportedValues@ all carry, so one cell can switch language on its own.
+-- The reader never acts on that attribute — some positions drop it while parsing, the rest keep it in a field the converter never reads — so without this list a document in a language dmnmd does not implement is read as FEEL at exit 0.
+--
+-- B-FEEL is DMN 1.6's (clause 11; the term occurs nowhere in the DMN 1.3 or 1.5 texts).
+-- It keeps FEEL's grammar and changes its meaning: an operator or function that answers null in FEEL answers false, 0 or @\"\"@ in B-FEEL, so @\"a\" != 1@ is true, @sum([])@ is 0, and the specification itself notes that a @C+@ table sums differently.
+-- No XSD can say any of this, because the attribute is @xsd:anyURI@ in every release, which is why the schema measurement that admitted 1.6 found nothing here.
+--
+-- __Deliberately a deny-list of one, not an allow-list of FEEL URIs.__
+-- Every other non-FEEL language is still read as FEEL without a word: @test\/dmn13\/baseline.dmn@ with @expressionLanguage=\"python\"@ on one @\<inputEntry\>@ emits the same table at exit 0 (measured 2026-09-26).
+-- Refusing those would change what DMN 1.3 documents do today, which is a ruling rather than part of admitting a release.
+unmodelledExpressionLanguages :: [(String, (Maybe String, String))]
+unmodelledExpressionLanguages =
+  [ ( "https://www.omg.org/spec/DMN/20240513/B-FEEL/"
+    , ( Just "DMN 1.6"
+      , "B-FEEL, the dialect of FEEL whose operators and functions answer false, 0 or \"\" where FEEL answers null" ) )
+  ]
+
+-- | Refuse the constructs in 'unmodelledConstructs' and the languages in
+-- 'unmodelledExpressionLanguages' by name, before unpickling.
 --
 -- __Why a pre-flight rather than a refusal arm inside the picklers.__ Three
 -- reasons, each sufficient on its own.
@@ -1338,6 +1367,9 @@ unmodelledConstructs =
 --  3. It needs nothing from hxt beyond 'runLA' — no @throwMsg@ or
 --     @liftUnpickleVal@ from @Text.XML.HXT.Arrow.Pickle.Xml@, which
 --     @Text.XML.HXT.Core@ does not re-export.
+--
+-- An @expressionLanguage@ URI is a case of the first reason too: no pickler acts on it.
+-- @\<definitions\>@, @\<inputEntry\>@ and @\<outputEntry\>@ consume it with 'xpIgnoredAttrs', and the other positions keep it in 'tleExpressionLanguage' or 'utExpressionLanguage', which 'DMN.XML.XmlToDmnmd' never reads.
 --
 -- __'multi', not 'deep'__: hxt's 'deep' stops at the first success on each
 -- branch (@deep f = f \`orElse\` (getChildren >>> deep f)@), and the root
@@ -1369,7 +1401,27 @@ refuseUnmodelled filename release root
              | not (null unmodelled)
              ]
   where
-    problems = nub (map renderUnmodelled unmodelled ++ map renderStrayNS strayNS)
+    problems =
+      nub (map renderUnmodelled unmodelled ++ map renderLanguage languages ++ map renderStrayNS strayNS)
+
+    -- Expression languages we have no semantics for, wherever they are declared.
+    -- The root is scanned by itself as well as each subtree below it, because <definitions> is where a model-wide language is declared and 'topLevel' starts one level down.
+    -- Running 'multi' from the root instead would find every cell and blame <definitions> for all of them.
+    languages =
+      [ (owner root, uri) | uri <- runLA languageOf root ]
+        ++ [ (owner kid, uri) | kid <- topLevel, uri <- runLA (multi languageOf) kid ]
+    -- The same namespace confinement as 'offenders': an element in a foreign
+    -- namespace is not a DMN expression, whatever its attributes say.
+    languageOf =
+      (isElem >>> getQName >>> isA ((== relModelNS release) . namespaceUri))
+        `guards` (getAttrValue0 "expressionLanguage"
+                    >>> isA (`elem` map fst unmodelledExpressionLanguages))
+    renderLanguage (who, uri) =
+      who ++ ": expressionLanguage " ++ show uri ++ " selects "
+        ++ maybe "a language dmnmd does not implement"
+             (\(since, what) -> what ++ maybe "" (", added in " ++) since)
+             (lookup uri unmodelledExpressionLanguages)
+        ++ ". dmnmd reads every expression as FEEL and does not model it."
 
     -- Constructs we have no representation for, wherever they appear.
     unmodelled =

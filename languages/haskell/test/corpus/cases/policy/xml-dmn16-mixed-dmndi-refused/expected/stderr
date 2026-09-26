@@ -1,0 +1,3 @@
+dmnmd: input.dmn: this document declares DMN 1.6 and dmnmd cannot represent it faithfully.
+  <DMNDI>: <DMNDI> is in namespace "https://www.omg.org/spec/DMN/20191111/DMNDI/" (DMN 1.3 DMNDI), but this document declares DMN 1.6. dmnmd reads one release per document.
+

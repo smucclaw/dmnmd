@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- test/dmn16/baseline16.dmn, declaring B-FEEL as the model's expression
+     language on <definitions>.
+
+     B-FEEL ("Business Friendly Enough Expression Language") is new in DMN 1.6,
+     clause 11. It shares FEEL's grammar and changes its semantics: FEEL's null
+     becomes false, 0 or "" wherever FEEL uses it for an error, so "a" != 1 is
+     true where FEEL says null, sum([]) is 0 where FEEL says null, and the spec
+     itself notes that a C+ decision table therefore sums differently. The only
+     way to select it is an expressionLanguage URI, and it is not in any XSD:
+     the attribute is xsd:anyURI in every release.
+
+     dmnmd consumes and drops expressionLanguage, so before this fixture it
+     would have evaluated a B-FEEL model as FEEL at exit 0 - the same
+     spelling, a different answer. It is refused by name instead. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20240513/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20230324/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="ageBand" name="Age Band"
+             namespace="https://example.org/dmnmd/test/ageBand"
+             expressionLanguage="https://www.omg.org/spec/DMN/20240513/B-FEEL/">
+  <inputData id="InputData_age" name="Age"/>
+  <decision id="Decision_band" name="Band">
+    <informationRequirement id="InformationRequirement_age">
+      <requiredInput href="#InputData_age"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_age" label="Age">
+        <inputExpression id="InputExpression_age" typeRef="number">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band" name="band" label="Band" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>children</description>
+        <inputEntry id="UnaryTests_1"><text>&lt; 18</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"minor"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>[18..65]</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"adult"</text></outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <inputEntry id="UnaryTests_3"><text>&gt; 65</text></inputEntry>
+        <outputEntry id="LiteralExpression_3"><text>"senior"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

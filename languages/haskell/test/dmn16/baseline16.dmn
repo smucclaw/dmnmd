@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- test/dmn13/baseline.dmn in DMN 1.6, and nothing else changed. It MUST be
+     accepted, and must emit output identical to the 1.3 baseline: every
+     complex type the reader models is byte-identical in DMN15.xsd and
+     DMN16.xsd, apart from two attribute defaults on tDefinitions that the
+     reader drops, so a decision table is a decision table.
+
+     Note the DMNDI namespace. It is DMN 1.5's, not a 1.6 one. DMN16.xsd
+     declares xmlns=".../20240513/MODEL/" and then imports
+     namespace=".../20230324/DMNDI/" schemaLocation="DMNDI15.xsd", and the OMG
+     publishes no DMNDI16.xsd. So 1.6 is the second release, after 1.4, whose
+     DMNDI date differs from its model date, and the guess
+     ".../20240513/DMNDI/" is wrong. The <dmndi:DMNDI> element below is what
+     makes this fixture able to tell: the pickler is xpOption, so a document
+     that merely declared the prefix would accept any URI. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20240513/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20230324/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="ageBand" name="Age Band"
+             namespace="https://example.org/dmnmd/test/ageBand">
+  <inputData id="InputData_age" name="Age"/>
+  <decision id="Decision_band" name="Band">
+    <informationRequirement id="InformationRequirement_age">
+      <requiredInput href="#InputData_age"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_age" label="Age">
+        <inputExpression id="InputExpression_age" typeRef="number">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band" name="band" label="Band" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>children</description>
+        <inputEntry id="UnaryTests_1"><text>&lt; 18</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"minor"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>[18..65]</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"adult"</text></outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <inputEntry id="UnaryTests_3"><text>&gt; 65</text></inputEntry>
+        <outputEntry id="LiteralExpression_3"><text>"senior"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="Diagram_1" name="Age Band">
+      <dmndi:DMNShape id="Shape_band" dmnElementRef="Decision_band">
+        <dc:Bounds height="80" width="180" x="150" y="100"/>
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="Shape_age" dmnElementRef="InputData_age">
+        <dc:Bounds height="45" width="125" x="180" y="250"/>
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

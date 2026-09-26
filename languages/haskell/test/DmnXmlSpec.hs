@@ -370,13 +370,15 @@ dmn13Spec = describe "DMN 1.3" $ do
 
   -- Every "added in DMN X" in a refusal is a factual claim about the standard,
   -- so it is checked against the vendored schema of the release BEFORE X: the
-  -- element must be absent there. DMN 1.5's predecessor schema is not vendored,
-  -- so a 1.5 claim is checked against 1.3, the latest one we have. D-19's
-  -- "added in DMN 1.3" failed exactly this check and shipped anyway.
+  -- element must be absent there. Neither DMN 1.5's nor DMN 1.6's predecessor
+  -- schema is vendored (D-4), so a 1.5 or 1.6 claim is checked against 1.3, the
+  -- latest one we have. D-19's "added in DMN 1.3" failed exactly this check and
+  -- shipped anyway.
   describe "unmodelledConstructs release claims, checked against the vendored XSDs" $ do
     let declares xsd nm = T.pack ("<xsd:element name=\"" ++ nm ++ "\"") `T.isInfixOf` xsd
         priorSchema since = lookup since
-          [ ("DMN 1.3", "xsd/DMN12.xsd"), ("DMN 1.4", "xsd/DMN13.xsd"), ("DMN 1.5", "xsd/DMN13.xsd") ]
+          [ ("DMN 1.3", "xsd/DMN12.xsd"), ("DMN 1.4", "xsd/DMN13.xsd"), ("DMN 1.5", "xsd/DMN13.xsd")
+          , ("DMN 1.6", "xsd/DMN13.xsd") ]
     it "names only releases whose predecessor schema lacks the element" $
       sequence_
         [ case priorSchema since of
@@ -460,7 +462,102 @@ dmn15Spec = do
           -- and the second line now lists what we DO read
           mapM_
             (\v -> T.pack err `shouldSatisfy` T.isInfixOf (T.pack v))
-            ["DMN 1.3", "DMN 1.4", "DMN 1.5"]
+            ["DMN 1.3", "DMN 1.4", "DMN 1.5", "DMN 1.6"]
+
+  dmn16Spec
+
+-- * DMN 1.6
+--
+-- See test/dmn16/README.md. The same two shapes as DMN 1.4 / 1.5. What is new
+-- is the refusal: DMN 1.6's XSD adds nothing dmnmd would otherwise accept (its
+-- one structural change, tFunctionKind gaining ONNX, lives only on elements
+-- that are already refused), but its specification text adds B-FEEL, which is
+-- selected by an expressionLanguage URI and changes what an expression means.
+
+dmn16File :: FilePath -> FilePath
+dmn16File name = "test/dmn16/" ++ name ++ ".dmn"
+
+-- | The OMG date directory an OMG DMN URI lives in:
+-- @https://www.omg.org/spec/DMN/20240513/B-FEEL/@ and
+-- @https://www.omg.org/spec/DMN/20240513/MODEL/@ share one. (DMNDI URIs do NOT
+-- follow their release's date — see 'DmnRelease' — so this is never applied to
+-- 'relDmndiNS'.)
+omgDir :: String -> [Text]
+omgDir = take 6 . T.splitOn "/" . T.pack
+
+dmn16Spec :: Spec
+dmn16Spec = describe "DMN 1.6" $ do
+  -- The identity IS the assertion, as for 1.4 and 1.5: every complex type the
+  -- reader models is byte-identical between DMN15.xsd and DMN16.xsd, except two
+  -- attribute defaults on tDefinitions that the reader drops.
+  describe "reads, giving byte-identical results to the 1.3 baseline" $
+    it "a DMN 1.6 document, whose DMNDI namespace is DMN 1.5's" $ do
+      (_, expected) <- readDmn13 "baseline"
+      parsed <- parseDMNEither (dmn16File "baseline16")
+      case parsed of
+        Left err -> expectationFailure err
+        Right defs -> snd (convertAll defs) `shouldBe` expected
+
+  describe "refuses by name, not with a generic unpickling error" $ do
+    let shouldRefuse name expected = do
+          parsed <- parseDMNEither (dmn16File name)
+          case parsed of
+            Right _ -> expectationFailure $ dmn16File name ++ " should not have been accepted"
+            Left err -> do
+              mapM_ (\e -> T.pack err `shouldSatisfy` T.isInfixOf (T.pack e)) expected
+              -- never the hxt fallback, and never the unknown-namespace refusal
+              -- that every 1.6 document got before 1.6 was readable
+              T.pack err `shouldNotSatisfy` T.isInfixOf "unprocessed XML content"
+              T.pack err `shouldNotSatisfy` T.isInfixOf "<definitions> is in namespace"
+
+    it "a diagram in another readable release's DMNDI namespace" $
+      shouldRefuse "bad-mixed-dmndi"
+        ["one release per document", "20191111/DMNDI/", "(DMN 1.3 DMNDI)", "declares DMN 1.6"]
+    it "B-FEEL declared for the whole model, naming the URI, the release and the <definitions>" $
+      shouldRefuse "bad-bfeel"
+        [ "definitions \"Age Band\""
+        , "expressionLanguage \"https://www.omg.org/spec/DMN/20240513/B-FEEL/\""
+        , "B-FEEL", "added in DMN 1.6" ]
+    it "B-FEEL declared on a single <inputEntry>, located by its <decision>" $
+      shouldRefuse "bad-bfeel-entry"
+        [ "decision \"Band\""
+        , "expressionLanguage \"https://www.omg.org/spec/DMN/20240513/B-FEEL/\""
+        , "added in DMN 1.6" ]
+    -- ONNX is DMN16.xsd's only structural change, and it needs no entry of its
+    -- own: of its two carriers, <functionDefinition> is already refused by name
+    -- here, and a <businessKnowledgeModel>'s <encapsulatedLogic> by readerRefusal.
+    it "an ONNX <functionDefinition>, by the element that carries it" $
+      shouldRefuse "bad-onnx-function"
+        ["decision \"Score\"", "<functionDefinition> is a boxed function definition"]
+
+  -- The B-FEEL refusal does not advise the author about <decisionTable>s or
+  -- <typeConstraint>s; neither is what is wrong with the document.
+  -- The positive half matters: without it this example passes against any
+  -- refusal at all, including the unknown-namespace one it replaces.
+  it "does not give B-FEEL the boxed-expression advice" $ do
+    parsed <- parseDMNEither (dmn16File "bad-bfeel")
+    case parsed of
+      Right _ -> expectationFailure "should not have been accepted"
+      Left err -> do
+        T.pack err `shouldSatisfy` T.isInfixOf "B-FEEL"
+        T.pack err `shouldNotSatisfy` T.isInfixOf "must hold a <decisionTable>"
+        T.pack err `shouldNotSatisfy` T.isInfixOf "typeConstraint"
+
+  -- The URI-keyed twin of "unmodelledConstructs release claims" above. No XSD
+  -- names an expression language (the attribute is xsd:anyURI in every
+  -- release), so checking the predecessor schema would pass vacuously. What IS
+  -- checkable is that the release a refusal names is the readable release
+  -- whose model namespace sits in the same OMG date directory as the URI, and
+  -- that no earlier readable release does. That the specification text
+  -- introduces the language in that release was measured by hand instead:
+  -- "B-FEEL" occurs 0 times in the DMN 1.3 and 1.5 texts and is clause 11 of
+  -- DMN 1.6.
+  describe "unmodelledExpressionLanguages release claims" $
+    it "names the readable release whose model namespace shares the URI's date directory" $
+      sequence_
+        [ (uri, [relName r | r <- readableReleases, omgDir (relModelNS r) == omgDir uri])
+            `shouldBe` (uri, [since])
+        | (uri, (Just since, _)) <- unmodelledExpressionLanguages ]
 
 convertedSimulation :: [DT.DecisionTable]
 convertedSimulation =

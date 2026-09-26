@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A <decision> whose logic is a boxed function of kind ONNX.
+
+     The ONLY change DMN16.xsd makes to DMN15.xsd, beyond the namespace and the
+     FEEL URI defaults on <definitions>, is one enumeration value: tFunctionKind
+     gains "ONNX". tFunctionKind types exactly one attribute, the "kind" of a
+     tFunctionDefinition, and a tFunctionDefinition appears in exactly two
+     places: the global <functionDefinition> (a boxed expression, used here)
+     and a <businessKnowledgeModel>'s <encapsulatedLogic>.
+
+     dmnmd models neither, and refuses both: <functionDefinition> by name in
+     the pre-flight scan, <businessKnowledgeModel> by name when unpickling
+     fails. So ONNX needs no refusal of its own. This fixture pins that it
+     cannot arrive silently. Per DMN 1.6 10.3.2.13.3 an ONNX body is a context
+     holding the file and the tensor signature, and that <context> is refused
+     too. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20240513/MODEL/"
+             id="score" name="Score"
+             namespace="https://example.org/dmnmd/test/onnx">
+  <decision id="Decision_score" name="Score">
+    <functionDefinition id="Function_score" kind="ONNX">
+      <formalParameter id="Param_x" name="x" typeRef="number"/>
+      <context id="Context_onnx">
+        <contextEntry>
+          <variable id="Variable_onnx" name="onnx"/>
+          <context id="Context_mapping">
+            <contextEntry>
+              <variable id="Variable_file" name="file"/>
+              <literalExpression id="LiteralExpression_file"><text>"model.onnx"</text></literalExpression>
+            </contextEntry>
+            <contextEntry>
+              <variable id="Variable_signature" name="function signature"/>
+              <literalExpression id="LiteralExpression_signature"><text>"tensor(float)[1,1]"</text></literalExpression>
+            </contextEntry>
+          </context>
+        </contextEntry>
+      </context>
+    </functionDefinition>
+  </decision>
+</definitions>

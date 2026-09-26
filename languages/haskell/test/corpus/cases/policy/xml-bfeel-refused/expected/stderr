@@ -1,0 +1,3 @@
+dmnmd: input.dmn: this document declares DMN 1.6 and dmnmd cannot represent it faithfully.
+  definitions "Age Band": expressionLanguage "https://www.omg.org/spec/DMN/20240513/B-FEEL/" selects B-FEEL, the dialect of FEEL whose operators and functions answer false, 0 or "" where FEEL answers null, added in DMN 1.6. dmnmd reads every expression as FEEL and does not model it.
+

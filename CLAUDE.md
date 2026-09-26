@@ -525,12 +525,12 @@ faithfully is refused, and then nothing at all is emitted for any table in the f
 
 | input | status |
 |---|---|
-| valid DMN 1.3/1.4/1.5 with decision tables | 0 |
+| valid DMN 1.3/1.4/1.5/1.6 with decision tables | 0 |
 | valid DMN with no `<decision>` (`test/simple.dmn`) | 0 |
 | markdown with decision tables | 0 |
 | markdown with no decision tables — prose, or prose pipe tables (`test/golden/README.md`) | 0 |
 | malformed XML, or DMN 1.1/1.2 | 1 |
-| a DMN 1.4/1.5 construct dmnmd does not model — refused by name before unpickling | 1 |
+| a DMN 1.4/1.5 construct, or DMN 1.6's B-FEEL expression language, that dmnmd does not model — refused by name before unpickling | 1 |
 | a document mixing two releases' namespaces | 1 |
 | a table refused by the converter | 1 |
 | a table whose cell violates its own declared domain — either reader | 1 |
@@ -648,12 +648,12 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
 - **The executable is not covered by `-Werror=incomplete-patterns`.** The flag is on the
   `library` stanza only, so `app/`'s partial functions still fail at run time — `showToJSON`
   is the live example, recorded as `symptom/cli-showtojson-*`.
-- **`--from=xml` reads DMN 1.3, 1.4 and 1.5; `--to=xml` writes 1.3 only** (see "The XML backend"
+- **`--from=xml` reads DMN 1.3, 1.4, 1.5 and 1.6; `--to=xml` writes 1.3 only** (see "The XML backend"
   below for why). `--to=md` remains unimplemented and is now refused up front rather than after
   reading. The reader is deliberately strict — an element or attribute
   the XSD does not allow in that position is an error, and a DMN 1.1/1.2 document is refused
-  by namespace with a message naming the version. Fixtures live in `test/dmn13/` and
-  `test/dmn15/`; each README says which refusal each one exercises.
+  by namespace with a message naming the version. Fixtures live in `test/dmn13/`,
+  `test/dmn15/` and `test/dmn16/`; each README says which refusal each one exercises.
 
   **`<decisionService>` is read and dropped; `<businessKnowledgeModel>` is refused. The
   asymmetry is the rule, not an exception to it (D-18).** Every child of `tDecisionService` is
@@ -677,9 +677,16 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   namespace with the **1.3** DMNDI one, so a date-into-a-template scheme is wrong on its
   first use. It is resolved once by `checkDmnRoot` and threaded through the pickler tree by
   `DmnPU`, a project-local replacement for hxt's `XmlPickler` whose method takes the release
-  (hxt's `xpickle :: PU a` is a value with nowhere to put it). Adding DMN 1.6 is one record —
+  (hxt's `xpickle :: PU a` is a value with nowhere to put it). Adding a release is one record —
   *provided* its decision-table complex types are still byte-identical, which is the property
   that lets one tree serve every release and must be re-measured, not assumed.
+
+  **DMN 1.6 was added that way, after measuring.**
+  Every top-level declaration of `DMN15.xsd` and `DMN16.xsd` (94 in each, fetched from the OMG and not vendored, per D-4) was extracted as source text and compared byte for byte.
+  None was added or removed, and only two differ: `tDefinitions`, in the FEEL URI defaults of `expressionLanguage` and `typeLanguage`, which the reader drops; and `tFunctionKind`, which gains `ONNX` and types only the `kind` of a `<functionDefinition>` or a BKM's `<encapsulatedLogic>`, both already refused.
+  **1.6 is the second release to borrow an older DMNDI namespace**: `DMN16.xsd` imports `…/20230324/DMNDI/` from `DMNDI15.xsd`, and there is no `DMNDI16.xsd`.
+  `policy/xml-dmn16-accepted` is the guard for that pairing, as `policy/xml-dmn14-accepted` is for 1.4's.
+  The measurement and the fixtures are in `test/dmn16/README.md`.
 
   **What 1.4/1.5 add is refused by name, not by `xpCheckEmptyContents`.** `refuseUnmodelled`
   scans the tree before unpickling and names the element, what it is, the release that
@@ -720,6 +727,13 @@ prefer `test/corpus/`, which is machine-checked. The items below are current:
   `<typeConstraint>` is actually among the offenders — the predicate is the offender, not the
   release, because `policy/xml-typeconstraint-refused`'s own document is DMN **1.3** and does
   contain one.
+
+  **What 1.6 adds is in no schema, and is refused by URI.**
+  B-FEEL (DMN 1.6 clause 11) keeps FEEL's grammar and changes its meaning: where FEEL answers null, B-FEEL answers false, 0 or `""`, so `"a" != 1` is true, `sum([])` is 0, and a `C+` table sums differently.
+  It is selected by `expressionLanguage="https://www.omg.org/spec/DMN/20240513/B-FEEL/"`, on `<definitions>` or on any one literal expression or unary test, and the reader never acts on that attribute: some positions drop it while parsing, the rest keep it in a field `XmlToDmnmd` never reads.
+  Without a refusal a B-FEEL model reads as FEEL at exit 0: measured at `18481de` with the same document in the 1.5 namespace.
+  `unmodelledExpressionLanguages`, the URI-keyed twin of `unmodelledConstructs`, refuses it in the same pre-flight, naming the URI, the release and the element it sits under (`policy/xml-bfeel-refused`).
+  **It is a deny-list of one.** Any other non-FEEL language, `expressionLanguage="python"` for example, is still read as FEEL without a word; refusing those would change what 1.3 documents do today, which is a ruling and not part of admitting a release.
 - **Multi-table Markdown works — `test/safe.md` is a bad fixture, not a chunking limit.**
   Its file-level failure is a **missing final newline** (the last byte is `|`); append one
   and `grepMarkdown` succeeds and 3 of its 13 tables import. Also, the reported position is

@@ -347,7 +347,7 @@ Exports to XML conforming to the DMN 1.3 specification: one `<definitions>` carr
 file open in a DMN tool. The emitted documents in this repository are checked with
 `xmllint --noout --schema languages/haskell/xsd/DMN13.xsd`.
 
-DMN 1.3 specifically, even though `--from=xml` also reads 1.4 and 1.5: 1.3 is the only release this
+DMN 1.3 specifically, even though `--from=xml` also reads 1.4, 1.5 and 1.6: 1.3 is the only release this
 repository ships a schema for, so it is the only one whose output can be validated here.
 
 The gate on this backend is that dmnmd can read its own output. For every markdown fixture in the

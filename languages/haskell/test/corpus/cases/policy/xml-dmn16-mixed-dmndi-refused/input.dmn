@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A DMN 1.6 document whose diagram is in the DMN 1.3 DMNDI namespace
+     (".../20191111/DMNDI/", which DMN 1.3 and 1.4 use). Everything else is
+     test/dmn16/baseline16.dmn.
+
+     DMN 1.6's DMNDI namespace is DMN 1.5's, ".../20230324/DMNDI/": DMN16.xsd
+     imports DMNDI15.xsd and the OMG publishes no DMNDI16.xsd. So a DMN 1.6
+     document has exactly ONE legal DMNDI namespace, and it is not "any DMNDI
+     namespace of a release dmnmd reads". A reader that accepted each readable
+     release's DMNDI independently would take this file, inventing a dialect
+     no DMN validator implements. dmnmd resolves the release once from the
+     root and refuses the stray subtree by name. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20240513/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="ageBand" name="Age Band"
+             namespace="https://example.org/dmnmd/test/ageBand">
+  <inputData id="InputData_age" name="Age"/>
+  <decision id="Decision_band" name="Band">
+    <informationRequirement id="InformationRequirement_age">
+      <requiredInput href="#InputData_age"/>
+    </informationRequirement>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST">
+      <input id="Input_age" label="Age">
+        <inputExpression id="InputExpression_age" typeRef="number">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band" name="band" label="Band" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>children</description>
+        <inputEntry id="UnaryTests_1"><text>&lt; 18</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"minor"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>[18..65]</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"adult"</text></outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <inputEntry id="UnaryTests_3"><text>&gt; 65</text></inputEntry>
+        <outputEntry id="LiteralExpression_3"><text>"senior"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="Diagram_1" name="Age Band">
+      <dmndi:DMNShape id="Shape_band" dmnElementRef="Decision_band">
+        <dc:Bounds height="80" width="180" x="150" y="100"/>
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="Shape_age" dmnElementRef="InputData_age">
+        <dc:Bounds height="45" width="125" x="180" y="250"/>
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

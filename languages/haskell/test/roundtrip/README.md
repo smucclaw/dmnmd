@@ -8,7 +8,7 @@ rather than inventing one that happens to pass.
 
 ## `run-roundtrip.sh` — did the meaning survive?
 
-dmnmd already **reads** DMN 1.3/1.4/1.5. So the emitter can be checked against dmnmd's own
+dmnmd already **reads** DMN 1.3/1.4/1.5/1.6. So the emitter can be checked against dmnmd's own
 reader with no hand-written expectation at all:
 
 ```
