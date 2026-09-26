@@ -26,12 +26,12 @@ import System.Console.Haskeline
 -- import Debug.Trace
 
 import DMN.Types
-    ( DecisionTable(header, tableName),
+    ( DecisionTable(header, tableName, hitpolicy),
       FEELexp,
       DMNType,
       ColHeader(vartype) )
 import DMN.DecisionTable
-    ( trim, getOutputHeaders, getInputHeaders, evalTable, mkInputValue, splitArgs,
+    ( trim, getOutputHeaders, getInputHeaders, evalTable, isSingleHit, mkInputValue, splitArgs,
       tableWarnings )
 import DMN.Translate.JS ( toJS, JSOpts(JSOpts) )
 import DMN.Translate.PY ( toPY, PYOpts(PYOpts) )
@@ -116,8 +116,8 @@ main = do
                   when (verbose opts) $ outputStrLn $ "** evaluating " ++ inputCmd ++ " against table " ++ tableName dtable
                   either
                     (\errstr -> outputStrLn $ "problem running " ++ inputCmd ++ " against table " ++ tableName dtable ++ ": " ++ errstr)
-                    (outputStr . unlines . map (\resultrow ->
-                                                   tableName dtable ++ ": " ++ intercalate ", " (showToJSON (outformat opts) dtable resultrow)))
+                    (outputStr . unlines
+                       . showResult (outformat opts) dtable)
                     (evalTable dtable =<< zipWithM mkInputValue expecting splitInput)
                 ) dtables
           outputStrLn ""
@@ -214,6 +214,19 @@ showToJSON Ts dtable cols' = if not (null cols') then zipWith (showFeels "ts") (
 showToJSON Py dtable cols' = if not (null cols') then zipWith (showFeels "py") ((getOutputHeaders . header) dtable) cols' else []
 -- NOTE: Probably equivalent to:
 -- showToJSON dtable cols' = zipWith showFeels ((getOutputHeaders . header) dtable) cols'
+
+-- | What the @-q@ REPL prints for one table's answer: one line per selected row.
+--
+-- A single-hit table that selected no row answered FEEL's @null@ (D-22 rule 3;
+-- see 'evalTable'), printed as the literal @null@ whatever @-t@ says. The whole
+-- result is null, not one output column, so there is no column to name and no
+-- target-language cell spelling to borrow. A list-valued policy with no hits is
+-- the empty collection and still prints no line.
+showResult :: FileFormat -> DecisionTable -> [[[FEELexp]]] -> [String]
+showResult fmt dtable resultrows
+  | null resultrows && isSingleHit (hitpolicy dtable) = [tableName dtable ++ ": null"]
+  | otherwise = map (\resultrow ->
+      tableName dtable ++ ": " ++ intercalate ", " (showToJSON fmt dtable resultrow)) resultrows
 
 -- | The output formats this binary can actually write.
 --
