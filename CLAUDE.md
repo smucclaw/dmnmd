@@ -343,7 +343,9 @@ validator catches that.
 - **A trailing catch-all row in a `U` table is PROMOTED to a default output value (D-16 phase 2).**
   A row with `-` in every input column overlaps every other rule, which §8.2.10 says a `U` table
   must not contain — but the shape is idiomatic (**40 of 221** corpus fixtures, the README example
-  among them), dmnmd's own matching is first-match, and `--to=l4` renders it as `OTHERWISE`. DMN's
+  among them), dmnmd's generated code (js/ts/py and `--to=l4`) is first-match, and `--to=l4` renders
+  it as `OTHERWISE`. (dmnmd's *interpreter* is not first-match for `U`: `evalTable` refuses an input
+  that matches both an earlier row and the catch-all — D-16's correction of 2026-09-26.) DMN's
   construct for the intent is the default output value of §8.2.11, and since phase 2 that is what
   `promoteTrailingCatchAll` emits: the row's outputs move into `dtDefaultOutput` →
   `<defaultOutputEntry>`, the `<rule>` is dropped, and the document is genuinely `U`-conformant for
