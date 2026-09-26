@@ -1502,3 +1502,9 @@ Whoever next vendors a schema should cite this paragraph, not D-4's reason.
 The reader refuses a 1.6 document by namespace today, because `readableReleases` stops at 1.5.
 The condition `ParseDMN.hs` sets for adding a release, a published `DMN16.xsd` to measure the decision-table types against, is now met (`https://www.omg.org/spec/DMN/20240513/DMN16.xsd`).
 That is reader work, and it does not need this ruling.
+
+**Update, 2026-09-26: the reader now reads DMN 1.6 (#58).**
+Two sentences above were true when this entry was written and are superseded: "1.6 has not been measured" and "The reader refuses a 1.6 document by namespace today".
+The measurement compared all 94 top-level declarations of `DMN15.xsd` and `DMN16.xsd` and found the decision-table complex types identical; only `tDefinitions` (its FEEL URI defaults) and `tFunctionKind` (which gains `ONNX`) differ, as `languages/haskell/test/dmn16/README.md` records.
+`readableReleases` now includes DMN 1.6, and 1.6's B-FEEL expression language is refused by URI rather than read as FEEL.
+The ruling is unchanged: `--to=xml` still writes DMN 1.3.
