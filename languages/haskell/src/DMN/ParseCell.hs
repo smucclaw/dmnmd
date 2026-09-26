@@ -36,9 +36,13 @@ module DMN.ParseCell
   , numericLiteral
   , thousandsGrouped
   , namedRefusal
+  , TestShape (..)
+  , unreadableTestShape
   ) where
 
 import           Data.Char            (isAlpha)
+import           Data.Either          (isRight)
+import           Data.Functor         (void)
 import           Data.List            (isPrefixOf)
 import           Data.Scientific       (Scientific)
 import qualified Data.Text as T
@@ -476,6 +480,100 @@ namedRefusal :: String -> Bool
 namedRefusal raw = case trim' raw of
   cell -> maybe False (const True) (peelNot cell)
        || maybe False (const True) (callName cell)
+
+-- | What a cell looked like when dmnmd could not read it as a test.
+data TestShape = ShapedComparison | ShapedInterval
+  deriving (Eq, Show)
+
+-- | Is this ONE comma fragment shaped like a comparison or an interval, while
+-- 'parseNumberCell' — the only reader dmnmd has for either — refuses it?
+--
+-- Recognised in order to be refused, like 'namedRefusal'. Without it, a cell
+-- such as @>= date(\"2026-09-24\")@ in a column that declares no type is read
+-- as text: inference counts a 'parseNumberCell' @Left@ as String evidence, the
+-- column types String, and the backend emits an equality test against the
+-- cell's own spelling. The rule can never fire, and the run exits 0.
+--
+-- __The predicate, exactly.__ The fragment is trimmed, and then:
+--
+--  * __comparison-shaped__: it begins with one of 'cmpOp'\'s operators
+--    (@<=@ @>=@ @<@ @>@ @=@) or with @!=@, something non-blank follows the
+--    operator, and the fragment does __not__ end in @>@;
+--  * __interval-shaped__: its first character is one 'intervalStart' accepts
+--    (@[@ @(@ @]@), its last one 'intervalEnd' accepts (@]@ @)@ @[@), the text
+--    between them contains no square bracket, and it splits at its first @..@
+--    into two endpoints, each with some character that is neither a space nor
+--    a dot;
+--
+-- and in both cases 'parseNumberCell' returns a @Left@ and 'namedRefusal' is
+-- False. The operator and bracket sets are the grammar's own parsers, called
+-- here rather than copied, so the shape cannot drift from what dmnmd reads.
+--
+-- __Every clause is there to keep a false positive out.__ What was measured:
+-- every @.md@, @.dmn@ and @.xml@ file in the tree — both READMEs,
+-- @test\/golden\/@, every corpus input — run through all five emitting formats
+-- before and after, and no output changed except the two policy cases added
+-- with this check. The clauses, and what each keeps out:
+--
+--  * a readable cell (@>= 5@, @[1..5]@) is 'parseNumberCell'\'s, and it says
+--    Right, so this says 'Nothing';
+--  * a named refusal (@=max(a)@, @=date(…)@ — 'callName' strips the leading
+--    @=@) already reaches a better, named message through inference;
+--  * a fragment that begins with a double quote is never shaped, so a quoted
+--    @\"\<1 year\"@ stays the string literal it is — the caller also skips a
+--    fragment that begins INSIDE a quoted string the comma split has torn;
+--  * no S-FEEL endpoint ends in @>@ — not a number, a string literal, a name
+--    or a date literal — so @\<none\>@, @\<br\>@ and @\<b\>Gold\</b\>@ are not
+--    comparisons, and excluding them costs nothing that could be one;
+--  * the no-square-bracket rule is what keeps a markdown link out — a
+--    bracketed text followed by a parenthesised target such as @..\/notes.md@
+--    begins with @[@, ends with @)@ and contains @..@ — and also
+--    @[1..5] [10..20]@: two intervals with no comma between them are not one,
+--    and that cell must keep reaching the column-level refusal
+--    @policy\/num-negation-is-numeric-evidence@ pins;
+--  * the endpoint rule keeps @[...]@, @(etc..)@ and @[5..]@ out.
+--
+-- __Deliberately NOT caught__: a range with another separator,
+-- @[24 Sep 2026 -- 24 Oct 2026]@, because widening the shape past S-FEEL's one
+-- separator is guessing at prose (recorded as
+-- @symptom\/md-dash-written-interval-silent@); the suffix form with an
+-- unreadable operand, @date(\"…\") \<=@; and every output cell, which the caller
+-- never passes here — an output cell is a value, not a test.
+unreadableTestShape :: String -> Maybe TestShape
+unreadableTestShape raw = case shapeOf cell of
+    Just s | not (namedRefusal cell), Left _ <- parseNumberCell cell -> Just s
+    _ -> Nothing
+  where
+    cell = trim' raw
+    shapeOf c
+      | comparisonShaped c = Just ShapedComparison
+      | intervalShaped c   = Just ShapedInterval
+      | otherwise          = Nothing
+
+comparisonShaped :: String -> Bool
+comparisonShaped c = case runAnchored (testOperator *> takeRest) c of
+    Right operand -> not (T.null (T.strip operand)) && last c /= '>'
+    Left _        -> False
+  where
+    -- @!=@ is not in 'cmpOp' because dmnmd does not read it; it is here because
+    -- an author who wrote it meant a comparison, and reading it as text is the
+    -- same dead rule.
+    testOperator = void cmpOp <|> void (string "!=")
+
+intervalShaped :: String -> Bool
+intervalShaped c = case c of
+    (o : rest@(_:_))
+      | opens o, closes (last rest)
+      , let inner = init rest
+      , not (any (`elem` ("[]" :: String)) inner)
+      , (a, b) <- T.breakOn ".." (T.pack inner)
+      , not (T.null b)
+      -> endpoint a && endpoint (T.drop 2 b)
+    _ -> False
+  where
+    opens  ch = isRight (runAnchored intervalStart [ch])
+    closes ch = isRight (runAnchored intervalEnd   [ch])
+    endpoint  = T.any (`notElem` (" ." :: String))
 
 -- | Is this raw cell text a number written with thousands separators?
 --

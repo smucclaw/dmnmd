@@ -5,7 +5,7 @@ module Main where
 import Control.Monad
 import Text.RawString.QQ
 import DMN.DecisionTable
-import DMN.ParseCell (parseNumberCell)
+import DMN.ParseCell (parseNumberCell, TestShape (..), unreadableTestShape)
 import DMN.Diagnostic (Severity (..), Diagnostic (..), renderDiagnostic)
 import Data.Either (isLeft, isRight)
 import Data.List (isInfixOf, isPrefixOf)
@@ -606,6 +606,111 @@ spec3 = do
     it "mkFsAt splits a multi-value cell; mkFAt does not"
       $ (length <$> mkFsAt site (Just DMN_Number) "4, 5", mkFAt site (Just DMN_Number) "4, 5")
           `shouldSatisfy` \(n, single) -> n == Right 2 && isLeft single
+
+  -- A cell shaped like a comparison or an interval whose operands dmnmd
+  -- cannot read used to be taken as a plain string, so the rule became an
+  -- equality test against the cell's own source text and could never fire —
+  -- at exit 0, with nothing on stderr. The predicate is the unit; the
+  -- parseTableD examples below it are the markdown pass that must refuse.
+  describe "DMN.ParseCell.unreadableTestShape — the shape, not the reading" $ do
+    let shape = unreadableTestShape
+    forM_ [ ">= date(\"2026-09-24\")", "< \"2026-09-24\"", ">= Age", ">5 years"
+          , "!= 5", "<> 5", "= foo", "<= @\"2026-09-24\"" ] $ \c ->
+      it ("a comparison dmnmd cannot read: " ++ c) $ shape c `shouldBe` Just ShapedComparison
+    forM_ [ "[date(\"2026-09-24\")..date(\"2026-10-24\")]", "[@\"2026-09-24\"..@\"2026-10-24\"]"
+          , "[a..b]", "(a..b)", "]a..b[", "[1..n)", "[10...20]" ] $ \c ->
+      it ("an interval dmnmd cannot read: " ++ c) $ shape c `shouldBe` Just ShapedInterval
+    -- Readable: these are parseNumberCell's business, and it accepts them.
+    forM_ [ ">= 5", "<18", "= 5", "[1..5]", "(1..5]", "]1..5[", "[-5..5]" ] $ \c ->
+      it ("not a refusal when dmnmd CAN read it: " ++ c) $ shape c `shouldBe` Nothing
+    -- Not shaped like a test at all, so they stay what they always were.
+    forM_ [ "\"<none>\"", "\">= 5\"", "Fall", "-", "(n/a)", "(see note 3)"
+          , "<none>", "<br>", "<b>Gold</b>"          -- no S-FEEL endpoint ends in '>'
+          , "[x](../notes.md)"                      -- a markdown link, not an interval
+          , "[...]", "(etc..)", "[5..]"             -- dots with no endpoint on one side
+          , "<", ">=" ] $ \c ->                     -- an operator with nothing after it
+      it ("not test-shaped: " ++ c) $ shape c `shouldBe` Nothing
+    -- Two intervals with no comma between them are not ONE interval, and this
+    -- cell must keep reaching inference: policy/num-negation-is-numeric-evidence
+    -- pins its column-level refusal, which a cell-level one would pre-empt.
+    it "two juxtaposed intervals are not one interval shape"
+      $ shape "[1..5] [10..20]" `shouldBe` Nothing
+    -- Named refusals already have a better, named message (inference reads
+    -- them as Number and ParseCell says what they are). Do not pre-empt them.
+    forM_ [ "=max(a)", "=date(\"2026-09-24\")", "not(>= date(\"2026-09-24\"))" ] $ \c ->
+      it ("left to its named refusal: " ++ c) $ shape c `shouldBe` Nothing
+
+  describe "unreadable test operands — refused in pass 1 of the markdown reader" $ do
+    let table hdr c = T.unlines
+          [ "| U | " <> T.pack hdr <> " | apply (out) |"
+          , "|---|---|---|"
+          , "| 1 | " <> T.pack c <> " | protopic |" ]
+        outTable c = T.unlines
+          [ "| U | day (in) | apply (out) |"
+          , "|---|---|---|"
+          , "| 1 | 5 | " <> T.pack c <> " |" ]
+        run txt = either (error . errorBundlePretty) id (txt ~> parseTableD "T")
+        errs (ds, _) = [ diagMessage d | d <- ds, diagSeverity d == Error ]
+        tables (_, ts) = ts
+        firstInput (_, [t]) = case allrows t of
+          (DTrow _ [cell] _ _ : _) -> cell
+          _                        -> error "expected one input cell"
+        firstInput _ = error "expected exactly one table"
+        refusedAs kind c = do
+          let r = run (table "day (in)" c)
+          tables r `shouldBe` []
+          case errs r of
+            [m] -> do
+              m `shouldSatisfy` isPrefixOf ("table \"T\": column \"day\": row 1: the cell reads " ++ show c)
+              m `shouldSatisfy` isInfixOf ("shaped like " ++ kind)
+              m `shouldSatisfy` isInfixOf "date("
+              m `shouldNotSatisfy` isInfixOf "DMN 1."
+            ms  -> expectationFailure ("expected exactly one Error, got " ++ show ms)
+
+    forM_ [ ">= date(\"2026-09-24\")", "< \"2026-09-24\"", ">= Age", "!= 5" ] $ \c ->
+      it ("refuses the comparison " ++ c) $ refusedAs "a comparison" c
+    forM_ [ "[date(\"2026-09-24\")..date(\"2026-10-24\")]", "[@\"2026-09-24\"..@\"2026-10-24\"]" ] $ \c ->
+      it ("refuses the interval " ++ c) $ refusedAs "an interval" c
+
+    it "refuses one fragment of a multi-value cell, and quotes that fragment" $ do
+      let r = run (table "day (in)" "Fall, >= date(\"2026-09-24\")")
+      tables r `shouldBe` []
+      errs r `shouldSatisfy` \ms -> length ms == 1
+        && all (isPrefixOf "table \"T\": column \"day\": row 1: the cell reads \">= date(") ms
+
+    it "names the column's repair with the column's own name" $
+      errs (run (table "day (in)" ">= Age"))
+        `shouldSatisfy` \ms -> not (null ms) && all (isInfixOf "\"day : String\"") ms
+
+    -- The two escape hatches the message offers must actually work.
+    it "a double-quoted cell is a string literal and is NOT refused" $
+      firstInput (run (table "day (in)" "\"<1 year\"")) `shouldBe` [FNullary (VS "<1 year")]
+    it "a declared String column keeps a test-shaped label as written" $
+      firstInput (run (table "Tenure : String" ">5 years")) `shouldBe` [FNullary (VS ">5 years")]
+
+    -- The comma split does not know about quotes. A fragment that begins
+    -- inside a torn string literal is not a test; one after a CLOSED literal is.
+    it "skips the second half of a quoted string the comma split tore" $
+      errs (run (table "day (in)" "\"a, <b\"")) `shouldBe` []
+    it "still checks a fragment that follows a closed string literal" $
+      errs (run (table "day (in)" "\"a\", >= Age"))
+        `shouldSatisfy` \ms -> length ms == 1 && all (isInfixOf "the cell reads \">= Age\"") ms
+
+    it "an angle-bracketed placeholder is not a comparison" $
+      firstInput (run (table "day (in)" "<none>")) `shouldBe` [FNullary (VS "<none>")]
+    it "a readable comparison is still a comparison" $
+      firstInput (run (table "day (in)" ">= 5")) `shouldBe` [FSection Fgte (VN 5)]
+
+    -- An output cell is a VALUE, not a test, so this check has nothing to say
+    -- about it; comparison-shaped outputs are symptom/md-output-comparison-emits-lambda's.
+    it "an output cell is not checked" $
+      errs (run (outTable ">5 years")) `shouldBe` []
+
+    -- Already refused, by name, through inference — and the named message is
+    -- the better one, so pass 1 must not pre-empt it.
+    it "an invocation keeps its own refusal" $
+      errs (run (table "day (in)" "=max(a)"))
+        `shouldSatisfy` \ms -> length ms == 1 && all (isInfixOf "function call max()") ms
 
   describe "type inference" $ do
     it "should infer [1..2] as a Number"    $ inferType (mkF (Just DMN_String) "[1..2]") `shouldBe` Just DMN_Number

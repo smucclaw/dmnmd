@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An <inputExpression> with no typeRef, whose one <inputEntry> is a
+     comparison against a name. The markdown reader refuses the same cell in an
+     undeclared column; this reader keeps it as text. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="unreadableTest" name="Unreadable Test"
+             namespace="https://example.org/dmnmd/test/unreadableTest">
+  <decision id="Decision_treatment" name="Treatment">
+    <decisionTable id="DecisionTable_treatment" hitPolicy="FIRST">
+      <input id="Input_day" label="day">
+        <inputExpression id="InputExpression_day">
+          <text>day</text>
+        </inputExpression>
+      </input>
+      <output id="Output_apply" name="apply" label="apply" typeRef="string"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>&gt;= start</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"protopic"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

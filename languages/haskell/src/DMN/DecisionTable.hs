@@ -6,7 +6,7 @@ module DMN.DecisionTable where
 
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
-import DMN.ParseCell ( parseNumberCell, thousandsGrouped, namedRefusal )
+import DMN.ParseCell ( parseNumberCell, thousandsGrouped, namedRefusal, TestShape (..), unreadableTestShape )
 import Data.List (intercalate, dropWhileEnd, transpose, nub, sortOn, sortBy, elemIndex, find, isInfixOf)
 import Data.List.Split ( splitOn )
 import Data.Maybe ( catMaybes, fromJust, listToMaybe )
@@ -260,6 +260,91 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 mkFsAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic [FEELexp]
 mkFsAt st dmntype args = locateCell st (mkFsEither dmntype args)
 
+-- | Pass 1 for an INPUT cell: 'mkFsAt', and then — in a column that declares
+-- no type — the refusal of a fragment shaped like a comparison or an interval
+-- that dmnmd cannot read ('DMN.ParseCell.unreadableTestShape').
+--
+-- __The defect.__ @>= date(\"2026-09-24\")@ in an undeclared column was read as
+-- text; inference counts a 'parseNumberCell' @Left@ as String evidence, so the
+-- column typed String and every backend emitted an equality test against the
+-- cell's own spelling. The rule could never fire, and the run exited 0.
+--
+-- __Why here, and not in 'inferenceErrors' or 'structuralErrors'__, which is
+-- where cell refusals that need a row and a column usually live. Both walk the
+-- BUILT table, and by then the one fact that separates a label from a test is
+-- gone: 'unquoteCell' strips a double-quoted cell in pass 1, so @\"\<1 year\"@
+-- and @\<1 year@ are the same @FNullary (VS \"\<1 year\")@ afterwards. Pass 1 is
+-- the last place the raw text exists, and 'DMN.ParseTable.mkFEELCol' — the
+-- caller — knows what 'mkFEither' cannot: that this is an input cell, not an
+-- output cell or a sub-header domain member ('DMN.ParseTable.reviseInOut' has
+-- already settled the labels). A 'CellSite' names the row and the column.
+--
+-- __Only an undeclared column.__ A declared type is the author's answer to the
+-- ambiguity: @: Number@ already refuses these cells through 'parseNumberCell',
+-- @: Boolean@ through @mkVB@, and @: String@ is the documented way to say
+-- "these cells are text" — 'inferenceErrors' hands it out as the repair for
+-- both 'VConflict' and 'VAmbiguous', and this message hands it out too. Whether
+-- a declared String column should one day read an unquoted cell as a test is
+-- @symptom\/md-negation-in-string-column-silent@'s question, not this one's.
+--
+-- 'mkFsAt' runs first, so a cell it refuses (@>= 1,000@) keeps that message.
+-- Of several refusable fragments, the first is reported, as 'mkFsEither' does.
+mkInputFsAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic [FEELexp]
+mkInputFsAt st dmntype args = do
+  fs <- mkFsAt st dmntype args
+  case (dmntype, unreadableTests args) of
+    (Nothing, (frag, shape) : _) -> locateCell st (Left (unreadableTestMsg (siteColumn st) frag shape))
+    _                            -> Right fs
+
+-- | Every comma fragment of a raw cell that 'unreadableTestShape' refuses.
+--
+-- A fragment that BEGINS INSIDE a double-quoted string is skipped: the comma
+-- split does not know about quotes, so @\"a, \<b\"@ arrives as @\"a@ and @\<b\"@,
+-- and the second half of a torn string literal is not a comparison. An odd
+-- number of quote characters before a fragment is what "inside" means; escapes
+-- are not interpreted anywhere in the markdown cell layer, so neither are they
+-- here. A fragment that begins WITH a quote is never test-shaped anyway.
+unreadableTests :: String -> [(String, TestShape)]
+unreadableTests args =
+  [ (frag, shape)
+  | (frag, quotesBefore) <- zip frags (scanl (+) 0 (quoteCount <$> frags))
+  , even quotesBefore
+  , Just shape <- [unreadableTestShape frag] ]
+  where
+    frags      = cellFragments args
+    quoteCount = length . filter (== '"')
+
+-- | Deliberately names no DMN release, and deliberately does not suggest
+-- quoting THIS fragment: @< \"2026-09-24\"@ wrapped in quotes has an interior
+-- quote, which 'isSFeelLiteral' refuses, so that advice would not work. The
+-- declaration always does.
+unreadableTestMsg :: String -> String -> TestShape -> String
+unreadableTestMsg col frag shape = concat
+  [ "the cell reads ", show frag, ", which is shaped like ", what
+  , ", but not one dmnmd can read. ", readable
+  , " S-FEEL date literals such as date(\"2026-09-24\") are not supported, and"
+  , " neither is a quoted string, a name or a number with a unit in that position."
+  , " Read as text, this cell would be an equality test against its own spelling,"
+  , " so the rule could never match, and dmnmd refuses it rather than emit that."
+  , " If the column really holds labels rather than tests, declare it ("
+  , show (col ++ " : String"), ") or double-quote the cell, and it will be"
+  , " compared exactly as written." ]
+  where
+    (what, readable) = case shape of
+      ShapedComparison ->
+        ( "a comparison"
+        , "dmnmd reads a comparison only as <, <=, >, >= or = followed by a number"
+          ++ " literal, as in >= 18 or < 2.5." )
+      ShapedInterval ->
+        ( "an interval"
+        , "dmnmd reads an interval only between two number literals, as in [1..5],"
+          ++ " [1..5), (1..5] or (1..5)." )
+
+-- | A cell's comma fragments, trimmed: the one split 'mkFsEither' and
+-- 'unreadableTests' share, so a validator cannot drift from the constructor.
+cellFragments :: String -> [String]
+cellFragments args = trim <$> splitOn "," args
+
 -- | The one place a cell-layer 'Left' becomes a located 'Diagnostic'.
 --
 -- Shared by 'mkFsAt' and 'mkFAt' so the two cannot drift, which is the failure
@@ -283,7 +368,7 @@ mkFsEither dmntype args
   -- split happens before anything knows the type — a String column is shredded
   -- identically. See 'DMN.ParseCell.thousandsGrouped'.
   | thousandsGrouped args = Left (thousandsMsg args)
-  | otherwise = traverse (mkFEither dmntype) (unquoteCell (trim <$> splitOn "," args))
+  | otherwise = traverse (mkFEither dmntype) (unquoteCell (cellFragments args))
 
 -- | Note what this message does NOT say: that the old parse was wrong.
 --
