@@ -783,6 +783,10 @@ Four decisions inside it, each made deliberately:
 - **Zero input columns decline rather than refuse.** Every guard would be the empty conjunction and
   every pair vacuously identical. Unreachable from markdown (`reviseInOut` guarantees an input
   column) but legal DMN, and the one false-refusal trap the surveys found.
+  **Correction, 2026-09-26:** the parenthesis is false.
+  `reviseInOut` (`ParseTable.hs`) relabels the rightmost column as an output when every column is an input, so it guarantees an *output* column, not an input one.
+  A markdown table whose every column is marked `(out)` parses with zero input columns and exits 0: on trunk `ea4df4a`, `--to=ts` emits `if ("default")` for each of its guards.
+  The decline itself is unaffected, and D-22 part 1 pins what the interpreter does with such a table.
 
 It is **sound** against the runtime, not merely agreeing with it by luck: `fEval` dispatches on
 constructor structure alone, so equal guards imply identical matching behaviour for every input.
@@ -841,8 +845,10 @@ first — *is a trailing catch-all in a `U` table an authoring error, or an acce
 question is the real content of the deferral, and it is a genuinely separate decision from this
 one.
 
+**Ruled 2026-09-26: an accepted idiom, read as the default output. See D-22,** which also rules on every other conflict region and on no-match.
+
 **What the wider DMN community says about that question, gathered 2026-08-02.** Not a ruling —
-Meng has not ruled — but the evidence is one-sided enough that the next reader should not have to
+Meng had not ruled when this was gathered; D-22 is the ruling — but the evidence is one-sided enough that the next reader should not have to
 re-gather it.
 
 The industry answer is **authoring error**, and the argument is mechanical rather than stylistic:
@@ -1120,6 +1126,8 @@ than it looked.
    Whether a trailing catch-all under `U` is an authoring error or an accepted idiom is the question
    D-13 said "needs its own ruling first"; it is still open, and is posed on the "Tables, Trees, Prose"
    bench (card T6, 2026-09-26).
+   (Ruled later the same day: D-22, an accepted idiom read as the default, in the interpreter too.
+   Not implemented at the time of ruling.)
    Found by the ROOTSTOCK planning memo (2026-09-26), sharpened by that bench's adversarial review.
 
 **The hazard is real, and exclusive to `--to=xml`.** Under `U` a conforming engine may evaluate
@@ -1581,3 +1589,94 @@ Two sentences above were true when this entry was written and are superseded: "1
 The measurement compared all 94 top-level declarations of `DMN15.xsd` and `DMN16.xsd` and found the decision-table complex types identical; only `tDefinitions` (its FEEL URI defaults) and `tFunctionKind` (which gains `ONNX`) differ, as `languages/haskell/test/dmn16/README.md` records.
 `readableReleases` now includes DMN 1.6, and 1.6's B-FEEL expression language is refused by URI rather than read as FEEL.
 The ruling is unchanged: `--to=xml` still writes DMN 1.3.
+
+### D-21 — where the table→tree compiler and region checker live. **RULED: C, with four conditions (Meng, 2026-09-26, bench card T4, word DUPLEX). Not implemented.**
+
+This is the dmnmd pointer to a ruling recorded in full in `legalese/l4-ide` `specs/todo/INLINE-DMNMD-SPEC.md` §4.1 (legalese/l4-ide#500).
+It states only what binds this repository.
+
+**The ruling.**
+The table→tree compiler and the region checker live in l4-ide.
+The region enumerator and `#ASSERT` generation live here, in dmnmd, and there is one written spec.
+Meng marked the card "accept" with no note.
+
+**The four conditions, as printed on the card.**
+
+1. The CI gate for l4-ide's compiler and checker is a per-region `cases.json` battery run through l4-ide's existing KIE and Camunda job.
+   dmnmd's leg is local evidence only, because l4-ide's `CLAUDE.md` §1.2 allows dmnmd only "as local evidence when it happens to be checked out", and dmnmd's CI has no `l4` binary.
+2. Fixing dmnmd's no-match crash, so that F and P answer null instead of crashing, comes before `emitAsserts`.
+   The crash is `symptom/eval-hp-first-no-match-crash`.
+   `emitAsserts` is declared and marked TODO at `languages/haskell/src/DMN/Translate/L4.hs:35`, and nothing sets it.
+3. The written spec names one canonical copy.
+   `BUILD-SPEC-dmnmd-to-l4.md` already exists in both repositories, has drifted, and names none.
+4. The `dmn-core` package option stays deferred, on the trigger `DMN-CORE-HACKAGE-FINDINGS.md` already sets.
+
+**What binds dmnmd, in order.**
+First, condition 2's no-match fix, which D-22 also requires.
+Only then, `emitAsserts`.
+
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Part 1 (the interpreter) landed; parts 2 and 3 not implemented.**
+
+This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
+It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
+The l4-ide side is recorded as a note in `specs/todo/INLINE-DMNMD-SPEC.md` §5 (legalese/l4-ide#500).
+
+**The ruling, as printed on the card.**
+
+1. A trailing catch-all under `U` is an accepted idiom.
+   It is read as the §8.2.11 default output value, and in the interpreter too, so every route gives the same answer.
+   `policy/md-eval-unique-conflict` moves: it is re-fixtured with a genuine overlap (`<= 20` / `>= 10`) so that the refusal stays pinned.
+2. Any other conflict region on scalar columns is refused.
+   Under `U` a conflict region is a point where two rules match; under `A`, a point where matching rules disagree.
+   Collection-input `U` and `A` tables keep dmnmd's overlap warning until regions model membership.
+3. "No rule matched" is stated, not papered over.
+   L4 renders it as `NOTHING`, with a `MAYBE` result only where a no-match region exists, so total tables stay bare.
+   DMN renders it as null, and prose as "no rule applies".
+   The interpreter's no-match becomes null, not an error and not a crash.
+
+**The evidence it rests on.**
+- DMN 1.3 §8.2.10 says a `U` table "SHALL NOT contain overlapping rules", and that for disagreeing `A` rules "the hit policy is incorrect and the result is undefined".
+- §10.3.2.10 gives null on no match "if no default output value is specified".
+- Before this ruling, dmnmd gave four readings of one table, `policy/md-eval-unique-conflict`'s:
+  - the markdown interpreter refuses;
+  - `--to=l4` and js/ts/py take the first match;
+  - `--to=xml` promotes the catch-all to a default;
+  - that XML read back answers `Spareribs`.
+  (D-16's correction.)
+
+**What moves when it is implemented.**
+These are the card's list plus the five cases step 0 found; I read each input.
+- `policy/l4-otherwise-sentinel-not-last-row`, `policy/list-output-l4-literal` and `policy/list-input-membership-l4`, as the card lists them.
+- `policy/md-eval-unique-conflict` is re-fixtured, as rule 1 says.
+- Four `U` cases would start refusing because they overlap beyond any catch-all.
+  Each was written to pin something else, so each is re-fixtured with non-overlapping rows that keep its original property, and the new refusal cases pin the overlap instead:
+  - `policy/hp-unique-near-duplicate-rows-accepted`: rows 3 and 4 overlap on Winter; it guards D-13 against false refusals.
+  - `policy/md-prefix-comparisons`: `< 18` and `<= 21` overlap; it pins prefix comparisons.
+  - `policy/md-multivalue-dash-reprocessed`: `4, -` and `8` overlap; it pins a multi-value dash.
+  - `policy/md-negation-in-numeric-column-emitted`: `not([1..5])` and `[10..20]` overlap; it pins negation.
+- `policy/eval-hp-any-two-rows-disagree`, an `A` table whose rows disagree below 10, becomes a refusal case.
+- `symptom/l4-hitpolicy-unique-silently-first` and `symptom/hp-any-duplicate-rows-disagree-silent` start refusing, which is progress; each moves to `policy/`.
+
+**Status.**
+Ruled, not implemented.
+Implementation is ordinary work, test-first.
+It needs a region computation for conflict detection, which today's `uniquenessErrors` (D-13, identical guards only) does not have.
+The step 0 counter in the ROOTSTOCK memo computed regions over 145 tables, so the approach is measured, but its code is throwaway and is not the implementation.
+
+**Implementation, part 1: the interpreter (2026-09-26, branch `feat/d22-interpreter`).**
+Rule 1 and the interpreter half of rule 3 are implemented in `evalTable`; rule 2 and the L4 half of rule 3 are not.
+Under `U`, `uniqueCatchAll` splits a trailing catch-all off before matching and makes it the default output value, using the predicate `--to=l4` uses for `OTHERWISE`.
+A catch-all that is not the last row, or sits under another hit policy, is still a rule.
+A genuine overlap under `U` is still refused at run time, and so is disagreement under `A`.
+When a table carries both a trailing catch-all and a declared default, the catch-all wins, as it already did in `--to=l4` and js/ts/py.
+Under `U`, `A`, `P` and `F`, a no-match with no default now answers null, which `evalTable` returns as `Right []`; `head0` is deleted.
+A declared default still wins over null, and is now evaluated only when it is the answer.
+The `-q` REPL prints null as `T: null` whatever `-t` says.
+This discharges D-21 condition 2: the no-match fix now precedes `emitAsserts`.
+`symptom/eval-hp-first-no-match-crash` moved to `policy/` under its old slug.
+`policy/md-eval-unique-conflict` was re-fixtured with a genuine overlap (`<= 20` / `>= 10`), and its old table is now `policy/md-eval-unique-catchall-default`.
+The four readings of that table agree: `-q`, `--to=l4`, `--to=xml`, and that XML read back.
+No emitter output changed: an A/B against trunk `ea4df4a` over 191 fixtures and five formats gave 955 identical runs out of 955.
+`symptom/eval-collect-min-empty-crash` is a different defect (`Prelude.minimum`, not `head0`) and is untouched.
+§10.3.2.10 step 2 would also make its answer null, but this ruling covers only the single-hit policies.
+Still to do: rule 2's static refusal of conflict regions, which needs a region enumerator, and `NOTHING`/`MAYBE` in L4.

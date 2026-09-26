@@ -39,8 +39,86 @@ dTable n hp chs rows = DTable n hp chs rows Nothing
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec] $ hspec
   return ()
+
+-- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
+-- §8.2.11 default output value (rule 1), and a single-hit table with no
+-- matching rule and no default answers null (rule 3), which 'evalTable'
+-- spells @Right []@ — no row was selected.
+--
+-- What stays refused is pinned here too, because the easiest way to implement
+-- rule 1 wrongly is to stop refusing overlaps altogether: a genuine overlap
+-- under @U@, an overlap involving a catch-all that is not the LAST row, and a
+-- disagreement under @A@.
+noMatchSpec :: Spec
+noMatchSpec = describe "evalTable under D-22 — a trailing catch-all under U, and no-match is null" $ do
+  let season   = DTCH DTCH_In  "Season" (Just DMN_String) Nothing
+      guests   = DTCH DTCH_In  "Guests" (Just DMN_Number) Nothing
+      dish     = DTCH DTCH_Out "Dish"   (Just DMN_String) Nothing
+      row n ins out = DTrow (Just n) ins [[FNullary (VS out)]] []
+      fall     = [FNullary (VS "Fall")]
+      dash     = [FAnything]
+      lte n    = [FSection Flte (VN n)]
+      gte n    = [FSection Fgte (VN n)]
+      q s g    = [FNullary (VS s), FNullary (VN g)]
+      ans x    = Right [[[FNullary (VS x)]]] :: Either String [[[FEELexp]]]
+      -- Only the first line of a refusal: the rest is a `show` of the matched
+      -- rows, which is a debugging dump rather than a promise.
+      firstLine = either (takeWhile (/= '\n')) (("unexpectedly returned " ++) . show)
+      uniqueConflict = "multiple rows returned -- this was supposed to be a unique table!"
+      tbl hp rows = DTable "Dish" hp [season, guests, dish] rows Nothing
+      withDefault d t = t { dtDefaultOutput = Just [[FNullary (VS d)]] }
+      -- policy/md-eval-unique-conflict's table before D-22 re-fixtured it.
+      catchAllU = tbl HP_Unique [ row 1 [fall, lte 8] "Spareribs"
+                                , row 2 [dash, dash]  "Takeaway" ]
+      -- A table that matches nothing for Winter, under any hit policy.
+      fallOnly hp = tbl hp [ row 1 [fall, lte 8] "Spareribs" ]
+
+  describe "rule 1: a trailing catch-all under U is the default output value" $ do
+    it "answers the rule that matched, instead of reporting a conflict with the catch-all" $
+      evalTable catchAllU (q "Fall" 5) `shouldBe` ans "Spareribs"
+    it "answers the catch-all's output when no other rule matches" $
+      evalTable catchAllU (q "Winter" 5) `shouldBe` ans "Takeaway"
+    it "still refuses two rules that genuinely overlap (<= 20 / >= 10)" $ do
+      let overlap = tbl HP_Unique [ row 1 [dash, lte 20] "Small"
+                                  , row 2 [dash, gte 10] "Large" ]
+      firstLine (evalTable overlap (q "Fall" 15)) `shouldBe` uniqueConflict
+      evalTable overlap (q "Fall" 5)  `shouldBe` ans "Small"
+      evalTable overlap (q "Fall" 25) `shouldBe` ans "Large"
+    it "still refuses a genuine overlap ABOVE a trailing catch-all — the catch-all hides nothing" $ do
+      let overlap = tbl HP_Unique [ row 1 [dash, lte 20] "Small"
+                                  , row 2 [dash, gte 10] "Large"
+                                  , row 3 [dash, dash]   "Takeaway" ]
+      firstLine (evalTable overlap (q "Fall" 15)) `shouldBe` uniqueConflict
+    it "treats an all-wildcard row that is NOT the last row as an ordinary rule, which overlaps" $ do
+      let early = tbl HP_Unique [ row 1 [dash, dash]  "Takeaway"
+                                , row 2 [fall, lte 8] "Spareribs" ]
+      firstLine (evalTable early (q "Fall" 5)) `shouldBe` uniqueConflict
+    it "is Unique-only: under Any a trailing catch-all that disagrees is still refused" $
+      firstLine (evalTable (catchAllU { hitpolicy = HP_Any }) (q "Fall" 5))
+        `shouldBe` "multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!"
+    it "wins over a declared default, as it does in --to=l4's OTHERWISE and js/ts/py's first match" $
+      evalTable (withDefault "Declared" catchAllU) (q "Winter" 5) `shouldBe` ans "Takeaway"
+    it "holds vacuously with no input columns: the last row is the default and the first answers, as in --to=l4" $
+      -- Markdown writes this by marking every column (out).
+      evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
+                                               , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) []
+        `shouldBe` ans "Stew"
+
+  describe "rule 3: a single-hit table with no match and no default answers null (Right [])" $ do
+    forM_ [HP_Unique, HP_Any, HP_Priority, HP_First] $ \hp ->
+      it ("under " ++ show hp) $
+        evalTable (fallOnly hp) (q "Winter" 5) `shouldBe` Right []
+    forM_ [HP_Priority, HP_First] $ \hp ->
+      it ("under " ++ show hp ++ ", a declared default still wins over null") $
+        evalTable (withDefault "Takeaway" (fallOnly hp)) (q "Winter" 5) `shouldBe` ans "Takeaway"
+    it "evaluates a declared default only when no rule matches (§10.3.2.10 step 2)" $ do
+      -- A default whose arithmetic cannot be evaluated used to poison every
+      -- query, matched or not, because it was evaluated before matching.
+      let t = (fallOnly HP_First) { dtDefaultOutput = Just [[FFunction (FNF1 "Nowhere")]] }
+      evalTable t (q "Fall" 5) `shouldBe` ans "Spareribs"
+      evalTable t (q "Winter" 5) `shouldBe` Left "function unable to resolve variable Nowhere"
 
 -- | D-16 phase 2: the §8.2.11 default output value, as the EVALUATOR and the
 -- backends consume it. How it gets INTO the slot is tested where it happens —
@@ -360,8 +438,8 @@ spec3 = do
       $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Spring"])) `shouldBe` Right [[[FNullary $ VS "Stew"]]]
     it "should run standard dmn example 1c: Summer -> Stew"
       $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Summer"])) `shouldBe` Right [[[FNullary $ VS "Stew"]]]
-    it "should run standard dmn example 1c: Never -> Left \"no match\""
-      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Never"])) `shouldBe` Left "no rows returned -- a unique table should have one result!"
+    it "should run standard dmn example 1c: Never -> null (D-22: no match is null, not an error)"
+      $ (evalTable (throwOnLeft (parseOnly (parseTable "mytable1") dmn1c)) ([FNullary $ VS "Never"])) `shouldBe` Right []
 
   -- Hit policy A (D-5). Before this block the suite's ENTIRE coverage of HP_Any
   -- was one `parseHitPolicy` assertion, so `cabal test` stayed green with the arm
@@ -374,8 +452,8 @@ spec3 = do
       $ evalTable anyAgree [FNullary (VN 5)]  `shouldBe` Right [[[FNullary (VS "ok")]]]
     it "one row matches: returns its output"
       $ evalTable anyAgree [FNullary (VN 25)] `shouldBe` Right [[[FNullary (VS "ok")]]]
-    it "no row matches: no rows returned"
-      $ evalTable anyAgree [FNullary (VN 99)] `shouldBe` Left "no rows returned"
+    it "no row matches: null (D-22), not an error"
+      $ evalTable anyAgree [FNullary (VN 99)] `shouldBe` Right []
     it "two rows match and disagree: refused, because ANY permits multiple matches but not multiple answers"
       -- only the first line: the rest is a `show` of the matched rows, which is a
       -- debugging dump rather than a promise.
