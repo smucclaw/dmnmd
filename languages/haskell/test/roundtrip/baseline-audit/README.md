@@ -153,3 +153,12 @@ This is recorded, not fixed.
 After the re-record, a `--check` run after `cabal test` in the same tree printed `checked 1404 run(s): 360 changed`, every one of them `MISSING FROM MANIFEST` under `golden/.out/`.
 The recording itself was not affected, because it was made in a tree where `cabal test` had not yet run.
 `collect_fixtures` now prunes dot-directories, which removes exactly those files and nothing tracked, and the same `--check` then printed `checked 1224 run(s): 0 changed`.
+
+## Extension for D-22 part 1 (#62), 2026-09-26
+
+This branch was then rebased onto #62, whose fixture changes left `--check` at `checked 1228 run(s): 20 changed`.
+All 20 are fixture changes, not emitter changes, and `--record` followed by `--check` gives `0 changed`:
+- `eval-hp-first-no-match-crash` moved from `symptom/` to `policy/`: 8 entries leave under the old path and 8 arrive under the new one, with identical hashes.
+- `md-eval-unique-catchall-default` is new: 8 entries, and its four stdout hashes are exactly the old `md-eval-unique-conflict` hashes, because it is that table byte for byte.
+- `md-eval-unique-conflict` was re-fixtured with a genuine overlap, so its four stdout hashes changed and its stderr did not.
+

@@ -94,6 +94,7 @@ Formats are `ts js py l4` and no more. **There is no `json` backend**: `showToJS
 comparing checksums against the manifest when they are not, so the baseline survives a clean
 checkout.
 It was re-recorded on 2026-09-26 with a binary built at trunk `ea4df4a`, and `--check` then reported `0 changed` both with the full outputs present and against the manifest alone.
+It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures, and `--check` again reported `0 changed` over 1,228 runs.
 Every change that re-record absorbed is audited in [`baseline-audit/README.md`](baseline-audit/README.md).
 (The previous recording was committed at `8c18f22`; this paragraph said it was made at `3f174f4`.)
 

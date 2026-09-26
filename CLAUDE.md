@@ -434,6 +434,7 @@ dispatch. **`--check` only** — re-recording after a change launders a regressi
 > `test/roundtrip/baseline/MANIFEST.sha` was re-recorded on 2026-09-26 with a binary built at trunk `ea4df4a`.
 > Before that it had last been recorded at `8c18f22`, and `--check` printed `checked 1224 run(s): 883 changed` (883 files, stdout and stderr counted separately: 599 of the 1,224 runs).
 > After it, `--check` printed `checked 1224 run(s): 0 changed`, both with the full outputs present and against the manifest alone.
+> It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures; no emitter output changed, and `--check` printed `checked 1228 run(s): 0 changed` (`test/roundtrip/baseline-audit/README.md`).
 >
 > Every change the re-record absorbed is audited in `test/roundtrip/baseline-audit/README.md`.
 > Each was classified by shape, bisected to the commit that introduced it, and attributed to D-6, D-7, D-9, D-13, D-15, D-16, D-17, D-18, D-19 or PR #58, and none was left over.
