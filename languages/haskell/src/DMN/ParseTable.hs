@@ -3,7 +3,8 @@
 module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
-import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, trim, mkDTable )
+import DMN.BuildTable ( mkDTable )
+import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, trim )
 import DMN.Diagnostic ( Diagnostic, anyErrors, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)

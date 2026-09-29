@@ -1,0 +1,2 @@
+error: input.md: table "AnyDisagree": row 1 and row 2 both match Age = 9 (they overlap wherever Age < 10) and disagree on Verdict ("ok" against "deny"): under hit policy A (Any), rules may overlap only where their outputs agree (DMN 1.3 §8.2.10). Give the two rules the same outputs, or change an input cell of row 1 or row 2 so that they select different inputs.
+dmnmd: one or more decision tables in input.md could not be read

@@ -1,6 +1,6 @@
 ## `MultiDash`
 
-| U | Guest Count | Dish (out) |
-|---|-------------|------------|
-| 1 | 4, -        | Spareribs  |
-| 2 | 8           | Stew       |
+| U | Guest Count | Season | Dish (out) |
+|---|-------------|--------|------------|
+| 1 | 4, -        | Fall   | Spareribs  |
+| 2 | 8           | Winter | Stew       |

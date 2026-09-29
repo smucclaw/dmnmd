@@ -1,8 +1,8 @@
-export function MultiDash ( Guest_Count : number ) {
-  if ((Guest_Count === 4.0 || (true||Guest_Count))) { // 1
+export function MultiDash ( Guest_Count : number, Season : string ) {
+  if ((Guest_Count === 4.0 || (true||Guest_Count)) && Season === "Fall") { // 1
     return {"Dish":"Spareribs"};
   }
-  else if (Guest_Count === 8.0) { // 2
+  else if (Guest_Count === 8.0 && Season === "Winter") { // 2
     return {"Dish":"Stew"};
   }
 }

@@ -448,7 +448,14 @@ spec3 = do
   -- but the success branch still list-valued. Both halves are asserted here.
   describe "evalTable hit policy A" $ do
     let anyAgree    = throwOnLeft (parseOnly (parseTable "AnyAgree")    dmnAnyAgree)
-        anyDisagree = throwOnLeft (parseOnly (parseTable "AnyDisagree") dmnAnyDisagree)
+        -- Since D-22 part 2 the reader refuses this table: rows 1 and 2 disagree
+        -- below 10, a conflict region. The run-time arm under test is still
+        -- reachable, by any table the region check cannot analyse (a collection
+        -- column, say) and by any table not built by a reader, so the table is
+        -- read under F, which has no hit-policy refusal here, and set back to A.
+        anyDisagree = (throwOnLeft (parseOnly (parseTable "AnyDisagree")
+                                     (T.replace "| A |" "| F |" dmnAnyDisagree)))
+                        { hitpolicy = HP_Any }
     it "two rows match and agree: returns the shared output ONCE, not once per matching row"
       $ evalTable anyAgree [FNullary (VN 5)]  `shouldBe` Right [[[FNullary (VS "ok")]]]
     it "one row matches: returns its output"
@@ -937,8 +944,8 @@ dmnAnyAgree = T.pack $ dropWhile (=='\n') [r|
 | 2 | < 30                 | ok                           |
 |]
 
--- | The same table with row 2 disagreeing, which makes it ill-defined under DMN.
--- Spelled @deny@ rather than @no@: a @no@ cell infers Boolean and D-2 anchored
+-- | The same table with row 2 disagreeing, which makes it ill-defined under DMN,
+-- and which the reader therefore refuses (D-22 rule 2). Spelled @deny@ rather than @no@: a @no@ cell infers Boolean and D-2 anchored
 -- inference then refuses the column before 'evalTable' is ever reached.
 dmnAnyDisagree :: Text
 dmnAnyDisagree = T.pack $ dropWhile (=='\n') [r|

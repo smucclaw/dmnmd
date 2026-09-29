@@ -19,7 +19,7 @@ import qualified Data.Map as Map
 import Data.Scientific (Scientific)
 import DMN.Number ( divideFeel, powerFeel, showNumPlain, spellable )
 import DMN.ParsingUtils ( parseOnly )
-import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt )
+import DMN.Diagnostic ( Diagnostic, errorAt )
 import DMN.Types
 
 -- main = do
@@ -718,64 +718,6 @@ fEval rhs lhs                                 = error $ unwords [ "type error in
 -- 
 
 
--- perform type inference to resolve colheader values based on a review of the rows
--- | Type inference, re-typing, and every reason to refuse the result — as
--- @([Diagnostic], 0-or-1 tables)@, the same shape
--- 'DMN.XML.XmlToDmnmd.convTable' has always returned.
---
--- __The list is the gate.__ An 'DMN.Diagnostic.Error' means the table list is
--- empty, so a caller cannot emit a table it was told to refuse merely by
--- forgetting to look at the diagnostics. That property used to be supplied by
--- @error@ — and, at the CLI, by the accident that @app\/Main.hs@'s
--- @tableWarnings@ loop and @--pick@'s @tableName@ filter both forced every
--- table to WHNF before anything was written. Both accidents are gone; this is
--- the design that replaces them.
---
--- __Cell diagnostics short-circuit 'tableErrors'.__ Same reasoning as
--- 'tableErrors' running 'structuralErrors' first: a cell whose meaning we could
--- not read cannot meaningfully be checked against a domain, and the follow-on
--- complaints would be about the placeholder 'reprocessRows' left behind rather
--- than about anything the author wrote.
-mkDTable :: String -> HitPolicy -> [ColHeader] -> [DTrow] -> ([Diagnostic], [DecisionTable])
-mkDTable origname orighp origchs origdtrows =
---  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
-  let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
-                                     (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      (enumDiags, typedchs) =
-        (\pairs -> (concatMap fst pairs, snd <$> pairs))
-          (retypeEnums origname <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs))
-      rowResults =
-        (\case
-            (DTrow rn ri ro rc) ->
-              let (di, ri') = reprocessRows origname rn (getInputHeaders typedchs)  ri
-                  (dobs, ro') = reprocessRows origname rn (getOutputHeaders typedchs) ro
-              in (di ++ dobs, DTrow rn ri' ro' rc)) <$> origdtrows
-      cellDiags = enumDiags ++ concatMap fst rowResults
-      built = DTable origname orighp typedchs (snd <$> rowResults) Nothing
-  in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
-        --                 "origchs = " ++ show(origchs) ++ "\n" ++
-           --             "newchs = " ++ show(newchs) ++ "\n" )
-    -- A cell outside the domain its own sub-header row declares is a typo, not
-    -- a new domain member, and a rule built from it can never match. Emitting it
-    -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
-    -- §8. The XML reader calls 'domainErrors' directly, because 'convTable'
-    -- bypasses this function on purpose; both readers now report the same way.
-    if anyErrors cellDiags
-    then (cellDiags, [])
-    else case tableErrors built of
-      []   -> (cellDiags, [built])
-      errs -> ( cellDiags ++ (errorAt . (("table " ++ show origname ++ ": ") ++) <$> errs)
-              , [] )
-
--- | Every reason to refuse a table, in one place, for both readers.
---
--- 'structuralErrors' is about the table's SHAPE — a cell whose meaning dmnmd
--- will not guess at. 'domainErrors' is about a cell disagreeing with the domain
--- the table itself declares. Structural first, because a cell that has no
--- meaning cannot meaningfully be checked against a domain.
-tableErrors :: DecisionTable -> [String]
-tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
-                 ++ uniquenessErrors dt
 
 -- | D-13. Two rows of a @U@ table with identical guards: the second can never
 -- match, and every backend emits it as dead code at exit 0.
@@ -799,7 +741,7 @@ tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
 -- runtime matcher. (Nothing in the tree exercises this, measured; it is decided
 -- on the semantics, not on a fixture.)
 --
--- __Soundness, and what is deliberately NOT here.__ 'fEval' dispatches on
+-- __Soundness.__ 'fEval' dispatches on
 -- constructor structure alone, so equal guards imply identical matching
 -- behaviour for every input: a static refusal here can never contradict
 -- 'evalTable'\'s @HP_Unique@ arm, which reports the same collision at run time
@@ -808,9 +750,17 @@ tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
 -- all-wildcard row, which 'uniqueCatchAll' reads as the default output value
 -- rather than as a rule. The earlier row answers every input, so that default
 -- can never be reached, and the refusal's own "can never match" stays true.
--- The check is an under-approximation — @[1..5]@
--- and @[3..8]@ overlap without being equal and are NOT refused. That is full
--- overlap analysis, deferred by name in D-13.
+--
+-- __Overlap that is not identity is D-22's, and lives elsewhere.__
+-- @[1..5]@ and @[3..8]@ overlap without being equal. D-13 deferred that case,
+-- and D-22 rule 2 now refuses it: 'DMN.Regions.conflictErrors', the summand
+-- after this one in 'DMN.BuildTable.tableErrors'. The two do not both speak
+-- about one row. That check leaves every row this one reports ('identicalGuards')
+-- to this message, because "can never match" and "the values, not the text"
+-- are things its own message does not say. And this check is what still runs
+-- where regions cannot be computed (a collection column, say), so a table
+-- 'DMN.Regions.regionMap' declines is refused for identical guards exactly as
+-- it was before D-22.
 --
 -- __@U@ only.__ @A@ legitimately permits overlapping rows that agree (D-5) and
 -- @P@, @O@, @R@ and @Collect@ order or accumulate them on purpose;
@@ -825,23 +775,11 @@ tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
 -- column. It guarantees an OUTPUT column: it relabels the rightmost column of
 -- an all-input header, and leaves an all-output header alone.)
 uniquenessErrors :: DecisionTable -> [String]
-uniquenessErrors dt = case hitpolicy dt of
-  HP_Unique | not (null ins) ->
-    [ dupMsg earlier (i, r)
-    | (i, r) <- numbered
-    , earlier <- take 1 [ e | e@(j, p) <- numbered
-                            , j < i
-                            , sameGuard (row_inputs p) (row_inputs r) ]
-    ]
-  _ -> []
+uniquenessErrors dt =
+  [ dupMsg (first + 1, rows !! first) (dup + 1, rows !! dup) | (first, dup) <- identicalGuards dt ]
   where
-    ins      = getInputHeaders (header dt)
-    numbered = zip [1 :: Int ..] [ r | r@DTrow{} <- allrows dt ]
-
-    sameGuard as bs = length as == length bs && and (zipWith sameCell as bs)
-    -- Mutual containment: a multi-value cell is an OR, hence a set. No 'Ord'
-    -- instance exists for 'FEELexp' and cells are tiny, so this is not sorted.
-    sameCell a b = all (`elem` b) a && all (`elem` a) b
+    ins  = getInputHeaders (header dt)
+    rows = allrows dt
 
     -- The row numbers are the ones the AUTHOR wrote on the markdown path
     -- (gaps and repeats survive) and a 1-based index on the XML path — the
@@ -850,7 +788,7 @@ uniquenessErrors dt = case hitpolicy dt of
     -- named as a position and says so.
     rowLabel (i, r) = case row_number r of
       Just n  -> "row " ++ show n
-      Nothing -> "the unnumbered row at position " ++ show i
+      Nothing -> "the unnumbered row at position " ++ show (i :: Int)
 
     dupMsg first dup = concat
       [ rowLabel first, " and ", rowLabel dup
@@ -865,6 +803,33 @@ uniquenessErrors dt = case hitpolicy dt of
     guardOf r = intercalate "; "
       [ varname ch ++ ": " ++ intercalate ", " (showDomainMember <$> cells)
       | (ch, cells) <- zip ins (row_inputs r) ]
+
+-- | The collisions 'uniquenessErrors' reports, as positions in 'allrows'
+-- counting from 0: for each row of a @U@ table whose guard is identical to an
+-- earlier row's, the FIRST such earlier row, then it. So @n@ identical rows
+-- give @n - 1@ pairs, each naming the first. Empty under any other hit policy,
+-- and for a table with no input columns.
+--
+-- Exported because 'DMN.Regions.conflictErrors' must stay silent about exactly
+-- these later rows, and a second copy of the predicate could drift.
+identicalGuards :: DecisionTable -> [(Int, Int)]
+identicalGuards dt = case hitpolicy dt of
+  HP_Unique | not (null (getInputHeaders (header dt))) ->
+    [ (first, i)
+    | (i, r) <- numbered
+    , first <- take 1 [ j | (j, p) <- numbered, j < i, sameGuard (row_inputs p) (row_inputs r) ]
+    ]
+  _ -> []
+  where
+    numbered = zip [0 ..] (allrows dt)
+
+-- | Two guards (whole input sides) that select exactly the same inputs, as
+-- D-13 decides it: same arity, and cell by cell the same tests. Mutual
+-- containment, because a multi-value cell is an OR and hence a set. No 'Ord'
+-- instance exists for 'FEELexp' and cells are tiny, so this is not sorted.
+sameGuard :: [[FEELexp]] -> [[FEELexp]] -> Bool
+sameGuard as bs = length as == length bs && and (zipWith sameCell as bs)
+  where sameCell a b = all (`elem` b) a && all (`elem` a) b
 
 -- | D-2. A column dmnmd could not type, refused instead of guessed.
 --

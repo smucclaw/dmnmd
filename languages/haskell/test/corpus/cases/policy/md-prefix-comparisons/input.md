@@ -1,9 +1,8 @@
 ## `PrefixComparisons`
 
-| U | Age   | Band (out) |
-|---|-------|------------|
-| 1 | < 18  | minor      |
-| 2 | <= 21 | young      |
-| 3 | > 65  | senior     |
-| 4 | >= 40 | middle     |
-| 5 | -     | adult      |
+| U | Age   | Scheme | Band (out) |
+|---|-------|--------|------------|
+| 1 | < 18  | child  | minor      |
+| 2 | >= 18 | child  | adult      |
+| 3 | <= 21 | youth  | young      |
+| 4 | > 21  | youth  | adult      |

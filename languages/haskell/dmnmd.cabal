@@ -85,6 +85,7 @@ library
     , scientific
     , split
   exposed-modules:
+      DMN.BuildTable
       DMN.DecisionTable
       DMN.Diagnostic
       DMN.Number

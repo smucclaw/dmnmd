@@ -11,12 +11,12 @@
 -- question about finitely many regions, and each region carries a concrete
 -- input to ask it at.
 --
--- This module is infrastructure, and nothing in the binary calls it yet.
--- @DECISIONS.md@ D-22 part 2 refuses a conflict region on scalar columns, and
--- part 3 makes a no-match region the one place an L4 result is a @MAYBE@; D-21
--- puts the region enumerator in dmnmd, where @emitAsserts@ will write one
--- @#ASSERT@ per region with the value 'DMN.DecisionTable.evalTable' gives at
--- 'regionInput'.
+-- Both readers use it: @DECISIONS.md@ D-22 part 2 refuses a conflict region on
+-- scalar columns, through 'conflictErrors', a summand of
+-- 'DMN.BuildTable.tableErrors'. The rest is groundwork. D-22 part 3 makes a
+-- no-match region the one place an L4 result is a @MAYBE@, and D-21 puts the
+-- region enumerator in dmnmd, where @emitAsserts@ will write one @#ASSERT@ per
+-- region with the value 'DMN.DecisionTable.evalTable' gives at 'regionInput'.
 --
 -- __Cell meaning is dmnmd's own.__ Which rules a block admits is decided by
 -- 'fEvals' — the function 'DMN.DecisionTable.matches' and so 'evalTable' use —
@@ -69,6 +69,10 @@ module DMN.Regions
   , isNoMatch
   , conflictRegions
   , noMatchRegions
+    -- * Refusing conflicts (D-22 rule 2)
+  , Conflict (..)
+  , conflicts
+  , conflictErrors
   ) where
 
 import           Control.Applicative ((<|>))
@@ -81,8 +85,9 @@ import qualified Data.List.NonEmpty as NE
 import           Data.Maybe         (isJust, listToMaybe, mapMaybe)
 import           Data.Scientific    (Scientific)
 
-import           DMN.DecisionTable  (CellSite (..), fEvals, fnVars, getInputHeaders, showDomainMember,
-                                     showHitPolicy, showSite, showType, trim, uniqueCatchAll)
+import           DMN.DecisionTable  (CellSite (..), fEvals, fnVars, getInputHeaders, getOutputHeaders,
+                                     identicalGuards, showDomainMember, showHitPolicy, showSite,
+                                     showType, trim, uniqueCatchAll)
 import           DMN.Number         (showNumPlain)
 import           DMN.ParseCell      (parseNumberCell)
 import           DMN.Types
@@ -631,3 +636,165 @@ walk viable wanted rm = go everyRule (zip cols covers) []
       | viable coverRest live =
           concat [ go (IS.intersection live (blockMembers b)) more (b : acc) | b <- cbBlocks c ]
       | otherwise = []
+
+-- * Refusing conflicts (D-22 rule 2)
+
+-- | Two rules that can both match where the hit policy allows only one answer:
+-- under @U@ two rules, neither of them a 'TrailingCatchAll'; under @A@ two
+-- rules whose outputs differ as written, which is what 'isConflict' compares.
+-- Never under @P@ or @F@.
+data Conflict = Conflict
+  { conflictEarlier :: RuleIx
+  , conflictLater   :: RuleIx
+  , conflictRegion  :: Region
+    -- ^ the first region, in 'regions' order, in which both are live. Its
+    -- 'regionInput' is the witness a refusal names.
+  }
+  deriving (Eq, Show)
+
+-- | For each rule that conflicts with an earlier one, the FIRST such earlier
+-- rule, with the first region in which both are live. So a table has a
+-- 'Conflict' exactly when it has a conflict region, and @n@ rules that all
+-- overlap give @n - 1@ of them, each naming the first: the shape D-13's
+-- 'DMN.DecisionTable.identicalGuards' already has, so the two refusals count
+-- rows the same way.
+--
+-- __Pairwise, not by enumerating regions.__ Two rules share a region exactly
+-- when every column has a block admitting both, and the first such region in
+-- 'regions' order takes, in each column, the first such block. That is one
+-- pass over the blocks per pair of rules. Enumerating the conflict regions
+-- instead can cost the product of the columns' block counts, and this runs on
+-- every table either reader accepts.
+conflicts :: RegionMap -> [Conflict]
+conflicts rm =
+  [ Conflict i j (Region shared (foldr (IS.intersection . blockMembers) everyRule shared))
+  | j <- ixs
+  , (i, shared) <- take 1 [ (i, bs) | i <- takeWhile (< j) ixs, clash i j, Just bs <- [sharedBlocks i j] ]
+  ]
+  where
+    dt        = rmTable rm
+    outs      = row_outputs <$> allrows dt
+    ixs       = [0 .. length outs - 1]
+    everyRule = IS.fromList ixs
+    answering k = rmDefault rm /= TrailingCatchAll k
+    clash i j = case hitpolicy dt of
+      HP_Unique -> answering i && answering j
+      HP_Any    -> outs !! i /= outs !! j
+      _         -> False
+    sharedBlocks i j = traverse (find (admitsBoth i j) . cbBlocks) (rmColumns rm)
+
+admitsBoth :: RuleIx -> RuleIx -> Block -> Bool
+admitsBoth i j b = IS.member i (blockMembers b) && IS.member j (blockMembers b)
+
+-- | D-22 rule 2: every conflict region on scalar columns, as a refusal.
+-- A summand of 'DMN.BuildTable.tableErrors', beside D-13's
+-- 'DMN.DecisionTable.uniquenessErrors', so both readers refuse the same
+-- tables.
+--
+-- One message per 'Conflict', naming both rules by the numbers the author wrote,
+-- one input both match (the representative of the first region they share),
+-- and, where it is larger than that one input, the whole of their overlap,
+-- column by column. Under @A@ it also names the output columns that disagree.
+--
+-- __Silent in two cases, both deliberate.__
+--
+-- * Where 'regionMap' cannot compute regions: a list-valued hit policy, a
+--   collection column (whose @U@ and @A@ tables keep the overlap warning in
+--   'DMN.DecisionTable.tableWarnings', as D-22 says, until regions model
+--   membership), a String cell holding FEEL test syntax, a short row, a
+--   computed cell. Such a table is refused or accepted exactly as it was
+--   before D-22 part 2; not being able to analyse a table is not a reason to
+--   refuse it.
+-- * About a row 'DMN.DecisionTable.identicalGuards' reports. D-13's message
+--   already refuses it, and says two things this one does not: that the row
+--   can never match at all, and that 1.1 and 1.10 are the same guard. Two
+--   messages about one row would be noise.
+conflictErrors :: DecisionTable -> [String]
+conflictErrors dt = case regionMap dt of
+  Left _   -> []
+  Right rm -> [ conflictMessage rm c | c <- conflicts rm, conflictLater c `notElem` reportedByD13 ]
+  where reportedByD13 = snd <$> identicalGuards dt
+
+conflictMessage :: RegionMap -> Conflict -> String
+conflictMessage rm c = case hitpolicy dt of
+  HP_Any -> concat
+    [ li, " and ", lj, " both match ", whereText, " and disagree on ", disagreement
+    , ": under hit policy A (Any), rules may overlap only where their outputs agree"
+    , " (DMN 1.3 §8.2.10). Give the two rules the same outputs, or change an input"
+    , " cell of ", li, " or ", lj, " so that they select different inputs." ]
+  _ -> concat
+    [ li, " and ", lj, " both match ", whereText
+    , ": a table with hit policy Unique must not contain overlapping rules"
+    , " (DMN 1.3 §8.2.10). Change an input cell of ", li, " or ", lj, " so that the"
+    , " two rules select different inputs or, if the earlier rule is meant to win,"
+    , " make the hit policy F (First)." ]
+  where
+    dt = rmTable rm
+    i  = conflictEarlier c
+    j  = conflictLater c
+    li = ruleLabel dt i
+    lj = ruleLabel dt j
+
+    witness = intercalate ", "
+      [ varname (cbHeader col) ++ " = " ++ showValue (blockRep b)
+      | (col, b) <- zip (rmColumns rm) (regionBlocks (conflictRegion c)) ]
+    overlaps = overlapIn i j <$> rmColumns rm
+    whereText
+      | all (== Nothing) overlaps             = "every input"
+      | all (maybe False fst) overlaps        = witness
+      | otherwise = witness ++ " (they overlap wherever "
+                      ++ intercalate " and " [ d | Just (_, d) <- overlaps ] ++ ")"
+
+    disagreement = case [ varname ch ++ " (" ++ showCell a ++ " against " ++ showCell b ++ ")"
+                        | (ch, a, b) <- zip3 (getOutputHeaders (header dt)) (outsOf i) (outsOf j)
+                        , a /= b ] of
+      [] -> "their outputs"
+      ds -> intercalate " and " ds
+    outsOf k = maybe [] row_outputs (listToMaybe (drop k (allrows dt)))
+    showCell = intercalate ", " . fmap (\case FNullary v -> showValue v; e -> showDomainMember e)
+
+-- | Where two rules overlap in one column, as a test on that column: 'Nothing'
+-- if everywhere (they do not narrow each other there), else whether it is a
+-- single value, and the test. The union of the blocks admitting both is
+-- exactly the intersection of the two cells within the column's domain,
+-- because the blocks partition the domain and each cell admits a block whole.
+overlapIn :: RuleIx -> RuleIx -> ColumnBlocks -> Maybe (Bool, String)
+overlapIn i j col
+  | length shared == length (cbBlocks col) = Nothing
+  | otherwise = Just $ case concatMap (numbersOf . blockValues) shared of
+      [] -> strings
+      ivs -> case coalesceIntervals ivs of
+        [iv@(Interval (Just (BClosed, a)) (Just (BClosed, z)))] | a == z -> (True, name ++ " = " ++ showInterval iv)
+        [iv]  -> (False, name ++ oneInterval iv)
+        ivs'  -> (False, name ++ " matches " ++ intercalate ", " (showInterval <$> ivs'))
+  where
+    name    = varname (cbHeader col)
+    shared  = filter (admitsBoth i j) (cbBlocks col)
+    numbersOf = \case Numbers ivs -> ivs; _ -> []
+    -- A String block of every other value is in the union exactly when the
+    -- union is everything except the literals of the blocks left out.
+    strings
+      | any isAllExcept shared = case concat [ vs | b <- cbBlocks col, not (admitsBoth i j b), Values vs <- [blockValues b] ] of
+          [v] -> (False, name ++ " is not " ++ showValue v)
+          vs  -> (False, name ++ " is none of " ++ intercalate ", " (showValue <$> vs))
+      | otherwise = case concat [ vs | Values vs <- blockValues <$> shared ] of
+          [v] -> (True, name ++ " = " ++ showValue v)
+          vs  -> (False, name ++ " is one of " ++ intercalate ", " (showValue <$> vs))
+    isAllExcept b = case blockValues b of AllExcept _ -> True; _ -> False
+    oneInterval = \case
+      Interval Nothing (Just (BOpen, z))   -> " < "  ++ showNumPlain z
+      Interval Nothing (Just (BClosed, z)) -> " <= " ++ showNumPlain z
+      Interval (Just (BOpen, a)) Nothing   -> " > "  ++ showNumPlain a
+      Interval (Just (BClosed, a)) Nothing -> " >= " ++ showNumPlain a
+      iv                                   -> " is in " ++ showInterval iv
+
+-- | Join intervals that meet: one ends at a value the next begins at, and
+-- exactly one of them includes it. Given them in ascending order, as the
+-- blocks of a Number column are.
+coalesceIntervals :: [Interval] -> [Interval]
+coalesceIntervals = \case
+  (a : b : rest)
+    | Just (ub, x) <- ivUpper a, Just (lb, y) <- ivLower b, x == y, ub /= lb
+    -> coalesceIntervals (Interval (ivLower a) (ivUpper b) : rest)
+  (a : rest) -> a : coalesceIntervals rest
+  []         -> []
