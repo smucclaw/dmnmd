@@ -13,10 +13,11 @@
 --
 -- Both readers use it: @DECISIONS.md@ D-22 part 2 refuses a conflict region on
 -- scalar columns, through 'conflictErrors', a summand of
--- 'DMN.BuildTable.tableErrors'. The rest is groundwork. D-22 part 3 makes a
--- no-match region the one place an L4 result is a @MAYBE@, and D-21 puts the
--- region enumerator in dmnmd, where @emitAsserts@ will write one @#ASSERT@ per
--- region with the value 'DMN.DecisionTable.evalTable' gives at 'regionInput'.
+-- 'DMN.BuildTable.tableErrors'. D-22 part 3 asks 'noMatchRegions', in
+-- 'DMN.Translate.L4.noRuleMayMatch', whether an L4 result must be a @MAYBE@
+-- whose @OTHERWISE@ is @NOTHING@. The rest is groundwork: D-21 puts the region
+-- enumerator in dmnmd, where @emitAsserts@ will write one @#ASSERT@ per region
+-- with the value 'DMN.DecisionTable.evalTable' gives at 'regionInput'.
 --
 -- __Cell meaning is dmnmd's own.__ Which rules a block admits is decided by
 -- 'fEvals' — the function 'DMN.DecisionTable.matches' and so 'evalTable' use —

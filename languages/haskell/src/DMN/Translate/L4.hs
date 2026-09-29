@@ -17,21 +17,33 @@ module DMN.Translate.L4 where
 
 import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder)
 import DMN.Diagnostic
+import DMN.Regions (regionMap, noMatchRegions)
 import DMN.Types
 import Control.Applicative ((<|>))
 import Data.Char (isAlpha, isAlphaNum, toUpper)
-import Data.List (intercalate)
+import Data.List (intercalate, isPrefixOf)
 import Data.Maybe (isJust, isNothing, catMaybes, mapMaybe)
 import DMN.Number (showNumPlain)
 import Data.Scientific (Scientific)
 import Text.Megaparsec.Unicode (isWideChar)
 
 -- | Options governing L4 emission (see BUILD-SPEC §4.1).
+--
+-- There is no @wrapMaybe@ any more. It was the opt-in, off by default, that
+-- rendered "no rule matched" as @NOTHING@, and @DECISIONS.md@ D-22 rule 3 made
+-- that the default. What the option did beyond that, wrap a table that no input
+-- can fall through as well, is what rule 3 rules out ("so total tables stay
+-- bare"), and no caller ever set it, so it was removed rather than kept with its
+-- meaning inverted. Whether a table's result is a @MAYBE@ is now decided by the
+-- table: see 'noRuleMayMatch'.
 data L4Opts = L4Opts
   { emitDitto     :: Bool    -- ^ collapse repeated tokens to @^@ (not yet active this milestone)
   , useElem       :: Bool    -- ^ multi-value cells as @elem … (LIST …)@; default is OR-of-EQUALS
-  , wrapMaybe     :: Bool    -- ^ @GIVETH A MAYBE …@, arms @JUST …@, @OTHERWISE NOTHING@
-  , defaultResult :: String  -- ^ rendered L4 expr emitted after @OTHERWISE@ when no catch-all row
+  , defaultResult :: String
+    -- ^ rendered L4 expr emitted after @OTHERWISE@ when the table has neither a
+    -- catch-all row nor a declared default. A caller that sets it has said what
+    -- "no rule matched" answers, so the result stays bare. Empty by default, and
+    -- no caller sets it.
   , emitAsserts   :: Bool    -- ^ append @#EVAL@/@#ASSERT@ lines from the evalTable oracle (TODO)
   , enumEnv       :: Maybe EnumEnv
     -- ^ the file's sum-type name assignment. 'Nothing' means "this table is on
@@ -47,12 +59,12 @@ data L4Opts = L4Opts
 -- members are one type, and with different members are two.
 type EnumEnv = [((String, [String]), String)]
 
--- | Default options: ditto on (BUILD-SPEC §3), no @elem@, bare-typed @OTHERWISE@, no asserts.
+-- | Default options: ditto on (BUILD-SPEC §3), no @elem@, no caller-supplied
+-- @OTHERWISE@, no asserts.
 defaultL4Opts :: L4Opts
 defaultL4Opts = L4Opts
   { emitDitto     = True
   , useElem       = False
-  , wrapMaybe     = False
   , defaultResult = ""
   , emitAsserts   = False
   , enumEnv       = Nothing
@@ -243,7 +255,7 @@ toL4 opts dt =
     -- A table with no catch-all row used to be excluded too, because the
     -- synthesized `OTHERWISE ""` is a *check error* against a sum-typed GIVETH
     -- and omitting OTHERWISE is a *parse error*. That restriction is gone:
-    -- 'derivedMaybe' below wraps the result type instead.
+    -- 'maybeResult' below wraps the result type instead.
     --
     -- The gate itself lives in 'enumOutsOf', because 'toL4File' has to apply
     -- exactly the same one when it collects the file's domains — a table whose
@@ -280,46 +292,41 @@ toL4 opts dt =
       [o] -> colTypeL4 opts o
       _   -> recName
 
-    -- A sum-typed result with nothing sensible to fall back on becomes
-    -- `MAYBE T`, so "no rule matched" is NOTHING rather than a fabricated
-    -- member. Fabricating one is forbidden by CLAUDE.md, and adding a sentinel
-    -- to the enum is worse still: where one table's output domain is another's
-    -- input domain, the sentinel silently widens the OTHER table's declared
-    -- domain.
+    -- The result is `MAYBE T`, its arms `JUST v` and its OTHERWISE `NOTHING`,
+    -- in exactly two cases, and both are about what the OTHERWISE would
+    -- otherwise have to say. Neither applies when the caller supplied the
+    -- OTHERWISE ('defaultResult'), since the caller has then said what no match
+    -- answers.
     --
-    -- The condition mirrors 'otherwiseExpr' exactly: MAYBE is needed precisely
-    -- when that function would fall through to 'typeDefaultL4', which is the
-    -- branch that emits the ill-typed `""`. So it keys on `catchAll` and on
-    -- `defaultResultStr`, the two things otherwiseExpr consults first.
+    -- 1. D-22 rule 3: some input may match no rule ('noRuleMayMatch'). The
+    --    OTHERWISE is then reachable, and the typed sentinel it used to return
+    --    (`0`, `""`, `FALSE`, `EMPTY`) was an answer the table never gave, at
+    --    exit 0. A total table stays bare, as the ruling says.
     --
-    -- An earlier attempt keyed on `any isCatchAll (allrows dt)` instead, to
-    -- avoid handing HP_Priority a MAYBE it arguably does not need — Priority
-    -- turns an all-wildcard row into a vacuously-true ARM, so the table is total
-    -- and its OTHERWISE is unreachable. But Priority also hardwires
-    -- catchAll = Nothing, so otherwiseExpr still took the typeDefaultL4 branch
-    -- and emitted `OTHERWISE ""` under `GIVETH A Dish`. Caught by
-    -- policy/l4-priority-reorders-arms.
+    -- 2. A sum-typed result with nothing to fall back on, even when the table
+    --    is total. This predates D-22. The OTHERWISE is then unreachable, but
+    --    it must still typecheck, and a sum type has no sentinel: `""` is a
+    --    check error, fabricating a member is forbidden by CLAUDE.md, and adding
+    --    a sentinel member to the enum is worse still, because where one table's
+    --    output domain is another's input domain it silently widens the OTHER
+    --    table's declared domain. So a total sum-typed table with no catch-all
+    --    row and no declared default, such as policy/l4-priority-reorders-arms,
+    --    still gets `MAYBE T` whose NOTHING can never happen. Removing that
+    --    means giving the dead OTHERWISE a value of the type, for example the
+    --    last arm's, which changes the output of total tables and is not part of
+    --    D-22 part 3.
     --
-    -- The cost is that a total Priority table gets `MAYBE T`, so callers unwrap
-    -- a result that can never be NOTHING. Fixing that means feeding the dead
-    -- catch-all ARM's own result to otherwiseExpr, which changes non-enum
-    -- Priority output too and is deliberately not bundled here.
-    -- Keyed on `defaultRow`, not on `catchAll`: since D-16 phase 2 a table may
-    -- carry a §8.2.11 default output value with no catch-all row (that is what
-    -- the XML reader builds from <defaultOutputEntry>), and otherwiseExpr
-    -- consults defaultRow — so this must too, or the two disagree exactly as
-    -- the Priority note below describes.
-    derivedMaybe = not (null enumOuts)
-                && isNothing defaultRow
-                && null defaultResultStr
+    -- Case 2 keys on `defaultRow`, not on `catchAll`, because since D-16 phase
+    -- 2 a table may carry a §8.2.11 default output value with no catch-all row
+    -- (what the XML reader builds from <defaultOutputEntry>), and otherwiseExpr
+    -- consults defaultRow, so this must too.
+    maybeResult = null defaultResultStr
+               && (noRuleMayMatch dt defaultRow armRows || sumTypeWithoutFallback)
+    sumTypeWithoutFallback = not (null enumOuts) && isNothing defaultRow
 
-    -- SUBSUMES the caller's wrapMaybe rather than stacking with it: composed,
-    -- the two emit `MAYBE MAYBE T`, whose arities do not match and which l4
-    -- rejects.
-    optsEff = opts { wrapMaybe = wrapMaybe opts || derivedMaybe }
     givethType
-      | wrapMaybe optsEff = "MAYBE " ++ baseGiveth
-      | otherwise      = baseGiveth
+      | maybeResult = "MAYBE " ++ typeAtom baseGiveth
+      | otherwise   = baseGiveth
 
     -- <name> <arg> <arg> ... MEANS
     fnHeader = quoteVar (tableName dt)
@@ -348,7 +355,7 @@ toL4 opts dt =
     guardLines = renderDittoGrid opts grid
     armLines   = zipWith mkArm guardLines armRows
     mkArm gl row =
-      "    IF " ++ trueIfBlank gl ++ " THEN " ++ armResult optsEff multiOut mkName outs' (row_outputs row)
+      "    IF " ++ trueIfBlank gl ++ " THEN " ++ armResult maybeResult multiOut mkName outs' (row_outputs row)
                 ++ commentSuffix (row_comments row)
 
     -- A vacuously-true guard (every input cell a wildcard — e.g. a non-trailing
@@ -358,20 +365,52 @@ toL4 opts dt =
       | all (== ' ') gl = rpad (length gl) "TRUE"
       | otherwise       = gl
 
-    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr optsEff multiOut mkName outs' defaultRow defaultResultStr
+    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr maybeResult multiOut mkName outs' defaultRow defaultResultStr
     -- The synthesized OTHERWISE only ever returns an EXPLICIT catch-all row's
-    -- output (the all-wildcard row, when present). With NO catch-all row the table
-    -- says nothing about unmatched inputs, so we must NOT fabricate a value from a
-    -- data row (that would give unmatched inputs a confidently-wrong answer —
-    -- BUILD-SPEC §1.5). Fall through to L4Opts.defaultResult, else a type-default
-    -- sentinel (BUILD-SPEC §4.3). For a faithful "no rule matched" use wrapMaybe.
+    -- output (the all-wildcard row, when present) or the declared default. With
+    -- neither, the table says nothing about unmatched inputs, so we must NOT
+    -- fabricate a value from a data row (that would give unmatched inputs a
+    -- confidently-wrong answer — BUILD-SPEC §1.5). Where an input can get there,
+    -- it says NOTHING (D-22 rule 3, 'maybeResult'), unless the caller set
+    -- L4Opts.defaultResult, which it then returns. Where none can, the table is
+    -- total, the OTHERWISE is dead, and a type-default sentinel (BUILD-SPEC
+    -- §4.3) only has to typecheck.
     -- An explicit catch-all row wins over the table-level default only in the
     -- sense that the two cannot coexist honestly — a table with both has an
     -- unreachable default, and the catch-all is the statement nearer the rules.
     defaultRow = (row_outputs <$> catchAll) <|> dtDefaultOutput dt
     defaultResultStr = defaultResult opts
 
--- | A data row is a catch-all when every input cell is the wildcard @-@.
+-- | Can some input reach the synthesized @OTHERWISE@ with no rule matching it?
+-- @DECISIONS.md@ D-22 rule 3 renders exactly that case as @NOTHING@, under a
+-- @MAYBE@ result, and leaves every other table bare.
+--
+-- Given the table, the output row its @OTHERWISE@ returns (a trailing catch-all
+-- row, else the §8.2.11 default output value), and the rows its arms are made
+-- from. In order:
+--
+-- * A default row: 'False'. The @OTHERWISE@ is the table's own answer for
+--   every input no rule matches, which is §8.2.11's reading and D-22 rule 1's.
+-- * An all-wildcard arm, which renders as @IF TRUE@: 'False'. It answers every
+--   input that reaches it. Under @P@ it is sorted in among the other arms, and
+--   under @F@ it need not be last, so it is not always a @defaultRow@.
+-- * Otherwise 'DMN.Regions.regionMap' decides, by asking whether the table has
+--   a no-match region. Its default is always 'NoDefault' here, because the two
+--   cases above take every table it would give a default to.
+-- * __Where 'regionMap' cannot analyse the table, 'True'.__
+--   'DMN.Regions.UnsupportedKind' lists what it declines; the ones that reach
+--   here include a collection column, a String cell holding FEEL test syntax
+--   and a short row. For those, totality is not proven, and the two ways to be
+--   wrong are not equal: a @MAYBE@ on a total table costs a caller an unwrap
+--   whose @NOTHING@ never comes, while a bare result on a partial one is a
+--   sentinel answer the table never gave, at exit 0, which is the defect rule 3
+--   exists to remove.
+noRuleMayMatch :: DecisionTable -> Maybe [[FEELexp]] -> [DTrow] -> Bool
+noRuleMayMatch dt defaultRow armRows
+  | isJust defaultRow       = False
+  | any isCatchAll armRows  = False
+  | otherwise               = either (const True) (not . null . noMatchRegions) (regionMap dt)
+
 -- * Sum types for domained columns (BUILD-SPEC-dmnmd-l4-sumtype.md Part A)
 
 -- | The constructors of a column that qualifies for an L4 sum type, else
@@ -471,6 +510,7 @@ renameParams ctors fnName = go (fnName : ctors)
 ctorL4 :: String -> String
 ctorL4 s = "`" ++ s ++ "`"
 
+-- | A data row is a catch-all when every input cell is the wildcard @-@.
 isCatchAll :: DTrow -> Bool
 isCatchAll row = all (all (== FAnything)) (row_inputs row)
 
@@ -773,17 +813,19 @@ oneFeelCells ch field = \case
 
 -- * Outputs / arm results (BUILD-SPEC §1.4, §1.5)
 
--- | The expression returned by one BRANCH arm.
-armResult :: L4Opts -> Bool -> String -> [ColHeader] -> [[FEELexp]] -> String
-armResult opts multiOut mkName outs routs
-  | wrapMaybe opts = "JUST " ++ parenWrap base
-  | otherwise      = base
+-- | The expression returned by one BRANCH arm; the first argument says whether
+-- the result is a @MAYBE@ (D-22 rule 3).
+armResult :: Bool -> Bool -> String -> [ColHeader] -> [[FEELexp]] -> String
+armResult maybeResult multiOut mkName outs routs
+  | maybeResult = "JUST " ++ parenWrap base
+  | otherwise   = base
   where base = resultExpr multiOut mkName outs routs
 
--- | The expression returned by the synthesized @OTHERWISE@.
-otherwiseExpr :: L4Opts -> Bool -> String -> [ColHeader] -> Maybe [[FEELexp]] -> String -> String
-otherwiseExpr opts multiOut mkName outs defaultRow defaultStr
-  | wrapMaybe opts        = "NOTHING"
+-- | The expression returned by the synthesized @OTHERWISE@; the first argument
+-- says whether the result is a @MAYBE@ (D-22 rule 3).
+otherwiseExpr :: Bool -> Bool -> String -> [ColHeader] -> Maybe [[FEELexp]] -> String -> String
+otherwiseExpr maybeResult multiOut mkName outs defaultRow defaultStr
+  | maybeResult           = "NOTHING"
   | not (null defaultStr) = defaultStr
   | Just routs <- defaultRow = resultExpr multiOut mkName outs routs
   | otherwise             = typeDefaultL4 multiOut mkName outs
@@ -938,6 +980,16 @@ showNumL4 = showNumPlain
 -- | Wrap an expression in parens if it contains a space (so @JUST (mk …)@ binds).
 parenWrap :: String -> String
 parenWrap s = if ' ' `elem` s then "(" ++ s ++ ")" else s
+
+-- | A type as the argument of @MAYBE@. @LIST OF T@ is the one multi-token type
+-- this backend writes, and @MAYBE LIST OF STRING@ is a parse error in l4
+-- (measured: "unexpected LIST"), so it is parenthesised. Every other type it
+-- writes is one token: a keyword, a record name from 'pascal', or a sum-type
+-- name through 'quoteVar', whose backticks make even a spaced name one token.
+typeAtom :: String -> String
+typeAtom t
+  | "LIST OF " `isPrefixOf` t = "(" ++ t ++ ")"
+  | otherwise                 = t
 
 -- | Wrap a constructor argument in parens if it is a compound (already-paren'd
 -- arithmetic stays as-is; bare tokens and quoted strings stay bare).
