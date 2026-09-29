@@ -4,6 +4,7 @@ module DMN.DecisionTable where
 
 {-| Given an ASCII decision table, parse it and transpile it to operational languages like JS and Python. -}
 
+import Control.Applicative ( (<|>) )
 import Control.Arrow ( (<<<), (>>>) )
 import Prelude hiding (takeWhile)
 import DMN.ParseCell ( parseNumberCell, thousandsGrouped, namedRefusal, TestShape (..), unreadableTestShape )
@@ -18,17 +19,50 @@ import qualified Data.Map as Map
 import Data.Scientific (Scientific)
 import DMN.Number ( divideFeel, powerFeel, showNumPlain, spellable )
 import DMN.ParsingUtils ( parseOnly )
-import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt )
+import DMN.Diagnostic ( Diagnostic, errorAt )
 import DMN.Types
 
 -- main = do
 --     putStrLn $ show example1_dish
 --     putStrLn $ show $ evalTable example1_dish [VS "Fall"]
 
+-- | Evaluate a table against one input value per input column.
+--
+-- __The result is a list of selected rows, and what an EMPTY list means depends
+-- on the hit policy.__ Under a list-valued policy (@C R O@) @[]@ is the empty
+-- collection. Under a single-hit policy (@U A P F@, 'isSingleHit') the list
+-- holds at most one row, and @Right []@ is FEEL's @null@: no rule matched and
+-- the table declares no default output value (DMN 1.3 §10.3.2.10, step 2b;
+-- DECISIONS.md D-22 rule 3). The @-q@ REPL prints it as @null@.
+--
+-- A 'Left' is a refusal, never "nothing matched": two rules of a @U@ table
+-- both matched, the matching rules of an @A@ table disagree, or an output
+-- expression could not be evaluated. Before D-22 a no-match was a 'Left' under
+-- @U@ and @A@ and a crash (@head0@, an 'error') under @P@ and @F@.
 evalTable :: DecisionTable -> [FEELexp] -> Either String [[[FEELexp]]]
 evalTable table given_input = do
   let symtab = Map.fromList $ zip (varname <$> filter ((DTCH_In==).label) (header table)) given_input
-      matched = filter ((given_input `matches`) . row_inputs) (datarows table)
+      -- D-22 rule 1: under U a trailing catch-all is the default output value,
+      -- so it is split off here and never matched as a rule.
+      (rules, catchAllDefault) = uniqueCatchAll table
+      matched = filter ((given_input `matches`) . row_inputs) rules
+      -- The catch-all wins over a declared default, as it does in --to=l4
+      -- ('DMN.Translate.L4' feeds the catch-all to OTHERWISE before
+      -- 'dtDefaultOutput') and in js/ts/py (whose 'rowsPlusDefault' appends the
+      -- default AFTER the catch-all, so first-match never reaches it). A table
+      -- carrying both has an unreachable default on every route.
+      dflt = catchAllDefault <|> dtDefaultOutput table
+      -- §8.2.11: the default output value answers when NO rule matches, and
+      -- only then — so it is consulted after matching, never merged into the
+      -- rows, and evaluated only when it is the answer (§10.3.2.10 step 2a).
+      -- It used to be evaluated before matching, so a default whose arithmetic
+      -- failed refused every query, including ones a rule answered.
+      -- 'rowsPlusDefault' (the backends' materialisation) must not be used in
+      -- this function: under Any a materialised always-matching row would
+      -- collide with a real match, and under Collect it would contribute to
+      -- every result. Single-hit arms only; a Collect with no matching row
+      -- keeps its own answer, and a default would quietly replace it.
+      noMatch = maybe (Right []) (fmap pure . traverse (evalFunctions symtab)) dflt
   -- evaluate any FFunctions. This traverses in the Either monad rather than
   -- mapping purely, because arithmetic can now fail with something to say: a
   -- division by zero has no decimal answer (see 'DMN.Number.divideFeel'), and
@@ -36,22 +70,14 @@ evalTable table given_input = do
   -- to print.
   outputs <- traverse (\row -> (\os -> row { row_outputs = os })
                                <$> traverse (evalFunctions symtab) (row_outputs row)) matched
-  -- §8.2.11: the default output value answers when NO rule matches, and only
-  -- then — so it is consulted here, after matching, never merged into the rows.
-  -- 'rowsPlusDefault' (the backends' materialisation) must not be used in this
-  -- function: under Any a materialised always-matching row would collide with a
-  -- real match, and under Collect it would contribute to every result.
-  -- Single-hit policies only; a Collect with no matching row already has its
-  -- answer (the empty collection), and a default would quietly replace it.
-  evaledDefault <- traverse (traverse (evalFunctions symtab)) (dtDefaultOutput table)
-  let singleHit = hitpolicy table `elem` [HP_Unique, HP_Any, HP_First, HP_Priority]
-  case (null outputs, evaledDefault) of
-   (True, Just d) | singleHit -> Right [d]
-   _ -> case hitpolicy table of
-    HP_Unique -> case length outputs of
-                   0 -> Left "no rows returned -- a unique table should have one result!"
-                   1 -> Right (row_outputs <$> outputs)
-                   _ -> Left $ "multiple rows returned -- this was supposed to be a unique table!\n" ++ show outputs
+  case hitpolicy table of
+    -- Two matching rules is still a refusal: D-22 moves only the trailing
+    -- catch-all out of the way, and a genuine overlap stays an authoring error
+    -- (§8.2.10: a U table "SHALL NOT contain overlapping rules").
+    HP_Unique -> case outputs of
+                   []  -> noMatch
+                   [o] -> Right [row_outputs o]
+                   _   -> Left $ "multiple rows returned -- this was supposed to be a unique table!\n" ++ show outputs
     -- ANY is single-hit. DMN allows several rows to match, but requires them to
     -- agree; if they do, the table has exactly ONE answer, and if they do not it
     -- is ill-defined. So the arm dispatches on the nub, which says both things at
@@ -66,11 +92,11 @@ evalTable table given_input = do
     -- answer once per matching row, app/Main.hs emitting one line per element.
     -- Pinned from both sides by @eval-hp-any-two-rows-{agree,disagree}@.
     HP_Any    -> case nub (row_outputs <$> outputs) of
-                   []       -> Left "no rows returned"
+                   []       -> noMatch
                    [agreed] -> Right [agreed]
                    _        -> Left ("multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!\n" ++ show outputs)
-    HP_Priority    -> Right [row_outputs $ head0 table (outputOrder (header table) outputs)]
-    HP_First       -> Right [row_outputs $ head0 table outputs]
+    HP_Priority    -> maybe noMatch (Right . pure . row_outputs) (listToMaybe (outputOrder (header table) outputs))
+    HP_First       -> maybe noMatch (Right . pure . row_outputs) (listToMaybe outputs)
     HP_OutputOrder -> Right (row_outputs <$> outputOrder (header table) outputs) -- order according to enums in subheaders.
     HP_RuleOrder   -> Right (row_outputs <$> sortOn row_number outputs)
     HP_Collect Collect_All -> trace ("outputs has length " ++ show (length outputs)) $ Right (row_outputs <$> outputs)
@@ -85,9 +111,40 @@ evalTable table given_input = do
       FFunction f -> FNullary <$> fNEval symtab f
       x           -> pure x
 
-head0 :: DecisionTable -> [p] -> p
-head0 dt mylist = if not (null mylist) then head mylist else
-  error $ "dmn error: table " ++ tableName dt ++ " expected at least one row to match, but none did; hit policy " ++ show (hitpolicy dt) ++ " unable to operate."
+-- | The hit policies whose answer is at most one row, and whose @Right []@
+-- from 'evalTable' is therefore FEEL's @null@ rather than an empty collection.
+-- Exactly the policies whose arm in 'evalTable' answers @noMatch@.
+isSingleHit :: HitPolicy -> Bool
+isSingleHit hp = hp `elem` [HP_Unique, HP_Any, HP_Priority, HP_First]
+
+-- | D-22 rule 1: under hit policy @U@, a trailing catch-all is not a rule. It
+-- is the table's §8.2.11 default output value, which answers only when no
+-- other rule matches. Returns the rules left to match, and that default.
+--
+-- A trailing catch-all is the LAST row, with @-@ in every input column; the
+-- predicate is 'DMN.Translate.L4'\'s @isCatchAll@ on the last row, so the
+-- interpreter and @--to=l4@\'s @OTHERWISE@ pick out the same row. With no
+-- input columns it holds vacuously, there as here, so the last row of an
+-- input-less @U@ table is its default and the first row answers, as it does in
+-- @--to=l4@ and js/ts/py. Markdown writes such a table by marking every column
+-- @(out)@.
+-- The XML emitter's 'DMN.Translate.XML.promoteTrailingCatchAll' asks for more
+-- (an input column, full arity, no comment, outputs a
+-- @\<defaultOutputEntry\>@ can hold, no declared default already), but those
+-- conditions are about what the XML can say, not about what the row means: a
+-- catch-all it declines to promote is refused or written as a rule, and
+-- reading that rule back brings it here again.
+--
+-- Nothing else moves. A catch-all that is not the last row is an ordinary rule
+-- and overlaps every other rule, and under any other hit policy the trailing
+-- one is an ordinary rule too.
+uniqueCatchAll :: DecisionTable -> ([DTrow], Maybe [[FEELexp]])
+uniqueCatchAll dt
+  | hitpolicy dt == HP_Unique
+  , (lastR : restRev) <- reverse (datarows dt)
+  , all (all (== FAnything)) (row_inputs lastR)
+  = (reverse restRev, Just (row_outputs lastR))
+  | otherwise = (datarows dt, Nothing)
 
 outputOrder :: [ColHeader] -> [DTrow] -> [DTrow]
 outputOrder chs =
@@ -661,64 +718,6 @@ fEval rhs lhs                                 = error $ unwords [ "type error in
 -- 
 
 
--- perform type inference to resolve colheader values based on a review of the rows
--- | Type inference, re-typing, and every reason to refuse the result — as
--- @([Diagnostic], 0-or-1 tables)@, the same shape
--- 'DMN.XML.XmlToDmnmd.convTable' has always returned.
---
--- __The list is the gate.__ An 'DMN.Diagnostic.Error' means the table list is
--- empty, so a caller cannot emit a table it was told to refuse merely by
--- forgetting to look at the diagnostics. That property used to be supplied by
--- @error@ — and, at the CLI, by the accident that @app\/Main.hs@'s
--- @tableWarnings@ loop and @--pick@'s @tableName@ filter both forced every
--- table to WHNF before anything was written. Both accidents are gone; this is
--- the design that replaces them.
---
--- __Cell diagnostics short-circuit 'tableErrors'.__ Same reasoning as
--- 'tableErrors' running 'structuralErrors' first: a cell whose meaning we could
--- not read cannot meaningfully be checked against a domain, and the follow-on
--- complaints would be about the placeholder 'reprocessRows' left behind rather
--- than about anything the author wrote.
-mkDTable :: String -> HitPolicy -> [ColHeader] -> [DTrow] -> ([Diagnostic], [DecisionTable])
-mkDTable origname orighp origchs origdtrows =
---  Debug.Trace.trace ("mkDTable: starting; origchs = " ++ show origchs) $
-  let newchs   = zipWith inferTypes (getInputHeaders origchs ++ getOutputHeaders origchs)
-                                     (transpose $ [ row_inputs r ++  row_outputs r | r@DTrow{} <- origdtrows])
-      (enumDiags, typedchs) =
-        (\pairs -> (concatMap fst pairs, snd <$> pairs))
-          (retypeEnums origname <$> (if not (null newchs) then newchs ++ getCommentHeaders origchs else origchs))
-      rowResults =
-        (\case
-            (DTrow rn ri ro rc) ->
-              let (di, ri') = reprocessRows origname rn (getInputHeaders typedchs)  ri
-                  (dobs, ro') = reprocessRows origname rn (getOutputHeaders typedchs) ro
-              in (di ++ dobs, DTrow rn ri' ro' rc)) <$> origdtrows
-      cellDiags = enumDiags ++ concatMap fst rowResults
-      built = DTable origname orighp typedchs (snd <$> rowResults) Nothing
-  in -- Debug.Trace.trace ("mkDTable: finishing...\n" ++
-        --                 "origchs = " ++ show(origchs) ++ "\n" ++
-           --             "newchs = " ++ show(newchs) ++ "\n" )
-    -- A cell outside the domain its own sub-header row declares is a typo, not
-    -- a new domain member, and a rule built from it can never match. Emitting it
-    -- would be a silently-widened table that exits 0. See BUILD-SPEC-dmnmd-e4.md
-    -- §8. The XML reader calls 'domainErrors' directly, because 'convTable'
-    -- bypasses this function on purpose; both readers now report the same way.
-    if anyErrors cellDiags
-    then (cellDiags, [])
-    else case tableErrors built of
-      []   -> (cellDiags, [built])
-      errs -> ( cellDiags ++ (errorAt . (("table " ++ show origname ++ ": ") ++) <$> errs)
-              , [] )
-
--- | Every reason to refuse a table, in one place, for both readers.
---
--- 'structuralErrors' is about the table's SHAPE — a cell whose meaning dmnmd
--- will not guess at. 'domainErrors' is about a cell disagreeing with the domain
--- the table itself declares. Structural first, because a cell that has no
--- meaning cannot meaningfully be checked against a domain.
-tableErrors :: DecisionTable -> [String]
-tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
-                 ++ uniquenessErrors dt
 
 -- | D-13. Two rows of a @U@ table with identical guards: the second can never
 -- match, and every backend emits it as dead code at exit 0.
@@ -742,13 +741,26 @@ tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
 -- runtime matcher. (Nothing in the tree exercises this, measured; it is decided
 -- on the semantics, not on a fixture.)
 --
--- __Soundness, and what is deliberately NOT here.__ 'fEval' dispatches on
+-- __Soundness.__ 'fEval' dispatches on
 -- constructor structure alone, so equal guards imply identical matching
 -- behaviour for every input: a static refusal here can never contradict
 -- 'evalTable'\'s @HP_Unique@ arm, which reports the same collision at run time
--- as "multiple rows returned". The check is an under-approximation — @[1..5]@
--- and @[3..8]@ overlap without being equal and are NOT refused. That is full
--- overlap analysis, deferred by name in D-13.
+-- as "multiple rows returned". One pair is refused here that the run time would
+-- not report, since D-22 rule 1: an all-wildcard row followed by a TRAILING
+-- all-wildcard row, which 'uniqueCatchAll' reads as the default output value
+-- rather than as a rule. The earlier row answers every input, so that default
+-- can never be reached, and the refusal's own "can never match" stays true.
+--
+-- __Overlap that is not identity is D-22's, and lives elsewhere.__
+-- @[1..5]@ and @[3..8]@ overlap without being equal. D-13 deferred that case,
+-- and D-22 rule 2 now refuses it: 'DMN.Regions.conflictErrors', the summand
+-- after this one in 'DMN.BuildTable.tableErrors'. The two do not both speak
+-- about one row. That check leaves every row this one reports ('identicalGuards')
+-- to this message, because "can never match" and "the values, not the text"
+-- are things its own message does not say. And this check is what still runs
+-- where regions cannot be computed (a collection column, say), so a table
+-- 'DMN.Regions.regionMap' declines is refused for identical guards exactly as
+-- it was before D-22.
 --
 -- __@U@ only.__ @A@ legitimately permits overlapping rows that agree (D-5) and
 -- @P@, @O@, @R@ and @Collect@ order or accumulate them on purpose;
@@ -756,27 +768,18 @@ tableErrors dt = structuralErrors dt ++ inferenceErrors dt ++ domainErrors dt
 -- all-wildcard rows whose outputs are both live.
 --
 -- __Zero input columns.__ Then every guard is the empty conjunction and every
--- pair of rows is vacuously identical. Unreachable from markdown
--- ('DMN.ParseTable.reviseInOut' guarantees an input column) but legal DMN, so
--- the check declines rather than refusing every input-less table.
+-- pair of rows is vacuously identical. Legal DMN, and reachable from markdown
+-- by marking every column @(out)@, so the check declines rather than refusing
+-- every input-less table. (This paragraph said such a table was unreachable
+-- from markdown because 'DMN.ParseTable.reviseInOut' guarantees an input
+-- column. It guarantees an OUTPUT column: it relabels the rightmost column of
+-- an all-input header, and leaves an all-output header alone.)
 uniquenessErrors :: DecisionTable -> [String]
-uniquenessErrors dt = case hitpolicy dt of
-  HP_Unique | not (null ins) ->
-    [ dupMsg earlier (i, r)
-    | (i, r) <- numbered
-    , earlier <- take 1 [ e | e@(j, p) <- numbered
-                            , j < i
-                            , sameGuard (row_inputs p) (row_inputs r) ]
-    ]
-  _ -> []
+uniquenessErrors dt =
+  [ dupMsg (first + 1, rows !! first) (dup + 1, rows !! dup) | (first, dup) <- identicalGuards dt ]
   where
-    ins      = getInputHeaders (header dt)
-    numbered = zip [1 :: Int ..] [ r | r@DTrow{} <- allrows dt ]
-
-    sameGuard as bs = length as == length bs && and (zipWith sameCell as bs)
-    -- Mutual containment: a multi-value cell is an OR, hence a set. No 'Ord'
-    -- instance exists for 'FEELexp' and cells are tiny, so this is not sorted.
-    sameCell a b = all (`elem` b) a && all (`elem` a) b
+    ins  = getInputHeaders (header dt)
+    rows = allrows dt
 
     -- The row numbers are the ones the AUTHOR wrote on the markdown path
     -- (gaps and repeats survive) and a 1-based index on the XML path — the
@@ -785,7 +788,7 @@ uniquenessErrors dt = case hitpolicy dt of
     -- named as a position and says so.
     rowLabel (i, r) = case row_number r of
       Just n  -> "row " ++ show n
-      Nothing -> "the unnumbered row at position " ++ show i
+      Nothing -> "the unnumbered row at position " ++ show (i :: Int)
 
     dupMsg first dup = concat
       [ rowLabel first, " and ", rowLabel dup
@@ -800,6 +803,33 @@ uniquenessErrors dt = case hitpolicy dt of
     guardOf r = intercalate "; "
       [ varname ch ++ ": " ++ intercalate ", " (showDomainMember <$> cells)
       | (ch, cells) <- zip ins (row_inputs r) ]
+
+-- | The collisions 'uniquenessErrors' reports, as positions in 'allrows'
+-- counting from 0: for each row of a @U@ table whose guard is identical to an
+-- earlier row's, the FIRST such earlier row, then it. So @n@ identical rows
+-- give @n - 1@ pairs, each naming the first. Empty under any other hit policy,
+-- and for a table with no input columns.
+--
+-- Exported because 'DMN.Regions.conflictErrors' must stay silent about exactly
+-- these later rows, and a second copy of the predicate could drift.
+identicalGuards :: DecisionTable -> [(Int, Int)]
+identicalGuards dt = case hitpolicy dt of
+  HP_Unique | not (null (getInputHeaders (header dt))) ->
+    [ (first, i)
+    | (i, r) <- numbered
+    , first <- take 1 [ j | (j, p) <- numbered, j < i, sameGuard (row_inputs p) (row_inputs r) ]
+    ]
+  _ -> []
+  where
+    numbered = zip [0 ..] (allrows dt)
+
+-- | Two guards (whole input sides) that select exactly the same inputs, as
+-- D-13 decides it: same arity, and cell by cell the same tests. Mutual
+-- containment, because a multi-value cell is an OR and hence a set. No 'Ord'
+-- instance exists for 'FEELexp' and cells are tiny, so this is not sorted.
+sameGuard :: [[FEELexp]] -> [[FEELexp]] -> Bool
+sameGuard as bs = length as == length bs && and (zipWith sameCell as bs)
+  where sameCell a b = all (`elem` b) a && all (`elem` a) b
 
 -- | D-2. A column dmnmd could not type, refused instead of guessed.
 --

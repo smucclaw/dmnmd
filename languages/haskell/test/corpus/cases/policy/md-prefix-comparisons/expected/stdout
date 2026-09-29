@@ -1,17 +1,14 @@
-export function PrefixComparisons ( Age : number ) {
-  if (Age < 18.0) { // 1
+export function PrefixComparisons ( Age : number, Scheme : string ) {
+  if (Age < 18.0 && Scheme === "child") { // 1
     return {"Band":"minor"};
   }
-  else if (Age <= 21.0) { // 2
+  else if (Age >= 18.0 && Scheme === "child") { // 2
+    return {"Band":"adult"};
+  }
+  else if (Age <= 21.0 && Scheme === "youth") { // 3
     return {"Band":"young"};
   }
-  else if (Age > 65.0) { // 3
-    return {"Band":"senior"};
-  }
-  else if (Age >= 40.0) { // 4
-    return {"Band":"middle"};
-  }
-  else if ("default") { // 5
+  else if (Age > 21.0 && Scheme === "youth") { // 4
     return {"Band":"adult"};
   }
 }

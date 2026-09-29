@@ -783,6 +783,10 @@ Four decisions inside it, each made deliberately:
 - **Zero input columns decline rather than refuse.** Every guard would be the empty conjunction and
   every pair vacuously identical. Unreachable from markdown (`reviseInOut` guarantees an input
   column) but legal DMN, and the one false-refusal trap the surveys found.
+  **Correction, 2026-09-26:** the parenthesis is false.
+  `reviseInOut` (`ParseTable.hs`) relabels the rightmost column as an output when every column is an input, so it guarantees an *output* column, not an input one.
+  A markdown table whose every column is marked `(out)` parses with zero input columns and exits 0: on trunk `ea4df4a`, `--to=ts` emits `if ("default")` for each of its guards.
+  The decline itself is unaffected, and D-22 part 1 pins what the interpreter does with such a table.
 
 It is **sound** against the runtime, not merely agreeing with it by luck: `fEval` dispatches on
 constructor structure alone, so equal guards imply identical matching behaviour for every input.
@@ -818,6 +822,7 @@ identically under both. Exactly one table newly refuses and it is that fixture. 
   `<= 20` versus `>= 10`, which is `symptom/l4-hitpolicy-unique-silently-first` and stays a
   symptom. The check is an under-approximation: it never refuses a table that is fine, and it does
   not claim to catch every table that is not.
+  **Since D-22 part 2 (2026-09-29)** a separate check refuses both, and that case is `policy/l4-hitpolicy-unique-silently-first`; this check is unchanged and still owns identical guards.
 
 **Full overlap analysis is deferred, not forgotten.** The prior art is Calvanese, Dumas, Laurson,
 Maggi, Montali & Teinemaa, *Semantics and Analysis of DMN Decision Tables*, BPM 2016, LNCS 9850
@@ -834,15 +839,17 @@ approximation over the whole tree and reported 55 non-identical overlapping pair
 141 `U` tables, of which about forty involve an all-wildcard catch-all row. Those figures are that
 survey's and are **not** re-derived here — treat them as an order of magnitude, not a count. What
 does not depend on them, and is checked directly: `symptom/l4-hitpolicy-unique-silently-first`
-already names four `policy/l4-*` recordings that are `U` tables ending in a catch-all row
+(`policy/` since D-22 part 2) already names four `policy/l4-*` recordings that are `U` tables ending in a catch-all row
 (`md-backend-l4`, `l4-sumtype-emitted`, `md-l4-ditto-wide-chars`,
 `l4-keyword-column-names-quoted`). So the wider check is not a drop-in: it needs its own ruling
 first — *is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?* That
 question is the real content of the deferral, and it is a genuinely separate decision from this
 one.
 
+**Ruled 2026-09-26: an accepted idiom, read as the default output. See D-22,** which also rules on every other conflict region and on no-match.
+
 **What the wider DMN community says about that question, gathered 2026-08-02.** Not a ruling —
-Meng has not ruled — but the evidence is one-sided enough that the next reader should not have to
+Meng had not ruled when this was gathered; D-22 is the ruling — but the evidence is one-sided enough that the next reader should not have to
 re-gather it.
 
 The industry answer is **authoring error**, and the argument is mechanical rather than stylistic:
@@ -1120,6 +1127,8 @@ than it looked.
    Whether a trailing catch-all under `U` is an authoring error or an accepted idiom is the question
    D-13 said "needs its own ruling first"; it is still open, and is posed on the "Tables, Trees, Prose"
    bench (card T6, 2026-09-26).
+   (Ruled later the same day: D-22, an accepted idiom read as the default, in the interpreter too.
+   Not implemented at the time of ruling.)
    Found by the ROOTSTOCK planning memo (2026-09-26), sharpened by that bench's adversarial review.
 
 **The hazard is real, and exclusive to `--to=xml`.** Under `U` a conforming engine may evaluate
@@ -1581,3 +1590,145 @@ Two sentences above were true when this entry was written and are superseded: "1
 The measurement compared all 94 top-level declarations of `DMN15.xsd` and `DMN16.xsd` and found the decision-table complex types identical; only `tDefinitions` (its FEEL URI defaults) and `tFunctionKind` (which gains `ONNX`) differ, as `languages/haskell/test/dmn16/README.md` records.
 `readableReleases` now includes DMN 1.6, and 1.6's B-FEEL expression language is refused by URI rather than read as FEEL.
 The ruling is unchanged: `--to=xml` still writes DMN 1.3.
+
+### D-21 — where the table→tree compiler and region checker live. **RULED: C, with four conditions (Meng, 2026-09-26, bench card T4, word DUPLEX). Not implemented.**
+
+This is the dmnmd pointer to a ruling recorded in full in `legalese/l4-ide` `specs/todo/INLINE-DMNMD-SPEC.md` §4.1 (legalese/l4-ide#500).
+It states only what binds this repository.
+
+**The ruling.**
+The table→tree compiler and the region checker live in l4-ide.
+The region enumerator and `#ASSERT` generation live here, in dmnmd, and there is one written spec.
+Meng marked the card "accept" with no note.
+
+**The four conditions, as printed on the card.**
+
+1. The CI gate for l4-ide's compiler and checker is a per-region `cases.json` battery run through l4-ide's existing KIE and Camunda job.
+   dmnmd's leg is local evidence only, because l4-ide's `CLAUDE.md` §1.2 allows dmnmd only "as local evidence when it happens to be checked out", and dmnmd's CI has no `l4` binary.
+2. Fixing dmnmd's no-match crash, so that F and P answer null instead of crashing, comes before `emitAsserts`.
+   The crash is `symptom/eval-hp-first-no-match-crash`.
+   `emitAsserts` is declared and marked TODO at `languages/haskell/src/DMN/Translate/L4.hs:35`, and nothing sets it.
+3. The written spec names one canonical copy.
+   `BUILD-SPEC-dmnmd-to-l4.md` already exists in both repositories, has drifted, and names none.
+4. The `dmn-core` package option stays deferred, on the trigger `DMN-CORE-HACKAGE-FINDINGS.md` already sets.
+
+**What binds dmnmd, in order.**
+First, condition 2's no-match fix, which D-22 also requires.
+Only then, `emitAsserts`.
+
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Parts 1 (the interpreter) and 2 (refusing conflict regions) landed; part 3 not implemented.**
+
+This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
+It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
+The l4-ide side is recorded as a note in `specs/todo/INLINE-DMNMD-SPEC.md` §5 (legalese/l4-ide#500).
+
+**The ruling, as printed on the card.**
+
+1. A trailing catch-all under `U` is an accepted idiom.
+   It is read as the §8.2.11 default output value, and in the interpreter too, so every route gives the same answer.
+   `policy/md-eval-unique-conflict` moves: it is re-fixtured with a genuine overlap (`<= 20` / `>= 10`) so that the refusal stays pinned.
+2. Any other conflict region on scalar columns is refused.
+   Under `U` a conflict region is a point where two rules match; under `A`, a point where matching rules disagree.
+   Collection-input `U` and `A` tables keep dmnmd's overlap warning until regions model membership.
+3. "No rule matched" is stated, not papered over.
+   L4 renders it as `NOTHING`, with a `MAYBE` result only where a no-match region exists, so total tables stay bare.
+   DMN renders it as null, and prose as "no rule applies".
+   The interpreter's no-match becomes null, not an error and not a crash.
+
+**The evidence it rests on.**
+- DMN 1.3 §8.2.10 says a `U` table "SHALL NOT contain overlapping rules", and that for disagreeing `A` rules "the hit policy is incorrect and the result is undefined".
+- §10.3.2.10 gives null on no match "if no default output value is specified".
+- Before this ruling, dmnmd gave four readings of one table, `policy/md-eval-unique-conflict`'s:
+  - the markdown interpreter refuses;
+  - `--to=l4` and js/ts/py take the first match;
+  - `--to=xml` promotes the catch-all to a default;
+  - that XML read back answers `Spareribs`.
+  (D-16's correction.)
+
+**What moves when it is implemented.**
+These are the card's list plus the five cases step 0 found; I read each input.
+- `policy/l4-otherwise-sentinel-not-last-row`, `policy/list-output-l4-literal` and `policy/list-input-membership-l4`, as the card lists them.
+- `policy/md-eval-unique-conflict` is re-fixtured, as rule 1 says.
+- Four `U` cases would start refusing because they overlap beyond any catch-all.
+  Each was written to pin something else, so each is re-fixtured with non-overlapping rows that keep its original property, and the new refusal cases pin the overlap instead:
+  - `policy/hp-unique-near-duplicate-rows-accepted`: rows 3 and 4 overlap on Winter; it guards D-13 against false refusals.
+  - `policy/md-prefix-comparisons`: `< 18` and `<= 21` overlap; it pins prefix comparisons.
+  - `policy/md-multivalue-dash-reprocessed`: `4, -` and `8` overlap; it pins a multi-value dash.
+  - `policy/md-negation-in-numeric-column-emitted`: `not([1..5])` and `[10..20]` overlap; it pins negation.
+- `policy/eval-hp-any-two-rows-disagree`, an `A` table whose rows disagree below 10, becomes a refusal case.
+- `symptom/l4-hitpolicy-unique-silently-first` and `symptom/hp-any-duplicate-rows-disagree-silent` start refusing, which is progress; each moves to `policy/`.
+
+**Status.**
+Ruled, not implemented.
+Implementation is ordinary work, test-first.
+It needs a region computation for conflict detection, which today's `uniquenessErrors` (D-13, identical guards only) does not have.
+The step 0 counter in the ROOTSTOCK memo computed regions over 145 tables, so the approach is measured, but its code is throwaway and is not the implementation.
+
+**Implementation, part 1: the interpreter (2026-09-26, branch `feat/d22-interpreter`).**
+Rule 1 and the interpreter half of rule 3 are implemented in `evalTable`; rule 2 and the L4 half of rule 3 are not.
+Under `U`, `uniqueCatchAll` splits a trailing catch-all off before matching and makes it the default output value, using the predicate `--to=l4` uses for `OTHERWISE`.
+A catch-all that is not the last row, or sits under another hit policy, is still a rule.
+A genuine overlap under `U` is still refused at run time, and so is disagreement under `A`.
+When a table carries both a trailing catch-all and a declared default, the catch-all wins, as it already did in `--to=l4` and js/ts/py.
+Under `U`, `A`, `P` and `F`, a no-match with no default now answers null, which `evalTable` returns as `Right []`; `head0` is deleted.
+A declared default still wins over null, and is now evaluated only when it is the answer.
+The `-q` REPL prints null as `T: null` whatever `-t` says.
+This discharges D-21 condition 2: the no-match fix now precedes `emitAsserts`.
+`symptom/eval-hp-first-no-match-crash` moved to `policy/` under its old slug.
+`policy/md-eval-unique-conflict` was re-fixtured with a genuine overlap (`<= 20` / `>= 10`), and its old table is now `policy/md-eval-unique-catchall-default`.
+The four readings of that table agree: `-q`, `--to=l4`, `--to=xml`, and that XML read back.
+No emitter output changed: an A/B against trunk `ea4df4a` over 191 fixtures and five formats gave 955 identical runs out of 955.
+`symptom/eval-collect-min-empty-crash` is a different defect (`Prelude.minimum`, not `head0`) and is untouched.
+§10.3.2.10 step 2 would also make its answer null, but this ruling covers only the single-hit policies.
+Still to do: rule 2's static refusal of conflict regions, which needs a region enumerator, and `NOTHING`/`MAYBE` in L4.
+
+**Implementation, part 2: refusing conflict regions (2026-09-29, branch `feat/d22-refuse-conflicts`, on #64).**
+Rule 2 is implemented; the L4 half of rule 3 is not.
+`DMN.Regions.conflictErrors` is a summand of `tableErrors`, after D-13's `uniquenessErrors`, so the markdown reader and `--from=xml` both refuse such a table and exit 1 with nothing emitted.
+Under `U` it refuses two rules that can both match, not counting a trailing catch-all; under `A`, two that can both match and whose outputs differ as the cells state them.
+Each message names the two rules by the row numbers the author wrote, one witness input, and, where the overlap is larger than that one input, the overlap column by column.
+The witness is the representative of the first region the two rules share.
+An example: `row 1 and row 2 both match Age = 10 (they overlap wherever Age is in [10..20])`.
+Under `A` the message also names the output columns that disagree.
+Each later rule is reported once, against the first earlier rule it conflicts with, which is the shape D-13 already had.
+`conflicts` finds those pairs one pair at a time over the blocks, not by enumerating regions, and the test suite checks it against enumeration on every hand-written table.
+
+**Subsumption: D-13 stays, and the two never both speak about one row.**
+The new check would refuse every table D-13 refuses, and more.
+But D-13's message says two things the new one does not: that the later row can never match at all, and that dmnmd compares values, not text, so `1.1` and `1.10` are one guard.
+So `conflictErrors` is silent about exactly the rows `identicalGuards` reports, and D-13's recordings did not move.
+D-13 is also what still runs where regions cannot be computed.
+It also still refuses an all-wildcard row followed by a trailing catch-all, which is not a conflict region, since the catch-all is the default, but leaves that default unreachable.
+
+**Where regions cannot be computed, nothing changed.**
+`regionMap` declines list-valued hit policies, collection columns, String cells holding FEEL test syntax, short rows and computed cells, and for those tables `conflictErrors` says nothing.
+Collection-input `U` and `A` tables keep the overlap warning, as rule 2 says.
+The interpreter's run-time conflict refusals stay too, and two new cases reach them through a collection column: `policy/eval-unique-collection-overlap-at-runtime` and `policy/eval-hp-any-collection-disagree-at-runtime`.
+**A known gap follows from this.** A table with a collection column is not analysed at all, so an overlap on its other, scalar columns is not caught either.
+Closing it needs regions that model membership, which rule 2 already names as the condition for dropping the warning.
+
+**The gate moved module.**
+`mkDTable` and `tableErrors` are now in `DMN.BuildTable`, because the gate needs `DMN.Regions` and `DMN.Regions` is built on `DMN.DecisionTable`'s matcher.
+The individual checks stayed in `DMN.DecisionTable`.
+
+**What moved in the corpus was exactly the list above.**
+- `policy/hp-unique-near-duplicate-rows-accepted`, `policy/md-prefix-comparisons`, `policy/md-multivalue-dash-reprocessed` and `policy/md-negation-in-numeric-column-emitted` were re-fixtured without their overlaps, each keeping what it pins.
+  Their old tables are four new refusal cases, `policy/hp-unique-overlap-{shared-member,comparisons,multivalue-dash,negation}-refused`.
+- `policy/md-eval-unique-conflict` and `policy/eval-hp-any-two-rows-disagree` are now refused when read, before `-q` evaluates anything.
+- `symptom/l4-hitpolicy-unique-silently-first` and `symptom/hp-any-duplicate-rows-disagree-silent` now refuse, and moved to `policy/` under their old slugs.
+- `policy/l4-otherwise-sentinel-not-last-row`, `policy/list-output-l4-literal` and `policy/list-input-membership-l4` did not move, so they belong to part 3.
+  The first two have no conflict region, and the third has a collection column, which regions do not analyse.
+
+Also new: `policy/xml-unique-overlap-refused`, from the new `test/dmn13/bad-overlapping-unique-rules.dmn`.
+Before recording, `run-corpus.sh` reported exactly the eight listed cases changed out of 245, and nothing else.
+`make roundtrip` went from 191 fixtures (137 pass, 10 xfail, 44 skipped) to 197 (135 pass, 10 xfail, 52 skipped).
+The eight new skips are the four listed cases that now refuse and the four new refusal cases; the two new run-time cases pass.
+
+**Outside the corpus, one fixture moved.**
+`test/safe2.dmn`, which is not in the corpus, gains 7 refusals across three `U` tables for the same reason, with stdout and exit status unchanged.
+The tables are `type of event`, `is liquidity event` and `is dissolution event`.
+In `is liquidity event`, rules 1 to 3 each require `Yes` on a different one of three inputs and leave the other two blank, so an input with two of them `Yes` matches two rules.
+Rule 2 refuses a `U` overlap even where the outputs agree, as DMN 1.3 §8.2.10 does.
+Stdout and exit status stay the same because another table in the same file was already refused.
+The ruling's list of what moves named only corpus recordings, so this follows from the ruling rather than leaking past it.
+The backend baseline was re-recorded for this change, and every changed run is listed by fixture in `test/roundtrip/baseline-audit/README.md`.

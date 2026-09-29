@@ -8,7 +8,7 @@ export function NearMiss ( Version : number, Tier : string, Season : string ) {
   else if (Version === 1.2 && Tier === "premium" && (Season === "Fall" || Season === "Winter")) { // 3
     return {"Status":"extended"};
   }
-  else if (Version === 1.2 && Tier === "premium" && (Season === "Spring" || Season === "Winter")) { // 4
+  else if (Version === 1.2 && Tier === "premium" && (Season === "Spring" || Season === "Summer")) { // 4
     return {"Status":"seasonal"};
   }
   else if ("default") { // 5

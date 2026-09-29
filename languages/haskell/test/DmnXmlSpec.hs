@@ -293,6 +293,17 @@ dmn13Spec = describe "DMN 1.3" $ do
       diags `shouldSatisfy` hasDiag Error "hit policy Unique"
       tables `shouldBe` []
 
+    -- D-22 rule 2. The same summand of 'tableErrors', one step wider: the two
+    -- rules are not identical, so D-13 is silent, but they overlap on [10..20].
+    -- The row numbers are the reader's 1-based rule positions, and the column
+    -- is named by its <inputExpression>, not its label.
+    it "when two rules of a UNIQUE table overlap without being identical" $ do
+      (diags, tables) <- readDmn13 "bad-overlapping-unique-rules"
+      diags `shouldSatisfy` hasDiag Error
+        "table \"Band\": row 1 and row 2 both match age = 10 (they overlap wherever age is in [10..20])"
+      diags `shouldSatisfy` hasDiag Error "hit policy Unique"
+      tables `shouldBe` []
+
   -- A decision service is DRG *packaging*: every child of tDecisionService is a
   -- tDMNElementReference, a bare href, so it names decisions rather than adding
   -- logic. Dropping it loses the wiring and nothing else — the same trade D-6

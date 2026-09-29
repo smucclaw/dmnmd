@@ -93,8 +93,10 @@ Markdown file
   → app/ParseMarkdown.hs   grepMarkdown: slice the file into InputChunks (runs of
                            pipe-prefixed lines), naming each from the preceding heading
   → DMN/ParseTable.hs      parseTable: one chunk → DecisionTable
+  → DMN/BuildTable.hs      mkDTable (type inference, then tableErrors, the refusals both readers share)
   → DMN/Types.hs           the IR: DecisionTable / ColHeader / DTrow / FEELexp
-  → DMN/DecisionTable.hs   evalTable (interpreter) + mkDTable (type inference)
+  → DMN/DecisionTable.hs   evalTable (interpreter), inference, and each check tableErrors runs
+  → DMN/Regions.hs         regions of the input space; tableErrors refuses a conflict region (D-22)
   → DMN/Translate/*.hs     JS.hs (serves both --to=js and --to=ts), PY.hs, L4.hs,
                            XML.hs (--to=xml, which pickles back through DMN/XML/ParseDMN.hs)
 ```
@@ -181,6 +183,8 @@ Things that are only apparent across several files:
   before the first `:`. `--pick` matches those names.
 - **Hit policy is the top-left cell** (`U A P F O R C`, `mkHitPolicy_` in `ParseTable.hs`);
   `evalTable` implements all of them, but the transpilers do not.
+  What makes their first-match code right for `U` and `A` is the reader, since D-22 rule 2: it refuses a `U` table in which two rules can both match (a trailing catch-all aside, which is the default) and an `A` table in which two that can both match disagree.
+  See the `DMN.Regions` bullet below for what that check cannot analyse.
 - **The sub-header row is a checked domain, and it goes *below* the `|---|`.** A row whose
   first cell is blank, before the first numbered row, declares what its columns may hold
   (`README.md` Example 3; DMN 1.3 fig 8.19). `DecisionTable.domainErrors` refuses a table
@@ -303,6 +307,22 @@ Things that are only apparent across several files:
   `policy/md-quoted-literal-all-or-nothing` and `symptom/xml-comma-split-negation`.
 - **The parser is megaparsec.** `DMN/ParsingUtils.hs` holds attoparsec-shaped shims
   (`many1`, `anyChar`, `notChar`, `parseOnly`) left over from an atto→mega migration.
+- **`DMN.Regions` cuts a table's input space into regions, and both readers use it to refuse conflicts (D-22 rule 2).**
+  A block is a set of values of one input column on which every cell gives the same answer; a region is one block per input column, with the rules live throughout it and a concrete input (`regionInput`) to evaluate there.
+  `conflictErrors`, a summand of `tableErrors` beside D-13's `uniquenessErrors`, refuses every conflict region; the rest of the module is also the groundwork for D-22 part 3 (a `MAYBE` result only where a no-match region exists) and for D-21's `emitAsserts` (one `#ASSERT` per region).
+  Liveness is decided by `fEvals`, the matcher `evalTable` uses, and a `U` table's default by `uniqueCatchAll`, the function `evalTable` asks, so a trailing catch-all is the default even beside a declared one.
+  `test/RegionsSpec.hs` checks, at every region representative of every table the round-trip script reads that `regionMap` accepts, that the matcher selects exactly the live set and that `evalTable` answers as the region says.
+  It refuses rather than approximates: `regionMap` returns a `Left`, and `UnsupportedKind` names the eight shapes it refuses.
+  **Where `regionMap` refuses, `conflictErrors` says nothing**, so a list-valued hit policy, a collection column, a String cell holding FEEL test syntax, a short row or a computed cell leaves a table refused or accepted exactly as before D-22 part 2; not being able to analyse a table is not a reason to refuse it.
+  That is how collection-input `U` and `A` tables keep their overlap warning (`tableWarnings`), and the interpreter's run-time conflict refusals are now reached through the binary only by such tables (`policy/eval-unique-collection-overlap-at-runtime`, `policy/eval-hp-any-collection-disagree-at-runtime`).
+  `conflicts` is pairwise, not an enumeration: for each rule, the first earlier rule it conflicts with, and the first region the two share, which is one pass over the blocks per pair where enumerating conflict regions can cost the product of the block counts.
+  **A row D-13 reports is not reported again.** `uniquenessErrors` still refuses identical guards under `U`, and its message says what the other cannot: that the later row "can never match", and that two cells spelled differently for one value "(1.1 and 1.10, say) are the same guard".
+  `conflictErrors` skips exactly the rows `identicalGuards` names, so one row never gets two messages.
+  D-13 also still refuses an all-wildcard row followed by a trailing catch-all, which is not a conflict region because the catch-all is the default, but leaves that default unreachable.
+  `mkDTable` and `tableErrors` live in `DMN.BuildTable` because the gate needs `DMN.Regions`, which is built on `DMN.DecisionTable`'s matcher; the individual checks stay in `DMN.DecisionTable`.
+  The corpus test pins the list of fixtures the markdown reader refuses for a conflict region, which are the eight D-22 listed (four of them now under new `policy/hp-unique-overlap-*` names, their old slugs re-fixtured), and that no table it accepts has one.
+  If that set moves, read the tables before updating the list.
+  To read the corpus with the binary's own reader, the test suite compiles `app/ParseMarkdown.hs` and `app/Options.hs` (`hs-source-dirs: test app`).
 
 ### Adding an output backend
 
@@ -377,9 +397,10 @@ validator catches that.
   A row with `-` in every input column overlaps every other rule, which §8.2.10 says a `U` table
   must not contain — but the shape is idiomatic (**40 of 221** corpus fixtures, the README example
   among them), dmnmd's generated code (js/ts/py and `--to=l4`) is first-match, and `--to=l4` renders
-  it as `OTHERWISE`. (dmnmd's *interpreter* is not first-match for `U`: `evalTable` refuses an input
-  that matches both an earlier row and the catch-all — D-16's correction of 2026-09-26.) DMN's
-  construct for the intent is the default output value of §8.2.11, and since phase 2 that is what
+  it as `OTHERWISE`.
+  Since D-22 rule 1 the interpreter reads it the same way: `evalTable` splits a trailing catch-all off a `U` table (`uniqueCatchAll`) and treats it as the default output value, so an input that also matches an earlier row gets that row's answer rather than a conflict (`policy/md-eval-unique-catchall-default`).
+  Before D-22 it refused such an input, which was D-16's correction of 2026-09-26.
+  DMN's construct for the intent is the default output value of §8.2.11, and since phase 2 that is what
   `promoteTrailingCatchAll` emits: the row's outputs move into `dtDefaultOutput` →
   `<defaultOutputEntry>`, the `<rule>` is dropped, and the document is genuinely `U`-conformant for
   any engine, ordered or not. A warning still names the row (its authored NUMBER is genuinely
@@ -389,7 +410,7 @@ validator catches that.
   default already present); an ineligible catch-all keeps a phase-1-style warning that says why it
   was not promoted. `dtDefaultOutput` itself is honoured everywhere: the reader carries a declared
   `<defaultOutputEntry>` (it used to warn-and-drop), `evalTable` answers it exactly when no rule
-  matches under a single-hit policy, js/ts/py render it via `rowsPlusDefault` as the trailing arm
+  matches under a single-hit policy (and answers null when there is none, D-22 rule 3), js/ts/py render it via `rowsPlusDefault` as the trailing arm
   it is equivalent to, and L4 feeds it to `OTHERWISE` — which is what keeps the round trip
   byte-identical on both the ts and l4 legs. Pinned by `policy/hp-unique-catchall-promoted`,
   `policy/xml-default-output-entry-carried`, negative control `policy/hp-first-catchall-not-warned`,
@@ -425,20 +446,28 @@ The gate that does see it is in-process: `TranslateXMLSpec`'s "survives --to=xml
 `C#` has since left that promise on purpose: its variable types the count, so its column is inferred, and the block says so in the name of its own `C#` example rather than dropping it.
 The same blind spot hides the quoted-numeral case above, which no fixture in the harness exercises.
 
-`backend-baseline.sh` is the other half: every fixture × every implemented format, byte for byte.
+`backend-baseline.sh` is the other half: every fixture × `ts js py l4`, byte for byte, stdout and stderr and exit status.
 Adding a `FileFormat` constructor is exactly the kind of edit that perturbs an unrelated format's
 dispatch. **`--check` only** — re-recording after a change launders a regression.
 
-> **This gate is currently dead, and you should not read a red run as a finding.** `test/roundtrip/
-> baseline/` was last recorded at `8c18f22`, before D-1 (number rendering), D-2 (inference), D-7
-> (diagnostic framing) and D-15 (message text) each changed output on purpose. `--check` now
-> reports ~487 of 1,072 runs changed, essentially all of them already-reviewed landed work, which
-> means a genuine cross-backend regression would be invisible in the noise.
+> **This gate is live again, so a red `--check` is a finding.**
+> `test/roundtrip/baseline/MANIFEST.sha` was re-recorded on 2026-09-26 with a binary built at trunk `ea4df4a`.
+> Before that it had last been recorded at `8c18f22`, and `--check` printed `checked 1224 run(s): 883 changed` (883 files, stdout and stderr counted separately: 599 of the 1,224 runs).
+> After it, `--check` printed `checked 1224 run(s): 0 changed`, both with the full outputs present and against the manifest alone.
+> It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures; no emitter output changed, and `--check` printed `checked 1228 run(s): 0 changed` (`test/roundtrip/baseline-audit/README.md`).
+> D-22 part 2 re-recorded it again on purpose, after `--check` printed `checked 1260 run(s): 116 changed`; every changed run is listed by fixture in that file, including `safe2.dmn`'s new refusals, and `--check` then printed `checked 1260 run(s): 0 changed`.
 >
-> The fix is a deliberate re-record on trunk, audited against those four rulings — **not** a
-> re-record folded into whatever change happens to notice. Until then, A/B against a binary built
-> from `HEAD` for the change in hand, which is what D-16 did (1,520 paired invocations, and the
-> point of the exercise was proving the 41 diffs were all `--to=xml`).
+> Every change the re-record absorbed is audited in `test/roundtrip/baseline-audit/README.md`.
+> Each was classified by shape, bisected to the commit that introduced it, and attributed to D-6, D-7, D-9, D-13, D-15, D-16, D-17, D-18, D-19 or PR #58, and none was left over.
+> This paragraph used to say the old recording predated D-1 and D-2; both landed before `8c18f22`, and neither moved a run.
+>
+> **Run `--check` for any change that could move another backend's output.**
+> That includes a new `FileFormat` constructor, a `renderAll`/`renderOne` clause, and anything in the shared cell, inference or diagnostic paths.
+> When a change moves output on purpose, read the diff before re-recording, and say in the commit what moved and why.
+>
+> Two blind spots, both measured during the audit.
+> `--check` walks the current fixtures, so a manifest entry whose fixture was renamed or deleted drops out with nothing printed.
+> And `--to=xml` is implemented but is not in the script's `FORMATS`, so this gate says nothing about the XML writer; `run-roundtrip.sh` is the gate for that.
 
 ## The L4 backend (`src/DMN/Translate/L4.hs`)
 
@@ -504,7 +533,7 @@ been silently widened, is a wrong answer that exits 0.
 `error`, so one rule had two mechanisms and a bad markdown cell arrived with a Haskell
 `CallStack` and a four-frame `HasCallStack backtrace:` of ghc-internal positions attached.
 `app/ParseMarkdown.parseMarkdown` returns `([Diagnostic], [DecisionTable])`, fed by
-`DMN.ParseTable.parseTableD` and `DMN.DecisionTable.mkDTable`, which have the same
+`DMN.ParseTable.parseTableD` and `DMN.BuildTable.mkDTable`, which have the same
 `([Diagnostic], 0-or-1 tables)` shape `convTable` always had.
 
 **The list is the gate, and that is the whole safety argument.** An `Error` means the table is
@@ -545,11 +574,12 @@ sometimes contradict the header. A second is cosmetic and unreasoned — XML wri
 several input files at once and carries its file inside each message.
 
 `errorWithoutStackTrace` (`crash`, in `app/Main.hs`) still covers the aborts that are not
-diagnostics: an unsupported format, a multi-file `--from=xml`, an XML parse failure. What is
-**not** covered by D-7, and still prints a `CallStack`, is the *evaluation*-time crashes on the
-`-q` REPL path — `head0`, `fe2dval`, `fEval`'s type errors — recorded as
-`symptom/eval-hp-first-no-match-crash` and `symptom/eval-collect-min-empty-crash`. Those already
-have an `Either String` channel in `evalTable` to travel down; that is a separate, smaller job.
+diagnostics: an unsupported format, a multi-file `--from=xml`, an XML parse failure.
+What is **not** covered by D-7, and still prints a `CallStack`, is the *evaluation*-time crashes on the `-q` REPL path: `fe2dval`, `fEval`'s type errors, and `Prelude.minimum` over a `C<` table with no hits (`symptom/eval-collect-min-empty-crash`; `C>` has the same defect via `maximum`).
+Those already have an `Either String` channel in `evalTable` to travel down; that is a separate, smaller job.
+`head0` was on this list until D-22 rule 3: a single-hit table (`U A P F`) with no matching rule now answers null instead of crashing or refusing, unless it declares a default, and the REPL prints that as `T: null` whatever `-t` says.
+Its recording moved to `policy/eval-hp-first-no-match-crash` under its old slug, which names the defect it used to record.
+The empty-`C<` crash is a different defect, and DMN 1.3 §10.3.2.10 step 2 gives every hit policy, Collect included, null on no match; D-22 ruled only on the single-hit policies.
 
 The exit status answers exactly one question: *did something we were asked to read fail to
 read?* — with one extension the XML backend adds: **or fail to WRITE.** An emitter has a failure
@@ -567,7 +597,7 @@ faithfully is refused, and then nothing at all is emitted for any table in the f
 | a document mixing two releases' namespaces | 1 |
 | a table refused by the converter | 1 |
 | a table whose cell violates its own declared domain — either reader | 1 |
-| a `U` table with two rows whose guards are identical — either reader (D-13) | 1 |
+| a `U` table with two rules that can both match, a trailing catch-all aside, or an `A` table with two that can both match and disagree — either reader (D-13, D-22 rule 2) | 1 |
 | markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
 | an output format the binary cannot write (`--to=md`) | 1, refused before anything is read |
 | `--to=xml` over an input with no tables | 0, and an empty `<definitions/>` is written |
@@ -656,13 +686,12 @@ Three things there are easy to get wrong on sight:
   worse than leaving it: rule 2 of `~/CLAUDE.md` names this exact move.)
 - **No `policy/` recording cites a cell-path position any more.** Commit 6 had promoted eleven
   that did; D-7 removed the `CallStack` from all of them, so an edit above `mkFsAt`/`mkFAt` no
-  longer dirties any policy recording. Exactly two recordings still carry a `CallStack`, both
-  `symptom/` and both *evaluation*-time: `eval-hp-first-no-match-crash`, which is the only
-  recording anywhere with a `src/DMN/` frame, and `eval-collect-min-empty-crash`, whose
-  `CallStack (from HasCallStack):` header has **no** frame under it at all. (An earlier draft
-  of this bullet said "two recordings carry a `src/DMN/` frame". One does. The count of
+  longer dirties any policy recording.
+  Exactly one recording still carries a `CallStack`: `symptom/eval-collect-min-empty-crash`, an *evaluation*-time crash whose `CallStack (from HasCallStack):` header has **no** frame under it at all, so no recording anywhere cites a `src/DMN/` frame.
+  There were two until D-22 rule 3 removed `head0`; the other, `eval-hp-first-no-match-crash`, was the only recording with a `src/DMN/` frame, and it now records a `null` answer from `policy/`.
+  (An earlier draft of this bullet said "two recordings carry a `src/DMN/` frame". One did. The count of
   `CallStack`s and the count of *frames* are different numbers.) If a D-7-shaped change ever
-  dirties one of those, that is a scope leak, not a re-record.
+  dirties that recording, that is a scope leak, not a re-record.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
   tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
