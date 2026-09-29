@@ -1,8 +1,8 @@
 GIVEN Dish IS A STRING
-GIVETH A OneCol
+GIVETH A MAYBE OneCol
 OneCol Dish MEANS
   BRANCH
-    IF Dish EQUALS "Stew"  THEN ""
-    IF ^    ^      "Roast" THEN ""
-    OTHERWISE ""
+    IF Dish EQUALS "Stew"  THEN JUST ""
+    IF ^    ^      "Roast" THEN JUST ""
+    OTHERWISE NOTHING
 

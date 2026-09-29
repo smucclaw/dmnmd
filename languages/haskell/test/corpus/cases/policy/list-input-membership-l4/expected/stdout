@@ -8,10 +8,10 @@ GIVETH A BOOLEAN
   WHEN y FOLLOWED BY ys THEN x EQUALS y OR `dmnmd list contains` ys x
 
 GIVEN tags IS A LIST OF NUMBER
-GIVETH A STRING
+GIVETH A MAYBE STRING
 Scores tags MEANS
   BRANCH
-    IF `dmnmd list contains` tags 5   THEN "pass"
-    IF `dmnmd list contains` tags 7   THEN "fail"
-    OTHERWISE ""
+    IF `dmnmd list contains` tags 5   THEN JUST "pass"
+    IF `dmnmd list contains` tags 7   THEN JUST "fail"
+    OTHERWISE NOTHING
 

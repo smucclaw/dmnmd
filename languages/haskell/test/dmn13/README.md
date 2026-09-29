@@ -69,6 +69,7 @@ have been silently widened, is worse than emitting none:
 | `bad-rule-arity.dmn` | a rule with more `<inputEntry>` elements than the table has `<input>` columns |
 | `bad-rule-no-output.dmn` | a rule with no `<outputEntry>` at all (the XSD requires at least one) |
 | `bad-duplicate-unique-rules.dmn` | two rules with identical `<inputEntry>` text in a table with **no** `hitPolicy` attribute — which the XSD and `ParseDMN` both default to `UNIQUE`, so the second rule can never fire (D-13) |
+| `bad-overlapping-unique-rules.dmn` | two rules, `<= 20` and `>= 10`, in a table with no `hitPolicy` attribute, so `UNIQUE` again: not identical, so D-13 is silent, but both match every age from 10 to 20, which D-22 rule 2 refuses |
 | `no-typeref-inferred.dmn` | an `<inputExpression>` with **no** `typeRef`, which the XSD allows — so dmnmd infers the column's type, and D-2 refuses a column whose cells disagree. This is the fixture that pins the XML reader's coupling to `inferTypes`: the cells here disagree on purpose, so the inference *refusal* is what it exercises |
 
 > This row used to end "The only fixture here that omits `typeRef`, and so the only

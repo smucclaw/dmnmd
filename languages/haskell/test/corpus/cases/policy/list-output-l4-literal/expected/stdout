@@ -1,8 +1,8 @@
 GIVEN season IS A STRING
-GIVETH A LIST OF STRING
+GIVETH A MAYBE (LIST OF STRING)
 Sides season MEANS
   BRANCH
-    IF season EQUALS "Fall"   THEN LIST "fries", "slaw"
-    IF ^      ^      "Spring" THEN LIST "soup"
-    OTHERWISE EMPTY
+    IF season EQUALS "Fall"   THEN JUST (LIST "fries", "slaw")
+    IF ^      ^      "Spring" THEN JUST (LIST "soup")
+    OTHERWISE NOTHING
 

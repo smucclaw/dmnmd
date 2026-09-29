@@ -85,6 +85,7 @@ library
     , scientific
     , split
   exposed-modules:
+      DMN.BuildTable
       DMN.DecisionTable
       DMN.Diagnostic
       DMN.Number
@@ -92,6 +93,7 @@ library
       DMN.ParseFEEL
       DMN.ParseTable
       DMN.ParsingUtils
+      DMN.Regions
       DMN.Translate.FEELhelpers
       DMN.Translate.JS
       DMN.Translate.L4
@@ -135,18 +137,30 @@ executable dmnmd
 test-suite dmnmd-test
   import:          shared
   type:            exitcode-stdio-1.0
-  hs-source-dirs:  test
+  -- `app` is here for RegionsSpec's corpus measurement, which reads every
+  -- markdown fixture with the binary's own reader (ParseMarkdown, and the
+  -- ArgOptions record it takes) rather than with a second copy of it.
+  hs-source-dirs:  test app
   main-is:         Spec.hs
   other-modules:
       DmnXmlSpec
+      Options
       ParseFEELSpec
+      ParseMarkdown
       ParserSpecHelpers
+      RegionsSpec
       TranslateL4Spec
       TranslateXMLSpec
   build-depends:
       dmnmd
-    -- TranslateL4Spec: createDirectoryIfMissing for test/golden/.out
+    , containers
+    -- TranslateL4Spec: createDirectoryIfMissing for test/golden/.out;
+    -- RegionsSpec: listDirectory, to walk test/ as run-roundtrip.sh does
     , directory
+    -- Options (from app/) and RegionsSpec
+    , filepath
+    -- Options (from app/)
+    , optparse-applicative
     , hspec
     , hspec-golden
     , hspec-megaparsec
