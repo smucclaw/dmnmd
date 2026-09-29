@@ -389,6 +389,8 @@ document at all:
   found while covering the hit policies. A Collect min/max table with no matching
   row dies inside `Prelude.minimum`, and a First table with no matching row dies in
   `head0`. Under DMN both are ordinary situations with defined answers.
+  The second is fixed: DECISIONS.md D-22 rule 3 made a single-hit no-match answer null, and the case now lives at `policy/eval-hp-first-no-match-crash`, its slug unchanged.
+  The first is a different defect (`Prelude.minimum`, not `head0`) and is still a symptom.
 - `symptom/eval-collect-{cnt,all}-debug-trace` — `Debug.Trace` left in two
   `HP_Collect` arms, printing `outputs has length 3` to stderr on every evaluation
   of a shipped binary.
