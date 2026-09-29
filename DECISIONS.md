@@ -1704,6 +1704,8 @@ It also still refuses an all-wildcard row followed by a trailing catch-all, whic
 `regionMap` declines list-valued hit policies, collection columns, String cells holding FEEL test syntax, short rows and computed cells, and for those tables `conflictErrors` says nothing.
 Collection-input `U` and `A` tables keep the overlap warning, as rule 2 says.
 The interpreter's run-time conflict refusals stay too, and two new cases reach them through a collection column: `policy/eval-unique-collection-overlap-at-runtime` and `policy/eval-hp-any-collection-disagree-at-runtime`.
+**A known gap follows from this.** A table with a collection column is not analysed at all, so an overlap on its other, scalar columns is not caught either.
+Closing it needs regions that model membership, which rule 2 already names as the condition for dropping the warning.
 
 **The gate moved module.**
 `mkDTable` and `tableErrors` are now in `DMN.BuildTable`, because the gate needs `DMN.Regions` and `DMN.Regions` is built on `DMN.DecisionTable`'s matcher.
@@ -1722,8 +1724,11 @@ Before recording, `run-corpus.sh` reported exactly the eight listed cases change
 `make roundtrip` went from 191 fixtures (137 pass, 10 xfail, 44 skipped) to 197 (135 pass, 10 xfail, 52 skipped).
 The eight new skips are the four listed cases that now refuse and the four new refusal cases; the two new run-time cases pass.
 
-**One run outside that list moved, and the backend baseline was not re-recorded because of it.**
-`test/safe2.dmn`, a DMN document of a SAFE agreement, gained seven errors on stderr in each of the four formats.
-They are for three `U` tables, `type of event`, `is liquidity event` and `is dissolution event`, whose rules overlap: in `is liquidity event`, rules 1 to 3 each require `Yes` on a different one of three inputs and leave the other two blank, so an input with two of them `Yes` matches two rules.
-Its exit status and stdout did not change, because another table in the same file was already refused.
-The refusal follows rule 2, which refuses a `U` overlap even where the outputs agree, but the file is not on the ruling's list of what moves.
+**Outside the corpus, one fixture moved.**
+`test/safe2.dmn`, which is not in the corpus, gains 7 refusals across three `U` tables for the same reason, with stdout and exit status unchanged.
+The tables are `type of event`, `is liquidity event` and `is dissolution event`.
+In `is liquidity event`, rules 1 to 3 each require `Yes` on a different one of three inputs and leave the other two blank, so an input with two of them `Yes` matches two rules.
+Rule 2 refuses a `U` overlap even where the outputs agree, as DMN 1.3 §8.2.10 does.
+Stdout and exit status stay the same because another table in the same file was already refused.
+The ruling's list of what moves named only corpus recordings, so this follows from the ruling rather than leaking past it.
+The backend baseline was re-recorded for this change, and every changed run is listed by fixture in `test/roundtrip/baseline-audit/README.md`.
