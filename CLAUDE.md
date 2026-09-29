@@ -426,11 +426,11 @@ cabal build                                # neither script builds
 ./test/roundtrip/backend-baseline.sh --check   # did any OTHER backend move?
 ```
 
-132 of 184 fixtures pass byte-identically (42 skipped as recorded refusals, 10 XFAILs each with a
+135 of 197 fixtures pass byte-identically (52 skipped as recorded refusals, 10 XFAILs each with a
 reason in the script), plus the same comparison through `--to=l4`; every emitted document validates
 against `xsd/DMN13.xsd` with `xmllint`. (This paragraph said "117 of 120, eight XFAILs" from an
-earlier count of the fixture set, and then "131 of 183" from the D-16-phase-2 run.
-The numbers above are the §8.3.2 follow-up's run, whose one new fixture is the markdown input of a corpus case it added.)
+earlier count of the fixture set, then "131 of 183" from the D-16-phase-2 run, then "132 of 184" from the §8.3.2 follow-up's run.
+The numbers above were measured on 2026-09-29 after D-22 part 3; part 2's refusals account for most of the growth in skips, since a table refused on reading has no round trip.)
 
 **Three things about that harness are worth knowing before trusting a green run.** TS is a weak
 surface on its own — measured, not assumed: `--to=ts` collapses eleven hit policies into two

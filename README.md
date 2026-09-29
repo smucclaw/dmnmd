@@ -334,7 +334,7 @@ The alignment is not cosmetic: L4 resolves `^` by absolute source column, so the
 every token's display width — including East Asian wide characters — against the same table the L4
 lexer uses. A one-column drift would make a caret silently copy the wrong token.
 
-Unlike the other backends, this one **refuses** the list-valued hit policies (`C`, `A`, `O`, `R`)
+Unlike the other backends, this one **refuses** the list-valued hit policies (`C`, `O`, `R`)
 rather than approximating them: a scalar first-match `BRANCH` would return one row and quietly drop
 the rest.
 
