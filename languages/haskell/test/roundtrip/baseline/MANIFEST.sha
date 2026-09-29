@@ -8,7 +8,7 @@ e555db55698cc0d233bd1a4736888e210ced473f  ./dmn13__annotations.dmn.py.err
 e555db55698cc0d233bd1a4736888e210ced473f  ./dmn13__annotations.dmn.ts.err
 6675b1bfb6dd152a9958a611a5d47520798abe0a  ./dmn13__any-typeref.dmn.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./dmn13__any-typeref.dmn.js.err
-0ff2bf5476d06cad968df83909480a65c3818a71  ./dmn13__any-typeref.dmn.l4
+227c05f08a9e35175d25a79a04938eb12e9ce93b  ./dmn13__any-typeref.dmn.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./dmn13__any-typeref.dmn.l4.err
 80c3ec05da98e067ed5c3a32c2aa6a8032d9d5cf  ./dmn13__any-typeref.dmn.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./dmn13__any-typeref.dmn.py.err
@@ -136,7 +136,7 @@ c8a20fcad2288ef6b776b4c0c89593969ad14933  ./dmn13__decision-service.dmn.py.err
 c8a20fcad2288ef6b776b4c0c89593969ad14933  ./dmn13__decision-service.dmn.ts.err
 7a4d7f9be0c36ca59a4f11438cd99fe5b5370fe1  ./dmn13__decision-variable-typeref.dmn.js
 60c8a9ab99edbe7c2383a91677094e336468203d  ./dmn13__decision-variable-typeref.dmn.js.err
-da435e9097a1e468b0815d6055a1a581109e3484  ./dmn13__decision-variable-typeref.dmn.l4
+4164df24205eef6a5fb0d86227c3d8eb8d4c6101  ./dmn13__decision-variable-typeref.dmn.l4
 60c8a9ab99edbe7c2383a91677094e336468203d  ./dmn13__decision-variable-typeref.dmn.l4.err
 b98c9811e8b1d73a16cedd3815d39d3b8b9f9585  ./dmn13__decision-variable-typeref.dmn.py
 60c8a9ab99edbe7c2383a91677094e336468203d  ./dmn13__decision-variable-typeref.dmn.py.err
@@ -208,7 +208,7 @@ a1b886a19684de53e14c5ed5d0c0049b3b069e67  ./dmn13__not-dmn13.dmn.py.err
 a1b886a19684de53e14c5ed5d0c0049b3b069e67  ./dmn13__not-dmn13.dmn.ts.err
 4b696b1014d15cf85a42fa6f84d218521c94b58b  ./dmn13__output-label.dmn.js
 4718a2b2681c585f02ecc2b46ab007791ba260fe  ./dmn13__output-label.dmn.js.err
-da435e9097a1e468b0815d6055a1a581109e3484  ./dmn13__output-label.dmn.l4
+4164df24205eef6a5fb0d86227c3d8eb8d4c6101  ./dmn13__output-label.dmn.l4
 4718a2b2681c585f02ecc2b46ab007791ba260fe  ./dmn13__output-label.dmn.l4.err
 02a7d60751ecac7f21151c3080e47864c1cc854b  ./dmn13__output-label.dmn.py
 4718a2b2681c585f02ecc2b46ab007791ba260fe  ./dmn13__output-label.dmn.py.err
@@ -416,7 +416,7 @@ b2059ba99ced2899bfde77a08d2ad52d8bc35a31  ./examples__Chapter_11_Example_1_Origi
 2e6c6f5da7b746f9f2bdc57a6f23985a11deb54c  ./examples__Diagram_Interchange__diagram-interchange-decision-with-listed-input-data.dmn.ts.err
 46cf17f1133b1a71d32ce4db0ff5618425c1ea73  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.js
 34b695dd41b53c48678ced7efd8b3a4d5bbed10d  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.js.err
-04a5d39552417012976c5df2727bb34369f950cc  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.l4
+9e9aa9cd18bea3025f3a4a720db8374f1ea95fd7  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.l4
 34b695dd41b53c48678ced7efd8b3a4d5bbed10d  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.l4.err
 31dcd27192e9309e3ddbc85f416e3d8f579db2e7  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.py
 34b695dd41b53c48678ced7efd8b3a4d5bbed10d  ./examples__Diagram_Interchange__diagram-interchange-dish-example.dmn.py.err
@@ -464,7 +464,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__cli-out-not-opened-until-ren
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__cli-out-not-opened-until-render-succeeds.ts.err
 ff430aaf43ecefd6ccb809b283c2b99fc9c143b9  ./policy__cli-pick-multiple-names.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__cli-pick-multiple-names.js.err
-de66c97b503f5cec65d997face2c737401a7d8ce  ./policy__cli-pick-multiple-names.l4
+14a6c8b2866cbf36bda0cd7fce7387368d245d8e  ./policy__cli-pick-multiple-names.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__cli-pick-multiple-names.l4.err
 fef738d5e7455009e41a073366dfc4e49963b337  ./policy__cli-pick-multiple-names.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__cli-pick-multiple-names.py.err
@@ -520,7 +520,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-any-always-left.py.e
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-any-always-left.ts.err
 22a5f52d8fd7592c376435b711b04c93b6bd9ca5  ./policy__eval-hp-any-collection-disagree-at-runtime.js
 3f944ab904ff794ea2332685361b632d308fe8a9  ./policy__eval-hp-any-collection-disagree-at-runtime.js.err
-02ee401c52d723b573422d73a4af69b6f07c80b7  ./policy__eval-hp-any-collection-disagree-at-runtime.l4
+4b7d49ced844ed553da880de74c45007ecba1d73  ./policy__eval-hp-any-collection-disagree-at-runtime.l4
 3f944ab904ff794ea2332685361b632d308fe8a9  ./policy__eval-hp-any-collection-disagree-at-runtime.l4.err
 177af519ae0e72be43fe0e2d7cf9fc6d1ba9a084  ./policy__eval-hp-any-collection-disagree-at-runtime.py
 3f944ab904ff794ea2332685361b632d308fe8a9  ./policy__eval-hp-any-collection-disagree-at-runtime.py.err
@@ -528,7 +528,7 @@ fed102ae37bab6d1bbab31c0551cba1250f3b672  ./policy__eval-hp-any-collection-disag
 3f944ab904ff794ea2332685361b632d308fe8a9  ./policy__eval-hp-any-collection-disagree-at-runtime.ts.err
 dd60f44cfd6133fc824579ee008bd7f7c8506be1  ./policy__eval-hp-any-multirow-duplicated.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-any-multirow-duplicated.js.err
-a57aef84a7621fb0e2dcbe95e02adbcf1ef33282  ./policy__eval-hp-any-multirow-duplicated.l4
+b4dab8d2d463a8bba5b0b7324c3a3e78a2186b16  ./policy__eval-hp-any-multirow-duplicated.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-any-multirow-duplicated.l4.err
 cb9b297a1848d36a82656d72de7bb54304ba6bde  ./policy__eval-hp-any-multirow-duplicated.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-any-multirow-duplicated.py.err
@@ -568,7 +568,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-collect-sum.py.err
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-collect-sum.ts.err
 ccd09a06da6c85b7dc911dd1a0b3ce5c7b49fb86  ./policy__eval-hp-first-no-match-crash.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-first-no-match-crash.js.err
-6dc67a857bd516db9b85ed416bc4d04b4b192e35  ./policy__eval-hp-first-no-match-crash.l4
+3523b19e082f91ba8557730d9c3aabaa85d6ec56  ./policy__eval-hp-first-no-match-crash.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-first-no-match-crash.l4.err
 245229ed7b7ebe29b8c3e4075398ac1bc579ffd2  ./policy__eval-hp-first-no-match-crash.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-first-no-match-crash.py.err
@@ -608,7 +608,7 @@ e7a5a3b126523b237a80796bdf49644763581817  ./policy__eval-hp-ruleorder.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-ruleorder.ts.err
 d704e69143a46a6531478090df4f8ca32439f9f2  ./policy__eval-unique-collection-overlap-at-runtime.js
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__eval-unique-collection-overlap-at-runtime.js.err
-02ee401c52d723b573422d73a4af69b6f07c80b7  ./policy__eval-unique-collection-overlap-at-runtime.l4
+4b7d49ced844ed553da880de74c45007ecba1d73  ./policy__eval-unique-collection-overlap-at-runtime.l4
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__eval-unique-collection-overlap-at-runtime.l4.err
 8c63d89228368d4c88d05585a0d219eaa5157041  ./policy__eval-unique-collection-overlap-at-runtime.py
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__eval-unique-collection-overlap-at-runtime.py.err
@@ -696,7 +696,7 @@ ec1a3309af3784bccb42f21e9833c6032a1895e9  ./policy__hp-unique-overlap-shared-mem
 ec1a3309af3784bccb42f21e9833c6032a1895e9  ./policy__hp-unique-overlap-shared-member-refused.ts.err
 a4c152729f07201ac6605a2c35c946b4d24b134a  ./policy__infer-all-wildcard-column-silent.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-all-wildcard-column-silent.js.err
-d879703c3ca58e0f22d169e90e47725fe783449a  ./policy__infer-all-wildcard-column-silent.l4
+161c2c024de18934a24e6cd76f42516142cef863  ./policy__infer-all-wildcard-column-silent.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-all-wildcard-column-silent.l4.err
 ff371f4378e9331d11747757b7cc9554e48475ea  ./policy__infer-all-wildcard-column-silent.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-all-wildcard-column-silent.py.err
@@ -720,7 +720,7 @@ e7fbfae5229ff3799f8e4a08ca0e7c8761d85129  ./policy__infer-hyphenated-output-stay
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-hyphenated-output-stays-string.ts.err
 3380d2f8c8ad09a3d7a9edb6ec3700d76fdf8d16  ./policy__infer-hyphenated-words-stay-string.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-hyphenated-words-stay-string.js.err
-4ead9fc0e9de6bd6152559bcdc051e319279b8c3  ./policy__infer-hyphenated-words-stay-string.l4
+a5e9d9044ba9b299583ad39dc68bf4681fd27a2c  ./policy__infer-hyphenated-words-stay-string.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-hyphenated-words-stay-string.l4.err
 d50e58e793b759f5192d9e56a96f69bf84ec6ef4  ./policy__infer-hyphenated-words-stay-string.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-hyphenated-words-stay-string.py.err
@@ -744,7 +744,7 @@ e132a237ae1d1e0b4d02fbd7e0dcf3474c9def5e  ./policy__infer-mixed-column-refused.p
 e132a237ae1d1e0b4d02fbd7e0dcf3474c9def5e  ./policy__infer-mixed-column-refused.ts.err
 ea724158015c600a7769e8043774e46173e7e07c  ./policy__infer-negative-number-resolved.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-negative-number-resolved.js.err
-6c2a54c1efaa83cf9a8988b46e7c9c7d3b0fe84d  ./policy__infer-negative-number-resolved.l4
+396f41a4f2d500fa385422662c6efd60d1b10f9d  ./policy__infer-negative-number-resolved.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-negative-number-resolved.l4.err
 a36d314b9755ccb7475d96b86e6c48dd10e7c0dc  ./policy__infer-negative-number-resolved.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-negative-number-resolved.py.err
@@ -752,7 +752,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-negative-number-resolv
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-negative-number-resolved.ts.err
 9e74ae5c7e16e96ed11fa33924ec22ff9fafb47f  ./policy__infer-prose-with-angle-is-string.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-angle-is-string.js.err
-c8477af73ec77941be8a721c7cfea1c3d4ab41d4  ./policy__infer-prose-with-angle-is-string.l4
+b205673b042d797400d82915ae85c9ed4468d33f  ./policy__infer-prose-with-angle-is-string.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-angle-is-string.l4.err
 87803106c9f7e9d73e67326fe389ee2bb4ab8f55  ./policy__infer-prose-with-angle-is-string.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-angle-is-string.py.err
@@ -760,7 +760,7 @@ a567076fd36f29b0afd1c2677a69f54c11f9f54d  ./policy__infer-prose-with-angle-is-st
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-angle-is-string.ts.err
 9f22cea18d01daf7db41c2c5f6b48ed768e47101  ./policy__infer-prose-with-dots-is-string.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-dots-is-string.js.err
-5e2cb29beac5aff87c5ef947fc0f529c012ac463  ./policy__infer-prose-with-dots-is-string.l4
+4c75de8c88c482452892b77a2e9b483e715b9330  ./policy__infer-prose-with-dots-is-string.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-dots-is-string.l4.err
 3cc5733a0e55e87b756f411823d933478bd00cd9  ./policy__infer-prose-with-dots-is-string.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-dots-is-string.py.err
@@ -832,7 +832,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-negation-parenthesised.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-negation-parenthesised.ts.err
 7d6b4f1f54c5c754587b12d34cafc85753a669bc  ./policy__l4-otherwise-sentinel-not-last-row.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-otherwise-sentinel-not-last-row.js.err
-c2f537508b15fdab203cdf90a2bd64fe6d1df8b9  ./policy__l4-otherwise-sentinel-not-last-row.l4
+7160e0ecd79f84e01beedd3522dc28a7ed93d814  ./policy__l4-otherwise-sentinel-not-last-row.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-otherwise-sentinel-not-last-row.l4.err
 a5178b6cd78205ace4fced67458632f45befe672  ./policy__l4-otherwise-sentinel-not-last-row.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-otherwise-sentinel-not-last-row.py.err
@@ -928,7 +928,7 @@ d2a136f68c433e7e7f4865b57bc2fb9190bfcb8d  ./policy__list-collect-aggregate-refus
 d2a136f68c433e7e7f4865b57bc2fb9190bfcb8d  ./policy__list-collect-aggregate-refused.ts.err
 d704e69143a46a6531478090df4f8ca32439f9f2  ./policy__list-input-membership-l4.js
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-l4.js.err
-02ee401c52d723b573422d73a4af69b6f07c80b7  ./policy__list-input-membership-l4.l4
+4b7d49ced844ed553da880de74c45007ecba1d73  ./policy__list-input-membership-l4.l4
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-l4.l4.err
 8c63d89228368d4c88d05585a0d219eaa5157041  ./policy__list-input-membership-l4.py
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-l4.py.err
@@ -936,7 +936,7 @@ a06fd85771579e36185ae2ee9dfc966a41138e03  ./policy__list-input-membership-l4.ts
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-l4.ts.err
 d704e69143a46a6531478090df4f8ca32439f9f2  ./policy__list-input-membership-ts.js
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-ts.js.err
-02ee401c52d723b573422d73a4af69b6f07c80b7  ./policy__list-input-membership-ts.l4
+4b7d49ced844ed553da880de74c45007ecba1d73  ./policy__list-input-membership-ts.l4
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-ts.l4.err
 8c63d89228368d4c88d05585a0d219eaa5157041  ./policy__list-input-membership-ts.py
 4ca24214b9906295b480c0378b002a7e3cbc82c3  ./policy__list-input-membership-ts.py.err
@@ -952,7 +952,7 @@ a06fd85771579e36185ae2ee9dfc966a41138e03  ./policy__list-input-membership-ts.ts
 6ed8248cc444105e5cd903576a4dafed20030a3b  ./policy__list-nested-refused.ts.err
 a98ca450913c42422edc9c1622fbf53636e8effc  ./policy__list-output-l4-literal.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__list-output-l4-literal.js.err
-cb1e81554c70b8e1ce186b25eeb62489adbb67cb  ./policy__list-output-l4-literal.l4
+b95470fb0c84fbeb1b0e2245430739d2a9de7f82  ./policy__list-output-l4-literal.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__list-output-l4-literal.l4.err
 3554a434ee2c6fb2ca6a659e6821395e3be28745  ./policy__list-output-l4-literal.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__list-output-l4-literal.py.err
@@ -1040,7 +1040,7 @@ dc6fe87d7f46a87b7f507d72a0df9323d1b34b9d  ./policy__md-declared-boolean-yn-accep
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-declared-boolean-yn-accepted.ts.err
 2c651eea7819ea54b23a8e9d43d3d5f6843a2100  ./policy__md-declared-string-boolean.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-declared-string-boolean.js.err
-993b5eb0504cda0e369f4aaf0046946cae755e6e  ./policy__md-declared-string-boolean.l4
+6adae63af6b785d6bb9953bd5ec649ed92a1eb98  ./policy__md-declared-string-boolean.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-declared-string-boolean.l4.err
 492df1048c8ae821f11c9393eff7835adfb59a07  ./policy__md-declared-string-boolean.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-declared-string-boolean.py.err
@@ -1072,7 +1072,7 @@ f4071923229e3e145cf1773aeae3c956e52168cb  ./policy__md-eval-unique-conflict.py.e
 f4071923229e3e145cf1773aeae3c956e52168cb  ./policy__md-eval-unique-conflict.ts.err
 0317b4064f660554d55c3548816c1b60d1db9628  ./policy__md-eval-unique.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-eval-unique.js.err
-70cbe36128f7bf23c36330b860ad3661eebc1ac2  ./policy__md-eval-unique.l4
+31c8e36cdbd207e553cf4f87dabf5be976e1855f  ./policy__md-eval-unique.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-eval-unique.l4.err
 d416f2ca1596b8abc5876e73c5b9c109c25fac8f  ./policy__md-eval-unique.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-eval-unique.py.err
@@ -1088,7 +1088,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-explicit-number-header.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-explicit-number-header.ts.err
 fb0c154da09d31f6651345ec452fb54e73e50dc5  ./policy__md-hash-annotation-column.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-hash-annotation-column.js.err
-a40e26363ed3f9ab27aa5623427882f023d9f5b8  ./policy__md-hash-annotation-column.l4
+087a03b489213a87506b29b636bcfc934524f99d  ./policy__md-hash-annotation-column.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-hash-annotation-column.l4.err
 af2d4149f149606134a40d05a4a1d02629ff46be  ./policy__md-hash-annotation-column.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-hash-annotation-column.py.err
@@ -1112,7 +1112,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-l4-refuses-collect.py.err
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-l4-refuses-collect.ts.err
 a98ca450913c42422edc9c1622fbf53636e8effc  ./policy__md-list-output-array.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-list-output-array.js.err
-cb1e81554c70b8e1ce186b25eeb62489adbb67cb  ./policy__md-list-output-array.l4
+b95470fb0c84fbeb1b0e2245430739d2a9de7f82  ./policy__md-list-output-array.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-list-output-array.l4.err
 3554a434ee2c6fb2ca6a659e6821395e3be28745  ./policy__md-list-output-array.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-list-output-array.py.err
@@ -1136,7 +1136,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-output-l4-record.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-output-l4-record.ts.err
 ff430aaf43ecefd6ccb809b283c2b99fc9c143b9  ./policy__md-multi-table-all-parse.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-table-all-parse.js.err
-de66c97b503f5cec65d997face2c737401a7d8ce  ./policy__md-multi-table-all-parse.l4
+14a6c8b2866cbf36bda0cd7fce7387368d245d8e  ./policy__md-multi-table-all-parse.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-table-all-parse.l4.err
 fef738d5e7455009e41a073366dfc4e49963b337  ./policy__md-multi-table-all-parse.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-table-all-parse.py.err
@@ -1144,7 +1144,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-table-all-parse.py.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multi-table-all-parse.ts.err
 e218fa9735312f3dc3dd8d629b0c9b2a339b3e25  ./policy__md-multivalue-cell.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.js.err
-81a522d29829e05b2d4a779ad16ae6330bab4975  ./policy__md-multivalue-cell.l4
+f0ea162163a75d9d3ed5ffccb18a4895444ff4ad  ./policy__md-multivalue-cell.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.l4.err
 46bb5d6b21c7fe8fb2ba1b541d408f21e84c510a  ./policy__md-multivalue-cell.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.py.err
@@ -1152,7 +1152,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.py.err
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.ts.err
 04f4637ea51e95355306ecd1122418de200d55e0  ./policy__md-multivalue-dash-reprocessed.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-dash-reprocessed.js.err
-449789d4164026afe1d2a48a4882b6e560212a49  ./policy__md-multivalue-dash-reprocessed.l4
+2a9fd0842e9d9d35695ec2e4911eacc293e7a718  ./policy__md-multivalue-dash-reprocessed.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-dash-reprocessed.l4.err
 6238faf3b758de4c771b37968442c282f8252759  ./policy__md-multivalue-dash-reprocessed.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-dash-reprocessed.py.err
@@ -1208,7 +1208,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-no-tables-at-all-exits-ze
 8ba8baf26bf6436d92b4840210cf792f76bd775c  ./policy__md-partial-failure-emits-nothing.ts.err
 3b616294bc203e641d2d0b5600a50783f4008b46  ./policy__md-pick-filter.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-pick-filter.js.err
-a44f124babb6ee58f517761445f1224ab0babb74  ./policy__md-pick-filter.l4
+080d4fe87e185a9489bf18f8f881645693d19e70  ./policy__md-pick-filter.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-pick-filter.l4.err
 55715818fd0e545ea5e742f7e05096d89a0e5463  ./policy__md-pick-filter.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-pick-filter.py.err
@@ -1224,7 +1224,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-plain-range.py.err
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-plain-range.ts.err
 e33842707764af40938b8fb374d4e3bfdea0f22c  ./policy__md-prefix-comparisons.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-prefix-comparisons.js.err
-eacc64e509c7fd053ff72829a2995c1d7f128267  ./policy__md-prefix-comparisons.l4
+f83e7838a9593b87e88be40ecb9767714cc140dd  ./policy__md-prefix-comparisons.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-prefix-comparisons.l4.err
 a20cfd3500856f2353e3720982be29b4dabc988c  ./policy__md-prefix-comparisons.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-prefix-comparisons.py.err
@@ -1240,7 +1240,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-prefix-comparisons.ts.err
 4b9742646e05475c009f047bf77c3ffbe1d1c421  ./policy__md-prose-only-exits-zero.ts.err
 9a9e73430a27e781427d1489f76a82064f067781  ./policy__md-quoted-literal-all-or-nothing.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-quoted-literal-all-or-nothing.js.err
-77821af9330afaa944722a134624ca68c568288c  ./policy__md-quoted-literal-all-or-nothing.l4
+4229fca98bd5c50c94b73264bcde1b74b2a475a5  ./policy__md-quoted-literal-all-or-nothing.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-quoted-literal-all-or-nothing.l4.err
 761c5ef045a167617aeb27969881f2a4b8e84667  ./policy__md-quoted-literal-all-or-nothing.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-quoted-literal-all-or-nothing.py.err
@@ -1256,7 +1256,7 @@ fc38be8ddb546fd5588b10a14b3cc68fc6b66add  ./policy__md-quoted-string-literal-unw
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-quoted-string-literal-unwrapped.ts.err
 5872ba20fd89518ee5c15ebfec359c00283c91a7  ./policy__md-string-equality.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-string-equality.js.err
-a10f5e66ef319c5e790db3a260ad77a11323d0ba  ./policy__md-string-equality.l4
+88e0248e6958f8a857c1dca7aa52ac939bf7873d  ./policy__md-string-equality.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-string-equality.l4.err
 05b608adad0c803bff2aaa891aaef0fa499249ed  ./policy__md-string-equality.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-string-equality.py.err
@@ -1264,7 +1264,7 @@ ab354feba9b4af6a8040ce348c3bdc27a9b5e21d  ./policy__md-string-equality.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-string-equality.ts.err
 2d1a3ba0688a42f82fd56afd22559f75a818cf89  ./policy__md-test-shaped-label-declared-string-kept.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-declared-string-kept.js.err
-aa67e6ed82950aac8f8738bc12c3d7c23430febe  ./policy__md-test-shaped-label-declared-string-kept.l4
+7a95970a9cd5cf39a70f98c75446f062303a4b4d  ./policy__md-test-shaped-label-declared-string-kept.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-declared-string-kept.l4.err
 f47992e17c94045cf74dfb01603f781439b0228e  ./policy__md-test-shaped-label-declared-string-kept.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-declared-string-kept.py.err
@@ -1272,7 +1272,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-declare
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-declared-string-kept.ts.err
 2d1a3ba0688a42f82fd56afd22559f75a818cf89  ./policy__md-test-shaped-label-quoted-kept.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-quoted-kept.js.err
-aa67e6ed82950aac8f8738bc12c3d7c23430febe  ./policy__md-test-shaped-label-quoted-kept.l4
+7a95970a9cd5cf39a70f98c75446f062303a4b4d  ./policy__md-test-shaped-label-quoted-kept.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-quoted-kept.l4.err
 f47992e17c94045cf74dfb01603f781439b0228e  ./policy__md-test-shaped-label-quoted-kept.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-test-shaped-label-quoted-kept.py.err
@@ -1320,7 +1320,7 @@ bf063ce1996343157e6ffed72acdde6b319a1cb2  ./policy__num-arith-chain-refused-outp
 bf063ce1996343157e6ffed72acdde6b319a1cb2  ./policy__num-arith-chain-refused-output.ts.err
 8cc66362b005b64eb69471be11620032d60adb12  ./policy__num-cent-precision-preserved.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-cent-precision-preserved.js.err
-01ba85180fb197670d8fae6eb93dc83d8756cc04  ./policy__num-cent-precision-preserved.l4
+1b21a85cc2f63e0df1591a31b4e854bc527cf863  ./policy__num-cent-precision-preserved.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-cent-precision-preserved.l4.err
 b5f176ce9b86772e1cc31ed7f151840a1008f87f  ./policy__num-cent-precision-preserved.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-cent-precision-preserved.py.err
@@ -1384,7 +1384,7 @@ dfc021efd3c10b0517f3b746e0faafc189159d31  ./policy__num-integral-exponent-exact.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-integral-exponent-exact.ts.err
 3b602b86060052d4fd522de230098a4f8b9152a2  ./policy__num-large-integer-exact.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-large-integer-exact.js.err
-60094a3173872ea10804f8e0362b951f279bf0a7  ./policy__num-large-integer-exact.l4
+e16a295abe59c70592975ac2901e51ba640e0a11  ./policy__num-large-integer-exact.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-large-integer-exact.l4.err
 f6a63c4a8e8d713c247b7ea3317dde678039a866  ./policy__num-large-integer-exact.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-large-integer-exact.py.err
@@ -1392,7 +1392,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-large-integer-exact.py.e
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-large-integer-exact.ts.err
 7381e3c43b217b36e5cb3f02f0f3a11638404f85  ./policy__num-leading-dot-accepted.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-leading-dot-accepted.js.err
-0315d109f2cdbfede38ec2f05585b16eff72419f  ./policy__num-leading-dot-accepted.l4
+2f5b92c4d157ac34b14c3501bec367bc524d81f5  ./policy__num-leading-dot-accepted.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-leading-dot-accepted.l4.err
 90e27a52974891c0ff8e63e5e83d1713deb8d181  ./policy__num-leading-dot-accepted.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-leading-dot-accepted.py.err
@@ -1400,7 +1400,7 @@ ee7c3dd3a3c6c5ea8829049433b74b201cacea7c  ./policy__num-leading-dot-accepted.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-leading-dot-accepted.ts.err
 afdb8cb29035c631fd935532aeb9b65232cfd9b6  ./policy__num-multivalue-numeric-preserved.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-multivalue-numeric-preserved.js.err
-a50a895851b9b3b45cd1134b0550654873236b7e  ./policy__num-multivalue-numeric-preserved.l4
+b2c5cb0565c3168b8071c703895da238fcdc8758  ./policy__num-multivalue-numeric-preserved.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-multivalue-numeric-preserved.l4.err
 c5e7359ed5de13ec5a3aa4adf0f668aea23e3ce7  ./policy__num-multivalue-numeric-preserved.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-multivalue-numeric-preserved.py.err
@@ -1416,7 +1416,7 @@ cdf319be93f1686d67dc10d4c8385a9322205acc  ./policy__num-negation-is-numeric-evid
 cdf319be93f1686d67dc10d4c8385a9322205acc  ./policy__num-negation-is-numeric-evidence.ts.err
 a0dfab2981757e482fdbc3b911e012b1faf0dd8d  ./policy__num-negative-range-accepted.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-range-accepted.js.err
-94a833fb041c29ce559eae3cd879f75c2a4dff8b  ./policy__num-negative-range-accepted.l4
+705773576705de3ad78a3b28d557ae598c36dd47  ./policy__num-negative-range-accepted.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-range-accepted.l4.err
 9b3e1c747803201f9d934fd90904994c71a04f64  ./policy__num-negative-range-accepted.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-range-accepted.py.err
@@ -1424,7 +1424,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-range-accepted.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-range-accepted.ts.err
 c7256ce4bc4888b4e080b4492117f40f3aff031d  ./policy__num-negative-threshold-accepted.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-threshold-accepted.js.err
-3d6dc14962fb45e0d01794a938bc10a3d3d2ec76  ./policy__num-negative-threshold-accepted.l4
+39b506a552c84f98768d3b21a96b98a36927f116  ./policy__num-negative-threshold-accepted.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-threshold-accepted.l4.err
 65d89943c7607dd7468d5ff3fabbcf9569d2de81  ./policy__num-negative-threshold-accepted.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-negative-threshold-accepted.py.err
@@ -1464,7 +1464,7 @@ eafdafeec60902b8c61723e7fcfdbd9b479bbeaf  ./policy__num-nonsfeel-infinity-refuse
 05fab754ed681ebd254785efe26f0e102d74c32e  ./policy__num-output-open-range-refused.ts.err
 d57ab93267a78242874c9c2d288ddcc1eadaa9f0  ./policy__num-range-decimal-accepted.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-decimal-accepted.js.err
-63ea367c0194c0c99ea4012fc29b23987988dcc9  ./policy__num-range-decimal-accepted.l4
+9fbdc98ed4a404e202aba3ca0be6e0e465fe3031  ./policy__num-range-decimal-accepted.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-decimal-accepted.l4.err
 ec749b800b037e6c570dce854b0f0abb43480f34  ./policy__num-range-decimal-accepted.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-decimal-accepted.py.err
@@ -1472,7 +1472,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-decimal-accepted.p
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-decimal-accepted.ts.err
 d2f07f6d1b7e5dc981645f3866df627be293e94a  ./policy__num-range-halfopen-honoured.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-halfopen-honoured.js.err
-11aedc7e5e98be9bce8c44380c83a143cc2743f6  ./policy__num-range-halfopen-honoured.l4
+e1c39bc9c86faa7b6794ea084c93595cddb6436c  ./policy__num-range-halfopen-honoured.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-halfopen-honoured.l4.err
 02cbce205d4f0ebcb139b5488f106b75417d3e83  ./policy__num-range-halfopen-honoured.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-range-halfopen-honoured.py.err
@@ -1504,7 +1504,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-reversed-range-bounds-pr
 7df4595e387826435ad0368f6feab9c28ac3f075  ./policy__num-subheader-inferred-refused.ts.err
 c88fc2d4b07be5a9dc08a278bb4f3e1b8b844a8e  ./policy__num-suffix-gt-mirrored.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gt-mirrored.js.err
-fdd17ae07479f7580effef65d3214ae22e66958d  ./policy__num-suffix-gt-mirrored.l4
+ad27d6e4b763d0fd08359ad47db8099d65525730  ./policy__num-suffix-gt-mirrored.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gt-mirrored.l4.err
 8c34efc7dd5eeadc3e4f17db52b2ba93e4ee93dd  ./policy__num-suffix-gt-mirrored.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gt-mirrored.py.err
@@ -1512,7 +1512,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gt-mirrored.py.er
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gt-mirrored.ts.err
 5ccf5c8cdc423f11b9dbc44da802231220c71798  ./policy__num-suffix-gte-mirrored.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gte-mirrored.js.err
-6ee75fc259b35a207aa355f6cbcd8f71e0e86e0b  ./policy__num-suffix-gte-mirrored.l4
+1397a873fe36ef72cc35203fd8b785c0b6fac6a0  ./policy__num-suffix-gte-mirrored.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gte-mirrored.l4.err
 c4d2f00b0b8a9689e9013b18a85258ea772120c8  ./policy__num-suffix-gte-mirrored.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gte-mirrored.py.err
@@ -1520,7 +1520,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gte-mirrored.py.e
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-gte-mirrored.ts.err
 de7ee35561fd30a98f94ef8fb00a201f9c791945  ./policy__num-suffix-lt-mirrored.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lt-mirrored.js.err
-7f58593c63a53daa2f2b73c5567f56a9637664f5  ./policy__num-suffix-lt-mirrored.l4
+0ee0d9fd1063590627b29f1028d151e3fedac079  ./policy__num-suffix-lt-mirrored.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lt-mirrored.l4.err
 d6ca7fef54f3784b26985f26adb7eb0b435deeb4  ./policy__num-suffix-lt-mirrored.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lt-mirrored.py.err
@@ -1528,7 +1528,7 @@ c4f74f6836312c6c774dff74048cf25912fae154  ./policy__num-suffix-lt-mirrored.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lt-mirrored.ts.err
 e35cbb267e91fdd1d42964fed6fb29e29c5de4f8  ./policy__num-suffix-lte-mirrored.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lte-mirrored.js.err
-afbcbc9ce8a1a76a28430628888f6824ab9236b9  ./policy__num-suffix-lte-mirrored.l4
+b35bee4f6584a55d1895484c17b23e83c70eebe8  ./policy__num-suffix-lte-mirrored.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lte-mirrored.l4.err
 5472d3d8790b9630fa726b8c9f5bc88b7e57f38b  ./policy__num-suffix-lte-mirrored.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-suffix-lte-mirrored.py.err
@@ -1552,7 +1552,7 @@ f71f5ab4320252efbdbdcfcbdf568c22404bd898  ./policy__num-thousands-threshold-refu
 f71f5ab4320252efbdbdcfcbdf568c22404bd898  ./policy__num-thousands-threshold-refused.ts.err
 45d947f6783f5edb644f3a14ab3aec351400514d  ./policy__num-thousands-with-space-accepted.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-thousands-with-space-accepted.js.err
-5306f4a21a08bfa7a8eee2a2359680a51168bc10  ./policy__num-thousands-with-space-accepted.l4
+79f5f11bd41c4c170ce7a7b471a111ae97c31f65  ./policy__num-thousands-with-space-accepted.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-thousands-with-space-accepted.l4.err
 b6935fb80312071faab72e3a89dfaba75628ab02  ./policy__num-thousands-with-space-accepted.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__num-thousands-with-space-accepted.py.err
@@ -1576,7 +1576,7 @@ c623585f2e12089b0d1b362e9c8bfad10ccbef9e  ./policy__struct-outputorder-enum-hono
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__struct-outputorder-enum-honoured.ts.err
 2682be80803683a99806100dbb7d53d7bbc3d838  ./policy__struct-prose-table-is-decision-table.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__struct-prose-table-is-decision-table.js.err
-e4bb8ce18931fdc5a3a97a9bcdae7e687a3258fd  ./policy__struct-prose-table-is-decision-table.l4
+ef8ee0e0ea24484ac12cbe115d077b558e9557f1  ./policy__struct-prose-table-is-decision-table.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__struct-prose-table-is-decision-table.l4.err
 946c075c1207f2b3236f3639d0d455db0fe36e74  ./policy__struct-prose-table-is-decision-table.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__struct-prose-table-is-decision-table.py.err
@@ -1592,7 +1592,7 @@ d015e81a8a8f3a80fd69fef5f97a80a75a6ef492  ./policy__xml-annotations-warn__input.
 f229639354f4760306e9581c349d74ae67690f96  ./policy__xml-annotations-warn__input.dmn.ts.err
 6675b1bfb6dd152a9958a611a5d47520798abe0a  ./policy__xml-any-typeref-infers__input.dmn.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-any-typeref-infers__input.dmn.js.err
-0ff2bf5476d06cad968df83909480a65c3818a71  ./policy__xml-any-typeref-infers__input.dmn.l4
+227c05f08a9e35175d25a79a04938eb12e9ce93b  ./policy__xml-any-typeref-infers__input.dmn.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-any-typeref-infers__input.dmn.l4.err
 80c3ec05da98e067ed5c3a32c2aa6a8032d9d5cf  ./policy__xml-any-typeref-infers__input.dmn.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-any-typeref-infers__input.dmn.py.err
@@ -1696,7 +1696,7 @@ cdb1b3fcdf183ea072733740435d116b408679d2  ./policy__xml-decision-service-dropped
 cdb1b3fcdf183ea072733740435d116b408679d2  ./policy__xml-decision-service-dropped__input.dmn.ts.err
 3c22e4e3cd122307f600d0b8cb3ed0956bb99a6a  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.js.err
-3d490818c0318d5dffc3f6a41c7280c8b29d3b82  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.l4
+47c6283c5a13abcc559d334779bcaeba69a6fa26  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.l4.err
 e04d452b66e95b04e7613172021823d0ff9f4ad6  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.py.err
@@ -1704,7 +1704,7 @@ f136d68fe871315cba51a283a9dd161ae9cce15a  ./policy__xml-decision-variable-not-ap
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-decision-variable-not-applied-multi-output__input.dmn.ts.err
 7a4d7f9be0c36ca59a4f11438cd99fe5b5370fe1  ./policy__xml-decision-variable-types-single-output__input.dmn.js
 0637e12b96048d2a8008fbd0ac6ca21727d1d9f8  ./policy__xml-decision-variable-types-single-output__input.dmn.js.err
-da435e9097a1e468b0815d6055a1a581109e3484  ./policy__xml-decision-variable-types-single-output__input.dmn.l4
+4164df24205eef6a5fb0d86227c3d8eb8d4c6101  ./policy__xml-decision-variable-types-single-output__input.dmn.l4
 0637e12b96048d2a8008fbd0ac6ca21727d1d9f8  ./policy__xml-decision-variable-types-single-output__input.dmn.l4.err
 b98c9811e8b1d73a16cedd3815d39d3b8b9f9585  ./policy__xml-decision-variable-types-single-output__input.dmn.py
 0637e12b96048d2a8008fbd0ac6ca21727d1d9f8  ./policy__xml-decision-variable-types-single-output__input.dmn.py.err
@@ -1832,7 +1832,7 @@ b126f8b53f122d1b5d0a7daf7e8b53493eb7cf39  ./policy__xml-feel-number-type__input.
 3776537463b07bcc5866df97d97496c9a8d12dbf  ./policy__xml-feel-number-type__input.dmn.ts.err
 9dcfda3b1c6cf1eacf4af64ba6e8f1b4155aca05  ./policy__xml-id-uniqueness-not-name-derived.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-id-uniqueness-not-name-derived.js.err
-5392499875fe7ca1d7946781a5f2befc5d24f857  ./policy__xml-id-uniqueness-not-name-derived.l4
+502a591e3ea94b961452a420d40997b5901c7b7a  ./policy__xml-id-uniqueness-not-name-derived.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-id-uniqueness-not-name-derived.l4.err
 777fe191bd7a8f0219dd475aa168fac5a97bef3e  ./policy__xml-id-uniqueness-not-name-derived.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-id-uniqueness-not-name-derived.py.err
@@ -1840,7 +1840,7 @@ b330fd03f2d782c13843614827e3034a186a4844  ./policy__xml-id-uniqueness-not-name-d
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-id-uniqueness-not-name-derived.ts.err
 03dd9ba0414f95a74874456d43d2f038dda5ba24  ./policy__xml-informationrequirement-dropped-silently__input.dmn.js
 d572b842641cd7d9dd6580216707b8f152ece34d  ./policy__xml-informationrequirement-dropped-silently__input.dmn.js.err
-eda04928283828b28f65d428112e8b0a8072b6a2  ./policy__xml-informationrequirement-dropped-silently__input.dmn.l4
+0944e92045b11822d69e2626b180a17c4799a007  ./policy__xml-informationrequirement-dropped-silently__input.dmn.l4
 d572b842641cd7d9dd6580216707b8f152ece34d  ./policy__xml-informationrequirement-dropped-silently__input.dmn.l4.err
 ad23b4963a3f511dcb596e0a4679f9686f5afef1  ./policy__xml-informationrequirement-dropped-silently__input.dmn.py
 d572b842641cd7d9dd6580216707b8f152ece34d  ./policy__xml-informationrequirement-dropped-silently__input.dmn.py.err
@@ -1848,7 +1848,7 @@ d4862cbef70f65e363b889e30d42683d9fffbad4  ./policy__xml-informationrequirement-d
 d572b842641cd7d9dd6580216707b8f152ece34d  ./policy__xml-informationrequirement-dropped-silently__input.dmn.ts.err
 bb6dd8738961c746a08d5fcf9f0f062526a93d0a  ./policy__xml-inputdata-name-type-conflict.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-inputdata-name-type-conflict.js.err
-6b38770fdd4335dd4e900446aa3468a41f599dab  ./policy__xml-inputdata-name-type-conflict.l4
+da8f8c4292d9e6ee96dfc6b679c13e6e0c50c060  ./policy__xml-inputdata-name-type-conflict.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-inputdata-name-type-conflict.l4.err
 e5d61b7234b85ce287c04f232168e66145755738  ./policy__xml-inputdata-name-type-conflict.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-inputdata-name-type-conflict.py.err
@@ -1864,7 +1864,7 @@ fa33a6eb0890043528970f24b990c099055c9158  ./policy__xml-iscollection-membership_
 10e28be5197a3ebf7acc863270c2423fee6b8745  ./policy__xml-iscollection-membership__input.dmn.ts.err
 5e1dbdb2ce450cbe94d8cdc52e211842de672fed  ./policy__xml-itemdefinition-warns__input.dmn.js
 1f4d7ef62cb02e5089f7aab49fa75a6b5a265884  ./policy__xml-itemdefinition-warns__input.dmn.js.err
-402c3ab3cc6bfedbcc78641c7536956865c2a37f  ./policy__xml-itemdefinition-warns__input.dmn.l4
+bc9b6f3b0918148016f9fc60f195a794f39afc94  ./policy__xml-itemdefinition-warns__input.dmn.l4
 1f4d7ef62cb02e5089f7aab49fa75a6b5a265884  ./policy__xml-itemdefinition-warns__input.dmn.l4.err
 47c88935bbe7a02c7401d1e87af0face9fd726a3  ./policy__xml-itemdefinition-warns__input.dmn.py
 1f4d7ef62cb02e5089f7aab49fa75a6b5a265884  ./policy__xml-itemdefinition-warns__input.dmn.py.err
@@ -1912,7 +1912,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-no-decision-exits-zero__
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-no-decision-exits-zero__input.dmn.ts.err
 6c14e760185f4d99e68a16d393ca67ee7cf7294e  ./policy__xml-no-output-column-refused.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-no-output-column-refused.js.err
-3f18be91d7b521a5da5736085747772830aa54f9  ./policy__xml-no-output-column-refused.l4
+57a202503683ee60fb0f90120f948ec31260e174  ./policy__xml-no-output-column-refused.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-no-output-column-refused.l4.err
 5f6127407a4ff4fd03dfed7d0b4ff3b41928d35b  ./policy__xml-no-output-column-refused.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-no-output-column-refused.py.err
@@ -1928,7 +1928,7 @@ c8b84c57aaf9bc50836ad4cd05d7e611307021d0  ./policy__xml-optional-namespace-absen
 c8b84c57aaf9bc50836ad4cd05d7e611307021d0  ./policy__xml-optional-namespace-absent__input.dmn.ts.err
 4b696b1014d15cf85a42fa6f84d218521c94b58b  ./policy__xml-output-label-names-single-output__input.dmn.js
 187ede6e60848881d729ccaca201786450505ca6  ./policy__xml-output-label-names-single-output__input.dmn.js.err
-da435e9097a1e468b0815d6055a1a581109e3484  ./policy__xml-output-label-names-single-output__input.dmn.l4
+4164df24205eef6a5fb0d86227c3d8eb8d4c6101  ./policy__xml-output-label-names-single-output__input.dmn.l4
 187ede6e60848881d729ccaca201786450505ca6  ./policy__xml-output-label-names-single-output__input.dmn.l4.err
 02a7d60751ecac7f21151c3080e47864c1cc854b  ./policy__xml-output-label-names-single-output__input.dmn.py
 187ede6e60848881d729ccaca201786450505ca6  ./policy__xml-output-label-names-single-output__input.dmn.py.err
@@ -1976,7 +1976,7 @@ a0183b2748ef0608daf7d29e7055809be5bd2e0a  ./policy__xml-rule-no-output-refused__
 a0183b2748ef0608daf7d29e7055809be5bd2e0a  ./policy__xml-rule-no-output-refused__input.dmn.ts.err
 6937d0c28a51c71dcb78a5e3aac3053b030406c3  ./policy__xml-short-row-refused.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-short-row-refused.js.err
-5bfbeeba4ed7db0867b1db3d1d952a88cf442cd9  ./policy__xml-short-row-refused.l4
+1dad5597ae7c1e9c01a183434d382f07f68b35f6  ./policy__xml-short-row-refused.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-short-row-refused.l4.err
 d8d36fcc811131ce67273d60fd2477d8bc9aff39  ./policy__xml-short-row-refused.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-short-row-refused.py.err
@@ -2088,7 +2088,7 @@ d4cb3870ae5283e64687d2b8449485da0b03e67a  ./policy__xml-variable-under-inputdata
 d4cb3870ae5283e64687d2b8449485da0b03e67a  ./policy__xml-variable-under-inputdata__input.dmn.ts.err
 66bd1131d9a2de0922c21893b797795ee0b50229  ./policy__xml-wildcard-output-warned.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-wildcard-output-warned.js.err
-360227cc607527280b690fe8bc9708a067bee18d  ./policy__xml-wildcard-output-warned.l4
+0fcd7158b491442020482118b9b28409bd357985  ./policy__xml-wildcard-output-warned.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-wildcard-output-warned.l4.err
 d60d1d32e405880ade1c9bac8ab01e348db1be94  ./policy__xml-wildcard-output-warned.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-wildcard-output-warned.py.err
@@ -2152,7 +2152,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-no-to-flag-unknown-form
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-no-to-flag-unknown-format.ts.err
 ff430aaf43ecefd6ccb809b283c2b99fc9c143b9  ./symptom__cli-pick-no-match-silent.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-pick-no-match-silent.js.err
-de66c97b503f5cec65d997face2c737401a7d8ce  ./symptom__cli-pick-no-match-silent.l4
+14a6c8b2866cbf36bda0cd7fce7387368d245d8e  ./symptom__cli-pick-no-match-silent.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-pick-no-match-silent.l4.err
 fef738d5e7455009e41a073366dfc4e49963b337  ./symptom__cli-pick-no-match-silent.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-pick-no-match-silent.py.err
@@ -2160,7 +2160,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-pick-no-match-silent.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-pick-no-match-silent.ts.err
 8d33acc65b58c996eeceb7885aa284208f9dad40  ./symptom__cli-query-pick-no-match-misreported.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-query-pick-no-match-misreported.js.err
-b46f9c5deb00518d713ab5761766871c33e0f5ce  ./symptom__cli-query-pick-no-match-misreported.l4
+d7fb79f680038478e4210755d282812e603b360a  ./symptom__cli-query-pick-no-match-misreported.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-query-pick-no-match-misreported.l4.err
 ad09188dd5ae1b3dbc8490f1fe5c0756bbda22bb  ./symptom__cli-query-pick-no-match-misreported.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__cli-query-pick-no-match-misreported.py.err
@@ -2224,7 +2224,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__eval-hitpolicy-ignored-by-j
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__eval-hitpolicy-ignored-by-js.ts.err
 a4297021ca5cf52ae2f4fe98d253294cd0f0e798  ./symptom__infer-explicit-type-contradiction-silent.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__infer-explicit-type-contradiction-silent.js.err
-44ee36e5ba46d74e84b06fcb5657ed225ebc3def  ./symptom__infer-explicit-type-contradiction-silent.l4
+eaa78052432cf00b0311592e3e3e834827561ade  ./symptom__infer-explicit-type-contradiction-silent.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__infer-explicit-type-contradiction-silent.l4.err
 6b7b2ff4436af58c98ec3f928506e04ca5eecabe  ./symptom__infer-explicit-type-contradiction-silent.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__infer-explicit-type-contradiction-silent.py.err
@@ -2232,7 +2232,7 @@ af4bf46b7c1f805601b42670ddc4fe73c4f80514  ./symptom__infer-explicit-type-contrad
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__infer-explicit-type-contradiction-silent.ts.err
 ec75dcb0f9f0d1000d998ce1468008370005ce58  ./symptom__js-nonascii-escape.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__js-nonascii-escape.js.err
-e780dd54cd582adddf49a3076539a1fd3f9d3735  ./symptom__js-nonascii-escape.l4
+fa888a623481966cc3c317944a44dee82779fb27  ./symptom__js-nonascii-escape.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__js-nonascii-escape.l4.err
 456b0edaa79a7202230a91c3272813a1990fbf65  ./symptom__js-nonascii-escape.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__js-nonascii-escape.py.err
@@ -2240,7 +2240,7 @@ a4ad33f02dd3c9f54ae06fad53f6805384e32396  ./symptom__js-nonascii-escape.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__js-nonascii-escape.ts.err
 a5fc15a86ec903c34cdbaf28a6fe81f0a27dfdbd  ./symptom__l4-output-range-upper-bound-dropped.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-output-range-upper-bound-dropped.js.err
-f69d520768fdd9e017455483b3759712165b9e1b  ./symptom__l4-output-range-upper-bound-dropped.l4
+9d5ec2ed70247680c02dc4cf22b884fe6d46f7fb  ./symptom__l4-output-range-upper-bound-dropped.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-output-range-upper-bound-dropped.l4.err
 bcafaa11dcf7ecacc76c8772c1afaa551960925d  ./symptom__l4-output-range-upper-bound-dropped.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-output-range-upper-bound-dropped.py.err
@@ -2256,7 +2256,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-record-name-keyword-unqu
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-record-name-keyword-unquoted.ts.err
 a01ec515808a2f785927497a499d4c2d6dcc14a5  ./symptom__l4-zero-output-dangling-giveth.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-zero-output-dangling-giveth.js.err
-253de9d5116bd46fbd91ae08940f8ae539102497  ./symptom__l4-zero-output-dangling-giveth.l4
+4c24294a1469df5ffaba1200edc3cc5509064ef4  ./symptom__l4-zero-output-dangling-giveth.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-zero-output-dangling-giveth.l4.err
 d25b1b11b618ecefdbf12ed91d26fb3556eb5098  ./symptom__l4-zero-output-dangling-giveth.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-zero-output-dangling-giveth.py.err
@@ -2272,7 +2272,7 @@ bf6159985aae8aa93a6587aad9fe6bec0b54d429  ./symptom__md-arith-bare-identifiers-r
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-arith-bare-identifiers-referenceerror.ts.err
 209dd76995bb837f73e9df876963daf76850277c  ./symptom__md-dash-written-interval-silent.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-dash-written-interval-silent.js.err
-b678b7fe970ba109ec223493a31996c51530157c  ./symptom__md-dash-written-interval-silent.l4
+3c527dac2fb979e08d654db503717ada287229e7  ./symptom__md-dash-written-interval-silent.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-dash-written-interval-silent.l4.err
 3076320f66598f6970bb6975bc3ab4dce9a6244e  ./symptom__md-dash-written-interval-silent.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-dash-written-interval-silent.py.err
@@ -2304,7 +2304,7 @@ bb929415427da213b375d768b37807269c246251  ./symptom__md-nbsp-refused-output.py.e
 bb929415427da213b375d768b37807269c246251  ./symptom__md-nbsp-refused-output.ts.err
 4064941233dc81da1b705c8ca92e1ab54056fa55  ./symptom__md-negation-in-string-column-silent.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-negation-in-string-column-silent.js.err
-ef6417670091817ac3ca3e08852f8ce07e8baf74  ./symptom__md-negation-in-string-column-silent.l4
+2ec6396b11f7618773f1a454cb3785e5b12df4e4  ./symptom__md-negation-in-string-column-silent.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-negation-in-string-column-silent.l4.err
 d087671609c03fce4f4fc95bbbc90ddb4a9b0838  ./symptom__md-negation-in-string-column-silent.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-negation-in-string-column-silent.py.err
@@ -2320,7 +2320,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-output-comparison-emits-
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-output-comparison-emits-lambda.ts.err
 ec1b238e7df66dd9000aa130be98bfda3f8582bc  ./symptom__md-string-col-arith-dead-rule.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-col-arith-dead-rule.js.err
-ae86ca42f17f9079062eefd27d51dd0528a539fa  ./symptom__md-string-col-arith-dead-rule.l4
+7ce8b2b4db6ffdf22e8349d03a94962e845dd3a6  ./symptom__md-string-col-arith-dead-rule.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-col-arith-dead-rule.l4.err
 2f7d61c96439a10ef64f10ff9a42f2cfe11d668f  ./symptom__md-string-col-arith-dead-rule.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-col-arith-dead-rule.py.err
@@ -2352,7 +2352,7 @@ c979e64f47d6011eb5ab787a7cfc62090cb41e78  ./symptom__struct-blank-rownum-swallow
 c979e64f47d6011eb5ab787a7cfc62090cb41e78  ./symptom__struct-blank-rownum-swallowed.ts.err
 c2149a0b45e04ebf00afc7147dc61c862fb9812b  ./symptom__struct-dash-rownum-dropped.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dash-rownum-dropped.js.err
-09e7126ecb67b10779608540dcdf5664478cd86e  ./symptom__struct-dash-rownum-dropped.l4
+d37b07ed04d43d3586f14830041499da03211c14  ./symptom__struct-dash-rownum-dropped.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dash-rownum-dropped.l4.err
 8c5d273f5f9b15462bf908704e674aac7e6b313e  ./symptom__struct-dash-rownum-dropped.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dash-rownum-dropped.py.err
@@ -2360,7 +2360,7 @@ a4c6c5a869fb06708dd78b6204abd9d939a8be75  ./symptom__struct-dash-rownum-dropped.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dash-rownum-dropped.ts.err
 40e2d5e374be1c3e881430f9885389fd2069ffaf  ./symptom__struct-dup-column-names.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-column-names.js.err
-9293c7b32cfaa9121afefbada83c3cc17438366b  ./symptom__struct-dup-column-names.l4
+073a661e4c3a20f9ac70ca90c8b9971a7d5d9fd2  ./symptom__struct-dup-column-names.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-column-names.l4.err
 89e15b0e0074ef5299ee8cff64a4023be49d836f  ./symptom__struct-dup-column-names.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-column-names.py.err
@@ -2368,7 +2368,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-column-names.py.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-column-names.ts.err
 f9b3087c2d1b00328a44f355ae097abf44b055ca  ./symptom__struct-dup-rightmost-name-two-outputs.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-rightmost-name-two-outputs.js.err
-7290cd599168c55b18063bcff7bb962a6e2dd56f  ./symptom__struct-dup-rightmost-name-two-outputs.l4
+ef71c2314751bf22753a4ee4adce815366c5a247  ./symptom__struct-dup-rightmost-name-two-outputs.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-rightmost-name-two-outputs.l4.err
 5b7bca3e16499d2b7fa1c3088b6cce171a1cc5c0  ./symptom__struct-dup-rightmost-name-two-outputs.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-rightmost-name-two-outputs.py.err
@@ -2376,7 +2376,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-rightmost-name-t
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-dup-rightmost-name-two-outputs.ts.err
 2b2fecbfa1fbe5b5351057b7229c04edf7a07f5e  ./symptom__struct-fenced-code-ingested.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-fenced-code-ingested.js.err
-10ebcff343781e8e072837dbcaa765855e307eb0  ./symptom__struct-fenced-code-ingested.l4
+5415744da2abb111bb7f5d0731d5ef532a052477  ./symptom__struct-fenced-code-ingested.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-fenced-code-ingested.l4.err
 e0105a5d6c8fbb69cb7f208f454bbacb3417a22b  ./symptom__struct-fenced-code-ingested.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-fenced-code-ingested.py.err
@@ -2392,7 +2392,7 @@ fc20789526f700c35c2c0d7f7ba8b74b8c432116  ./symptom__struct-hitpolicy-only-table
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-hitpolicy-only-table-accepted.ts.err
 fa878e1c481ae573b04e256efd998e39cd6c3d0d  ./symptom__struct-label-pre-wins.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-label-pre-wins.js.err
-5322732f5bd47f1c010b072a7878cfeee96bdd22  ./symptom__struct-label-pre-wins.l4
+345c5b4c39694bb5bf88e0c218f3844c2ffa1147  ./symptom__struct-label-pre-wins.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-label-pre-wins.l4.err
 fd16c93f86f3f616893a1ef05269026e44536662  ./symptom__struct-label-pre-wins.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-label-pre-wins.py.err
@@ -2400,7 +2400,7 @@ a21f617573c7c6c1628299c1ac5ed7ce9d688b34  ./symptom__struct-label-pre-wins.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-label-pre-wins.ts.err
 85265cf8f38a4a8be1527e0de7673395d02cd09d  ./symptom__struct-midtable-continuation.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-midtable-continuation.js.err
-d7809cec45d67c1154a12ef9826d0b5b587b59b0  ./symptom__struct-midtable-continuation.l4
+7bfdedb44f98620b64197db7957a1616c28dcf40  ./symptom__struct-midtable-continuation.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-midtable-continuation.l4.err
 18ad4a3e532b1bc12eb61692670ffca467967c87  ./symptom__struct-midtable-continuation.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-midtable-continuation.py.err
@@ -2408,7 +2408,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-midtable-continuatio
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-midtable-continuation.ts.err
 3a279ad46bf46df0a40c3ba1894da5430e85f029  ./symptom__struct-no-heading-default-name.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-no-heading-default-name.js.err
-ca5e07602c47a4d5a7843ef2eea2918872b8deb7  ./symptom__struct-no-heading-default-name.l4
+9f0b6404e8a325dd4978f700029cc2e25017f628  ./symptom__struct-no-heading-default-name.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-no-heading-default-name.l4.err
 d1e27e2ea8d311b82d5d03fdcb0efa02a82d6a7d  ./symptom__struct-no-heading-default-name.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-no-heading-default-name.py.err
@@ -2416,7 +2416,7 @@ ddd051a4a820c0809075ef4cf300a71e4adac381  ./symptom__struct-no-heading-default-n
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-no-heading-default-name.ts.err
 a01ec515808a2f785927497a499d4c2d6dcc14a5  ./symptom__struct-onecol-no-output.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-onecol-no-output.js.err
-253de9d5116bd46fbd91ae08940f8ae539102497  ./symptom__struct-onecol-no-output.l4
+4c24294a1469df5ffaba1200edc3cc5509064ef4  ./symptom__struct-onecol-no-output.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-onecol-no-output.l4.err
 d25b1b11b618ecefdbf12ed91d26fb3556eb5098  ./symptom__struct-onecol-no-output.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-onecol-no-output.py.err
@@ -2424,7 +2424,7 @@ b7ff80aed90326a0e180f24250ae9d2dd996c187  ./symptom__struct-onecol-no-output.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-onecol-no-output.ts.err
 5a01274a3f72c408e88dbbafc0260da6ee843972  ./symptom__struct-short-row-truncated.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-short-row-truncated.js.err
-654850f1cbf478f2ecc44de106f28c4af0252fff  ./symptom__struct-short-row-truncated.l4
+79852c2f613df89eb8dadf8cbe0d71da4810b534  ./symptom__struct-short-row-truncated.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-short-row-truncated.l4.err
 7a7d3e3a02dcff49f35b43fadf095e9c14bd9fb6  ./symptom__struct-short-row-truncated.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-short-row-truncated.py.err
@@ -2432,7 +2432,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-short-row-truncated.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-short-row-truncated.ts.err
 301fc4e8bf00bca14427794caacf3245106fd86c  ./symptom__struct-tablename-collision.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-collision.js.err
-9dbd579eab97f7823893c7d30f5012315144dbc2  ./symptom__struct-tablename-collision.l4
+aa75dd7bff279c0ce75ddb64f61f0fde2554da85  ./symptom__struct-tablename-collision.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-collision.l4.err
 64d5a7b5140e4f25bf0698ab2901742e8e369e6b  ./symptom__struct-tablename-collision.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-collision.py.err
@@ -2440,7 +2440,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-collision.
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-collision.ts.err
 7c5a67ea5a06c799870580ed6ceb4ac76177dc64  ./symptom__struct-tablename-first-backtick.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-first-backtick.js.err
-5ad46bb801d8966d78d08d4a640f32f19b7c91bd  ./symptom__struct-tablename-first-backtick.l4
+7befba1aaff8699246548fe8ed0ec662ef0fca5b  ./symptom__struct-tablename-first-backtick.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-first-backtick.l4.err
 1043771a6e6e6a4d200425966ab6b1d060477b84  ./symptom__struct-tablename-first-backtick.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-first-backtick.py.err
@@ -2448,7 +2448,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-first-back
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-tablename-first-backtick.ts.err
 a871747e848d89a4370411005e5a53c93f4789db  ./symptom__struct-zero-rule-table-accepted.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-zero-rule-table-accepted.js.err
-471f0d8413778a9ec3fb5d2b42aa3c7a0659d47c  ./symptom__struct-zero-rule-table-accepted.l4
+066afb1ffbfec3a7df2c8ef77e00c7ab0f078fc6  ./symptom__struct-zero-rule-table-accepted.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-zero-rule-table-accepted.l4.err
 e419362dc9289d7749588cae1cbe7ad362cc78bc  ./symptom__struct-zero-rule-table-accepted.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-zero-rule-table-accepted.py.err
@@ -2456,7 +2456,7 @@ a871747e848d89a4370411005e5a53c93f4789db  ./symptom__struct-zero-rule-table-acce
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__struct-zero-rule-table-accepted.ts.err
 9d142ffb0708938819a1fb4b881535009e67fe34  ./symptom__xml-comma-split-negation__input.dmn.js
 faba19801ad4671ce6a9541527caec9730cc2617  ./symptom__xml-comma-split-negation__input.dmn.js.err
-0a32be179ca6e6db3db371204ecad7c96d996944  ./symptom__xml-comma-split-negation__input.dmn.l4
+73412a52424a45e093bc2bfcbbebc70a6f41e203  ./symptom__xml-comma-split-negation__input.dmn.l4
 faba19801ad4671ce6a9541527caec9730cc2617  ./symptom__xml-comma-split-negation__input.dmn.l4.err
 ab5b08eee989784e21952e03814e392a47b8c851  ./symptom__xml-comma-split-negation__input.dmn.py
 faba19801ad4671ce6a9541527caec9730cc2617  ./symptom__xml-comma-split-negation__input.dmn.py.err
@@ -2472,7 +2472,7 @@ d0965d83c7b09d962e0815b0081018629a3d3fb4  ./symptom__xml-drg-siblings-dropped-si
 1eea4c5c45319f06b5cf69a7d7d54875019d5c70  ./symptom__xml-drg-siblings-dropped-silently__input.dmn.ts.err
 0ee8a61773a02a6e124b4e43397feab6c0511802  ./symptom__xml-literal-expression-decision-dropped__input.dmn.js
 58e271afbbceea58b3c15ab06514791fafcf40c7  ./symptom__xml-literal-expression-decision-dropped__input.dmn.js.err
-04ec34ecc3431d67f57ae7f0b63b5120b40b17ee  ./symptom__xml-literal-expression-decision-dropped__input.dmn.l4
+16ed1f668ff7769da1900ebf3e52a68480d42e21  ./symptom__xml-literal-expression-decision-dropped__input.dmn.l4
 58e271afbbceea58b3c15ab06514791fafcf40c7  ./symptom__xml-literal-expression-decision-dropped__input.dmn.l4.err
 71ed15e44ab82548c36b6cc1bfcff844b610e09f  ./symptom__xml-literal-expression-decision-dropped__input.dmn.py
 58e271afbbceea58b3c15ab06514791fafcf40c7  ./symptom__xml-literal-expression-decision-dropped__input.dmn.py.err
@@ -2488,7 +2488,7 @@ d0965d83c7b09d962e0815b0081018629a3d3fb4  ./symptom__xml-multiple-row-comments-d
 229f0e9193f1cb24de03ca3d4c61a81ef16968be  ./symptom__xml-multiple-row-comments-dropped__input.dmn.ts.err
 1d24c6dfff42a31187f6eca2443ef0366ae95d74  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.js.err
-c555f08a62b78db0472cf263009a624af7bf8c30  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.l4
+b85524d78d34394ffabb6667c9b427f9c2885d61  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.l4.err
 a382a001784dabc5fe2651e3053b4333250524ba  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-unreadable-test-kept-as-text__input.dmn.py.err
@@ -2504,7 +2504,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-untyped-quoted-numeral-
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-untyped-quoted-numeral-inferred-number__input.dmn.ts.err
 4eec7a57e0b714d14b44e59a746bbd003eb71447  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.js.err
-146554770f5ae179e6558b87e090a78474eca73c  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.l4
+ede1c3d9662fcbd985d01fd75c532d67ab688524  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.l4.err
 ba32d75f17ce78a7bbd933bdddefeb26ad4e93ca  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__xml-zero-rule-table-accepted-silently__input.dmn.py.err
