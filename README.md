@@ -315,16 +315,20 @@ same across several rules.
     % dmnmd README.md --pick="Example 2" --to=l4
     GIVEN Season        IS A STRING
           `Guest Count` IS A NUMBER
-    GIVETH A STRING
+    GIVETH A MAYBE STRING
     `Example 2` Season `Guest Count` MEANS
       BRANCH
-        IF Season                                                                     EQUALS "Fall"   AND `Guest Count`                               <= 8 THEN "Spareribs"
-        IF ^                                                                          ^      "Winter" ^   `Guest Count`                               ^  ^ THEN "Roastbeef"
-        IF ^                                                                          ^      "Spring" ^   `Guest Count`                               ^  4 THEN "Dry Aged Gourmet Steak"
-        IF ^                                                                          ^      ^        ^   (`Guest Count` >= 5 AND `Guest Count` <= 8)      THEN "Steak"
-        IF (Season EQUALS "Fall" OR Season EQUALS "Winter" OR Season EQUALS "Spring")                 ^   `Guest Count`                               >  8 THEN "Stew"
-        IF Season                                                                     EQUALS "Summer"                                                      THEN "Light Salad and a nice Steak"  -- Hey, why not?
-        OTHERWISE ""
+        IF Season                                                                     EQUALS "Fall"   AND `Guest Count`                               <= 8 THEN JUST "Spareribs"
+        IF ^                                                                          ^      "Winter" ^   `Guest Count`                               ^  ^ THEN JUST "Roastbeef"
+        IF ^                                                                          ^      "Spring" ^   `Guest Count`                               ^  4 THEN JUST ("Dry Aged Gourmet Steak")
+        IF ^                                                                          ^      ^        ^   (`Guest Count` >= 5 AND `Guest Count` <= 8)      THEN JUST "Steak"
+        IF (Season EQUALS "Fall" OR Season EQUALS "Winter" OR Season EQUALS "Spring")                 ^   `Guest Count`                               >  8 THEN JUST "Stew"
+        IF Season                                                                     EQUALS "Summer"                                                      THEN JUST ("Light Salad and a nice Steak")  -- Hey, why not?
+        OTHERWISE NOTHING
+
+The result is a `MAYBE` because some inputs match no rule: a Season other than the four, or a Spring party of 4.5 guests.
+`OTHERWISE NOTHING` says so, where it used to answer `""`, a value the table never gives.
+A table that ends in an all-`-` catch-all row keeps a bare result type, and so does one whose rules cover every input, unless its result is an L4 sum type (a String output column with a declared domain), which has no value to put after a dead `OTHERWISE` (`DECISIONS.md` D-22 rule 3).
 
 The alignment is not cosmetic: L4 resolves `^` by absolute source column, so the emitter measures
 every token's display width — including East Asian wide characters — against the same table the L4
