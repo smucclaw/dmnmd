@@ -1780,7 +1780,7 @@ dmnmd has no prose backend, so "no rule applies" has nowhere to go yet.
 - `make roundtrip` is unchanged: 197 fixtures, 135 pass, 10 xfail, 52 skipped, and 0 XSD-invalid with `--xsd`.
   Both sides of its L4 comparison move together, because the XML read back has no default where the markdown had no catch-all.
 
-**Implementation, part 4: a total table with a sum-typed result is bare (2026-10-08, branch `fix/d22-sum-type-total-bare`, on #66).**
+**Implementation, part 4: a total table with a sum-typed result is bare (2026-10-08, branch `fix/d22-sum-type-total-bare`, cut from trunk after #66 merged).**
 Rule 3 says "total tables stay bare", and part 3 left one exception to it: the sum-typed case described above.
 Part 4 removes the exception.
 **The last arm supplies the `OTHERWISE`, and its guard is dropped. That choice is assumed, not ruled.**
