@@ -1,4 +1,4 @@
-export function NoInputs (  ) {
+export function FirstNoInputs (  ) {
   if ("default") { // 1
     return {"Dish":"Stew", "Price":5.0};
   }

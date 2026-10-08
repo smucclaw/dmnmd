@@ -89,6 +89,28 @@ tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
         ([], [t]) -> kinds t `shouldBe` [("Season", DTCH_In), ("Dish", DTCH_Out), ("Price", DTCH_Out)]
         other -> expectationFailure ("expected one table and no diagnostics, got " ++ show other)
 
+  describe "a table with no input column (f8)" $ do
+    let table hp rows = T.unlines
+          ( [ "| " <> hp <> " | Dish (out) |", "|---|------------|" ] ++ rows )
+        stew = "| 1 | Stew       |"
+        soup = "| 2 | Soup       |"
+        roast = "| 3 | Roast      |"
+        ok (ds, ts) = null ds && length ts == 1
+    it "refuses a U table of two rules, which both match every input" $ do
+      let r = readTable "T" (table "U" [stew, soup])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": row 1 and row 2 both match every input: a table with hit policy Unique" `isPrefixOf`) ms)
+      messages r `shouldSatisfy` all ("This table has no input column, so every rule matches every input." `isInfixOf`)
+    it "refuses each later rule of a U table of three, against the first" $
+      length (messages (readTable "T" (table "U" [stew, soup, roast]))) `shouldBe` 2
+    it "accepts a U table of one rule, which is a constant" $
+      readTable "T" (table "U" [stew]) `shouldSatisfy` ok
+    it "accepts an F table of two rules, where the first answers and the second is dead by design" $
+      readTable "T" (table "F" [stew, soup]) `shouldSatisfy` ok
+    it "refuses an A table of two rules that disagree, and accepts two that agree" $ do
+      refused (readTable "T" (table "A" [stew, soup])) `shouldBe` True
+      readTable "T" (table "A" [stew, "| 2 | Stew       |"]) `shouldSatisfy` ok
+
   describe "the sub-header row has one cell per column (f1)" $ do
     let table subhead = T.unlines
           [ "| U | Colour : String | Price : Number (out) |"
@@ -204,10 +226,21 @@ noMatchSpec = describe "evalTable under D-22 — a trailing catch-all under U, a
         `shouldBe` "multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!"
     it "wins over a declared default, as it does in --to=l4's OTHERWISE and js/ts/py's first match" $
       evalTable (withDefault "Declared" catchAllU) (q "Winter" 5) `shouldBe` ans "Takeaway"
-    it "holds vacuously with no input columns: the last row is the default and the first answers, as in --to=l4" $
-      -- Markdown writes this by marking every column (out).
-      evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
-                                               , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) []
+    -- Markdown writes a table with no input column by marking every column
+    -- (out). Until audit 10 f8 this was pinned the other way: "holds vacuously
+    -- with no input columns: the last row is the default and the first
+    -- answers". That made the second rule dead code under U, and the readers
+    -- accepted the table; a catch-all needs an input column to be a wildcard in.
+    it "has no catch-all when there is no input column: two rules both match, which U refuses" $
+      firstLine (evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
+                                                          , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) [])
+        `shouldBe` uniqueConflict
+    it "answers the one rule of a table with no input column" $
+      evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] [] ] Nothing) []
+        `shouldBe` ans "Stew"
+    it "leaves the first rule answering under First, where the second is dead by design" $
+      evalTable (DTable "NoIn" HP_First [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
+                                              , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) []
         `shouldBe` ans "Stew"
 
   describe "rule 3: a single-hit table with no match and no default answers null (Right [])" $ do

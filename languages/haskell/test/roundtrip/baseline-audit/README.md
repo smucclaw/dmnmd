@@ -245,3 +245,8 @@ No other fixture in the set has a header with two meanings.
 After the moves and the new control, `--check` printed `checked 1280 run(s): 24 changed`, all `MISSING FROM MANIFEST`.
 In the manifest, 16 entries left (the two symptoms) and 24 arrived: `policy/md-header-in-and-out-refused`, `policy/struct-label-pre-post-clash-refused`, which is `symptom/struct-label-pre-wins` renamed, and the control `policy/md-header-agreeing-labels-accepted`, which is accepted.
 
+**f8, a `U` table with no input column (`uniqueCatchAll` asks for an input column).**
+After the case was `git mv`d and the two controls added, `--check` printed `checked 1292 run(s): 24 changed`, all `MISSING FROM MANIFEST`: the three policy fixtures, since the symptom's old slug no longer exists to be compared.
+No run of any fixture already in the manifest changed, so no other fixture in the set is a `U` table with no input column and two or more rules.
+In the manifest, 8 entries left (the symptom, whose four formats went from a function at exit 0 to exit 1 with the conflict error) and 24 arrived: `policy/md-zero-input-unique-refused`, which is that fixture renamed, and the two controls `policy/md-zero-input-single-rule-accepted` and `policy/md-zero-input-first-hit-accepted`, which are accepted.
+

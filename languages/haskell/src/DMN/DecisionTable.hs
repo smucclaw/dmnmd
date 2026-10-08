@@ -121,19 +121,23 @@ isSingleHit hp = hp `elem` [HP_Unique, HP_Any, HP_Priority, HP_First]
 -- is the table's §8.2.11 default output value, which answers only when no
 -- other rule matches. Returns the rules left to match, and that default.
 --
--- A trailing catch-all is the LAST row, with @-@ in every input column; the
--- predicate is 'DMN.Translate.L4'\'s @isCatchAll@ on the last row, so the
--- interpreter and @--to=l4@\'s @OTHERWISE@ pick out the same row. With no
--- input columns it holds vacuously, there as here, so the last row of an
--- input-less @U@ table is its default and the first row answers, as it does in
--- @--to=l4@ and js/ts/py. Markdown writes such a table by marking every column
--- @(out)@.
--- The XML emitter's 'DMN.Translate.XML.promoteTrailingCatchAll' asks for more
--- (an input column, full arity, no comment, outputs a
--- @\<defaultOutputEntry\>@ can hold, no declared default already), but those
--- conditions are about what the XML can say, not about what the row means: a
--- catch-all it declines to promote is refused or written as a rule, and
--- reading that rule back brings it here again.
+-- A trailing catch-all is the LAST row, with @-@ in every input column, in a
+-- table that HAS an input column to be a wildcard in. Apart from that last
+-- condition the predicate is 'DMN.Translate.L4'\'s @isCatchAll@ on the last row,
+-- so the interpreter and @--to=l4@\'s @OTHERWISE@ pick out the same row.
+--
+-- __A table with no input column has no such row.__
+-- Its rules say nothing about the input, so every rule matches every input, and under @U@ two of them overlap (DMN 1.3 §8.2.10).
+-- The test above holds vacuously there.
+-- Until audit 10 f8 that made the last row of an input-less @U@ table its default and let the first row answer, and js\/ts\/py and @--to=l4@ also took the first rule, so the second was dead code at exit 0.
+-- Markdown writes such a table by marking every column @(out)@.
+-- With the extra condition both rules are live, 'DMN.Regions.conflictErrors' finds the conflict, and the readers refuse a @U@ table of two or more rules and no input column.
+-- A single rule is an ordinary rule and answers.
+-- The XML emitter\'s 'DMN.Translate.XML.promoteTrailingCatchAll' already asked for an input column.
+-- @--to=l4@\'s own @isCatchAll@ still holds vacuously, which is harmless: from a reader it sees an input-less table only with one rule or under another hit policy, and renders the first rule\'s answer either way.
+--
+-- The XML emitter\'s promotion asks for more still (full arity, no comment, outputs a @\<defaultOutputEntry\>@ can hold, no declared default already).
+-- Those conditions are about what the XML can say, not about what the row means: a catch-all it declines to promote is refused or written as a rule, and reading that rule back brings it here again.
 --
 -- Nothing else moves. A catch-all that is not the last row is an ordinary rule
 -- and overlaps every other rule, and under any other hit policy the trailing
@@ -141,6 +145,7 @@ isSingleHit hp = hp `elem` [HP_Unique, HP_Any, HP_Priority, HP_First]
 uniqueCatchAll :: DecisionTable -> ([DTrow], Maybe [[FEELexp]])
 uniqueCatchAll dt
   | hitpolicy dt == HP_Unique
+  , not (null (getInputHeaders (header dt)))
   , (lastR : restRev) <- reverse (datarows dt)
   , all (all (== FAnything)) (row_inputs lastR)
   = (reverse restRev, Just (row_outputs lastR))
@@ -774,6 +779,9 @@ fEval rhs lhs                                 = error $ unwords [ "type error in
 -- from markdown because 'DMN.ParseTable.reviseInOut' guarantees an input
 -- column. It guarantees an OUTPUT column: it relabels the rightmost column of
 -- an all-input header, and leaves an all-output header alone.)
+-- A @U@ table with no input column and two or more rules is refused by
+-- 'DMN.Regions.conflictErrors' instead, which says the rules match every input
+-- and that there is no input column to tell them apart. A single rule is fine.
 uniquenessErrors :: DecisionTable -> [String]
 uniquenessErrors dt =
   [ dupMsg (first + 1, rows !! first) (dup + 1, rows !! dup) | (first, dup) <- identicalGuards dt ]

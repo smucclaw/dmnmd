@@ -787,6 +787,12 @@ Four decisions inside it, each made deliberately:
   `reviseInOut` (`ParseTable.hs`) relabels the rightmost column as an output when every column is an input, so it guarantees an *output* column, not an input one.
   A markdown table whose every column is marked `(out)` parses with zero input columns and exits 0: on trunk `ea4df4a`, `--to=ts` emits `if ("default")` for each of its guards.
   The decline itself is unaffected, and D-22 part 1 pins what the interpreter does with such a table.
+  **Second correction, 2026-10-08 (audit 10 f8):** that last sentence is no longer true.
+  D-22 part 1 pinned that the last row of an input-less `U` table is its default and the first row answers, which made the second rule dead code under `U` and left the table accepted.
+  `uniqueCatchAll` now asks for an input column, so both rules are live, `DMN.Regions.conflictErrors` finds the overlap, and both readers refuse a `U` table of two or more rules and no input column.
+  A single rule, and any other hit policy, is unchanged.
+  The decline in `uniquenessErrors` is unaffected, since the refusal comes from the other check.
+  Pinned by `policy/md-zero-input-unique-refused`, with `policy/md-zero-input-single-rule-accepted` and `policy/md-zero-input-first-hit-accepted` as controls.
 
 It is **sound** against the runtime, not merely agreeing with it by luck: `fEval` dispatches on
 constructor structure alone, so equal guards imply identical matching behaviour for every input.
@@ -1667,6 +1673,7 @@ The step 0 counter in the ROOTSTOCK memo computed regions over 145 tables, so th
 **Implementation, part 1: the interpreter (2026-09-26, branch `feat/d22-interpreter`).**
 Rule 1 and the interpreter half of rule 3 are implemented in `evalTable`; rule 2 and the L4 half of rule 3 are not.
 Under `U`, `uniqueCatchAll` splits a trailing catch-all off before matching and makes it the default output value, using the predicate `--to=l4` uses for `OTHERWISE`.
+**Amended 2026-10-08 (audit 10 f8):** the predicate also asks for an input column, because with none it held vacuously and read the last row of an input-less `U` table as its default; see the second correction under D-13.
 A catch-all that is not the last row, or sits under another hit policy, is still a rule.
 A genuine overlap under `U` is still refused at run time, and so is disagreement under `A`.
 When a table carries both a trailing catch-all and a declared default, the catch-all wins, as it already did in `--to=l4` and js/ts/py.

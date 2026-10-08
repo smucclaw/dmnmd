@@ -470,19 +470,20 @@ handCounted = describe "hand-counted tables" $ do
 |]) `shouldBe` Right ()
 
   describe "zero input columns" $
-    it "is one region in which every rule is live, and a U table's last row is its default" $ do
-      -- uniqueCatchAll's predicate holds vacuously with no input columns, so
-      -- evalTable answers "a" from row 1 and keeps "b" as the default.
+    it "is one region in which every rule is live, and a U table of two rules has a conflict there and no default" $ do
+      -- A trailing catch-all needs an input column to be a wildcard in
+      -- (uniqueCatchAll), so nothing is split off as the default and both
+      -- rules are live. Until audit 10 f8 this test said the last row was the
+      -- default (TrailingCatchAll 1) and there was no conflict.
       let dt = DTable "Z" HP_Unique [DTCH DTCH_Out "o" (Just DMN_String) Nothing]
                  [ DTrow (Just 1) [] [[FNullary (VS "a")]] [], DTrow (Just 2) [] [[FNullary (VS "b")]] [] ]
                  Nothing
           rm = mapOf dt
       map liveRules (regions rm) `shouldBe` [[0, 1]]
-      rmDefault rm `shouldBe` TrailingCatchAll 1
-      conflictRegions rm `shouldSatisfy` null
+      rmDefault rm `shouldBe` NoDefault
+      length (conflictRegions rm) `shouldBe` 1
       selfCheck rm `shouldBe` []
-      conflictRegions (mapOf dt { allrows = allrows dt ++ [DTrow (Just 3) [] [[FNullary (VS "c")]] []] })
-        `shouldSatisfy` ((== 1) . length)
+      conflictRegions (mapOf dt { allrows = take 1 (allrows dt) }) `shouldSatisfy` null
   where
     summaryOf rs = [ (showBlock <$> regionBlocks r, liveRules r) | r <- rs ]
 
@@ -698,9 +699,11 @@ refusing = describe "refusing conflict regions (D-22 rule 2)" $ do
 |]) `shouldSatisfy` startsWith
         [ "row 1 and row 2 both match Age = 4 (they overlap wherever Age matches < 5, > 10): "
         , "row 2 and row 3 both match Age = 7: " ]
-    it "says every input when the table has no input column, and counts the last row as the default" $ do
-      conflictErrors (noInputs 3) `shouldSatisfy` startsWith ["row 1 and row 2 both match every input: "]
-      conflictErrors (noInputs 2) `shouldBe` []
+    it "says every input when the table has no input column, and says there is none to tell the rules apart" $ do
+      conflictErrors (noInputs 3) `shouldSatisfy` startsWith ["row 1 and row 2 both match every input: ", "row 1 and row 3 both match every input: "]
+      conflictErrors (noInputs 2) `shouldSatisfy` startsWith ["row 1 and row 2 both match every input: "]
+      conflictErrors (noInputs 2) `shouldSatisfy` all ("This table has no input column, so every rule matches every input." `isInfixOf`)
+      conflictErrors (noInputs 1) `shouldBe` []
 
   describe "beside D-13's uniquenessErrors, in tableErrors" $ do
     it "leaves two rows with identical guards to D-13, which says more about them" $ do
@@ -822,6 +825,7 @@ expectedConflictRefusals = sort
   , "policy/hp-unique-overlap-comparisons-refused"
   , "policy/hp-unique-overlap-multivalue-dash-refused"
   , "policy/hp-unique-overlap-negation-refused"
+  , "policy/md-zero-input-unique-refused"
   ]
 
 corpus :: Spec

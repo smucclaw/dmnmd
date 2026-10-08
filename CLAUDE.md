@@ -184,6 +184,7 @@ Things that are only apparent across several files:
 - **Hit policy is the top-left cell** (`U A P F O R C`, `mkHitPolicy_` in `ParseTable.hs`);
   `evalTable` implements all of them, but the transpilers do not.
   What makes their first-match code right for `U` and `A` is the reader, since D-22 rule 2: it refuses a `U` table in which two rules can both match (a trailing catch-all aside, which is the default) and an `A` table in which two that can both match disagree.
+  A catch-all needs an input column to be a wildcard in, so a `U` table with no input column and two rules is refused too: both rules match every input (`policy/md-zero-input-unique-refused`).
   See the `DMN.Regions` bullet below for what that check cannot analyse.
 - **A column header has one meaning.**
   A column is an input, an output or a comment, written as a prefix (`<`, `>`, `//`, `#`) or as a post-label (`(in)`, `(out)`, `(comment)`) on either side of the `: Type`.

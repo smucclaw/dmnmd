@@ -1,0 +1,2 @@
+error: input.md: table "NoInputs": row 1 and row 2 both match every input: a table with hit policy Unique must not contain overlapping rules (DMN 1.3 §8.2.10). This table has no input column, so every rule matches every input. Add an input column that tells the rules apart or, if the earlier rule is meant to win, make the hit policy F (First).
+dmnmd: one or more decision tables in input.md could not be read
