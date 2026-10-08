@@ -488,10 +488,11 @@ data SingleOutput = SingleOutput
 -- statement, and refusing it would reject documents that read correctly today.
 -- Without one, a single-output column reads the type the document states for
 -- the decision's RESULT, through 'T.resultShape', the classifier the writer used
--- to write it. That statement is the decision's @<variable>@ or, when the
--- variable carries no @typeRef@, @decisionTable/\@typeRef@ ('resultColumnType'),
--- which DMN 1.3 §7.3.1 says SHALL be the decision's type and is therefore the
--- same statement made in a second place. Then:
+-- to write it. That statement is the decision's @<variable>@ or
+-- @decisionTable/\@typeRef@, which DMN 1.3 §7.3.1 says SHALL be the decision's
+-- type and is therefore the same statement made in a second place; a document
+-- that carries both must agree, and is refused if it does not
+-- ('resultColumnType'). Then:
 --
 --  * 'T.ResultIsColumn' (@U A P F@, @C+ C< C>@): the variable's type IS the
 --    column's.
@@ -553,20 +554,62 @@ sourceWords FromTable    = "the <decisionTable>"
 -- the containing Decision element". So they are one statement, and whichever is
 -- present goes through the same 'T.resultShape' dispatch.
 --
--- The variable is consulted first, as it was before the table's @typeRef@ was
--- read at all. A document that carries both is read as the variable alone.
+-- __When both are present__ (assumed, not ruled) they are compared AFTER they are
+-- resolved, not as text, so @number@ and @integer@ agree and a refusal is never
+-- made over a spelling:
+--
+--  * the same type: the variable's reading is used;
+--  * one of them declares nothing (@Any@, or a scalar the hit policy rejects and
+--    'resolveElementType' warned about): the other is used, because an absent
+--    declaration is exactly what @Any@ says and the more informative statement
+--    does not contradict it;
+--  * two different types: the document breaks the SHALL above, and dmnmd will not
+--    pick one. A silent pick is the defect this function exists to remove, in the
+--    other direction. The table is refused, with both statements quoted;
+--  * either does not resolve: its own error, and nothing else, since the type
+--    that failed cannot be compared with anything.
+--
+-- Under 'T.ResultIsCount' neither is applied, so there is nothing to compare and
+-- nothing is refused.
 resultColumnType :: TypeEnv -> (String -> String) -> SingleOutput -> (Diagnostics, Maybe T.DMNType, Maybe String)
-resultColumnType env locate so = case statement of
-    Nothing -> ([], Nothing, Nothing)
-    Just (src, ref) -> case soShape so of
+resultColumnType env locate so = case (soVarType so, soTableType so) of
+    (Nothing, Nothing) -> none
+    (Just v,  Nothing) -> from FromVariable v
+    (Nothing, Just t)  -> from FromTable t
+    (Just v,  Just t)
+      | sameText v t   -> from FromVariable v
+      | otherwise      -> reconcile v t (from FromVariable v) (from FromTable t)
+  where
+    none = ([], Nothing, Nothing)
+
+    from src ref = case soShape so of
       T.ResultIsColumn       -> resolveType env locate (Just ref)
       T.ResultIsListOfColumn -> resolveElementType env locate src (Just ref)
-      T.ResultIsCount        -> ([], Nothing, Nothing)
-  where
-    statement = case (soVarType so, soTableType so) of
-      (Just v, _)        -> Just (FromVariable, v)
-      (Nothing, Just t)  -> Just (FromTable, t)
-      (Nothing, Nothing) -> Nothing
+      T.ResultIsCount        -> none
+
+    sameText (TypeRef a) (TypeRef b) = trim a == trim b
+
+    reconcile (TypeRef v) (TypeRef t) (dsV, tyV, domV) (dsT, tyT, domT)
+      | anyErrors both               = (both, Nothing, Nothing)
+      | Just a <- tyV, Just b <- tyT = if a == b then (both, tyV, domV `orElse` domT) else (disagree, Nothing, Nothing)
+      | Just _ <- tyV                = (both, tyV, domV)
+      | Just _ <- tyT                = (both, tyT, domT)
+      | otherwise                    = (both, Nothing, Nothing)
+      where
+        both = dsV ++ dsT
+        disagree =
+          [ errorAt . locate $
+              "the decision's <variable> declares typeRef " ++ show v
+                ++ " but its <decisionTable> declares typeRef " ++ show t
+                ++ ", and these are different types. DMN 1.3 section 7.3.1: when the"
+                ++ " expression that defines a decision's output carries a typeRef, \"the"
+                ++ " referenced type SHALL be the same as the type of the containing"
+                ++ " Decision element\", and the decision's type is its <variable>'s."
+                ++ " dmnmd will not choose between them: either choice would type the"
+                ++ " column, and read every cell in it, on a guess."
+                ++ " Refusing to convert this table." ]
+
+    orElse a b = maybe b Just a
 
 -- | The output column's type under 'T.ResultIsListOfColumn', where the
 -- decision's result type (its @<variable>@, or @decisionTable/\@typeRef@) types

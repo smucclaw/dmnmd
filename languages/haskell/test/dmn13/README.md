@@ -70,6 +70,7 @@ have been silently widened, is worse than emitting none:
 |---|---|
 | `temporal-type.dmn` | `typeRef="date"`; there is no dmnmd temporal type, and reading it as a string turns every guard into a never-matching string comparison |
 | `collect-variable-element-temporal.dmn` | a `COLLECT` table whose variable is a collection of `date`: the element type is the column's, so it is refused as `temporal-type.dmn` is |
+| `decision-table-typeref-disagrees.dmn` | a `<variable typeRef="number">` over a `<decisionTable typeRef="string">`. DMN 1.3 §7.3.1 says the table's typeRef SHALL be the decision's type, so the document states the column's type twice and contradicts itself. Refused with an error that quotes both, rather than letting either one win |
 | `bad-rule-arity.dmn` | a rule with more `<inputEntry>` elements than the table has `<input>` columns |
 | `bad-rule-no-output.dmn` | a rule with no `<outputEntry>` at all (the XSD requires at least one) |
 | `bad-duplicate-unique-rules.dmn` | two rules with identical `<inputEntry>` text in a table with **no** `hitPolicy` attribute — which the XSD and `ParseDMN` both default to `UNIQUE`, so the second rule can never fire (D-13) |

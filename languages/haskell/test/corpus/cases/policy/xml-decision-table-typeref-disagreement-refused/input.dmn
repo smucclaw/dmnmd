@@ -10,7 +10,7 @@
 
      dmnmd does not pick one. Reading the variable and ignoring the table's typeRef
      would be a silent choice, and so would the reverse; either way the outputs 1
-     and 2 come out as numbers or as text on the strength of a coin toss, at exit 0.
+     and 2 come out as numbers or as text on the strength of a guess, at exit 0.
      So the table is refused, with a located error that quotes both. -->
 <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
              id="decisionTableTypeRefDisagrees" name="Decision Table TypeRef Disagrees"

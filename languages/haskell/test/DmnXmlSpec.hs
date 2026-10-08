@@ -678,6 +678,90 @@ dmn13Spec = describe "DMN 1.3" $ do
     it "reads typeRef=\"Any\" as no declaration, and infers the column" $
       typeOf "tt-any" "" "" "Any" `shouldReturn` asNumbers
 
+  -- Assumed, not ruled (audit finding f3). DMN 1.3 §7.3.1 says the table's
+  -- typeRef SHALL be the decision's type, so a document that states a type on
+  -- both the <variable> and the <decisionTable> states it twice, and the two
+  -- must agree. They are compared once resolved, not as text.
+  describe "when the <variable> and decisionTable/@typeRef both state a type (§7.3.1)" $ do
+    let run slug dtAttrs itemDefs varTypeRef tableTypeRef =
+          readDmnText slug $
+            oneDecisionXml itemDefs
+              ("<variable id=\"V\" name=\"Band\" typeRef=\"" ++ varTypeRef ++ "\"/>")
+              (dtAttrs ++ " typeRef=\"" ++ tableTypeRef ++ "\" outputLabel=\"band\"")
+              ["<output id=\"O1\"/>"]
+        typeOf slug dtAttrs itemDefs varTypeRef tableTypeRef = do
+          (diags, tables) <- run slug dtAttrs itemDefs varTypeRef tableTypeRef
+          let (_, types, cells) = outputColumns tables
+          pure (diags, types, cells)
+        list name ty = "<itemDefinition name=\"" ++ name ++ "\" isCollection=\"true\">"
+                       ++ "<typeRef>" ++ ty ++ "</typeRef></itemDefinition>"
+        asStrings = [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ]
+
+    it "refuses a table whose two statements name different types (fixture), quoting both" $ do
+      (diags, tables) <- readDmn13 "decision-table-typeref-disagrees"
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "the decision's <variable> declares typeRef \"number\" but its <decisionTable> declares typeRef \"string\""
+      diags `shouldSatisfy` hasDiag Error "SHALL be the same as the type of the containing Decision"
+
+    it "reads two statements of the same type as one, with no diagnostic" $ do
+      (diags, types, cells) <- typeOf "both-same" "" "" "string" "string"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    -- Compared once resolved: three spellings of Number are one type, so a
+    -- refusal is never made over a spelling.
+    it "reads two spellings of one type as agreeing" $ do
+      (diags, types, _) <- typeOf "both-spelling" "" "" "number" "integer"
+      (diags, types) `shouldBe` ([], [Just DMN_Number])
+
+    -- Any declares nothing, so it contradicts nothing: the informative one wins.
+    it "lets a typeRef of Any on the variable yield to the table's" $ do
+      (diags, types, cells) <- typeOf "both-any-var" "" "" "Any" "string"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    it "lets a typeRef of Any on the table yield to the variable's" $ do
+      (diags, types, cells) <- typeOf "both-any-table" "" "" "string" "Any"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    -- A type that does not resolve says so itself; the disagreement is not
+    -- reported on top of it, because it cannot be compared with anything.
+    it "reports an unresolvable statement's own error, not a disagreement" $ do
+      (diags, tables) <- run "both-unknown" "" "" "string" "tFoo"
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "unknown typeRef"
+      diags `shouldNotSatisfy` hasDiag Error "different types"
+
+    -- Under a list-valued policy it is the ELEMENT types that are compared.
+    it "refuses two collections whose element types differ, under COLLECT" $ do
+      (diags, tables) <- run "both-list-differ" "hitPolicy=\"COLLECT\""
+        (list "StrList" "string" ++ list "NumList" "number") "StrList" "NumList"
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "different types"
+
+    it "reads two collections of one element type as agreeing, under COLLECT" $ do
+      (diags, types, cells) <- typeOf "both-list-same" "hitPolicy=\"COLLECT\""
+        (list "StrList" "string" ++ list "Names" "string") "StrList" "Names"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    -- Under C# neither statement is the column's type, so nothing is compared.
+    it "does not compare them under COLLECT COUNT, where neither is applied" $ do
+      (diags, types, _) <- typeOf "both-count" "hitPolicy=\"COLLECT\" aggregation=\"COUNT\""
+        "" "number" "string"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      types `shouldBe` [Just DMN_Number]
+
+    -- The output-count guard again: a multi-output table's variable and table
+    -- typeRef both name a composite, so they are neither applied nor compared.
+    it "ignores a variable and a table typeRef that differ on a MULTI-output table" $ do
+      (diags, tables) <- readDmnText "both-multi" $
+        oneDecisionXml ""
+          "<variable id=\"V\" name=\"Band\" typeRef=\"number\"/>"
+          "typeRef=\"string\""
+          [ "<output id=\"O1\" name=\"a\" typeRef=\"string\"/>"
+          , "<output id=\"O2\" name=\"b\" typeRef=\"string\"/>" ]
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      let (names, types, _) = outputColumns tables
+      (names, types) `shouldBe` (["a", "b"], [Just DMN_String, Just DMN_String])
+
   -- The five DMN 1.3 global elements in the "expression" substitution group that
   -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
   -- dmnmd models <decisionTable> and <literalExpression>.) These used to fall
