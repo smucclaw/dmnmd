@@ -2278,6 +2278,14 @@ d25b1b11b618ecefdbf12ed91d26fb3556eb5098  ./symptom__l4-zero-output-dangling-giv
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-zero-output-dangling-giveth.py.err
 b7ff80aed90326a0e180f24250ae9d2dd996c187  ./symptom__l4-zero-output-dangling-giveth.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__l4-zero-output-dangling-giveth.ts.err
+4065a48d0d23b946fdcfa84b30a9ae7e834389f8  ./symptom__md-all-short-rows-drop-output-header.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-all-short-rows-drop-output-header.js.err
+f6c19edbe9d2d1364b31ceb8bbfebd933b508a75  ./symptom__md-all-short-rows-drop-output-header.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-all-short-rows-drop-output-header.l4.err
+4a8ac67bd049ec509e0c48c4f7b51d9d135d7b6b  ./symptom__md-all-short-rows-drop-output-header.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-all-short-rows-drop-output-header.py.err
+c42df9e5c6cf2dc012ac95c9ba339479354f6439  ./symptom__md-all-short-rows-drop-output-header.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-all-short-rows-drop-output-header.ts.err
 22926a88f1ba2d34018ccc5f4fe79ad0d6346394  ./symptom__md-arith-bare-identifiers-referenceerror.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-arith-bare-identifiers-referenceerror.js.err
 1b591e8b247eef22f3e94e540ba050f60c4fd390  ./symptom__md-arith-bare-identifiers-referenceerror.l4
