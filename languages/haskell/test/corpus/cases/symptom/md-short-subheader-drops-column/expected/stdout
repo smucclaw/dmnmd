@@ -1,0 +1,9 @@
+export function ShortSubHeader ( Colour : string ) {
+  if (Colour === "Red") { // 1
+    return {};
+  }
+  else if (Colour === "Blue") { // 2
+    return {};
+  }
+}
+

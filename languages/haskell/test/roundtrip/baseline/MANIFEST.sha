@@ -2318,6 +2318,14 @@ c5c701cc7559e0031bd61c134158ee6ea6a0be57  ./symptom__md-output-comparison-emits-
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-output-comparison-emits-lambda.py.err
 760fd431cb3c5e76094ae5d042798081bd44d9df  ./symptom__md-output-comparison-emits-lambda.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-output-comparison-emits-lambda.ts.err
+16a9f6e29f734c8fcef32de3277ec06c7b549f86  ./symptom__md-short-subheader-drops-column.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-short-subheader-drops-column.js.err
+fb6e21b6fed3cfbb18555f79ce5eab4dd9eba924  ./symptom__md-short-subheader-drops-column.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-short-subheader-drops-column.l4.err
+7c23c63a4c549fcb026030fa8d90aa8c32a79343  ./symptom__md-short-subheader-drops-column.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-short-subheader-drops-column.py.err
+f5a2b9002509f9898fd81f326a9c2e5b84dd4f4a  ./symptom__md-short-subheader-drops-column.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-short-subheader-drops-column.ts.err
 ec1b238e7df66dd9000aa130be98bfda3f8582bc  ./symptom__md-string-col-arith-dead-rule.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-col-arith-dead-rule.js.err
 7ce8b2b4db6ffdf22e8349d03a94962e845dd3a6  ./symptom__md-string-col-arith-dead-rule.l4
