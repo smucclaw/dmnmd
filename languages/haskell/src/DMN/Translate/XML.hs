@@ -787,12 +787,13 @@ fidelityDiags _opts dt = concat
                 ++ " table." ]
       | otherwise = []
 
-    -- A markdown row may be SHORT: the parser accepts fewer cells than there
-    -- are columns and the backends read the missing ones as absent. DMN
-    -- requires one entry per column, and dmnmd's own reader refuses a document
-    -- that breaks that (XmlToDmnmd checkArity) — so emitting a short rule would
-    -- write a document nothing can read, and padding it with "-" would widen
-    -- the rule silently, which is worse.
+    -- A rule may be SHORT in a table built some way other than the markdown
+    -- reader, which refuses a short row itself (ParseTable.rowArityDiags); it
+    -- used to accept one, and the backends read the missing cells as absent.
+    -- DMN requires one entry per column, and dmnmd's own reader refuses a
+    -- document that breaks that (XmlToDmnmd checkArity) — so emitting a short
+    -- rule would write a document nothing can read, and padding it with "-"
+    -- would widen the rule silently, which is worse.
     ruleArityErrs =
       [ errorAt . inTable $
           "rule " ++ maybe ("at position " ++ show ix) show (row_number row)

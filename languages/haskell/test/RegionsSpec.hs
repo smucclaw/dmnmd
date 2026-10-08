@@ -526,14 +526,18 @@ unsupported = describe "unsupported shapes are a Left, never a partial answer" $
 |---|---|---|
 | 1 | (Age * 2) + 1 | 5 |
 |]) `shouldBe` Left FeelShapedStringCell
-  it "a short row, which the matcher would read as wildcards (symptom/struct-short-row-truncated)" $
-    kindOf (table [r|
-| U | Season | Guests | Dish (out) |
-|---|--------|--------|------------|
-| 1 | Fall   | <= 8   | Stew       |
-| 2 | Winter |
-| 3 | Spring | <= 4   | Salad      |
-|]) `shouldBe` Left RowArity
+  -- Built by hand: the markdown reader refuses a short row itself since audit
+  -- 10 f2 (policy/struct-short-row-refused), so no fixture reaches this any more.
+  it "a short row, which the matcher would read as wildcards" $
+    kindOf DTable { tableName = "ShortRow", hitpolicy = HP_Unique
+                  , header = [ DTCH DTCH_In "Season" (Just DMN_String) Nothing
+                             , DTCH DTCH_In "Guests" (Just DMN_Number) Nothing
+                             , DTCH DTCH_Out "Dish" (Just DMN_String) Nothing ]
+                  , allrows = [ DTrow (Just 1) [[FNullary (VS "Fall")], [FSection Flt (VN 8)]] [[FNullary (VS "Stew")]] []
+                              , DTrow (Just 2) [[FNullary (VS "Winter")]] [[FNullary (VS "Soup")]] []
+                              , DTrow (Just 3) [[FNullary (VS "Spring")], [FSection Flt (VN 4)]] [[FNullary (VS "Salad")]] [] ]
+                  , dtDefaultOutput = Nothing }
+      `shouldBe` Left RowArity
   it "an ordering comparison against a String, which fEval has no arm for" $
     kindOf negatedString { allrows = [DTrow (Just 1) [[FSection Flt (VS "m")]] [[FNullary (VS "x")]] []] }
       `shouldBe` Left CellTypeMismatch
@@ -854,7 +858,9 @@ corpus = describe "the round-trip fixture corpus" $ do
   -- The kinds, not the counts: a new fixture should not break this, but a new
   -- KIND of refusal in the corpus is a finding and should be read. Step 0
   -- skipped three of these and read a short row's missing cells as "-".
-  it ("refuses four kinds of table and no others: " ++ show byKind) $
-    map fst byKind `shouldBe` [ListValuedHitPolicy, RowArity, CollectionColumn, FeelShapedStringCell]
+  -- 'RowArity' is not in the list: two fixtures used to reach it, and the
+  -- markdown reader now refuses a short row before regions are computed.
+  it ("refuses three kinds of table and no others: " ++ show byKind) $
+    map fst byKind `shouldBe` [ListValuedHitPolicy, CollectionColumn, FeelShapedStringCell]
   it "agrees with dmnmd's matcher and with evalTable at every region representative" $
     [ (s, n, e) | (s, n, rm) <- analysed, e <- take 3 (selfCheck rm) ] `shouldBe` []

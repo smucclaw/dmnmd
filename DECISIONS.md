@@ -1746,6 +1746,7 @@ The two ways to be wrong are not equal.
 A `MAYBE` on a total table costs a caller an unwrap whose `NOTHING` never comes.
 A bare result on a partial table answers with the sentinel at exit 0, which is the defect this rule removes.
 In the fixtures this reaches 10 tables: 4 with a collection column, 4 with a String cell holding FEEL test syntax, and 2 with a short row.
+**Correction, 2026-10-08:** the 2 short-row tables are refused when read now (`ParseTable.rowArityDiags`, audit 10 f2), so neither reaches the L4 backend any more; the count of 10 above was recorded before that.
 It is how `policy/list-input-membership-l4` moves, as this ruling said it would, although regions do not analyse its collection column.
 That table is in fact partial: a list holding neither 5 nor 7 matches no rule.
 

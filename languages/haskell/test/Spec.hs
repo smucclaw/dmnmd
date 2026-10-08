@@ -89,6 +89,31 @@ tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
         , "| 1 | Red             | 5                    |" ])
         `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
 
+  describe "a data row has one cell per column (f2)" $ do
+    let table rows = T.unlines
+          ( [ "| U | Season | Guests | Dish (out) |"
+            , "|---|--------|--------|------------|" ] ++ rows )
+        full = "| 1 | Fall   | <= 8   | Stew       |"
+    it "refuses a short row, locating the first column it does not reach and the number the author wrote" $ do
+      let r = readTable "T" (table [full, "| 7 | Winter |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Guests\": row 7: the row has 1 cell but the header declares 3 columns" `isPrefixOf`) ms)
+    it "refuses a row that stops before the output column, which is where the cell is missing" $ do
+      let r = readTable "T" (table ["| 1 | Fall   | <= 8   |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` all ("table \"T\": column \"Dish\": row 1: the row has 2 cells but the header declares 3 columns" `isPrefixOf`)
+    it "refuses every row when all of them are short, and does not let mkDTable drop the output column instead" $ do
+      let r = readTable "T" (table ["| 1 | Fall   |", "| 2 | Winter |"])
+      refused r `shouldBe` True
+      length (messages r) `shouldBe` 2
+      messages r `shouldSatisfy` all (\m -> "column \"Guests\": row " `isInfixOf` m)
+    it "reads a continuation line as part of its logical row, so a row spread over two lines is not short" $
+      readTable "T" (table [ "| 1 | Fall   |        |            |"
+                           , "|   |        | <= 8   | Stew       |" ])
+        `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "accepts a full row" $
+      readTable "T" (table [full]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+
 -- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
 -- §8.2.11 default output value (rule 1), and a single-hit table with no
 -- matching rule and no default answers null (rule 3), which 'evalTable'

@@ -178,7 +178,9 @@ data UnsupportedKind
   | RowArity
     -- ^ a row with more or fewer input cells than there are input columns.
     -- 'DMN.DecisionTable.matches' pairs them with 'zipWith', so a missing cell
-    -- tests nothing (@symptom\/struct-short-row-truncated@).
+    -- tests nothing. The markdown reader refuses a short row since audit 10 f2
+    -- (the corpus case @struct-short-row-refused@), so this is reached only by
+    -- a table built some other way.
   | CollectionColumn
     -- ^ an input column declared @[T]@. Its cells test membership, and a block
     -- would have to describe sets of collections. D-22 keeps dmnmd's overlap

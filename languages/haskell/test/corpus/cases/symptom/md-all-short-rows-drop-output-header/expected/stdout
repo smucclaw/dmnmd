@@ -1,9 +1,0 @@
-export function AllShort ( Season : string ) {
-  if (Season === "Fall") { // 1
-    return {};
-  }
-  else if (Season === "Winter") { // 2
-    return {};
-  }
-}
-

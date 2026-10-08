@@ -250,6 +250,31 @@ subHeaderArityDiags tableName csigs cells
     n = length cells
     m = length csigs
 
+-- | A data row has one cell per column.
+--
+-- Cells are matched to columns by position, and 'zipWith' stops at the shorter list at three places downstream ('parseDataRow' itself, then @getInputs@\/@getOutputs@, then 'DMN.DecisionTable.matches').
+-- So a missing input cell was not a wildcard written down: it was a guard that was never emitted, and the rule fired for any value of that column.
+-- A missing output cell became an empty answer.
+-- When no row reached the last columns, 'DMN.BuildTable.mkDTable' dropped their headers as well, and the table lost its output column (the corpus case @md-all-short-rows-drop-output-header@).
+-- Padding with @-@ would WIDEN the rule in silence, which is why @--to=xml@ and the XML reader already refuse a short row; this refuses it at the source, for every backend.
+--
+-- A row is as wide as its widest physical line, because a continuation row may add cells to the logical row.
+-- Located at the first column the row does not reach.
+rowArityDiags :: String -> Maybe Int -> [ColumnSignature] -> [String] -> [Diagnostic]
+rowArityDiags tableName myrow csigs cells = case drop n csigs of
+  [] -> []
+  (cs : _) ->
+    [ errorAt $ concat
+        [ showSite (CellSite tableName (csName cs) myrow)
+        , "the row has ", countOf n "cell", " but the header declares ", countOf m "column"
+        , ", so the row ends before this column."
+        , " dmnmd does not pad a short row: an input cell left out would match every value of its column,"
+        , " and an output cell left out would give an empty answer."
+        , " Fill in the missing cells, writing - for an input that should match anything." ] ]
+  where
+    n = length cells
+    m = length csigs
+
 -- | @countOf 1 "cell"@ is @"1 cell"@, @countOf 2 "cell"@ is @"2 cells"@.
 countOf :: Int -> String -> String
 countOf k noun = show k ++ " " ++ noun ++ (if k == 1 then "" else "s")
@@ -320,7 +345,7 @@ parseDataRow tableName csigs =
           -- parseContinuationRow (symptom/struct-blank-rownum-swallowed).
           myrow = if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing
           colResults = zipWith (mkFEELCol tableName myrow) csigs transposed
-          cellDiags = concatMap fst colResults
+          cellDiags = rowArityDiags tableName myrow csigs transposed ++ concatMap fst colResults
           datacols = snd <$> colResults
       doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
                         , "    csigs = " <> show csigs

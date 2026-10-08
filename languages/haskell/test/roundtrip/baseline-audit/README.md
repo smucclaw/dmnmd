@@ -227,3 +227,15 @@ In the manifest, 8 entries left and 16 arrived.
 The 8 that left are `symptom/md-short-subheader-drops-column`, `git mv`d and renamed to `policy/md-short-subheader-refused`; its four formats now exit 1 with the sub-header error on stderr.
 The 16 that arrived are that fixture and the new `policy/md-subheader-blank-cell-declares-no-domain`, which is accepted.
 
+**f2, a short data row (`ParseTable.rowArityDiags`).**
+Before recording, `--check` printed `checked 1272 run(s): 24 changed`: 8 `CHANGED` files and 16 `MISSING FROM MANIFEST`.
+Only three fixtures in the whole set contain a short row, and the three are the only ones that moved.
+The binary was compared with a trunk binary (`e368344`, named `dmnmd`) on each of the three, in `ts js py l4 xml`:
+- `policy/xml-short-row-refused`, 8 files changed in place.
+  `ts`, `js`, `py` and `l4` exited 0 with a function (159 to 253 bytes of stdout) and empty stderr, and now exit 1 with empty stdout and the reader's one error on stderr.
+  `--to=xml`, which is not in the baseline, exited 1 before and after, with a different message.
+- `symptom/struct-short-row-truncated`, now `policy/struct-short-row-refused`: 8 entries left and 8 arrived, with the same change from exit 0 to exit 1.
+- `symptom/md-all-short-rows-drop-output-header`, now `policy/md-all-short-rows-refused`: 8 entries left and 8 arrived, the same way, with one error per row.
+No other fixture moved, so no existing fixture has a short row beyond these three.
+In the manifest, 16 entries left and 16 arrived, and 8 changed in place.
+

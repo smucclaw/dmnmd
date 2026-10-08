@@ -115,8 +115,8 @@ fi
 # stops diverging (re-read it, then delete the line) as loudly as if an ordinary
 # fixture starts to.
 #
-# Eleven slugs in five groups, every one written AFTER measuring the emitter.
-# Nine are refusals (exit 1, with the reason on stderr) and two are documented
+# Eight slugs in four groups, every one written AFTER measuring the emitter.
+# Six are refusals (exit 1, with the reason on stderr) and two are documented
 # renumberings; none is a loosened comparison, and each remains a strict FAIL if
 # the divergence changes shape.
 #
@@ -125,9 +125,14 @@ fi
 # what the reported number counts, so that is what it says now — and the number
 # is why it should not have been written down without being counted.)
 #
-# Four of the five groups are a construct dmnmd accepts that DMN genuinely
-# cannot express. The fifth, symptom/md-output-comparison-emits-lambda, is the
+# Three of the four groups are a construct dmnmd accepts that DMN genuinely
+# cannot express. The fourth, symptom/md-output-comparison-emits-lambda, is the
 # reverse: DMN is right and dmnmd's markdown reader is wrong.
+#
+# A short markdown row used to be a fifth group (symptom/struct-short-row-truncated
+# and policy/xml-short-row-refused, two slugs). The markdown reader now refuses a
+# short row itself, so those fixtures fail the direct --to=ts run and are skipped
+# as refusals, and the entries were dead.
 #
 # Two things are NOT here, and their absence is the measurement:
 #
@@ -168,14 +173,8 @@ xfail_reason() {
     symptom/struct-onecol-no-output|\
     symptom/struct-hitpolicy-only-table-accepted|\
     symptom/l4-zero-output-dangling-giveth|\
-    symptom/md-all-short-rows-drop-output-header|\
     policy/xml-no-output-column-refused)
       echo "no output column: DMN's tDecisionTable requires output+; refused with a located error" ;;
-    # A short markdown row has no DMN spelling: tDecisionRule wants one entry per
-    # column, and padding with "-" would widen the rule in silence.
-    symptom/struct-short-row-truncated|\
-    policy/xml-short-row-refused)
-      echo "short row: DMN requires one entry per column; refused rather than padded with \"-\"" ;;
     # Markdown rule numbers are AUTHORED (gaps and repeats are meaningful and
     # reach diagnostics); DMN identifies a <rule> by position and has no field
     # for one. The emitter warns; the TS comment `// 3` comes back as `// 2`.
