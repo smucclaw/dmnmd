@@ -216,7 +216,7 @@ dbd853dbcd5569c9f49bb73a6b116b2d3015e795  ./dmn13__output-label.dmn.ts
 4718a2b2681c585f02ecc2b46ab007791ba260fe  ./dmn13__output-label.dmn.ts.err
 830c62e67f15028b61e06bb0ea001abc05a8ebe5  ./dmn13__output-values.dmn.js
 f0d293e742f9157ae610a962b177de1d0f3293f3  ./dmn13__output-values.dmn.js.err
-b94c355efe0439291a48a60c06d263ea7483b1fc  ./dmn13__output-values.dmn.l4
+87b2d689ecaed53d9e220c718ad5ed88f5326107  ./dmn13__output-values.dmn.l4
 f0d293e742f9157ae610a962b177de1d0f3293f3  ./dmn13__output-values.dmn.l4.err
 9def45f545373ab4dd2eabf6c835daf2d4f81873  ./dmn13__output-values.dmn.py
 f0d293e742f9157ae610a962b177de1d0f3293f3  ./dmn13__output-values.dmn.py.err
@@ -592,7 +592,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-outputorder.py.err
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-outputorder.ts.err
 ee08c69f95849165d4f5bc1bdc70caea34e4cf70  ./policy__eval-hp-priority.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-priority.js.err
-c397fc62b50f7eec18d263bf3020f34eac72499c  ./policy__eval-hp-priority.l4
+780fbc56ea6c231d9e44d6a2c93114fb16915b94  ./policy__eval-hp-priority.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-priority.l4.err
 6f5ccc69f584ed2c5a977563a468cb881734ef18  ./policy__eval-hp-priority.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__eval-hp-priority.py.err
@@ -784,7 +784,7 @@ a86a67149c695adf926fa5f09d801a5156daf89e  ./policy__l4-hitpolicy-unique-silently
 a86a67149c695adf926fa5f09d801a5156daf89e  ./policy__l4-hitpolicy-unique-silently-first.ts.err
 2f338d10bbda96a0bc5792505f6280e4ddad7f47  ./policy__l4-input-sum-type-composes.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-input-sum-type-composes.js.err
-ca4c256d6047400c21db1c618795b4d5e5697247  ./policy__l4-input-sum-type-composes.l4
+4cbdd8064e777936805eb04575a542ab549d6124  ./policy__l4-input-sum-type-composes.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-input-sum-type-composes.l4.err
 1c879ae5bac4db5c17b8563f8537f5f9ed41cca0  ./policy__l4-input-sum-type-composes.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-input-sum-type-composes.py.err
@@ -848,7 +848,7 @@ ac8285bf91c762fb12870f361029db21767fa49f  ./policy__l4-param-renamed-off-functio
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-param-renamed-off-function-name.ts.err
 d8adec924fc1709d9b053aa2b515330801b67156  ./policy__l4-param-renamed-to-avoid-capture.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-param-renamed-to-avoid-capture.js.err
-ac76d5e33989c77be769f8668d49e13b5fa4115b  ./policy__l4-param-renamed-to-avoid-capture.l4
+820248240890998259d3e84c9c42911c0aaa202f  ./policy__l4-param-renamed-to-avoid-capture.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-param-renamed-to-avoid-capture.l4.err
 4d67452e901379f507e413550d41debed1998afa  ./policy__l4-param-renamed-to-avoid-capture.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-param-renamed-to-avoid-capture.py.err
@@ -856,7 +856,7 @@ e5c013f988be21abfdaf46f43a9b7d7078922b9e  ./policy__l4-param-renamed-to-avoid-ca
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-param-renamed-to-avoid-capture.ts.err
 ee08c69f95849165d4f5bc1bdc70caea34e4cf70  ./policy__l4-priority-reorders-arms.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-priority-reorders-arms.js.err
-c397fc62b50f7eec18d263bf3020f34eac72499c  ./policy__l4-priority-reorders-arms.l4
+780fbc56ea6c231d9e44d6a2c93114fb16915b94  ./policy__l4-priority-reorders-arms.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-priority-reorders-arms.l4.err
 6f5ccc69f584ed2c5a977563a468cb881734ef18  ./policy__l4-priority-reorders-arms.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-priority-reorders-arms.py.err
@@ -894,6 +894,22 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-maybe-when-no-cat
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-maybe-when-no-catchall.py.err
 9fc09e64b7b6f63a3bade13dde3aebd012d51c4f  ./policy__l4-sumtype-maybe-when-no-catchall.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-maybe-when-no-catchall.ts.err
+d7e3b99e91568795580225324030dbe7e7699e9b  ./policy__l4-sumtype-partial-maybe.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-partial-maybe.js.err
+a4964b0134a68e5b5bbd249169deed4c8a9cd93e  ./policy__l4-sumtype-partial-maybe.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-partial-maybe.l4.err
+a4fca5b8a60de388681944a3ef61be157981953d  ./policy__l4-sumtype-partial-maybe.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-partial-maybe.py.err
+fde08d246b62df907d1790f7560ccdbc23ad1a18  ./policy__l4-sumtype-partial-maybe.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-partial-maybe.ts.err
+4ba9395d4d2a118335f4eb568767f45612e2d757  ./policy__l4-sumtype-total-bare.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-total-bare.js.err
+1536fd67beb58210489bba7e3f7675814183398a  ./policy__l4-sumtype-total-bare.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-total-bare.l4.err
+710d851082ec77a9364b6d43894ecc4f24e7a1b8  ./policy__l4-sumtype-total-bare.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-total-bare.py.err
+285a7636df98b4b83cbd454aaf0f78f1c0acf39a  ./policy__l4-sumtype-total-bare.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-sumtype-total-bare.ts.err
 458a78ee7eb88541c6d5831a744a0f8337a532ec  ./policy__list-cell-comparison-refused.js
 6227e2885be47b2cdd1503577e8abe97e99012df  ./policy__list-cell-comparison-refused.js.err
 458a78ee7eb88541c6d5831a744a0f8337a532ec  ./policy__list-cell-comparison-refused.l4
@@ -1936,7 +1952,7 @@ dbd853dbcd5569c9f49bb73a6b116b2d3015e795  ./policy__xml-output-label-names-singl
 187ede6e60848881d729ccaca201786450505ca6  ./policy__xml-output-label-names-single-output__input.dmn.ts.err
 830c62e67f15028b61e06bb0ea001abc05a8ebe5  ./policy__xml-output-values__input.dmn.js
 7e504c7a915ce605eeae3d8b80c31707816028f2  ./policy__xml-output-values__input.dmn.js.err
-b94c355efe0439291a48a60c06d263ea7483b1fc  ./policy__xml-output-values__input.dmn.l4
+87b2d689ecaed53d9e220c718ad5ed88f5326107  ./policy__xml-output-values__input.dmn.l4
 7e504c7a915ce605eeae3d8b80c31707816028f2  ./policy__xml-output-values__input.dmn.l4.err
 9def45f545373ab4dd2eabf6c835daf2d4f81873  ./policy__xml-output-values__input.dmn.py
 7e504c7a915ce605eeae3d8b80c31707816028f2  ./policy__xml-output-values__input.dmn.py.err
@@ -2024,7 +2040,7 @@ df7ecb934093290ba3ff8dc4975a52a6ec2807fe  ./policy__xml-temporal-typeref-refused
 86ddacc85ea9e0e810f9e2f463b7947a6ac19162  ./policy__xml-typeref-inherited-domain-violation-refused__input.dmn.ts.err
 9bf1b3f16b3cf5b98e3df6709a2431a555633705  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.js.err
-7fcbccfc4dce57772822464d2e102462bfd346e0  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.l4
+6a6953791d9632bc163eff89e9c390b1880ee60b  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.l4.err
 919296d4129e3052d9e37f2c25ad9b35348237e5  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__xml-typeref-inherits-allowedvalues__input.dmn.py.err

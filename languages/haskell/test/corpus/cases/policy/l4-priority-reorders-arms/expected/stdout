@@ -5,11 +5,10 @@ DECLARE Dish
     `kids`
 
 GIVEN Guests IS A NUMBER
-GIVETH A MAYBE Dish
+GIVETH A Dish
 Priority Guests MEANS
   BRANCH
-    IF TRUE        THEN JUST `Stew`
-    IF Guests <= 8 THEN JUST `Spareribs`
-    IF ^      ^  4 THEN JUST `kids`
-    OTHERWISE NOTHING
+    IF TRUE        THEN `Stew`
+    IF Guests <= 8 THEN `Spareribs`
+    OTHERWISE `kids`
 

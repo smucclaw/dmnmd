@@ -17,10 +17,9 @@ Categorize merchant MEANS
     OTHERWISE `Grocery`
 
 GIVEN category IS A Category
-GIVETH A MAYBE Card
+GIVETH A Card
 CardToUse category MEANS
   BRANCH
-    IF category EQUALS `Dining`  THEN JUST `PRVI`
-    IF ^        ^      `Grocery` THEN JUST `Amex`
-    OTHERWISE NOTHING
+    IF category EQUALS `Dining` THEN `PRVI`
+    OTHERWISE `Amex`
 

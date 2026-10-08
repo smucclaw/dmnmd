@@ -23,7 +23,7 @@ import Control.Exception (evaluate)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import System.Directory (createDirectoryIfMissing, findExecutable)
 import System.Environment (lookupEnv)
 import System.Process (readProcessWithExitCode)
@@ -122,6 +122,82 @@ scoresNoCatchTable = T.pack $ dropWhile (== '\n') [r|
 |---+-----------------+-------------|
 | 1 | 5               | pass        |
 | 2 | 7               | fail        |
+|]
+
+-- * Tables whose result is an L4 sum type, with no catch-all row and no default
+--
+-- A String output column with a declared domain (the sub-header row) becomes a
+-- @DECLARE … IS ONE OF@ type, which has no sentinel value for a dead
+-- @OTHERWISE@ to return. Constructor names are distinct across these tables, so
+-- that the real-l4 example can load them into one file.
+
+-- | Total (every x is negative or not), with a sum-typed result, no catch-all
+-- row and no default. The @# Annotation@ column gives the LAST row a comment.
+sumTotalTable :: Text
+sumTotalTable = T.pack $ dropWhile (== '\n') [r|
+| U | x : Number | label : String (out) | # Annotation |
+|---+------------+----------------------+--------------|
+|   |            | negative, nonnegative|              |
+| 1 | < 0        | negative             |              |
+| 2 | >= 0       | nonnegative          | the rest     |
+|]
+
+-- | The negative control for 'sumTotalTable': zero matches neither row, so there
+-- is a no-match region and the result has to stay a MAYBE.
+sumGapTable :: Text
+sumGapTable = T.pack $ dropWhile (== '\n') [r|
+| U | x : Number | sign : String (out) |
+|---+------------+---------------------|
+|   |            | minus, plus         |
+| 1 | < 0        | minus               |
+| 2 | > 0        | plus                |
+|]
+
+-- | A total multi-output table, one of whose fields is a sum type.
+sumTotalPlanTable :: Text
+sumTotalPlanTable = T.pack $ dropWhile (== '\n') [r|
+| U | age : Number | dish : String (out) | drink : String (out) |
+|---+--------------+---------------------+----------------------|
+|   |              | Stew, Salad         |                      |
+| 1 | < 18         | Stew                | Milk                 |
+| 2 | >= 18        | Salad               | Wine                 |
+|]
+
+-- | A total Priority table whose ROW order and SORTED order disagree about which
+-- arm is last. Row 1 is LOW and row 2 is HIGH, and the sub-header ranks HIGH
+-- first, so the sorted arms are @x <= 5 → HIGH@ then @x > 0 → LOW@. The rules
+-- overlap on (0, 5] and together cover every x.
+sumTotalPrioTable :: Text
+sumTotalPrioTable = T.pack $ dropWhile (== '\n') [r|
+| P | x : Number | rank : String (out) |
+|---+------------+---------------------|
+|   |            | HIGH, LOW           |
+| 1 | > 0        | LOW                 |
+| 2 | <= 5       | HIGH                |
+|]
+
+-- | A total table over a declared INPUT domain, whose last row's guard is the
+-- widest, so dropping it changes the width of every column of the guard grid.
+sumTotalMenuTable :: Text
+sumTotalMenuTable = T.pack $ dropWhile (== '\n') [r|
+| U | season : String                    | entree : String (out)       |
+|---+------------------------------------+-----------------------------|
+|   | Spring, Summer, Fall, Midwinter    | Greens, Casserole, Roast    |
+| 1 | Spring                             | Greens                      |
+| 2 | Summer                             | Greens                      |
+| 3 | Fall                               | Roast                       |
+| 4 | Midwinter                          | Casserole                   |
+|]
+
+-- | A collection INPUT column, which 'DMN.Regions.regionMap' does not analyse,
+-- with a sum-typed result. Totality cannot be proven, so the result is a MAYBE.
+scoresSumTable :: Text
+scoresSumTable = T.pack $ dropWhile (== '\n') [r|
+| U | tags : [Number] | grade : String (out) |
+|---+-----------------+----------------------|
+|   |                 | pass, fail           |
+| 1 | 5               | pass                 |
+| 2 | 7               | fail                 |
 |]
 
 -- | A negated input cell in a row that has a SECOND input column (D-9).
@@ -476,6 +552,119 @@ l4Spec = do
       runLog `shouldSatisfy` (not . ("assertion failed" `isInfixOf`))
       runLog `shouldSatisfy` (not . ("could not be evaluated" `isInfixOf`))
       length (filter ("assertion satisfied" `isInfixOf`) (lines runLog)) `shouldSatisfy` (>= 7)
+
+  -- D-22 rule 3 ends "so total tables stay bare". A sum-typed result used to be
+  -- the one exception, because the dead OTHERWISE of a total table still has to
+  -- typecheck and a sum type has no sentinel. Part 4 gives it the LAST ARM's value
+  -- instead, and drops that arm's guard. That choice is assumed, not ruled.
+  describe "DMN.Translate.L4.toL4 — a total table with a sum-typed result stays bare (D-22 rule 3)" $ do
+    let total = toL4 defaultL4Opts (parse "SumTotal" sumTotalTable)
+    it "leaves the result bare: no MAYBE, no JUST, no NOTHING" $ do
+      total `shouldContain` "GIVETH A Label"
+      total `shouldNotContain` "MAYBE"
+      total `shouldNotContain` "JUST"
+      total `shouldNotContain` "NOTHING"
+    it "closes the BRANCH with the last arm's value, and drops that arm's guard" $ do
+      total `shouldContain` "IF x < 0 THEN `negative`"
+      total `shouldContain` "OTHERWISE `nonnegative`"
+      total `shouldNotContain` ">="
+    it "invents no constructor: the DECLARE holds exactly the declared domain" $
+      length (filter ("    `" `isPrefixOf`) (lines total)) `shouldBe` 2
+    it "keeps the promoted arm's row comment on the OTHERWISE" $
+      total `shouldContain` "OTHERWISE `nonnegative`  -- the rest"
+    it "wraps nothing in a multi-output table, and takes the whole last record" $ do
+      let out = toL4 defaultL4Opts (parse "Plan" sumTotalPlanTable)
+      out `shouldContain` "GIVETH A Plan"
+      out `shouldNotContain` "MAYBE"
+      out `shouldContain` "IF age < 18 THEN mkPlan `Stew` \"Milk\""
+      out `shouldContain` "OTHERWISE mkPlan `Salad` \"Wine\""
+    it "under Priority, the last arm is the last of the SORTED arms, not the last row" $ do
+      let out = toL4 defaultL4Opts (parse "Pick" sumTotalPrioTable)
+      out `shouldContain` "GIVETH A Rank"
+      out `shouldNotContain` "MAYBE"
+      out `shouldContain` "IF x <= 5 THEN `HIGH`"
+      out `shouldContain` "OTHERWISE `LOW`"
+    it "keeps THEN aligned after the widest guard is dropped from the grid" $ do
+      let out = toL4 defaultL4Opts (parse "Menu" sumTotalMenuTable)
+          arms = [ l | l <- lines out, "    IF " `isPrefixOf` l ]
+          thenAt l = T.length (fst (T.breakOn " THEN " (T.pack l)))
+          allEqual xs = and (zipWith (==) xs (drop 1 xs))
+      length arms `shouldBe` 3
+      map thenAt arms `shouldSatisfy` allEqual
+      out `shouldContain` "OTHERWISE `Casserole`"
+      out `shouldNotContain` "`Midwinter` THEN"
+      out `shouldNotContain` "MAYBE"
+    it "does not promote an arm when the caller supplied the OTHERWISE" $ do
+      let out = toL4 defaultL4Opts { defaultResult = "`negative`" } (parse "SumTotal" sumTotalTable)
+      out `shouldNotContain` "MAYBE"
+      out `shouldContain` "THEN `nonnegative`"
+      out `shouldContain` "OTHERWISE `negative`"
+    it "typechecks, and answers each arm, under the real l4" $ withL4 $ \l4bin -> do
+      let emitted = concatMap (++ "\n")
+                      [ toL4 defaultL4Opts (parse "SumTotal" sumTotalTable)
+                      , toL4 defaultL4Opts (parse "Plan" sumTotalPlanTable)
+                      , toL4 defaultL4Opts (parse "Pick" sumTotalPrioTable)
+                      , toL4 defaultL4Opts (parse "Menu" sumTotalMenuTable) ]
+                 ++ unlines
+                    [ "#ASSERT SumTotal (-1) EQUALS `negative`"
+                    , "#ASSERT SumTotal 0 EQUALS `nonnegative`"
+                    , "#ASSERT SumTotal 7 EQUALS `nonnegative`"
+                    , "#ASSERT (Plan 17)'s dish EQUALS `Stew`"
+                    , "#ASSERT (Plan 18)'s dish EQUALS `Salad`"
+                    , "#ASSERT (Plan 18)'s drink EQUALS \"Wine\""
+                    , "#ASSERT Pick (-3) EQUALS `HIGH`"
+                    , "#ASSERT Pick 3 EQUALS `HIGH`"
+                    , "#ASSERT Pick 6 EQUALS `LOW`"
+                    , "#ASSERT Menu `Spring` EQUALS `Greens`"
+                    , "#ASSERT Menu `Fall` EQUALS `Roast`"
+                    , "#ASSERT Menu `Midwinter` EQUALS `Casserole`"
+                    ]
+          totalOut = outDir ++ "/sumtype-total.l4"
+      createDirectoryIfMissing True outDir
+      writeFile totalOut emitted
+      (_cc, cOut, cErr) <- readProcessWithExitCode l4bin ["check", totalOut] ""
+      (cOut ++ cErr) `shouldSatisfy` ("Check succeeded" `isInfixOf`)
+      (_rc, rOut, rErr) <- readProcessWithExitCode l4bin ["run", totalOut] ""
+      let runLog = rOut ++ rErr
+      runLog `shouldSatisfy` (not . ("assertion failed" `isInfixOf`))
+      runLog `shouldSatisfy` (not . ("could not be evaluated" `isInfixOf`))
+      length (filter ("assertion satisfied" `isInfixOf`) (lines runLog)) `shouldSatisfy` (>= 12)
+
+  -- The negative controls for the block above. Each is a sum-typed result with no
+  -- catch-all row and no default, like the total tables, and each must keep its
+  -- MAYBE, because promoting an arm to the OTHERWISE of a table that has a
+  -- no-match region would answer the unmatched input with a confident, wrong
+  -- value, at exit 0 — the defect D-22 rule 3 exists to remove.
+  describe "DMN.Translate.L4.toL4 — a partial table with a sum-typed result keeps its MAYBE (D-22 rule 3)" $ do
+    it "wraps a table with a no-match region, and keeps every guard" $ do
+      let out = toL4 defaultL4Opts (parse "SumGap" sumGapTable)
+      out `shouldContain` "GIVETH A MAYBE Sign"
+      out `shouldContain` "THEN JUST `minus`"
+      out `shouldContain` "THEN JUST `plus`"
+      out `shouldContain` "OTHERWISE NOTHING"
+      out `shouldNotContain` "OTHERWISE `plus`"
+    it "wraps a table regionMap cannot analyse (a collection input column)" $ do
+      let out = toL4 defaultL4Opts (parse "Scores" scoresSumTable)
+      out `shouldContain` "GIVETH A MAYBE Grade"
+      out `shouldContain` "OTHERWISE NOTHING"
+      out `shouldNotContain` "OTHERWISE `fail`"
+    it "answers NOTHING exactly at the gap, under the real l4" $ withL4 $ \l4bin -> do
+      let emitted = toL4 defaultL4Opts (parse "SumGap" sumGapTable)
+                 ++ unlines
+                    [ ""
+                    , "#ASSERT SumGap (-1) EQUALS JUST `minus`"
+                    , "#ASSERT SumGap 1 EQUALS JUST `plus`"
+                    , "#ASSERT SumGap 0 EQUALS NOTHING"
+                    ]
+          gapOut = outDir ++ "/sumtype-gap.l4"
+      createDirectoryIfMissing True outDir
+      writeFile gapOut emitted
+      (_cc, cOut, cErr) <- readProcessWithExitCode l4bin ["check", gapOut] ""
+      (cOut ++ cErr) `shouldSatisfy` ("Check succeeded" `isInfixOf`)
+      (_rc, rOut, rErr) <- readProcessWithExitCode l4bin ["run", gapOut] ""
+      let runLog = rOut ++ rErr
+      runLog `shouldSatisfy` (not . ("assertion failed" `isInfixOf`))
+      length (filter ("assertion satisfied" `isInfixOf`) (lines runLog)) `shouldSatisfy` (>= 3)
 
   -- This block is deliberately TEXTUAL rather than semantic. The semantic gate
   -- for L4 is the golden round-trip, which shells out to `l4` and goes PENDING
