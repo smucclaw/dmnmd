@@ -899,6 +899,20 @@ data DecisionTable = DecisionTable
     -- stopped repeating @name@ on that clause dmnmd writes it there too.
     -- 'DMN.XML.XmlToDmnmd.convOutputCol' reads it, after the clause's own
     -- @label@ and @name@.
+    dtTypeRef :: Maybe TypeRef,
+    -- ^ @\@typeRef@, inherited from @tExpression@ (xsd\/DMN13.xsd). DMN 1.3
+    -- §7.3.1: "If an instance of Expression that defines the output of a
+    -- Decision element includes a typeRef, the referenced type SHALL be the same
+    -- as the type of the containing Decision element." So for a table that is a
+    -- decision's logic it is the same statement as the decision's @\<variable\>@,
+    -- and 'DMN.XML.XmlToDmnmd.convOutputCol' reads it as one.
+    --
+    -- Modelled rather than ignored because §8.3.2, Table 34 bars the
+    -- @\<output\>@ clause of a SINGLE-output table from carrying a @typeRef@, so
+    -- in a conformant document the @\<variable\>@ and this attribute are the only
+    -- places left that can state the column's type. It was an 'xpIgnoredAttrs'
+    -- entry, which parsed a declared type and threw it away. The OMG's own
+    -- Chapter 11 examples write it (@typeRef="tStrategy"@).
     dtInput :: [TableInput],
     dtOutput :: [TableOutput], -- TODO: Should be NonEmpty
     dtAnnotations :: [AnnotationClause],
@@ -917,11 +931,12 @@ makePrisms ''DecisionTable
 instance DmnPU DecisionTable where
   dmnPU r =
     xpDMNElem r "decisionTable" _DecisionTable
-      . xpIgnoredAttrs ["label", "typeRef", "preferredOrientation"]
-      $ xp7Tuple
+      . xpIgnoredAttrs ["label", "preferredOrientation"]
+      $ xp8Tuple
         (dmnPU r)
         xpHitPolicy
         (xpOption (xpAttr "outputLabel" xpText))
+        (xpOption (dmnPU r))
         (xpSeq' (xpDmnAnnotations r) (dmnPU r))
         (xpList1 (dmnPU r))
         (dmnPU r)

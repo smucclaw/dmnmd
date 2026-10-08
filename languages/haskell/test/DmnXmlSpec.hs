@@ -576,6 +576,108 @@ dmn13Spec = describe "DMN 1.3" $ do
           let (_, types, _) = outputColumns tables
           types `shouldBe` [Just DMN_Number]
 
+  -- Audit 2026-09-26, finding f3. @decisionTable/\@typeRef@ was an
+  -- xpIgnoredAttrs entry, so a type the document declared was parsed and thrown
+  -- away. DMN 1.3 §7.3.1 makes it the same statement as the decision's
+  -- <variable> ("SHALL be the same as the type of the containing Decision"), so
+  -- it goes through the same resultShape dispatch, with the same guards.
+  describe "a single-output column's type comes from decisionTable/@typeRef when the variable states none (§7.3.1)" $ do
+    let slugOf = map (\c -> if c == ' ' then '-' else c)
+        -- No typeRef on the <variable>, none on the <output>: the table's is the
+        -- only statement of the type in the document.
+        run slug dtAttrs itemDefs tableTypeRef =
+          readDmnText slug $
+            oneDecisionXml itemDefs "<variable id=\"V\" name=\"Band\"/>"
+              (dtAttrs ++ " typeRef=\"" ++ tableTypeRef ++ "\" outputLabel=\"band\"")
+              ["<output id=\"O1\"/>"]
+        typeOf slug dtAttrs itemDefs tableTypeRef = do
+          (_, tables) <- run slug dtAttrs itemDefs tableTypeRef
+          let (_, types, cells) = outputColumns tables
+          pure (types, cells)
+        asStrings = ( [Just DMN_String]
+                    , [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ] )
+        asNumbers = ( [Just DMN_Number]
+                    , [ [[FNullary (VN 1)]], [[FNullary (VN 2)]] ] )
+        bandList = "<itemDefinition name=\"BandList\" isCollection=\"true\">"
+                   ++ "<typeRef>string</typeRef></itemDefinition>"
+
+    it "types the column from the fixture, where inference would call the bare numerals Number" $ do
+      (diags, tables) <- readDmn13 "decision-table-typeref"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      outputColumns tables
+        `shouldBe` ( ["output1"], [Just DMN_String]
+                   , [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ] )
+
+    forM_ [ ("UNIQUE", ""), ("FIRST", "hitPolicy=\"FIRST\"")
+          , ("ANY", "hitPolicy=\"ANY\""), ("PRIORITY", "hitPolicy=\"PRIORITY\"")
+          , ("COLLECT SUM", "hitPolicy=\"COLLECT\" aggregation=\"SUM\"")
+          , ("COLLECT MIN", "hitPolicy=\"COLLECT\" aggregation=\"MIN\"")
+          , ("COLLECT MAX", "hitPolicy=\"COLLECT\" aggregation=\"MAX\"") ] $
+      \(hp, attrs) ->
+        it ("reads it as the column's type under " ++ hp) $
+          typeOf ("tt-" ++ slugOf hp) attrs "" "string" `shouldReturn` asStrings
+
+    -- Same rule as the variable's: §8.2.10 makes the result of a C# table "the
+    -- number of outputs", so a typeRef on the table types the COUNT and says
+    -- nothing about the column, which is inferred.
+    it "does not apply it to the column under COLLECT COUNT, whatever type it names" $
+      typeOf "tt-count" "hitPolicy=\"COLLECT\" aggregation=\"COUNT\"" "" "string"
+        `shouldReturn` asNumbers
+
+    -- Under C, R and O the decision's result IS a list, so a conformant typeRef
+    -- names a COLLECTION and the column takes its ELEMENT type.
+    forM_ [ ("COLLECT", "hitPolicy=\"COLLECT\"")
+          , ("RULE ORDER", "hitPolicy=\"RULE ORDER\"")
+          , ("OUTPUT ORDER", "hitPolicy=\"OUTPUT ORDER\"") ] $
+      \(hp, attrs) -> do
+        it ("takes the ELEMENT type of a collection typeRef under " ++ hp) $
+          typeOf ("tt-list-" ++ slugOf hp) attrs bandList "BandList"
+            `shouldReturn` asStrings
+
+        -- Negative control: a SCALAR typeRef on a list-valued decision is not
+        -- applied to the column, but not dropped in silence either, and the
+        -- warning names the <decisionTable> rather than the <variable>.
+        it ("does not apply a SCALAR typeRef under " ++ hp ++ ", and says so") $ do
+          (diags, tables) <- run ("tt-scalar-" ++ slugOf hp) attrs "" "string"
+          let (_, types, _) = outputColumns tables
+          types `shouldBe` [Just DMN_Number]
+          diags `shouldSatisfy` hasDiag Warning "the <decisionTable> declares typeRef \"string\", a single value"
+
+    -- The output-count guard. With two or more outputs each <output> carries its
+    -- own typeRef and the table's names a composite, so it is no column's type.
+    it "does not apply it to a column of a MULTI-output table (fixture)" $ do
+      (_, tables) <- readDmn13 "decision-table-typeref-multi-output"
+      outputColumns tables
+        `shouldBe` ( ["rank", "name"]
+                   , [Just DMN_Number, Just DMN_String]
+                   , [ [[FNullary (VN 7)], [FNullary (VS "silver")]]
+                     , [[FNullary (VN 8)], [FNullary (VS "bronze")]] ] )
+
+    -- The precedence: a typeRef on the clause is the more specific statement and
+    -- wins, exactly as it beats the variable's.
+    it "yields to a typeRef on the <output> clause itself" $ do
+      (_, tables) <- readDmnText "tt-vs-clause" $
+        oneDecisionXml "" "<variable id=\"V\" name=\"Band\"/>"
+          "typeRef=\"string\" outputLabel=\"band\"" ["<output id=\"O1\" typeRef=\"number\"/>"]
+      let (_, types, _) = outputColumns tables
+      types `shouldBe` [Just DMN_Number]
+
+    -- A declared type dmnmd cannot model is refused when it is the table's, as
+    -- it is when it is the variable's or the clause's.
+    it "refuses a temporal typeRef, as it refuses a temporal variable" $ do
+      (diags, tables) <- run "tt-date" "" "" "date"
+      diags `shouldSatisfy` hasDiag Error "temporal"
+      tables `shouldBe` []
+
+    it "refuses a typeRef naming a type dmnmd does not model" $ do
+      (diags, tables) <- run "tt-unknown" "" "" "tFoo"
+      diags `shouldSatisfy` hasDiag Error "unknown typeRef"
+      tables `shouldBe` []
+
+    -- typeRef="Any" declares nothing, so it infers, exactly as on the variable.
+    it "reads typeRef=\"Any\" as no declaration, and infers the column" $
+      typeOf "tt-any" "" "" "Any" `shouldReturn` asNumbers
+
   -- The five DMN 1.3 global elements in the "expression" substitution group that
   -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
   -- dmnmd models <decisionTable> and <literalExpression>.) These used to fall
@@ -1064,7 +1166,7 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [], dtOutputLabel = Nothing,
+                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [], dtOutputLabel = Nothing, dtTypeRef = Nothing,
                               dtHitPolicy = HP_Collect Collect_All,
                               dtInput =
                                 [ TableInput
@@ -1259,7 +1361,7 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [], dtOutputLabel = Nothing,
+                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [], dtOutputLabel = Nothing, dtTypeRef = Nothing,
                               dtHitPolicy = HP_Unique,
                               dtInput =
                                 [ TableInput

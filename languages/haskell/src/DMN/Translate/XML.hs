@@ -407,6 +407,11 @@ decisionTableOf t dt = X.DecisionTable
     -- Table 32 describes @outputLabel@ as "a description of the decision table
     -- output", so with several outputs there is no one column for it to
     -- describe, and it is left off rather than made to name one of them.
+  , X.dtTypeRef = Nothing
+    -- ^ Not written. For a single-output table the decision's @\<variable\>@
+    -- states the result type ('decisionOf', 'resultTypeOf'), and §7.3.1 makes a
+    -- table-level @typeRef@ a repeat of it; with several outputs it would name a
+    -- composite @\<itemDefinition\>@, which this backend does not build.
   , X.dtInput = zipWith (inputClauseOf t) [1 ..] (inHeaders dt)
   , X.dtOutput = zipWith3 (outputClauseOf single t) [1 ..] (outHeaders dt) defaultCells
   -- The default output value, sliced per output column. A wildcard slice is a

@@ -276,6 +276,14 @@ Things that are only apparent across several files:
   `ParseDMN.DecisionTable` models it as `dtOutputLabel` (it was an `xpIgnoredAttrs` entry).
   `policy/xml-output-label-names-single-output`, from `test/dmn13/output-label.dmn`.
 
+  **`decisionTable/@typeRef` is the same statement as the variable's, made in a second place (audit finding f3; assumed, not ruled).**
+  `tDecisionTable` extends `tExpression`, which declares an optional `typeRef`, and DMN 1.3 §7.3.1 says of an Expression that defines the output of a Decision that "the referenced type SHALL be the same as the type of the containing Decision element".
+  It was an `xpIgnoredAttrs` entry, so a type the document declared was parsed and dropped, and a `string` table over the cells `1` and `2` came out as `1.0` and `2.0` at exit 0.
+  `ParseDMN.DecisionTable` now models it as `dtTypeRef`, and `resultColumnType` reads the variable's `typeRef` first and the table's when the variable has none, through the same `T.resultShape` dispatch and under the same exactly-one-output guard.
+  So under a list-valued policy a collection `typeRef` gives the column its element type and a scalar one warns (naming the `<decisionTable>`), and under `C#` it is never the column's.
+  The OMG's own Chapter 11 examples write it, and the writer does not.
+  `policy/xml-decision-table-typeref-types-single-output`, with `policy/xml-decision-table-typeref-not-applied-multi-output`, `policy/xml-decision-table-typeref-collect-is-list` and `policy/xml-decision-table-typeref-collect-scalar-warned` as its guards.
+
   **`typeRef="Any"` is a declaration that declares nothing, and infers.** It is FEEL's top
   type, so it says exactly what an absent `typeRef` says. It is deliberately not routed to the
   unknown-typeRef refusal, whose reasoning does not reach it: that refusal exists because a
