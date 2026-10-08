@@ -28,7 +28,7 @@ import           Control.Exception    (SomeException, bracket, displayException,
 import           Control.Monad        (filterM, forM)
 import           Data.Either          (isLeft)
 import           Data.List            (isInfixOf, isPrefixOf, nub, sort)
-import           Data.Maybe           (listToMaybe)
+import           Data.Maybe           (isJust, listToMaybe)
 import qualified Data.Map.Strict      as M
 import qualified Data.Text            as T
 import           GHC.IO.Handle        (hDuplicate, hDuplicateTo)
@@ -52,6 +52,7 @@ import           ParseMarkdown        (parseMarkdown)
 regionsSpec :: Spec
 regionsSpec = describe "DMN.Regions" $ do
   handCounted
+  regionAtSpec
   unsupported
   refusing
   corpus
@@ -110,6 +111,10 @@ selfCheck rm = concat
     | null (conflicts rm) /= null (conflictRegions rm) ]
   , [ "regionCount " ++ show (regionCount rm) ++ " but " ++ show (length rs) ++ " regions"
     | regionCount rm /= toInteger (length rs) ]
+  , [ "regionAt " ++ show k ++ " is not the " ++ show k ++ "th region of regions"
+    | (k, r) <- zip [0 ..] rs, regionAt rm k /= Just r ]
+  , [ "regionAt answers outside 0 .. regionCount - 1"
+    | any (isJust . regionAt rm) [-1, regionCount rm, regionCount rm + 1] ]
   , [ "column " ++ show (varname (cbHeader c)) ++ ": block " ++ showBlock b
         ++ " holds " ++ show v ++ ", where the matcher selects rules " ++ show got
         ++ " and the block says " ++ show (blockRules b)
@@ -305,6 +310,34 @@ negatedString = DTable "Neg" HP_Unique
   [ DTrow (Just 1) [[FNot (FNullary (VS "Fall"))]] [[FNullary (VS "stew")]] []
   , DTrow (Just 2) [[FNullary (VS "Fall")]]        [[FNullary (VS "spareribs")]] [] ]
   Nothing
+
+-- | 'regionAt' is random access into 'regions', which L4's @emitAsserts@ uses
+-- to sample a table whose regions are too many to list. The corpus walk below
+-- checks it at every position of every table it analyses, through 'selfCheck';
+-- these are the hand-counted tables, where the answer is written down.
+regionAtSpec :: Spec
+regionAtSpec = describe "regionAt" $ do
+  let rm = mapOf regCF
+  it "is the kth region of regions, counting from 0" $
+    map (regionAt rm) [0 .. regionCount rm - 1] `shouldBe` map Just (regions rm)
+  it "puts the first column outermost, as regions does" $
+    map (fmap (map showBlock . regionBlocks) . regionAt rm) [0, 1, 2, 7] `shouldBe`
+      [ Just ["<= 124000", "true"], Just ["<= 124000", "false"]
+      , Just ["(124000..618000]", "true"], Just ["> 1235000", "false"] ]
+  it "answers Nothing outside 0 .. regionCount - 1" $
+    map (regionAt rm) [-1, 8, 9, 10 ^ (30 :: Int)] `shouldBe` replicate 4 Nothing
+  it "agrees with regions on a table with a different shape" $ do
+    let rm' = mapOf endpoints
+    map (regionAt rm') [0 .. regionCount rm' - 1] `shouldBe` map Just (regions rm')
+  it "finds the last region of a product too big to list" $ do
+    -- 40 columns of 2 blocks each: 2^40 regions, which `regions` could not list
+    let cols = [ ColumnBlocks (DTCH DTCH_In ("c" ++ show i) (Just DMN_Boolean) Nothing)
+                   [ Block (Values [VB True]) mempty (VB True), Block (Values [VB False]) mempty (VB False) ]
+               | i <- [1 .. 40 :: Int] ]
+        big = rm { rmColumns = cols }
+    regionCount big `shouldBe` 2 ^ (40 :: Int)
+    fmap regionInput (regionAt big (regionCount big - 1)) `shouldBe` Just (replicate 40 (FNullary (VB False)))
+    fmap regionInput (regionAt big (2 ^ (39 :: Int))) `shouldBe` Just (FNullary (VB False) : replicate 39 (FNullary (VB True)))
 
 handCounted :: Spec
 handCounted = describe "hand-counted tables" $ do

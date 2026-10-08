@@ -65,6 +65,7 @@ module DMN.Regions
   , liveRules
   , regionInput
   , regions
+  , regionAt
   , regionCount
   , isConflict
   , isNoMatch
@@ -580,6 +581,27 @@ regionInput = fmap (FNullary . blockRep) . regionBlocks
 -- Lazy, and 'regionCount' long; a table with no input column has one region.
 regions :: RegionMap -> [Region]
 regions = walk (\_ _ -> True) (const True)
+
+-- | The region at position @k@ of 'regions' (counting from 0), or 'Nothing'
+-- when @k@ is not in @0 .. regionCount - 1@. It does not enumerate the regions
+-- before it: the position is read as a number whose digits are the blocks
+-- chosen, the first column most significant, so it is as cheap on a table of
+-- 2^40 regions as on a table of 8. That is what lets a caller that can only
+-- afford a sample (L4's @emitAsserts@) pick one spread through the whole
+-- product instead of taking the first few, which share their first column's
+-- first blocks.
+regionAt :: RegionMap -> Integer -> Maybe Region
+regionAt rm k
+  | k < 0 || k >= regionCount rm = Nothing
+  | otherwise = Just (Region blocks (foldr (IS.intersection . blockMembers) everyRule blocks))
+  where
+    cols      = cbBlocks <$> rmColumns rm
+    -- strides !! j is how many regions share one block of column j: the
+    -- product of the column counts after it. 'scanr' leaves a trailing 1.
+    strides   = drop 1 (scanr (\c n -> n * toInteger (length c)) 1 cols)
+    blocks    = [ bs !! fromInteger ((k `div` stride) `mod` toInteger (length bs))
+                | (bs, stride) <- zip cols strides ]
+    everyRule = IS.fromList [0 .. length (allrows (rmTable rm)) - 1]
 
 -- | How many regions there are, without enumerating them.
 regionCount :: RegionMap -> Integer
