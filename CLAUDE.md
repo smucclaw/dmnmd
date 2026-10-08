@@ -488,10 +488,13 @@ status header saying so.
   The `OTHERWISE` returns the trailing catch-all row's output, else the declared default (`dtDefaultOutput`).
   With neither, it must **not** reuse the last data row's output, and what it says depends on whether an input can reach it, which `noRuleMayMatch` decides.
   If one can, the result is `GIVETH A MAYBE T`, every arm is `JUST v`, and the `OTHERWISE` is `NOTHING`; a multi-output table wraps its whole record, `JUST (mk<Name> …)`.
-  If none can, the table is total, stays bare, and its dead `OTHERWISE` returns a typed sentinel (`0`, `""`, `FALSE`, `EMPTY`) that only has to typecheck.
+  If none can, the table is total, stays bare, and its dead `OTHERWISE` returns a typed sentinel (`0`, `""`, `FALSE`, `EMPTY`) that only has to typecheck, unless the result is a sum type (below).
   `noRuleMayMatch` says no for a default row or an all-wildcard arm (an `IF TRUE`, as under `P`), and otherwise asks `DMN.Regions.noMatchRegions`.
   **Where `regionMap` cannot analyse the table** (a collection column, a String cell holding FEEL test syntax, a short row, …) **it says yes**: a `MAYBE` on a total table costs an unwrap, and a sentinel on a partial one is a wrong answer at exit 0.
-  One older case also gives `MAYBE` to a total table: a sum-typed result with no catch-all row or default, because a sum type has no sentinel (`policy/l4-priority-reorders-arms`).
+  **A sum-typed result has no sentinel** (a String output column with a declared domain), so when `noRuleMayMatch` proves such a table total, with no catch-all row and no default, the **last arm supplies the `OTHERWISE` and its guard is dropped** (`promoted` in `toL4`; D-22 part 4, assumed and not ruled).
+  "Last" is last in emission order, so under `P` it is the last of the arms sorted by `outputOrder`.
+  A sum-typed table `noRuleMayMatch` cannot prove total keeps its `MAYBE`; `policy/l4-sumtype-total-bare` and its negative control `policy/l4-sumtype-partial-maybe` pin the two sides.
+  `DMN.Regions` treats a declared Number domain as closed and the L4 input type does not, so an input outside such a domain reaches that `OTHERWISE` (`DECISIONS.md` D-22 part 4 records the measurement).
   `MAYBE (LIST OF T)` is parenthesised (`typeAtom`), because `MAYBE LIST OF T` does not parse.
   There is no `wrapMaybe` option any more; `defaultResult`, which no caller sets, still overrides the `OTHERWISE` and keeps the result bare.
 - **The ditto grid is column-alignment-critical.** `renderDittoGrid` collapses a guard token

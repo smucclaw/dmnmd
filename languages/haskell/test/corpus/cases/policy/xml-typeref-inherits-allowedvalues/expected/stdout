@@ -5,10 +5,9 @@ DECLARE Routing
     `ACCEPT`
 
 GIVEN score IS A NUMBER
-GIVETH A MAYBE Routing
+GIVETH A Routing
 Routing score MEANS
   BRANCH
-    IF score <  100 THEN JUST `DECLINE`
-    IF ^     >= ^   THEN JUST `ACCEPT`
-    OTHERWISE NOTHING
+    IF score < 100 THEN `DECLINE`
+    OTHERWISE `ACCEPT`
 

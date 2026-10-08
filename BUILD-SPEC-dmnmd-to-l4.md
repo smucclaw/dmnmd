@@ -230,6 +230,7 @@ backend **synthesizes** one. The convention is **resolved by the validated golde
 > A table that some input can fall through, with no catch-all row and no declared default, now emits `GIVETH A MAYBE <type>`, `JUST <value>` arms and `OTHERWISE NOTHING`.
 > `noRuleMayMatch` in `L4.hs` decides it, from `DMN.Regions`, and says yes where it cannot analyse the table.
 > A table no input can fall through stays bare, and its dead `OTHERWISE` still returns the typed sentinel, which only has to typecheck.
+> A sum-typed result has no sentinel, so there the last arm supplies the `OTHERWISE` and loses its guard (`DECISIONS.md` D-22 part 4, 2026-10-08).
 > A table with a catch-all row is unchanged, which is why the golden is: both its tables end in one.
 > `wrapMaybe` has been removed rather than flipped, because what it did beyond that was wrap total tables as well, which D-22 rules out, and no caller had ever set it.
 > The same applies to the mentions of `wrapMaybe` in §2, §4.1, §4.3, §7.1 and §9.1.

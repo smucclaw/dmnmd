@@ -1616,7 +1616,7 @@ Meng marked the card "accept" with no note.
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
 
-### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). All three parts landed: 1 (the interpreter), 2 (refusing conflict regions) and 3 (`NOTHING` in L4).**
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). All three parts landed: 1 (the interpreter), 2 (refusing conflict regions) and 3 (`NOTHING` in L4). A part 4 closed the one gap part 3 left.**
 
 This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
 It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
@@ -1762,6 +1762,7 @@ What it did beyond this ruling was wrap total tables too, which rule 3 rules out
 A sum-typed result, a String output column with a declared domain, with no catch-all row and no default, has no sentinel: `""` does not typecheck against a sum type, and a made-up member would widen the domain.
 So such a table keeps the `MAYBE` it already had, even when it is total, as `policy/l4-priority-reorders-arms` is.
 Removing it means giving the dead `OTHERWISE` a value of the type, for example the last arm's, which changes total tables and is not part of this ruling.
+Part 4, below, does that.
 
 **The DMN and prose halves of rule 3 needed nothing here.**
 A table with no `<defaultOutputEntry>` answers null on no match (§10.3.2.10), and `--to=xml` writes one only for a declared default or a promoted catch-all.
@@ -1778,3 +1779,43 @@ dmnmd has no prose backend, so "no rule applies" has nowhere to go yet.
 - The root `README.md`'s `--pick="Example 2" --to=l4` example, which the baseline does not run: the table has no-match regions (a Spring party of 4.5 guests, for one), so it now reads `MAYBE STRING`.
 - `make roundtrip` is unchanged: 197 fixtures, 135 pass, 10 xfail, 52 skipped, and 0 XSD-invalid with `--xsd`.
   Both sides of its L4 comparison move together, because the XML read back has no default where the markdown had no catch-all.
+
+**Implementation, part 4: a total table with a sum-typed result is bare (2026-10-08, branch `fix/d22-sum-type-total-bare`, cut from trunk after #66 merged).**
+Rule 3 says "total tables stay bare", and part 3 left one exception to it: the sum-typed case described above.
+Part 4 removes the exception.
+**The last arm supplies the `OTHERWISE`, and its guard is dropped. That choice is assumed, not ruled.**
+`toL4` promotes the last arm when four things hold: a result column is a sum type (`enumOutsOf`), there is no catch-all row and no declared default, the caller set no `defaultResult`, and `noRuleMayMatch` says no.
+For a total table that is the same function: an input that reaches the `OTHERWISE` matched no earlier arm, and some arm matches it, so the last one does.
+"Last" is last in emission order, so under `P` it is the last of the arms sorted by `outputOrder`, not the last row.
+The promoted arm's row comment moves to the `OTHERWISE` line, because the arm is a real rule and not a catch-all.
+The ditto grid is built from the arms that remain, so `THEN` stays aligned after the dropped guard.
+A table `noRuleMayMatch` cannot prove total keeps its `MAYBE`, which includes a table `regionMap` cannot analyse and a table with a real no-match region.
+Promoting an arm there would answer an unmatched input with a value the table never gives, at exit 0.
+`policy/l4-sumtype-total-bare` is the positive case and `policy/l4-sumtype-partial-maybe` its negative control, the same table without its `Winter` row.
+
+**Not chosen: keep the last arm's guard and repeat its value after `OTHERWISE`.**
+That is the same function with one dead line more, and it keeps the last rule's condition visible in the emitted L4.
+It is a small change to `toL4` if a visible guard is preferred to a shorter table.
+
+**Two consequences to know before ruling on it.**
+- Under `P`, an all-wildcard arm sorts in among the others, and every arm after it is dead.
+  `policy/l4-priority-reorders-arms` now reads `IF TRUE THEN Stew`, `IF Guests <= 8 THEN Spareribs`, `OTHERWISE kids`.
+  The `OTHERWISE` is dead there, as the `NOTHING` before it was, and it is not a claim that `kids` is the default.
+- `DMN.Regions` treats a declared Number domain as closed, and the L4 input type does not: it stays `NUMBER`.
+  So a table that is total only because of such a domain is bare now, and the last arm answers an input outside the domain.
+  Measured with `l4 run`: `< 18` and `[18..150]` over a declared `[0..150]`, with a sum-typed result, answers `Bracket 200` with `adult` where it answered `NOTHING` before.
+  With a plain String result, part 3 had already given that input the typed sentinel, `""`.
+  A declared String domain does not have this problem, because it is a sum type in L4 and closes the input there.
+
+**What moved.**
+- Seven fixtures' `--to=l4` stdout, all by the same rule: `GIVETH A MAYBE T` becomes `GIVETH A T`, each `JUST v` becomes `v`, and the last arm becomes the `OTHERWISE`.
+  They are `policy/eval-hp-priority`, `policy/l4-priority-reorders-arms`, `policy/l4-input-sum-type-composes`, `policy/l4-param-renamed-to-avoid-capture`, `policy/xml-output-values`, `policy/xml-typeref-inherits-allowedvalues` and `dmn13/output-values.dmn`.
+- Four corpus recordings were re-recorded after reading their diffs: `policy/l4-input-sum-type-composes`, `policy/l4-param-renamed-to-avoid-capture`, `policy/l4-priority-reorders-arms` and `policy/xml-typeref-inherits-allowedvalues`.
+  The other three changed fixtures are recorded through `-q`, `--to=ts` or not at all.
+- Six sum-typed `MAYBE` blocks in four fixtures did not move, and `DMN.Regions` reports a no-match region for each.
+- The backend baseline: `--check` printed `checked 1268 run(s): 23 changed` before recording, 7 changed and 16 for the two new fixtures, and 0 after.
+  `test/roundtrip/baseline-audit/README.md` has the audit.
+- An A/B against a binary built at `e368344` ran 317 fixtures in `ts js py xml l4`, 1,585 runs: only 8 `--to=l4` stdouts differ.
+- `l4 check` succeeds on both sides of those 8, and 28 `#EVAL`s over 7 of them agree apart from the `JUST` wrapper.
+- `make roundtrip`: 199 fixtures, 137 pass, 0 fail, 10 xfail, 52 skipped; it was 197, 135, 0, 10, 52 before the two new fixtures.
+- The root `README.md` `--pick="Example 2" --to=l4` example is unchanged: its table has no-match regions and its result is a plain `STRING`, not a sum type.
