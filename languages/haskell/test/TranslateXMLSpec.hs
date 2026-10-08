@@ -284,9 +284,10 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
       outCols back `shouldBe` [("band", Just DMN_String)]
 
   -- A short rule has no DMN spelling (tDecisionRule wants one entry per column),
-  -- and padding it with "-" would widen it. The markdown reader refuses a short
-  -- row itself since audit 10 f2 (ParseTable.rowArityDiags), so this refusal is
-  -- reached only by a table built some other way, which is what this builds.
+  -- and padding it with "-" would widen it. The markdown reader refuses a row
+  -- short of an input or output column itself since audit 10 f2
+  -- (ParseTable.rowArityDiags), so this refusal is reached only by a table
+  -- built some other way, which is what this builds.
   describe "DMN.Translate.XML.fidelityDiags — a rule with fewer cells than columns" $ do
     let inC n  = DTCH DTCH_In  n (Just DMN_String) Nothing
         outC n = DTCH DTCH_Out n (Just DMN_String) Nothing

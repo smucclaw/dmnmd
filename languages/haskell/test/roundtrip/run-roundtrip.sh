@@ -131,8 +131,8 @@ fi
 #
 # A short markdown row used to be a fifth group (symptom/struct-short-row-truncated
 # and policy/xml-short-row-refused, two slugs). The markdown reader now refuses a
-# short row itself, so those fixtures fail the direct --to=ts run and are skipped
-# as refusals, and the entries were dead.
+# row short of an input or output column itself, so those fixtures fail the
+# direct --to=ts run and are skipped as refusals, and the entries were dead.
 #
 # Two things are NOT here, and their absence is the measurement:
 #

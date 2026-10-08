@@ -788,8 +788,9 @@ fidelityDiags _opts dt = concat
       | otherwise = []
 
     -- A rule may be SHORT in a table built some way other than the markdown
-    -- reader, which refuses a short row itself (ParseTable.rowArityDiags); it
-    -- used to accept one, and the backends read the missing cells as absent.
+    -- reader, which refuses a row short of an input or output column itself
+    -- (ParseTable.rowArityDiags). It used to accept one, and the backends read
+    -- the missing cells as absent.
     -- DMN requires one entry per column, and dmnmd's own reader refuses a
     -- document that breaks that (XmlToDmnmd checkArity) — so emitting a short
     -- rule would write a document nothing can read, and padding it with "-"

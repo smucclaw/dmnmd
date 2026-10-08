@@ -363,9 +363,11 @@ something else in silence. Three such constructs exist today:
   * a **wildcard output cell** (`-` in an output column) becomes an empty `<text/>`, with a warning:
     `-` is unary-test syntax and a DMN output entry is a literal expression, so a conformant engine
     reads that rule as producing null.
-  * a **table with no output column**, and a **row with fewer cells than columns**, are refused.
+  * a **table with no output column**, and a **row that stops before an input or output column**,
+    are refused.
     DMN requires at least one `<output>` and exactly one entry per column, and padding a short row
     with `-` would silently widen the rule.
+    (A row that is short only of comment cells is padded with empty ones, which changes no answer.)
   * **authored rule numbers** that are not `1..n` are renumbered, with a warning. DMN identifies a
     rule by position and has no field for the number written in the leftmost cell.
 

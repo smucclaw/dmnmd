@@ -527,8 +527,9 @@ unsupported = describe "unsupported shapes are a Left, never a partial answer" $
 |---|---|---|
 | 1 | (Age * 2) + 1 | 5 |
 |]) `shouldBe` Left FeelShapedStringCell
-  -- Built by hand: the markdown reader refuses a short row itself since audit
-  -- 10 f2 (policy/struct-short-row-refused), so no fixture reaches this any more.
+  -- Built by hand: the markdown reader refuses a row short of an input or
+  -- output column itself since audit 10 f2 (policy/struct-short-row-refused),
+  -- so no fixture reaches this any more.
   it "a short row, which the matcher would read as wildcards" $
     kindOf DTable { tableName = "ShortRow", hitpolicy = HP_Unique
                   , header = [ DTCH DTCH_In "Season" (Just DMN_String) Nothing
@@ -863,7 +864,8 @@ corpus = describe "the round-trip fixture corpus" $ do
   -- KIND of refusal in the corpus is a finding and should be read. Step 0
   -- skipped three of these and read a short row's missing cells as "-".
   -- 'RowArity' is not in the list: two fixtures used to reach it, and the
-  -- markdown reader now refuses a short row before regions are computed.
+  -- markdown reader now refuses a row short of an input column before regions
+  -- are computed.
   it ("refuses three kinds of table and no others: " ++ show byKind) $
     map fst byKind `shouldBe` [ListValuedHitPolicy, CollectionColumn, FeelShapedStringCell]
   it "agrees with dmnmd's matcher and with evalTable at every region representative" $

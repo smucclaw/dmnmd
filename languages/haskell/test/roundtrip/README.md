@@ -61,7 +61,7 @@ Eight entries, in four groups (`run-roundtrip.sh` holds the list):
 * **`= v` outside a declared domain** (1). Correct DMN, which dmnmd's own domain check then refuses.
 * **a unary test in an output cell** (1). The reverse case: DMN is right and the markdown reader is wrong.
 
-A short markdown row used to be a group of its own (2). The markdown reader now refuses a short row, so those fixtures fail the direct `--to=ts` run and are skipped, and the entries were deleted.
+A short markdown row used to be a group of its own (2). The markdown reader now refuses a row short of an input or output column, so those fixtures fail the direct `--to=ts` run and are skipped, and the entries were deleted.
 
 Six of the eight are REFUSALS, so `expected_divergence` is consulted at the failing LEG and not
 only at the final diff — otherwise the only honest answer available (refusing a construct DMN

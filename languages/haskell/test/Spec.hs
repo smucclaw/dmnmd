@@ -111,6 +111,68 @@ tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
       refused (readTable "T" (table "A" [stew, soup])) `shouldBe` True
       readTable "T" (table "A" [stew, "| 2 | Stew       |"]) `shouldSatisfy` ok
 
+  describe "a row short only by comment columns is padded, not refused" $ do
+    -- A comment cell cannot change an answer, so leaving it out cannot widen a
+    -- rule. Trunk accepted such a row, and the arity check refused it with a
+    -- reason (a missing input or output cell) that is false for a comment.
+    let table hdr rows = T.unlines ([ hdr, "|---|--------|-------------|--------------|" ] ++ rows)
+        std = "| U | Colour | Price (out) | # Annotation |"
+        r1 = "| 1 | red    | 5           | cheap        |"
+        ok (ds, ts) = null ds && length ts == 1
+    it "accepts a data row that stops before a trailing annotation column, and reads it as the empty cell" $ do
+      let short = readTable "T" (table std [r1, "| 2 | blue   | 6           |"])
+      short `shouldSatisfy` ok
+      short `shouldBe` readTable "T" (table std [r1, "| 2 | blue   | 6           |              |"])
+    it "does the same for each comment label: #, // and (comment), and for two comment columns" $ do
+      forM_ ["// Annotation", "Annotation (comment)", "# Annotation"] $ \c ->
+        readTable "T" (table ("| U | Colour | Price (out) | " <> c <> " |") [r1, "| 2 | blue   | 6           |"])
+          `shouldSatisfy` ok
+      readTable "T" (T.unlines [ "| U | Colour | Price (out) | # Note | // Memo |"
+                               , "|---|--------|-------------|--------|--------|"
+                               , "| 1 | red    | 5           | a      | b      |"
+                               , "| 2 | blue   | 6           |" ])
+        `shouldSatisfy` ok
+    it "refuses a row that misses an output cell as well, naming the output column and giving the reason that is true of an output" $ do
+      let r = readTable "T" (table std [r1, "| 2 | blue   |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1
+        && all ("table \"T\": column \"Price\": row 2: the row has 1 cell but the header declares 3 columns" `isPrefixOf`) ms
+        && all ("an output cell left out would give an empty answer" `isInfixOf`) ms
+        && not (any ("input cell" `isInfixOf`) ms))
+    it "names the first input or output column it misses, even when a comment column comes before it" $ do
+      let r = readTable "T" (T.unlines [ "| U | Colour | # Annotation | Price (out) |"
+                                       , "|---|--------|--------------|-------------|"
+                                       , "| 1 | red    |" ])
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Price\": row 1:" `isPrefixOf`) ms)
+    it "gives the reason that is true of an input when the first column it misses is an input" $ do
+      let r = readTable "T" (T.unlines [ "| U | Season | Guests | Dish (out) | # Note |"
+                                       , "|---|--------|--------|------------|--------|"
+                                       , "| 1 | Fall   |" ])
+      messages r `shouldSatisfy` (\ms -> length ms == 1
+        && all ("table \"T\": column \"Guests\": row 1:" `isPrefixOf`) ms
+        && all ("an input cell left out would match every value of its column" `isInfixOf`) ms
+        && not (any ("output cell" `isInfixOf`) ms))
+
+  describe "a sub-header short only by comment columns is padded, not refused" $ do
+    let table sub = T.unlines
+          [ "| U | Colour : String | Price : Number (out) | # Annotation |"
+          , "|---|-----------------|----------------------|--------------|"
+          , sub
+          , "| 1 | red             | 5                    | cheap        |" ]
+        ok (ds, ts) = null ds && length ts == 1
+        comments = map varname . getCommentHeaders . header
+    it "accepts it, keeps every column including the annotation, and reads it as the empty cell" $ do
+      let short = readTable "T" (table "|   | red, blue       |                      |")
+      short `shouldSatisfy` ok
+      short `shouldBe` readTable "T" (table "|   | red, blue       |                      |              |")
+      case short of
+        (_, [t]) -> (map varname (getOutputHeaders (header t)), comments t) `shouldBe` (["Price"], ["Annotation"])
+        other -> expectationFailure ("expected one table, got " ++ show other)
+    it "still refuses a sub-header that misses an output column, naming it" $ do
+      let r = readTable "T" (table "|   | red, blue       |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Price\": the sub-header row has 1 cell but the header declares 3 columns" `isPrefixOf`) ms)
+
   describe "the sub-header row has one cell per column (f1)" $ do
     let table subhead = T.unlines
           [ "| U | Colour : String | Price : Number (out) |"

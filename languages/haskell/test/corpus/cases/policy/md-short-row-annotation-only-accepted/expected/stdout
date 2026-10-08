@@ -1,0 +1,10 @@
+export function Annotated ( Colour : string ) {
+  if (Colour === "red") { // 1
+    return {"Price":5.0};
+    // cheap
+  }
+  else if (Colour === "blue") { // 2
+    return {"Price":6.0};
+  }
+}
+

@@ -8,7 +8,7 @@ import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, showSite, trim )
 import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
-import Data.List (intercalate, nub, transpose)
+import Data.List (find, intercalate, nub, transpose)
 import Data.Either (isLeft)
 import Control.Applicative ( Alternative((<|>)) )
 import Data.Text (Text)
@@ -259,8 +259,16 @@ parseTableBody :: String -> HeaderRow -> Parser ([Diagnostic], [DecisionTable])
 parseTableBody tableName headerRow_1 = do
   doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
   let columnSignatures = columnSigs headerRow_1
-  subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
-  let subHeadShape = subHeaderArityDiags tableName columnSignatures subHeadRow
+  subHeadRow0 <- parseContinuationRows <?> "parseSubHeadRows"
+  let subHeadShape = subHeaderArityDiags tableName columnSignatures subHeadRow0
+      -- A sub-header short only by comment columns passes the check above, and
+      -- is padded with the empty cells it left out. An empty sub-header cell
+      -- declares no domain, which is all a comment column ever declares. (A
+      -- sub-header that misses an input or output column is an Error, so the
+      -- table is dropped and what it was padded with is never read.)
+      subHeadRow = if null subHeadRow0
+                   then subHeadRow0
+                   else subHeadRow0 ++ replicate (length columnSignatures - length subHeadRow0) ""
   -- merge headerRow with subHeadRows
   -- siteRow = Nothing: the sub-header row has no rule number.
   let subHeadCells = zipWith (\cs cell -> mkFsAt (CellSite tableName (csName cs) Nothing) (csType cs) cell)
@@ -292,23 +300,28 @@ parseTableBody tableName headerRow_1 = do
 -- A sub-header longer than the header lost its surplus cells the same way.
 -- Neither is guessed at.
 --
+-- __A sub-header short only by comment columns is not refused.__
+-- A sub-header cell declares the domain of its column, and a comment column declares none, so leaving those cells out loses nothing.
+-- 'parseTableBody' pads the row with empty cells, which declare no domain, and the corpus case @md-short-subheader-annotation-only-accepted@ pins it.
+-- The row is refused when ANY column it does not reach is an input or an output, located at the first of those.
+--
 -- No sub-header row (@null cells@) is the ordinary case and says nothing.
 -- Neither does a surplus of blank cells, which holds nothing to lose.
--- Located at the first column the row does not reach, or, for a surplus, at the table.
+-- Located at the first input or output column the row does not reach, or, for a surplus, at the table.
 subHeaderArityDiags :: String -> [ColumnSignature] -> [String] -> [Diagnostic]
 subHeaderArityDiags tableName csigs cells
   | null cells || n == m = []
-  | n < m =
-      [ errorAt $ concat
-          [ case drop n csigs of
-              (cs : _) -> showSite (CellSite tableName (csName cs) Nothing)
-              []       -> "table " ++ show tableName ++ ": "
-          , "the sub-header row has ", countOf n "cell", " but the header declares "
-          , countOf m "column", ", so this column has no sub-header cell."
-          , " A sub-header cell declares the domain of the column at its position,"
-          , " and dmnmd does not guess which columns a short row was meant to cover."
-          , " Write one cell per column, leaving the cell empty for a column that"
-          , " declares no domain." ] ]
+  | n < m = case firstNonComment n csigs of
+      Nothing -> []
+      Just cs ->
+        [ errorAt $ concat
+            [ showSite (CellSite tableName (csName cs) Nothing)
+            , "the sub-header row has ", countOf n "cell", " but the header declares "
+            , countOf m "column", ", so this column has no sub-header cell."
+            , " A sub-header cell declares the domain of the column at its position,"
+            , " and dmnmd does not guess which columns a short row was meant to cover."
+            , " Write one cell per column, leaving the cell empty for a column that"
+            , " declares no domain." ] ]
   | all null (drop m cells) = []
   | otherwise =
       [ errorAt $ concat
@@ -320,27 +333,42 @@ subHeaderArityDiags tableName csigs cells
     n = length cells
     m = length csigs
 
--- | A data row has one cell per column.
+-- | The first column among those a row of @n@ cells does not reach that is an
+-- input or an output, if there is one.
+--
+-- A column's kind is its 'DTCH_Label', which 'labelKind' derived from the
+-- label the author wrote, so this never looks at label text. A row short only
+-- by comment columns has no such column.
+firstNonComment :: Int -> [ColumnSignature] -> Maybe ColumnSignature
+firstNonComment n = find ((/= DTCH_Comment) . csLabel) . drop n
+
+-- | A data row has one cell for each input and output column.
 --
 -- Cells are matched to columns by position, and 'zipWith' stops at the shorter list at three places downstream ('parseDataRow' itself, then @getInputs@\/@getOutputs@, then 'DMN.DecisionTable.matches').
 -- So a missing input cell was not a wildcard written down: it was a guard that was never emitted, and the rule fired for any value of that column.
 -- A missing output cell became an empty answer.
 -- When no row reached the last columns, 'DMN.BuildTable.mkDTable' dropped their headers as well, and the table lost its output column (the corpus case @md-all-short-rows-refused@).
--- Padding with @-@ would WIDEN the rule in silence, which is why @--to=xml@ and the XML reader already refuse a short row; this refuses it at the source, for every backend.
+-- Padding with @-@ would WIDEN the rule in silence, which is why @--to=xml@ and the XML reader already refuse a rule short of an input or output entry; this refuses it at the source, for every backend.
+--
+-- __A row short only by comment columns is not refused.__
+-- A comment cell cannot change any answer, so leaving it out cannot widen a rule, and a GFM renderer shows the missing cell as an empty one.
+-- Trunk accepted such a row and this check had refused it with a reason that is false of a comment; 'parseDataRow' now pads the row with empty cells, and the corpus case @md-short-row-annotation-only-accepted@ pins that its output is the same as the explicitly-blank row\'s.
+-- The row is refused when ANY column it does not reach is an input or an output, whatever comment columns follow, and the message names the first of those and gives the reason that is true of it.
 --
 -- A row is as wide as its widest physical line, because a continuation row may add cells to the logical row.
--- Located at the first column the row does not reach.
 rowArityDiags :: String -> Maybe Int -> [ColumnSignature] -> [String] -> [Diagnostic]
-rowArityDiags tableName myrow csigs cells = case drop n csigs of
-  [] -> []
-  (cs : _) ->
+rowArityDiags tableName myrow csigs cells = case firstNonComment n csigs of
+  Nothing -> []
+  Just cs ->
     [ errorAt $ concat
         [ showSite (CellSite tableName (csName cs) myrow)
         , "the row has ", countOf n "cell", " but the header declares ", countOf m "column"
         , ", so the row ends before this column."
-        , " dmnmd does not pad a short row: an input cell left out would match every value of its column,"
-        , " and an output cell left out would give an empty answer."
-        , " Fill in the missing cells, writing - for an input that should match anything." ] ]
+        , case csLabel cs of
+            DTCH_In ->
+              " dmnmd does not pad a row that stops before an input column: an input cell left out would match every value of its column. Fill in the missing cells, writing - for an input that should match anything."
+            _ ->
+              " dmnmd does not pad a row that stops before an output column: an output cell left out would give an empty answer. Fill in the missing cells." ] ]
   where
     n = length cells
     m = length csigs
@@ -406,7 +434,17 @@ parseDataRow tableName csigs =
       firstrowtail <- parseTail
       doTrace $ unlines [ "ParseDataRows: calling parseDThr and parseContinuationRow" ]
       morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
-      let transposed = map (trim . unwords) $ transpose (firstrowtail : morerows)
+      let transposed0 = map (trim . unwords) $ transpose (firstrowtail : morerows)
+          shapeDiags  = rowArityDiags tableName myrow csigs transposed0
+          -- A row short only by comment columns passes 'rowArityDiags', and is
+          -- padded with the empty cells it left out, which is what a GFM
+          -- renderer shows and what an explicit blank cell reads as. A row
+          -- short of an input or output column is an Error, and is not padded:
+          -- the table is dropped, and padding would only invite follow-on
+          -- complaints about cells the author never wrote.
+          transposed  = if null shapeDiags
+                        then transposed0 ++ replicate (length csigs - length transposed0) ""
+                        else transposed0
           -- Bound once and used both for the DTrow and for the CellSite of every
           -- cell in it, so a diagnostic can never name a different row from the
           -- one the row records. `many1 digit` cannot return "", so the Nothing
@@ -415,7 +453,7 @@ parseDataRow tableName csigs =
           -- parseContinuationRow (symptom/struct-blank-rownum-swallowed).
           myrow = if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing
           colResults = zipWith (mkFEELCol tableName myrow) csigs transposed
-          cellDiags = rowArityDiags tableName myrow csigs transposed ++ concatMap fst colResults
+          cellDiags = shapeDiags ++ concatMap fst colResults
           datacols = snd <$> colResults
       doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
                         , "    csigs = " <> show csigs

@@ -250,3 +250,11 @@ After the case was `git mv`d and the two controls added, `--check` printed `chec
 No run of any fixture already in the manifest changed, so no other fixture in the set is a `U` table with no input column and two or more rules.
 In the manifest, 8 entries left (the symptom, whose four formats went from a function at exit 0 to exit 1 with the conflict error) and 24 arrived: `policy/md-zero-input-unique-refused`, which is that fixture renamed, and the two controls `policy/md-zero-input-single-rule-accepted` and `policy/md-zero-input-first-hit-accepted`, which are accepted.
 
+**f1 and f2 again: a row short only by comment columns is padded (`ParseTable.firstNonComment`).**
+This restores what trunk did for that one case, and rewrites the refusal message for the others, so the stderr of every refused short row changed text and nothing else.
+Before recording, `--check` printed `checked 1308 run(s): 44 changed`: 12 `CHANGED` files and 32 `MISSING FROM MANIFEST`.
+The 12 are the `.err` files of `policy/struct-short-row-refused`, `policy/xml-short-row-refused` and `policy/md-all-short-rows-refused`, four formats each.
+Their stdout is still `### exit 1`, and the diff of each shows the message only: the old text said an input cell and an output cell are both at risk, and the new text names the kind of the column it points at.
+`policy/md-short-subheader-refused` did not change, because its message is the sub-header's.
+The 32 are four new fixtures, eight files each: `policy/md-short-row-annotation-only-accepted`, `policy/md-blank-annotation-cell-accepted`, `policy/md-short-row-annotation-and-output-refused` and `policy/md-short-subheader-annotation-only-accepted`.
+In the manifest, 12 entries changed and 32 arrived; none left.
