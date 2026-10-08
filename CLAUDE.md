@@ -377,9 +377,10 @@ validator catches that.
   A row with `-` in every input column overlaps every other rule, which §8.2.10 says a `U` table
   must not contain — but the shape is idiomatic (**40 of 221** corpus fixtures, the README example
   among them), dmnmd's generated code (js/ts/py and `--to=l4`) is first-match, and `--to=l4` renders
-  it as `OTHERWISE`. (dmnmd's *interpreter* is not first-match for `U`: `evalTable` refuses an input
-  that matches both an earlier row and the catch-all — D-16's correction of 2026-09-26.) DMN's
-  construct for the intent is the default output value of §8.2.11, and since phase 2 that is what
+  it as `OTHERWISE`.
+  Since D-22 rule 1 the interpreter reads it the same way: `evalTable` splits a trailing catch-all off a `U` table (`uniqueCatchAll`) and treats it as the default output value, so an input that also matches an earlier row gets that row's answer rather than a conflict (`policy/md-eval-unique-catchall-default`).
+  Before D-22 it refused such an input, which was D-16's correction of 2026-09-26.
+  DMN's construct for the intent is the default output value of §8.2.11, and since phase 2 that is what
   `promoteTrailingCatchAll` emits: the row's outputs move into `dtDefaultOutput` →
   `<defaultOutputEntry>`, the `<rule>` is dropped, and the document is genuinely `U`-conformant for
   any engine, ordered or not. A warning still names the row (its authored NUMBER is genuinely
@@ -389,7 +390,7 @@ validator catches that.
   default already present); an ineligible catch-all keeps a phase-1-style warning that says why it
   was not promoted. `dtDefaultOutput` itself is honoured everywhere: the reader carries a declared
   `<defaultOutputEntry>` (it used to warn-and-drop), `evalTable` answers it exactly when no rule
-  matches under a single-hit policy, js/ts/py render it via `rowsPlusDefault` as the trailing arm
+  matches under a single-hit policy (and answers null when there is none, D-22 rule 3), js/ts/py render it via `rowsPlusDefault` as the trailing arm
   it is equivalent to, and L4 feeds it to `OTHERWISE` — which is what keeps the round trip
   byte-identical on both the ts and l4 legs. Pinned by `policy/hp-unique-catchall-promoted`,
   `policy/xml-default-output-entry-carried`, negative control `policy/hp-first-catchall-not-warned`,
@@ -545,11 +546,12 @@ sometimes contradict the header. A second is cosmetic and unreasoned — XML wri
 several input files at once and carries its file inside each message.
 
 `errorWithoutStackTrace` (`crash`, in `app/Main.hs`) still covers the aborts that are not
-diagnostics: an unsupported format, a multi-file `--from=xml`, an XML parse failure. What is
-**not** covered by D-7, and still prints a `CallStack`, is the *evaluation*-time crashes on the
-`-q` REPL path — `head0`, `fe2dval`, `fEval`'s type errors — recorded as
-`symptom/eval-hp-first-no-match-crash` and `symptom/eval-collect-min-empty-crash`. Those already
-have an `Either String` channel in `evalTable` to travel down; that is a separate, smaller job.
+diagnostics: an unsupported format, a multi-file `--from=xml`, an XML parse failure.
+What is **not** covered by D-7, and still prints a `CallStack`, is the *evaluation*-time crashes on the `-q` REPL path: `fe2dval`, `fEval`'s type errors, and `Prelude.minimum` over a `C<` table with no hits (`symptom/eval-collect-min-empty-crash`; `C>` has the same defect via `maximum`).
+Those already have an `Either String` channel in `evalTable` to travel down; that is a separate, smaller job.
+`head0` was on this list until D-22 rule 3: a single-hit table (`U A P F`) with no matching rule now answers null instead of crashing or refusing, unless it declares a default, and the REPL prints that as `T: null` whatever `-t` says.
+Its recording moved to `policy/eval-hp-first-no-match-crash` under its old slug, which names the defect it used to record.
+The empty-`C<` crash is a different defect, and DMN 1.3 §10.3.2.10 step 2 gives every hit policy, Collect included, null on no match; D-22 ruled only on the single-hit policies.
 
 The exit status answers exactly one question: *did something we were asked to read fail to
 read?* — with one extension the XML backend adds: **or fail to WRITE.** An emitter has a failure
@@ -656,13 +658,12 @@ Three things there are easy to get wrong on sight:
   worse than leaving it: rule 2 of `~/CLAUDE.md` names this exact move.)
 - **No `policy/` recording cites a cell-path position any more.** Commit 6 had promoted eleven
   that did; D-7 removed the `CallStack` from all of them, so an edit above `mkFsAt`/`mkFAt` no
-  longer dirties any policy recording. Exactly two recordings still carry a `CallStack`, both
-  `symptom/` and both *evaluation*-time: `eval-hp-first-no-match-crash`, which is the only
-  recording anywhere with a `src/DMN/` frame, and `eval-collect-min-empty-crash`, whose
-  `CallStack (from HasCallStack):` header has **no** frame under it at all. (An earlier draft
-  of this bullet said "two recordings carry a `src/DMN/` frame". One does. The count of
+  longer dirties any policy recording.
+  Exactly one recording still carries a `CallStack`: `symptom/eval-collect-min-empty-crash`, an *evaluation*-time crash whose `CallStack (from HasCallStack):` header has **no** frame under it at all, so no recording anywhere cites a `src/DMN/` frame.
+  There were two until D-22 rule 3 removed `head0`; the other, `eval-hp-first-no-match-crash`, was the only recording with a `src/DMN/` frame, and it now records a `null` answer from `policy/`.
+  (An earlier draft of this bullet said "two recordings carry a `src/DMN/` frame". One did. The count of
   `CallStack`s and the count of *frames* are different numbers.) If a D-7-shaped change ever
-  dirties one of those, that is a scope leak, not a re-record.
+  dirties that recording, that is a scope leak, not a re-record.
 - **The runner falls back to `dmnmd` on `PATH`** if it finds no build product, which silently
   tests whatever you last `cabal install`ed. It warns when it does this; read the
   `corpus: using …` line before believing a failure.
