@@ -28,7 +28,7 @@ import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
 import Data.Maybe (fromMaybe, isNothing)
 import DMN.BuildTable (tableErrors)
-import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, tableWarnings, trim)
+import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, mkFsKeepingQuotes, tableWarnings, trim)
 import DMN.ParsingUtils (Parser, parseOnly)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as M
@@ -706,6 +706,14 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
     -- evidence inferType wants — in particular the FEEL quotes are still on
     -- "2020", which is the only thing that distinguishes it from the number.
     --
+    -- 'mkFsKeepingQuotes', not 'mkFsEither': that runs 'unquoteCell' first, so
+    -- this comment was true of the intent and false of the code, and "2020" was
+    -- graded exactly like 2020 and "yes" like the boolean word yes. The column
+    -- was then typed Number or Boolean and every cell in it rewritten, at exit 0
+    -- (audit finding f4). Only this pre-pass keeps the quotes. The cells that are
+    -- BUILT, below, go through 'mkCells' at the settled type, which parses a
+    -- string column's literals itself.
+    --
     -- A cell that will not read at all contributes no evidence and is DROPPED
     -- here rather than raised. It is not thereby accepted: this is a pre-pass
     -- over the same texts 'mkCells' is about to read for real, and 'mkCells'
@@ -714,16 +722,32 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
     -- id` — the last unlocated user-facing abort in the tool (D-7), reachable
     -- from any untyped <inputEntry> containing a thousands-grouped number,
     -- because that guard fires before any type dispatch.
-    firstPass = [ fs | Right fs <- mkFsEither Nothing <$> texts ]
+    firstPass = [ fs | Right fs <- mkFsKeepingQuotes <$> texts ]
 
     ty = case colDeclared col of
       Just t -> Just t
       Nothing -> T.vartype (inferTypes (T.DTCH (colKind col) (colName col) Nothing Nothing) firstPass)
 
     built =
-      [ mkCells (\m -> where_ (atRule rid ++ m)) ty t
+      [ cellsAt (\m -> where_ (atRule rid ++ m)) t
       | (rid, t) <- zip (ruleIdents ++ repeat "") texts
       ]
+
+    -- An UNSETTLED column keeps its cells' quotes. Inference can fail to settle a
+    -- column in exactly three ways, and only the last leaves a table that can be
+    -- emitted: the cells disagree (a conflict), a cell is an ambiguous numeral,
+    -- or every cell is a wildcard. The first two are refused by 'tableErrors',
+    -- which is handed THESE cells and asks 'columnVerdict' the same question
+    -- the pre-pass above asked — so they must still carry the quotes the
+    -- pre-pass graded, or "2020" mixed with a bare 2021 reads as two numerals
+    -- to the check and the conflict the pre-pass found goes unreported. The
+    -- third has no quoted cell to keep. A settled column is built at its type.
+    cellsAt locate t
+      | isNothing ty = case mkFsKeepingQuotes t of
+          Right fs -> ([], fs)
+          Left msg -> ([errorAt (locate msg)], [])
+      | otherwise    = mkCells locate ty t
+
     atRule "" = ""
     atRule rid = rid ++ ": "
 

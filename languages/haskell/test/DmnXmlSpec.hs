@@ -9,6 +9,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import DMN.XML.ParseDMN
 import System.Directory (createDirectoryIfMissing)
 import DMN.XML.XmlToDmnmd (convertAll, Diagnostic (..), Severity (..))
+import DMN.DecisionTable (mkFsEither, mkFsKeepingQuotes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
@@ -123,6 +124,31 @@ oneDecisionXml itemDefs variable dtAttrs outputs = concat
       ++ [ "<outputEntry id=\"L" ++ n ++ "_" ++ show k ++ "\"><text>" ++ o ++ "</text></outputEntry>"
          | k <- [1 .. length outputs] ]
       ++ [ "</rule>" ]
+
+-- | A one-decision DMN 1.3 document whose single INPUT column is UNTYPED (its
+-- @\<inputExpression\>@ has no @typeRef@, which the XSD allows), so that its type
+-- is inferred from the given @\<inputEntry\>@ texts alone. The output column is
+-- typed by the variable and plays no part.
+untypedInputXml :: [String] -> String
+untypedInputXml entries = concat
+  [ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+  , "<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\""
+  , " id=\"u\" name=\"U\" namespace=\"https://example.org/dmnmd/test/u\">"
+  , "<decision id=\"D\" name=\"U\"><variable id=\"V\" name=\"U\" typeRef=\"string\"/>"
+  , "<decisionTable id=\"DT\" hitPolicy=\"FIRST\">"
+  , "<input id=\"I1\" label=\"x\"><inputExpression id=\"IE1\"><text>x</text></inputExpression></input>"
+  , "<output id=\"O1\"/>"
+  , concat [ "<rule id=\"R" ++ n ++ "\"><inputEntry id=\"E" ++ n ++ "\"><text>" ++ e ++ "</text></inputEntry>"
+             ++ "<outputEntry id=\"L" ++ n ++ "\"><text>\"r" ++ n ++ "\"</text></outputEntry></rule>"
+           | (i, e) <- zip [1 :: Int ..] entries, let n = show i ]
+  , "</decisionTable></decision></definitions>\n"
+  ]
+
+-- | The input column of whatever tables came back: its type and its cells.
+inputColumn :: [DT.DecisionTable] -> ([Maybe DMNType], [[[FEELexp]]])
+inputColumn tables =
+  ( [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_In ]
+  , [ row_inputs r | t <- tables, r <- allrows t ] )
 
 -- | The output columns of whatever tables came back: names, types, cells.
 outputColumns :: [DT.DecisionTable] -> ([String], [Maybe DMNType], [[[FEELexp]]])
@@ -441,8 +467,9 @@ dmn13Spec = describe "DMN 1.3" $ do
       names `shouldBe` ["output1", "output2"]
 
   -- The TYPE half, across every hit policy. With the clause's typeRef gone the
-  -- <variable> is the only statement of the column's type left in the document,
-  -- so the reader has to read it back exactly as the writer wrote it -- one
+  -- <variable> is the statement of the column's type that dmnmd's own writer
+  -- leaves in the document (decisionTable/@typeRef, which it does not write, is
+  -- the other), so the reader has to read it back exactly as the writer wrote it -- one
   -- classifier, DMN.Types.resultShape, decides both directions.
   describe "a single-output column's type comes from the <variable> under every hit policy" $ do
     let typeOf slug dtAttrs itemDefs varTypeRef = do
@@ -841,6 +868,96 @@ dmn13Spec = describe "DMN 1.3" $ do
       (_, tables) <- readDmn13 "baseline"
       concatMap (concatMap concat . map row_outputs . allrows) tables
         `shouldBe` [FNullary (VS "minor"), FNullary (VS "adult"), FNullary (VS "senior")]
+
+  -- Audit 2026-09-26, finding f4. In DMN XML a string is written WITH its quotes,
+  -- and the quotes are the only thing that tells the string "2020" from the number
+  -- 2020, or "yes" from the boolean word yes. The inference pre-pass in
+  -- XmlToDmnmd.resolveColumn used mkFsEither, whose unquoteCell strips them first,
+  -- so a column of FEEL string literals was typed by what was INSIDE the quotes.
+  describe "inference over an untyped column reads FEEL string literals with their quotes (f4)" $ do
+    let typed entries = do
+          (diags, tables) <- readDmnText "u-untyped" (untypedInputXml entries)
+          pure (diags, inputColumn tables)
+        strings names = ( [Just DMN_String], [ [[FNullary (VS s)]] | s <- names ] )
+
+    it "types a column of quoted numerals String, and builds the cells without their quotes" $ do
+      (diags, col) <- typed ["\"2020\"", "\"2021\""]
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      col `shouldBe` strings ["2020", "2021"]
+
+    it "types a column of quoted boolean words String" $ do
+      (_, col) <- typed ["\"yes\"", "\"no\""]
+      col `shouldBe` strings ["yes", "no"]
+
+    it "types a column of quoted true and false String" $ do
+      (_, col) <- typed ["\"true\"", "\"false\""]
+      col `shouldBe` strings ["true", "false"]
+
+    -- The loud form of the same cause: a quoted "007" was refused as an
+    -- ambiguous leading-zero numeral.
+    it "accepts quoted numerals with leading zeros, as strings" $ do
+      (diags, col) <- typed ["\"007\"", "\"008\""]
+      diags `shouldBe` []
+      col `shouldBe` strings ["007", "008"]
+
+    it "types a quoted numeral String when the column also holds a wildcard" $ do
+      (_, col) <- typed ["-", "\"2020\""]
+      col `shouldBe` ( [Just DMN_String], [ [[FAnything]], [[FNullary (VS "2020")]] ] )
+
+    -- A comma inside the quotes is not a second alternative: the pre-pass splits
+    -- on commas like every cell reader, but the second pass parses the literal.
+    it "keeps a comma inside the quotes in one string" $ do
+      (diags, col) <- typed ["\"1, 2\"", "\"3\""]
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      col `shouldBe` strings ["1, 2", "3"]
+
+    -- Negative controls: BARE cells keep the types they always had.
+    it "still types a column of bare numerals Number" $ do
+      (_, col) <- typed ["2020", "2021"]
+      col `shouldBe` ( [Just DMN_Number], [ [[FNullary (VN 2020)]], [[FNullary (VN 2021)]] ] )
+
+    it "still types a column of bare yes and no Boolean" $ do
+      (_, col) <- typed ["yes", "no"]
+      col `shouldBe` ( [Just DMN_Boolean], [ [[FNullary (VB True)]], [[FNullary (VB False)]] ] )
+
+    it "still refuses a column of bare leading-zero numerals as ambiguous" $ do
+      (diags, tables) <- readDmnText "u-bare-zero" (untypedInputXml ["007", "008"])
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "a leading zero has no numeric meaning"
+
+    -- The consequence for a column that mixes the two: it cannot be both, and
+    -- D-2 refuses it, which needs the quotes in the check that follows the
+    -- pre-pass as well as in the pre-pass.
+    it "refuses a column that mixes a quoted numeral with a bare one" $ do
+      (diags, tables) <- readDmnText "u-mixed" (untypedInputXml ["\"2020\"", "2021"])
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "dmnmd cannot infer a type for this column"
+      diags `shouldSatisfy` hasDiag Error "reads as Number"
+      diags `shouldSatisfy` hasDiag Error "reads as String"
+
+    it "refuses a quoted boolean word mixed with a bare one" $ do
+      (diags, tables) <- readDmnText "u-mixed-bool" (untypedInputXml ["\"yes\"", "no"])
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "dmnmd cannot infer a type for this column"
+
+    -- A DECLARED type never reaches inference: the document says what it is.
+    it "leaves a declared column alone" $ do
+      (_, tables) <- readDmnText "u-declared" $
+        T.unpack (T.replace "<inputExpression id=\"IE1\">" "<inputExpression id=\"IE1\" typeRef=\"string\">"
+                   (T.pack (untypedInputXml ["\"2020\"", "\"2021\""])))
+      inputColumn tables `shouldBe` strings ["2020", "2021"]
+
+  describe "mkFsKeepingQuotes, the inference pre-pass reader" $ do
+    it "keeps the quotes that mkFsEither strips" $ do
+      mkFsEither Nothing "\"2020\"" `shouldBe` Right [FNullary (VS "2020")]
+      mkFsKeepingQuotes "\"2020\"" `shouldBe` Right [FNullary (VS "\"2020\"")]
+
+    it "splits and trims exactly as mkFsEither does" $ do
+      mkFsKeepingQuotes "a,  b ,c" `shouldBe` mkFsEither Nothing "a,  b ,c"
+      mkFsKeepingQuotes "-" `shouldBe` Right [FAnything]
+
+    it "keeps the thousands-separator refusal" $
+      mkFsKeepingQuotes "1,000" `shouldBe` mkFsEither Nothing "1,000"
 
   dmn15Spec
 
