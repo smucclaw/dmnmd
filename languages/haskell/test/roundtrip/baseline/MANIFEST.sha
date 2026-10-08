@@ -2390,6 +2390,14 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-escapes-uninterpr
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-escapes-uninterpreted.py.err
 0bbd04d1aabe63f0b35837775a433101c65c399e  ./symptom__md-string-escapes-uninterpreted.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-string-escapes-uninterpreted.ts.err
+500dd8df3d98d486ebb4260b3b473d52df9b9d91  ./symptom__md-zero-input-unique-first-match.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-zero-input-unique-first-match.js.err
+314068bd9fa344a9ebbd2d15b75a90a38fc57e0c  ./symptom__md-zero-input-unique-first-match.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-zero-input-unique-first-match.l4.err
+b07b7eef19d1036f6eed2f04b3393b9b81b04f6b  ./symptom__md-zero-input-unique-first-match.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-zero-input-unique-first-match.py.err
+500dd8df3d98d486ebb4260b3b473d52df9b9d91  ./symptom__md-zero-input-unique-first-match.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-zero-input-unique-first-match.ts.err
 af60f6f76fab3467e469a66ad3d033dea59378ac  ./symptom__num-python-integer-literal-widened.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__num-python-integer-literal-widened.js.err
 8598dbe7f380489d1329f31f72a2ac39999dfb1c  ./symptom__num-python-integer-literal-widened.l4

@@ -1,0 +1,9 @@
+export function NoInputs (  ) {
+  if ("default") { // 1
+    return {"Dish":"Stew", "Price":5.0};
+  }
+  else if ("default") { // 2
+    return {"Dish":"Soup", "Price":7.0};
+  }
+}
+
