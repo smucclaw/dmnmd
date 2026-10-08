@@ -303,6 +303,15 @@ Things that are only apparent across several files:
   `policy/md-quoted-literal-all-or-nothing` and `symptom/xml-comma-split-negation`.
 - **The parser is megaparsec.** `DMN/ParsingUtils.hs` holds attoparsec-shaped shims
   (`many1`, `anyChar`, `notChar`, `parseOnly`) left over from an atto→mega migration.
+- **`DMN.Regions` cuts a table's input space into regions, and nothing in the binary calls it yet.**
+  A block is a set of values of one input column on which every cell gives the same answer; a region is one block per input column, with the rules live throughout it and a concrete input (`regionInput`) to evaluate there.
+  It is the groundwork for D-22 (refuse conflict regions under `U` and `A`; a `MAYBE` result only where a no-match region exists) and for D-21's `emitAsserts` (one `#ASSERT` per region).
+  Liveness is decided by `fEvals`, the matcher `evalTable` uses, and a `U` table's default by `uniqueCatchAll`, the function `evalTable` asks, so a trailing catch-all is the default even beside a declared one.
+  `test/RegionsSpec.hs` checks, at every region representative of every table the round-trip script reads that `regionMap` accepts, that the matcher selects exactly the live set and that `evalTable` answers as the region says.
+  It refuses rather than approximates: `regionMap` returns a `Left`, and `UnsupportedKind` names the eight shapes it refuses.
+  The corpus test pins the set of tables with a conflict region: the seven that ROOTSTOCK step 0 found, plus `policy/md-eval-unique-conflict`, which D-22 part 1 re-fixtured with a genuine overlap.
+  If that set moves, read the tables before updating the list.
+  To read the corpus with the binary's own reader, the test suite compiles `app/ParseMarkdown.hs` and `app/Options.hs` (`hs-source-dirs: test app`).
 
 ### Adding an output backend
 

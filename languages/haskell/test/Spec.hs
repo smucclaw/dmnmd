@@ -29,6 +29,7 @@ import ParseFEELSpec (feelSpec)
 import ParserSpecHelpers
 import TranslateL4Spec (l4Spec)
 import TranslateXMLSpec (xmlEmitSpec)
+import RegionsSpec (regionsSpec)
 
 -- * Main content
 
@@ -39,7 +40,7 @@ dTable n hp chs rows = DTable n hp chs rows Nothing
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec] $ hspec
   return ()
 
 -- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
