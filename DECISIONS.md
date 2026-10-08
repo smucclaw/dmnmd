@@ -1616,7 +1616,7 @@ Meng marked the card "accept" with no note.
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
 
-### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Parts 1 (the interpreter) and 2 (refusing conflict regions) landed; part 3 not implemented.**
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). All three parts landed: 1 (the interpreter), 2 (refusing conflict regions) and 3 (`NOTHING` in L4).**
 
 This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
 It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
@@ -1732,3 +1732,49 @@ Rule 2 refuses a `U` overlap even where the outputs agree, as DMN 1.3 §8.2.10 d
 Stdout and exit status stay the same because another table in the same file was already refused.
 The ruling's list of what moves named only corpus recordings, so this follows from the ruling rather than leaking past it.
 The backend baseline was re-recorded for this change, and every changed run is listed by fixture in `test/roundtrip/baseline-audit/README.md`.
+
+**Implementation, part 3: "no rule matched" is `NOTHING` in L4 (2026-09-29, branch `feat/d22-l4-nothing`, on #65).**
+The L4 half of rule 3 is implemented, so all three rules have landed.
+`DMN.Translate.L4.noRuleMayMatch` decides whether an input can reach the synthesized `OTHERWISE`.
+It says no when the table has a trailing catch-all row or a declared default, or when an arm is all wildcards and so renders as `IF TRUE`, which `P` sorts in among the other arms.
+Otherwise it asks `DMN.Regions.noMatchRegions`.
+Where it says yes, the result is `GIVETH A MAYBE T`, every arm is `JUST v`, and the `OTHERWISE` is `NOTHING`, where it used to be a typed sentinel: `0`, `""`, `FALSE` or `EMPTY`.
+A total table stays bare and keeps its sentinel, which is dead code that only has to typecheck.
+
+**Where `regionMap` cannot analyse the table, the result is a `MAYBE` unless there is a catch-all row, a default or an all-wildcard arm.**
+The two ways to be wrong are not equal.
+A `MAYBE` on a total table costs a caller an unwrap whose `NOTHING` never comes.
+A bare result on a partial table answers with the sentinel at exit 0, which is the defect this rule removes.
+In the fixtures this reaches 10 tables: 4 with a collection column, 4 with a String cell holding FEEL test syntax, and 2 with a short row.
+It is how `policy/list-input-membership-l4` moves, as this ruling said it would, although regions do not analyse its collection column.
+That table is in fact partial: a list holding neither 5 nor 7 matches no rule.
+
+**A multi-output table wraps its whole record**, `JUST (mk<Name> …)` under `GIVETH A MAYBE <Name>`, which is the shape the old `wrapMaybe` option already had.
+A list result is parenthesised, `MAYBE (LIST OF T)`, because `l4 check` refuses `MAYBE LIST OF T` with "unexpected LIST".
+The old option never did that, and no fixture had ever put a list result under it.
+
+**`wrapMaybe` is gone rather than flipped.**
+It was the opt-in, off by default, that rendered no-match as `NOTHING`, and no caller ever set it.
+What it did beyond this ruling was wrap total tables too, which rule 3 rules out.
+`defaultResult` stays: a caller that sets it has said what no-match answers, so the result stays bare, but no caller sets it either.
+
+**One case gives a total table a `MAYBE`, and it predates D-22.**
+A sum-typed result, a String output column with a declared domain, with no catch-all row and no default, has no sentinel: `""` does not typecheck against a sum type, and a made-up member would widen the domain.
+So such a table keeps the `MAYBE` it already had, even when it is total, as `policy/l4-priority-reorders-arms` is.
+Removing it means giving the dead `OTHERWISE` a value of the type, for example the last arm's, which changes total tables and is not part of this ruling.
+
+**The DMN and prose halves of rule 3 needed nothing here.**
+A table with no `<defaultOutputEntry>` answers null on no match (§10.3.2.10), and `--to=xml` writes one only for a declared default or a promoted catch-all.
+dmnmd has no prose backend, so "no rule applies" has nowhere to go yet.
+
+**What moved.**
+- The three recordings this ruling named, re-recorded with new WHYs: `policy/l4-otherwise-sentinel-not-last-row`, `policy/list-output-l4-literal` and `policy/list-input-membership-l4`.
+- Two symptom recordings, both explained by rule 3, with their defects unchanged: `symptom/l4-output-range-upper-bound-dropped` (every `X` of 10 or more matches no rule) and `symptom/l4-zero-output-dangling-giveth` (every `Dish` but Stew and Roast).
+- Nothing else in the corpus: `make corpus` reported those five changed out of 252 before recording, and none after.
+- The backend baseline: `--check` printed `checked 1260 run(s): 81 changed`, all `--to=l4` stdout, and 0 after `--record`.
+  The 81 fixtures are listed in `test/roundtrip/baseline-audit/README.md`, with how each changed table was checked against `DMN.Regions`.
+- An A/B against a binary built at `98cd8c5` ran 315 fixtures in `ts js py xml l4`, 1,575 runs: only those 81 `--to=l4` runs differ.
+- `l4 check` on both sides of the 81: 77 typecheck before and after, and 4 fail before and after, for a table with no output column or a record with a repeated field name.
+- The root `README.md`'s `--pick="Example 2" --to=l4` example, which the baseline does not run: the table has no-match regions (a Spring party of 4.5 guests, for one), so it now reads `MAYBE STRING`.
+- `make roundtrip` is unchanged: 197 fixtures, 135 pass, 10 xfail, 52 skipped, and 0 XSD-invalid with `--xsd`.
+  Both sides of its L4 comparison move together, because the XML read back has no default where the markdown had no catch-all.

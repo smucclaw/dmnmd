@@ -186,3 +186,31 @@ Their hashes changed as well as their paths, because both tables are now refused
 **New fixtures: 8, with 64 entries arriving.**
 They are `dmn13/bad-overlapping-unique-rules.dmn`, `policy/xml-unique-overlap-refused`, the four `policy/hp-unique-overlap-*-refused` cases, `policy/eval-unique-collection-overlap-at-runtime` and `policy/eval-hp-any-collection-disagree-at-runtime`.
 
+## Extension for D-22 part 3 (no rule matched is `NOTHING` in L4), 2026-09-29
+
+Branch `feat/d22-l4-nothing`, on #65 (`98cd8c5`).
+Before recording, `--check` printed `checked 1260 run(s): 81 changed`, every one a `CHANGED (sha)` line for `--to=l4` stdout.
+No `ts`, `js` or `py` run changed, and no stderr file changed.
+After `--record`, it printed `checked 1260 run(s): 0 changed`.
+In the manifest, 81 entries changed and none arrived or left.
+
+**How each run was checked.**
+The manifest holds only checksums, so the full outputs came from an A/B: binaries built at `98cd8c5` and at this branch, run over the same 315 fixtures in `ts js py xml l4`, 1,575 runs.
+81 differ, all of them `--to=l4` stdout, and they are exactly the 81 runs `--check` named.
+A script split each changed output into its function blocks and checked two things.
+First, every block that differs differs only by rule 3's rendering: `GIVETH A T` becomes `GIVETH A MAYBE T` (with `(LIST OF T)` parenthesised), each `THEN v` becomes `THEN JUST v`, and the `OTHERWISE` becomes `NOTHING`.
+Second, the tables whose blocks changed are exactly the tables the rule selects, read with the binary's own readers and asked of `DMN.Regions`.
+There are 93 such tables in the 81 fixtures, and none has a catch-all row, a declared default or an all-wildcard arm.
+83 have a no-match region, and the other 10 are tables `regionMap` cannot analyse: 4 with a collection column, 4 with a String cell holding FEEL test syntax, and 2 with a short row.
+No table was already a `MAYBE`, and no fixture that the rule selects a table in was left unchanged, except where `--to=l4` exits 1.
+`l4 check` was run on both sides of all 81: 77 typecheck before and after, and 4 fail before and after for pre-existing reasons.
+Three of those are the undeclared result type of a table with no output column (`symptom/l4-zero-output-dangling-giveth`), and one is a record with two fields of one name (`symptom/struct-dup-rightmost-name-two-outputs`).
+
+**The fixtures, one `--to=l4` run each.**
+- 52 `policy/` cases: `cli-pick-multiple-names`, `eval-hp-any-collection-disagree-at-runtime`, `eval-hp-any-multirow-duplicated`, `eval-hp-first-no-match-crash`, `eval-unique-collection-overlap-at-runtime`, `infer-all-wildcard-column-silent`, `infer-hyphenated-words-stay-string`, `infer-negative-number-resolved`, `infer-prose-with-angle-is-string`, `infer-prose-with-dots-is-string`, `l4-otherwise-sentinel-not-last-row`, `list-input-membership-l4`, `list-input-membership-ts`, `list-output-l4-literal`, `md-declared-string-boolean`, `md-eval-unique`, `md-hash-annotation-column`, `md-list-output-array`, `md-multi-table-all-parse`, `md-multivalue-cell`, `md-multivalue-dash-reprocessed`, `md-pick-filter`, `md-prefix-comparisons`, `md-quoted-literal-all-or-nothing`, `md-string-equality`, `md-test-shaped-label-declared-string-kept`, `md-test-shaped-label-quoted-kept`, `num-cent-precision-preserved`, `num-large-integer-exact`, `num-leading-dot-accepted`, `num-multivalue-numeric-preserved`, `num-negative-range-accepted`, `num-negative-threshold-accepted`, `num-range-decimal-accepted`, `num-range-halfopen-honoured`, `num-suffix-gt-mirrored`, `num-suffix-gte-mirrored`, `num-suffix-lt-mirrored`, `num-suffix-lte-mirrored`, `num-thousands-with-space-accepted`, `struct-prose-table-is-decision-table`, `xml-any-typeref-infers`, `xml-decision-variable-not-applied-multi-output`, `xml-decision-variable-types-single-output`, `xml-id-uniqueness-not-name-derived`, `xml-informationrequirement-dropped-silently`, `xml-inputdata-name-type-conflict`, `xml-itemdefinition-warns`, `xml-no-output-column-refused`, `xml-output-label-names-single-output`, `xml-short-row-refused`, `xml-wildcard-output-warned`.
+- 25 `symptom/` cases: `cli-pick-no-match-silent`, `cli-query-pick-no-match-misreported`, `infer-explicit-type-contradiction-silent`, `js-nonascii-escape`, `l4-output-range-upper-bound-dropped`, `l4-zero-output-dangling-giveth`, `md-dash-written-interval-silent`, `md-negation-in-string-column-silent`, `md-string-col-arith-dead-rule`, `struct-dash-rownum-dropped`, `struct-dup-column-names`, `struct-dup-rightmost-name-two-outputs`, `struct-fenced-code-ingested`, `struct-label-pre-wins`, `struct-midtable-continuation`, `struct-no-heading-default-name`, `struct-onecol-no-output`, `struct-short-row-truncated`, `struct-tablename-collision`, `struct-tablename-first-backtick`, `struct-zero-rule-table-accepted`, `xml-comma-split-negation`, `xml-literal-expression-decision-dropped`, `xml-unreadable-test-kept-as-text`, `xml-zero-rule-table-accepted-silently`.
+- 4 others: `dmn13/any-typeref.dmn`, `dmn13/decision-variable-typeref.dmn`, `dmn13/output-label.dmn` and `examples/Diagram Interchange/diagram-interchange-dish-example.dmn`.
+
+72 of the 77 corpus cases record another backend or the `-q` evaluator (58 `--to=ts`, 6 `-q`, 5 `--to=xml`, 2 `--to=js`, 1 `--to=py`), so their corpus recordings did not move.
+The five whose recordings run `--to=l4` did, and were re-recorded in the same change: the three D-22 names, and `symptom/l4-output-range-upper-bound-dropped` and `symptom/l4-zero-output-dangling-giveth`, whose defects are unchanged.
+

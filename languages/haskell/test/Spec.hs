@@ -159,10 +159,18 @@ defaultOutputSpec = describe "dtDefaultOutput — the §8.2.11 default output va
     it "adds nothing when there is no default" $
       length (rowsPlusDefault (dTable "D" HP_Unique [inC, outC] [r1])) `shouldBe` 1
 
-  describe "the table-level default reaches L4's OTHERWISE" $
+  describe "the table-level default reaches L4's OTHERWISE" $ do
     it "renders the default, not the CLI fallback and not a fabricated value" $
       toL4 defaultL4Opts (t HP_Unique)
         `shouldSatisfy` (("OTHERWISE " ++ show "Takeaway") `isInfixOf`)
+    -- D-22 rule 3: a declared default answers wherever no rule does, so the
+    -- table has no no-match region and its result is not a MAYBE.
+    it "keeps the result bare, because the default leaves no input unanswered" $ do
+      toL4 defaultL4Opts (t HP_Unique) `shouldSatisfy` (not . ("MAYBE" `isInfixOf`))
+      toL4 defaultL4Opts (t HP_First) `shouldSatisfy` (not . ("MAYBE" `isInfixOf`))
+    it "is what makes it bare: without the default, the same table is MAYBE" $
+      toL4 defaultL4Opts ((t HP_Unique) { dtDefaultOutput = Nothing })
+        `shouldSatisfy` ("GIVETH A MAYBE" `isInfixOf`)
 
 parseHelloWorld :: Parser ()
 parseHelloWorld = do

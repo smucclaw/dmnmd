@@ -309,7 +309,7 @@ Things that are only apparent across several files:
   (`many1`, `anyChar`, `notChar`, `parseOnly`) left over from an atto→mega migration.
 - **`DMN.Regions` cuts a table's input space into regions, and both readers use it to refuse conflicts (D-22 rule 2).**
   A block is a set of values of one input column on which every cell gives the same answer; a region is one block per input column, with the rules live throughout it and a concrete input (`regionInput`) to evaluate there.
-  `conflictErrors`, a summand of `tableErrors` beside D-13's `uniquenessErrors`, refuses every conflict region; the rest of the module is also the groundwork for D-22 part 3 (a `MAYBE` result only where a no-match region exists) and for D-21's `emitAsserts` (one `#ASSERT` per region).
+  `conflictErrors`, a summand of `tableErrors` beside D-13's `uniquenessErrors`, refuses every conflict region, and `DMN.Translate.L4.noRuleMayMatch` asks `noMatchRegions` whether an L4 result must be a `MAYBE` (D-22 part 3); the rest of the module is groundwork for D-21's `emitAsserts` (one `#ASSERT` per region).
   Liveness is decided by `fEvals`, the matcher `evalTable` uses, and a `U` table's default by `uniqueCatchAll`, the function `evalTable` asks, so a trailing catch-all is the default even beside a declared one.
   `test/RegionsSpec.hs` checks, at every region representative of every table the round-trip script reads that `regionMap` accepts, that the matcher selects exactly the live set and that `evalTable` answers as the region says.
   It refuses rather than approximates: `regionMap` returns a `Left`, and `UnsupportedKind` names the eight shapes it refuses.
@@ -426,11 +426,11 @@ cabal build                                # neither script builds
 ./test/roundtrip/backend-baseline.sh --check   # did any OTHER backend move?
 ```
 
-132 of 184 fixtures pass byte-identically (42 skipped as recorded refusals, 10 XFAILs each with a
+135 of 197 fixtures pass byte-identically (52 skipped as recorded refusals, 10 XFAILs each with a
 reason in the script), plus the same comparison through `--to=l4`; every emitted document validates
 against `xsd/DMN13.xsd` with `xmllint`. (This paragraph said "117 of 120, eight XFAILs" from an
-earlier count of the fixture set, and then "131 of 183" from the D-16-phase-2 run.
-The numbers above are the §8.3.2 follow-up's run, whose one new fixture is the markdown input of a corpus case it added.)
+earlier count of the fixture set, then "131 of 183" from the D-16-phase-2 run, then "132 of 184" from the §8.3.2 follow-up's run.
+The numbers above were measured on 2026-09-29 after D-22 part 3; part 2's refusals account for most of the growth in skips, since a table refused on reading has no round trip.)
 
 **Three things about that harness are worth knowing before trusting a green run.** TS is a weak
 surface on its own — measured, not assumed: `--to=ts` collapses eleven hit policies into two
@@ -456,6 +456,7 @@ dispatch. **`--check` only** — re-recording after a change launders a regressi
 > After it, `--check` printed `checked 1224 run(s): 0 changed`, both with the full outputs present and against the manifest alone.
 > It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures; no emitter output changed, and `--check` printed `checked 1228 run(s): 0 changed` (`test/roundtrip/baseline-audit/README.md`).
 > D-22 part 2 re-recorded it again on purpose, after `--check` printed `checked 1260 run(s): 116 changed`; every changed run is listed by fixture in that file, including `safe2.dmn`'s new refusals, and `--check` then printed `checked 1260 run(s): 0 changed`.
+> D-22 part 3 re-recorded it once more, after `--check` printed `checked 1260 run(s): 81 changed`, every one a `--to=l4` stdout; that file lists the 81 fixtures and how each was checked against rule 3, and `--check` then printed `checked 1260 run(s): 0 changed`.
 >
 > Every change the re-record absorbed is audited in `test/roundtrip/baseline-audit/README.md`.
 > Each was classified by shape, bisected to the commit that introduced it, and attributed to D-6, D-7, D-9, D-13, D-15, D-16, D-17, D-18, D-19 or PR #58, and none was left over.
@@ -483,8 +484,16 @@ status header saying so.
 - `Collect`/`Aggregate`/`OutputOrder`/`RuleOrder` `error` out deliberately: they are
   list-valued and a scalar `BRANCH` would silently drop matches. `Priority` reorders arms
   through `outputOrder` (the same function `evalTable` uses) rather than row order.
-- With no all-wildcard catch-all row, `OTHERWISE` must **not** reuse the last data row's
-  output — it falls back to `defaultResult` or a typed sentinel.
+- **"No rule matched" is `NOTHING` (D-22 rule 3).**
+  The `OTHERWISE` returns the trailing catch-all row's output, else the declared default (`dtDefaultOutput`).
+  With neither, it must **not** reuse the last data row's output, and what it says depends on whether an input can reach it, which `noRuleMayMatch` decides.
+  If one can, the result is `GIVETH A MAYBE T`, every arm is `JUST v`, and the `OTHERWISE` is `NOTHING`; a multi-output table wraps its whole record, `JUST (mk<Name> …)`.
+  If none can, the table is total, stays bare, and its dead `OTHERWISE` returns a typed sentinel (`0`, `""`, `FALSE`, `EMPTY`) that only has to typecheck.
+  `noRuleMayMatch` says no for a default row or an all-wildcard arm (an `IF TRUE`, as under `P`), and otherwise asks `DMN.Regions.noMatchRegions`.
+  **Where `regionMap` cannot analyse the table** (a collection column, a String cell holding FEEL test syntax, a short row, …) **it says yes**: a `MAYBE` on a total table costs an unwrap, and a sentinel on a partial one is a wrong answer at exit 0.
+  One older case also gives `MAYBE` to a total table: a sum-typed result with no catch-all row or default, because a sum type has no sentinel (`policy/l4-priority-reorders-arms`).
+  `MAYBE (LIST OF T)` is parenthesised (`typeAtom`), because `MAYBE LIST OF T` does not parse.
+  There is no `wrapMaybe` option any more; `defaultResult`, which no caller sets, still overrides the `OTHERWISE` and keeps the result bare.
 - **The ditto grid is column-alignment-critical.** `renderDittoGrid` collapses a guard token
   to `^` when it repeats the token directly above; the L4 lexer resolves `^` by *absolute
   source column*, so widths must be measured with `displayWidth`, which defers to

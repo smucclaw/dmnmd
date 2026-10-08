@@ -83,6 +83,47 @@ noCatchTable = T.pack $ dropWhile (== '\n') [r|
 | 2 | < 0        | negative             |
 |]
 
+-- | A table with no catch-all row whose rules nonetheless cover every input
+-- (D-22 rule 3). Its OTHERWISE is unreachable, so the result stays bare.
+totalNoCatchTable :: Text
+totalNoCatchTable = T.pack $ dropWhile (== '\n') [r|
+| U | x : Number | label : String (out) |
+|---+------------+----------------------|
+| 1 | < 0        | negative             |
+| 2 | >= 0       | nonnegative          |
+|]
+
+-- | 'buyTable' without its last row, so every age above 25 matches no rule.
+-- A multi-output table: the whole record is what becomes MAYBE.
+buyGapTable :: Text
+buyGapTable = T.pack $ dropWhile (== '\n') [r|
+| F | age : Number | mayBuy : Boolean (out) | limit : Number (out) |
+|---+--------------+------------------------+----------------------|
+| 1 | <18          | False                  |                    0 |
+| 2 | [18..21]     | True                   |                  750 |
+| 3 | [21..25]     | True                   |                 1500 |
+|]
+
+-- | A collection OUTPUT column with a no-match region: the list type has to be
+-- parenthesised under MAYBE, because @MAYBE LIST OF STRING@ does not parse.
+sidesGapTable :: Text
+sidesGapTable = T.pack $ dropWhile (== '\n') [r|
+| U | season : String | sides : [String] (out) |
+|---+-----------------+------------------------|
+| 1 | Fall            | fries, slaw            |
+| 2 | Spring          | soup                   |
+|]
+
+-- | A collection INPUT column, which 'DMN.Regions.regionMap' does not analyse,
+-- and no catch-all row. Totality cannot be proven, so the result is MAYBE.
+scoresNoCatchTable :: Text
+scoresNoCatchTable = T.pack $ dropWhile (== '\n') [r|
+| U | tags : [Number] | grade (out) |
+|---+-----------------+-------------|
+| 1 | 5               | pass        |
+| 2 | 7               | fail        |
+|]
+
 -- | A negated input cell in a row that has a SECOND input column (D-9).
 --
 -- The second column is the whole point: with one input column the missing
@@ -188,13 +229,13 @@ parse name = either error id . parseOnly (parseTable name)
 
 -- * Golden semantic round-trip (BUILD-SPEC §7.1, Option A)
 
--- | Emission options for the golden: ditto on, OR-of-EQUALS (no @elem@), bare
--- @OTHERWISE@ via the @mk<Name>@ constructor (no MAYBE wrapping).
+-- | Emission options for the golden: ditto on, OR-of-EQUALS (no @elem@). Both
+-- golden tables end in a catch-all row, so each result is bare and its
+-- @OTHERWISE@ is that row, via the @mk<Name>@ constructor for the record.
 milesOpts :: L4Opts
 milesOpts = defaultL4Opts
   { emitDitto     = True
   , useElem       = False
-  , wrapMaybe     = False
   , defaultResult = ""
   , emitAsserts   = False
   }
@@ -346,34 +387,95 @@ l4Spec = do
   -- The one-column shift in the `^` positions is a consequence of the longer
   -- parameter, not a ditto regression — the grid is measured from the emitted
   -- token, so it moves with it.
+  --
+  -- The `JUST` before each result is D-22 rule 3, not ditto: a tier other than
+  -- platinum or gold matches no rule, so the result is a MAYBE. The guard grid
+  -- to the left of THEN, which is what this block pins, did not move.
   describe "DMN.Translate.L4.renderDittoGrid — emitDitto on vs off (BUILD-SPEC §3)" $ do
     let dt  = parse "tier" tierTable
         off = toL4 defaultL4Opts { emitDitto = False } dt
         on  = toL4 defaultL4Opts { emitDitto = True  } dt
     it "off mode spells out every guard at the same column layout (no carets)" $ do
       off `shouldNotContain` "^"
-      off `shouldContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"travel\" THEN 8"
+      off `shouldContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"travel\" THEN JUST 8"
     it "on mode keeps the first arm fully spelled (nothing to copy above)" $
-      on `shouldContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"dining\" THEN 10"
+      on `shouldContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"dining\" THEN JUST 10"
     it "on mode collapses repeated guard tokens to column-aligned ^" $ do
       on `shouldContain` "^"
       -- arm 2: field, op and the platinum value all match the arm above -> ^^^;
       -- only the changed cat value ("travel") is re-typed.
-      on `shouldContain` "IF ^     ^      ^          ^   ^   ^      \"travel\" THEN 8"
+      on `shouldContain` "IF ^     ^      ^          ^   ^   ^      \"travel\" THEN JUST 8"
       -- the spelled-out form of arm 2 must NOT survive (it was dittoed away).
       on `shouldNotContain` "IF tier_ EQUALS \"platinum\" AND cat EQUALS \"travel\""
     it "on mode re-types a changed value and never dittos across a dropped conjunct" $
       -- arm 4 changes tier to gold (re-typed), but its AND/cat/EQUALS/value are
       -- spelled out because arm 3 dropped the cat conjunct (a Nothing above is
       -- not copyable) — the load-bearing transitive-with-gap case.
-      on `shouldContain` "IF ^     ^      \"gold\"     AND cat EQUALS \"dining\" THEN 6"
+      on `shouldContain` "IF ^     ^      \"gold\"     AND cat EQUALS \"dining\" THEN JUST 6"
 
   describe "DMN.Translate.L4.toL4 — OTHERWISE synthesis (bug 1/6)" $ do
     let out = toL4 defaultL4Opts (parse "FirstNoCatch" noCatchTable)
     it "does NOT fabricate the last data row's output for unmatched inputs" $
       out `shouldNotContain` "OTHERWISE \"negative\""
-    it "falls back to a typed default sentinel when there is no catch-all row" $
-      out `shouldContain` "OTHERWISE \"\""
+    -- This used to expect `OTHERWISE ""`: a typed sentinel, which answered the
+    -- empty string for every x in [0..10], where no rule matches. D-22 rule 3
+    -- replaced it, because a sentinel is a confident answer the table never gave.
+    it "renders no rule matched as NOTHING, not as a typed sentinel (D-22 rule 3)" $ do
+      out `shouldContain` "GIVETH A MAYBE STRING"
+      out `shouldContain` "THEN JUST \"big\""
+      out `shouldContain` "OTHERWISE NOTHING"
+      out `shouldNotContain` "OTHERWISE \"\""
+
+  describe "DMN.Translate.L4.toL4 — MAYBE only where a no-match region exists (D-22 rule 3)" $ do
+    it "leaves a total table with no catch-all row bare" $ do
+      let out = toL4 defaultL4Opts (parse "Total" totalNoCatchTable)
+      out `shouldContain` "GIVETH A STRING"
+      out `shouldNotContain` "MAYBE"
+      out `shouldNotContain` "JUST"
+    it "leaves a total multi-output table bare" $
+      toL4 defaultL4Opts (parse "buy" buyTable) `shouldNotContain` "MAYBE"
+    it "wraps the whole record of a multi-output table, not each field" $ do
+      let out = toL4 defaultL4Opts (parse "buy" buyGapTable)
+      out `shouldContain` "GIVETH A MAYBE Buy"
+      out `shouldContain` "THEN JUST (mkBuy FALSE 0)"
+      out `shouldContain` "OTHERWISE NOTHING"
+      out `shouldContain` "DECLARE Buy HAS"
+    it "parenthesises a list result type under MAYBE" $ do
+      let out = toL4 defaultL4Opts (parse "Sides" sidesGapTable)
+      out `shouldContain` "GIVETH A MAYBE (LIST OF STRING)"
+      out `shouldContain` "THEN JUST (LIST \"fries\", \"slaw\")"
+      out `shouldContain` "OTHERWISE NOTHING"
+    it "uses MAYBE where regions cannot prove the table total" $ do
+      let out = toL4 defaultL4Opts (parse "Scores" scoresNoCatchTable)
+      out `shouldContain` "GIVETH A MAYBE STRING"
+      out `shouldContain` "OTHERWISE NOTHING"
+    it "leaves an unanalysable table with a catch-all row bare" $
+      toL4 defaultL4Opts (parse "Access" listTable) `shouldNotContain` "MAYBE"
+    it "typechecks, and answers NOTHING exactly where no rule matches, under the real l4" $ withL4 $ \l4bin -> do
+      let emitted = toL4 defaultL4Opts (parse "FirstNoCatch" noCatchTable)
+                 ++ "\n" ++ toL4 defaultL4Opts (parse "buy" buyGapTable)
+                 ++ "\n" ++ toL4 defaultL4Opts (parse "Sides" sidesGapTable)
+                 ++ "\n" ++ toL4 defaultL4Opts (parse "Total" totalNoCatchTable)
+                 ++ unlines
+                    [ ""
+                    , "#ASSERT FirstNoCatch 11 EQUALS JUST \"big\""
+                    , "#ASSERT FirstNoCatch (-1) EQUALS JUST \"negative\""
+                    , "#ASSERT FirstNoCatch 5 EQUALS NOTHING"
+                    , "#ASSERT buy 30 EQUALS NOTHING"
+                    , "#ASSERT Sides \"Fall\" EQUALS JUST (LIST \"fries\", \"slaw\")"
+                    , "#ASSERT Sides \"Winter\" EQUALS NOTHING"
+                    , "#ASSERT Total 0 EQUALS \"nonnegative\""
+                    ]
+          nothingOut = outDir ++ "/nothing.l4"
+      createDirectoryIfMissing True outDir
+      writeFile nothingOut emitted
+      (_cc, cOut, cErr) <- readProcessWithExitCode l4bin ["check", nothingOut] ""
+      (cOut ++ cErr) `shouldSatisfy` ("Check succeeded" `isInfixOf`)
+      (_rc, rOut, rErr) <- readProcessWithExitCode l4bin ["run", nothingOut] ""
+      let runLog = rOut ++ rErr
+      runLog `shouldSatisfy` (not . ("assertion failed" `isInfixOf`))
+      runLog `shouldSatisfy` (not . ("could not be evaluated" `isInfixOf`))
+      length (filter ("assertion satisfied" `isInfixOf`) (lines runLog)) `shouldSatisfy` (>= 7)
 
   -- This block is deliberately TEXTUAL rather than semantic. The semantic gate
   -- for L4 is the golden round-trip, which shells out to `l4` and goes PENDING
@@ -424,7 +526,7 @@ l4Spec = do
   describe "DMN.Translate.L4.toL4 — Priority orders arms by output priority, not row order (HP_Priority)" $ do
     -- The arm results are `JUST \`HIGH\`` rather than `"HIGH"` because prioTable's
     -- output column declares a domain, so it now emits a real L4 sum type, and
-    -- Priority hardwires catchAll = Nothing so the result is MAYBE-wrapped.
+    -- the result is MAYBE-wrapped: every x <= 0 matches no rule (D-22 rule 3).
     -- Only the spelling moved; what this block tests — that the higher-priority
     -- arm is emitted FIRST, so a first-match BRANCH agrees with evalTable's
     -- outputOrder — is unchanged.

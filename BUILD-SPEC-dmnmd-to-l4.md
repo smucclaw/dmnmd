@@ -38,6 +38,8 @@
 > - §1.6 defers Collect to "v1.1". It is still deferred, and deliberately: `L4.hs` `error`s on
 >   the list-valued hit policies rather than collapsing them to a scalar `BRANCH`, which is
 >   pinned by `test/corpus/cases/policy/md-l4-refuses-collect`.
+> - §1.5's default, a bare-typed `OTHERWISE` with `wrapMaybe` as an opt-in, is **superseded** by `DECISIONS.md` D-22 part 3 (2026-09-29): "no rule matched" is now `NOTHING` wherever an input can reach the `OTHERWISE`, and `wrapMaybe` is gone.
+>   A dated note in §1.5 says what replaced it.
 > - §1.4 carried a **false** claim — that inline one-line record literals do not parse — which
 >   was load-bearing, since it was the stated reason for the constructor helper. It is
 >   corrected in place as a dated erratum rather than silently rewritten. The emitter is
@@ -223,6 +225,14 @@ backend **synthesizes** one. The convention is **resolved by the validated golde
 - **Optional — `wrapMaybe = True` (non-default).** Emit `GIVETH A MAYBE <type>`, arms return
   `JUST <value>`, and `OTHERWISE NOTHING`. Total and faithful to “no rule matched”, but the golden
   does **not** use it; it is an opt-in mode, not the primary path.
+
+> **Superseded (2026-09-29, `DECISIONS.md` D-22 part 3).** The two bullets above no longer describe the default.
+> A table that some input can fall through, with no catch-all row and no declared default, now emits `GIVETH A MAYBE <type>`, `JUST <value>` arms and `OTHERWISE NOTHING`.
+> `noRuleMayMatch` in `L4.hs` decides it, from `DMN.Regions`, and says yes where it cannot analyse the table.
+> A table no input can fall through stays bare, and its dead `OTHERWISE` still returns the typed sentinel, which only has to typecheck.
+> A table with a catch-all row is unchanged, which is why the golden is: both its tables end in one.
+> `wrapMaybe` has been removed rather than flipped, because what it did beyond that was wrap total tables as well, which D-22 rules out, and no caller had ever set it.
+> The same applies to the mentions of `wrapMaybe` in §2, §4.1, §4.3, §7.1 and §9.1.
 
 `HP_Unique` and `HP_Priority` also emit first-match `BRANCH` (order = row order; `evalTable`
 semantics for conflict/priority are not re-encoded into the L4 control flow in v1 — noted risk §9).
