@@ -195,6 +195,11 @@ Things that are only apparent across several files:
   share it; the XML reader calls it directly because `convTable` bypasses `mkDTable` on
   purpose. Above the `|---|`, GFM does not render a table at all.
 
+  **It has one cell per column.**
+  `ParseTable.subHeaderArityDiags` refuses a sub-header with fewer cells than the header, or with a non-blank surplus.
+  The merge into the header is positional, and a short sub-header used to delete the columns it did not reach, output column included, at exit 0.
+  A blank cell declares no domain and is the repair (`policy/md-short-subheader-refused`, `policy/md-subheader-blank-cell-declares-no-domain`).
+
   **"Bypasses `mkDTable`" is not "is unaffected by inference", and D-2 widened the gap.**
   `XmlToDmnmd` calls `inferTypes` directly (`:408`) for any column whose `<inputExpression>`
   has no `typeRef` — the XSD makes it optional — and calls `tableErrors` (`:199`), which now

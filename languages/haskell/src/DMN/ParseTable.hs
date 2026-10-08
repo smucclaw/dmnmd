@@ -4,8 +4,8 @@ module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
 import DMN.BuildTable ( mkDTable )
-import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, trim )
-import DMN.Diagnostic ( Diagnostic, anyErrors, renderDiagnostic )
+import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, showSite, trim )
+import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
 import Data.List (transpose)
@@ -190,6 +190,7 @@ parseTableD tableName = do
   doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
+  let subHeadShape = subHeaderArityDiags tableName columnSignatures subHeadRow
   -- merge headerRow with subHeadRows
   -- siteRow = Nothing: the sub-header row has no rule number.
   let subHeadCells = zipWith (\cs cell -> mkFsAt (CellSite tableName (csName cs) Nothing) (csType cs) cell)
@@ -205,11 +206,53 @@ parseTableD tableName = do
                   else headerRow_1
   (rowDiags, dataRows) <- parseDataRows tableName columnSignatures <?> "parseDataRows"
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
-  let pass1 = subHeadDiags ++ rowDiags
+  let pass1 = subHeadShape ++ subHeadDiags ++ rowDiags
   pure $ if anyErrors pass1
          then (pass1, [])
          else let (ds, ts) = mkDTable tableName (hrhp headerRow) (cols headerRow) dataRows
               in (pass1 ++ ds, ts)
+
+-- | A sub-header row has one cell per column, and a blank cell for a column
+-- that declares no domain.
+--
+-- Cells are matched to columns by position, and 'zipWith' stops at the shorter list.
+-- 'parseTableD' merges the sub-header into the header that way.
+-- So a sub-header shorter than the header did not leave its last columns without a domain: it deleted them from the table.
+-- A table with its output column gone emitted rules that return nothing, at exit 0 (the corpus case @md-short-subheader-refused@ pins the refusal).
+-- A sub-header longer than the header lost its surplus cells the same way.
+-- Neither is guessed at.
+--
+-- No sub-header row (@null cells@) is the ordinary case and says nothing.
+-- Neither does a surplus of blank cells, which holds nothing to lose.
+-- Located at the first column the row does not reach, or, for a surplus, at the table.
+subHeaderArityDiags :: String -> [ColumnSignature] -> [String] -> [Diagnostic]
+subHeaderArityDiags tableName csigs cells
+  | null cells || n == m = []
+  | n < m =
+      [ errorAt $ concat
+          [ case drop n csigs of
+              (cs : _) -> showSite (CellSite tableName (csName cs) Nothing)
+              []       -> "table " ++ show tableName ++ ": "
+          , "the sub-header row has ", countOf n "cell", " but the header declares "
+          , countOf m "column", ", so this column has no sub-header cell."
+          , " A sub-header cell declares the domain of the column at its position,"
+          , " and dmnmd does not guess which columns a short row was meant to cover."
+          , " Write one cell per column, leaving the cell empty for a column that"
+          , " declares no domain." ] ]
+  | all null (drop m cells) = []
+  | otherwise =
+      [ errorAt $ concat
+          [ "table ", show tableName, ": the sub-header row has ", countOf n "cell"
+          , " but the header declares only ", countOf m "column"
+          , ", so the cells after the last column belong to no column."
+          , " Delete them, or add the columns they were meant for." ] ]
+  where
+    n = length cells
+    m = length csigs
+
+-- | @countOf 1 "cell"@ is @"1 cell"@, @countOf 2 "cell"@ is @"2 cells"@.
+countOf :: Int -> String -> String
+countOf k noun = show k ++ " " ++ noun ++ (if k == 1 then "" else "s")
 
 grep_out_dashes :: String -> String
 grep_out_dashes x = unlines ( filter ( \str -> isLeft $ runParser parseDThr "internal" $ T.pack str ) ( lines x ) )

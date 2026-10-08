@@ -115,8 +115,8 @@ fi
 # stops diverging (re-read it, then delete the line) as loudly as if an ordinary
 # fixture starts to.
 #
-# Eleven slugs in five groups, every one written AFTER measuring the emitter.
-# Nine are refusals (exit 1, with the reason on stderr) and two are documented
+# Ten slugs in five groups, every one written AFTER measuring the emitter.
+# Eight are refusals (exit 1, with the reason on stderr) and two are documented
 # renumberings; none is a loosened comparison, and each remains a strict FAIL if
 # the divergence changes shape.
 #
@@ -168,7 +168,6 @@ xfail_reason() {
     symptom/struct-onecol-no-output|\
     symptom/struct-hitpolicy-only-table-accepted|\
     symptom/l4-zero-output-dangling-giveth|\
-    symptom/md-short-subheader-drops-column|\
     policy/xml-no-output-column-refused)
       echo "no output column: DMN's tDecisionTable requires output+; refused with a located error" ;;
     # A short markdown row has no DMN spelling: tDecisionRule wants one entry per

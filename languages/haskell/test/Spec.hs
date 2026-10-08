@@ -40,8 +40,54 @@ dTable n hp chs rows = DTable n hp chs rows Nothing
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec, tableShapeSpec] $ hspec
   return ()
+
+-- | What the markdown reader does with a table whose rows are not one cell
+-- per column, or whose header says two things about one column. Audit 10,
+-- findings f1, f2, f7 and f8: each used to leave the reader as a table that
+-- exits 0 and answers differently from what the author wrote.
+--
+-- Read through 'parseTableD', the function the binary calls, so a refusal is
+-- checked as the 'Diagnostic' list the CLI prints and not as a parse error.
+tableShapeSpec :: Spec
+tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
+  let readTable :: String -> Text -> ([Diagnostic], [DecisionTable])
+      readTable name = either error id . parseOnly (parseTableD name)
+      messages = map diagMessage . fst
+      refused (ds, ts) = not (null ds) && all ((== Error) . diagSeverity) ds && null ts
+
+  describe "the sub-header row has one cell per column (f1)" $ do
+    let table subhead = T.unlines
+          [ "| U | Colour : String | Price : Number (out) |"
+          , "|---|-----------------|----------------------|"
+          , subhead
+          , "| 1 | Red             | 5                    |"
+          , "| 2 | Blue            | 7                    |" ]
+        outs = map varname . getOutputHeaders . header
+    it "refuses a sub-header shorter than the header, locating the first column it does not reach" $ do
+      let r = readTable "T" (table "|   | Red, Blue |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` all ("table \"T\": column \"Price\": the sub-header row has 1 cell but the header declares 2 columns" `isPrefixOf`)
+      length (messages r) `shouldBe` 1
+    it "keeps the output column when the missing cell is written as a blank one, and the domain is still read" $
+      case readTable "T" (table "|   | Red, Blue |   |") of
+        ([], [t]) -> do
+          outs t `shouldBe` ["Price"]
+          (enums <$> getInputHeaders (header t)) `shouldBe` [Just [FNullary (VS "Red"), FNullary (VS "Blue")]]
+        other -> expectationFailure ("expected one table and no diagnostics, got " ++ show other)
+    it "refuses a sub-header longer than the header, which would lose its surplus cells" $ do
+      let r = readTable "T" (table "|   | Red, Blue |   | Pending |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` all ("table \"T\": the sub-header row has 3 cells but the header declares only 2 columns" `isPrefixOf`)
+    it "lets a surplus of blank cells pass, because it holds nothing to lose" $
+      readTable "T" (table "|   | Red, Blue |   |   |") `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "says nothing about a table with no sub-header row" $
+      readTable "T" (T.unlines
+        [ "| U | Colour : String | Price : Number (out) |"
+        , "|---|-----------------|----------------------|"
+        , "| 1 | Red             | 5                    |" ])
+        `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
 
 -- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
 -- §8.2.11 default output value (rule 1), and a single-hit table with no

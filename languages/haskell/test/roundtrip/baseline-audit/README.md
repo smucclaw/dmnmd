@@ -214,3 +214,16 @@ Three of those are the undeclared result type of a table with no output column (
 72 of the 77 corpus cases record another backend or the `-q` evaluator (58 `--to=ts`, 6 `-q`, 5 `--to=xml`, 2 `--to=js`, 1 `--to=py`), so their corpus recordings did not move.
 The five whose recordings run `--to=l4` did, and were re-recorded in the same change: the three D-22 names, and `symptom/l4-output-range-upper-bound-dropped` and `symptom/l4-zero-output-dangling-giveth`, whose defects are unchanged.
 
+## Extension for audit 10, the parser's silent drops (2026-10-08, branch `fix/audit10-parser-silent-drops`)
+
+One paragraph per fix, in commit order.
+Every figure was read from `--check` before `--record`, and each `--record` was followed by a `--check` that printed `0 changed`.
+The binary has to be named `dmnmd`: a refused `.dmn` fixture's stderr begins with the program name, so a binary copied under another name (`dmnmd-before:` was seen) changes those fixtures' stderr checksums.
+
+**f1, a short sub-header row (`ParseTable.subHeaderArityDiags`).**
+Before recording, `--check` printed `checked 1268 run(s): 16 changed`, all `MISSING FROM MANIFEST`.
+No run of an existing fixture changed.
+In the manifest, 8 entries left and 16 arrived.
+The 8 that left are `symptom/md-short-subheader-drops-column`, `git mv`d and renamed to `policy/md-short-subheader-refused`; its four formats now exit 1 with the sub-header error on stderr.
+The 16 that arrived are that fixture and the new `policy/md-subheader-blank-cell-declares-no-domain`, which is accepted.
+
