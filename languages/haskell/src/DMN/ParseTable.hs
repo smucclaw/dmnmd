@@ -8,7 +8,7 @@ import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, showSite, trim )
 import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
-import Data.List (transpose)
+import Data.List (intercalate, nub, transpose)
 import Data.Either (isLeft)
 import Control.Applicative ( Alternative((<|>)) )
 import Data.Text (Text)
@@ -51,8 +51,24 @@ getpipeSeparator = skipHorizontalSpace *> "|" <* skipHorizontalSpace
 
 -- | parse column header.
 -- (//|#|>|<) *([a-zA-Z0-9_ ]+?( *: *[a-z]+) *
+--
+-- Fails, with a message, on a header whose labels disagree ('labelClash');
+-- the reader goes through 'parseColHeaderL' instead, so that the disagreement
+-- becomes a located 'Diagnostic' and not a parse error.
 parseColHeader :: Parser ColHeader
 parseColHeader = do
+  (ch, written) <- parseColHeaderL
+  maybe (pure ch) (fail . (("column " ++ show (varname ch) ++ ": ") ++)) (labelClash written)
+
+-- | A column header, and every label that was written on it, in the order
+-- they were written.
+--
+-- The header's own 'label' is only meaningful when 'labelClash' says nothing:
+-- 'mkHeaderLabel' resolves a pre-label and a post-label by letting the first
+-- one that is present win, which is a rule for choosing among labels that agree
+-- and the very thing that used to hide the ones that did not.
+parseColHeaderL :: Parser (ColHeader, [Text])
+parseColHeaderL = do
   mylabel_pre   <- parseLabelPre <?> "pre-label"
   myvarname     <- parseVarname <?> "variable name"
   doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
@@ -66,7 +82,47 @@ parseColHeader = do
   return ( DTCH
            (mkHeaderLabel mylabel_pre (mylabel_postA <|> mylabel_postB))
            (T.unpack myvarname)
-           mytype Nothing )
+           mytype Nothing
+         , catMaybes [mylabel_pre, mylabel_postA, mylabel_postB] )
+
+-- | What a label literal says a column is. The one table 'mkHeaderLabel' and
+-- 'labelClash' share, so the two cannot disagree about a literal.
+labelKind :: Text -> DTCH_Label
+labelKind "//"        = DTCH_Comment
+labelKind "#"         = DTCH_Comment
+labelKind "<"         = DTCH_In
+labelKind ">"         = DTCH_Out
+labelKind "(comment)" = DTCH_Comment
+labelKind "(out)"     = DTCH_Out
+labelKind "(in)"      = DTCH_In
+-- 'parseLabelPre' and 'parseLabelPost' are the only producers, and each is an
+-- alternation over exactly the literals above.
+labelKind other = error $ unwords
+  [ "labelKind: unrecognised column label", show other
+  , "-- parseLabelPre/parseLabelPost gained a literal this function does not handle" ]
+
+-- | Why a column's labels cannot be reconciled, or 'Nothing' when they can.
+--
+-- A column is an input, an output or a comment. A header that says two of those
+-- about one column, @Dish (in) (out)@ or @> Dish (comment)@, used to resolve
+-- silently to whichever label was written first, and the other was dropped: the
+-- column became an input or an output with no word to the author. Two labels
+-- that agree, @> Dish (out)@ or @Dish (out) : Number (out)@, say the same thing
+-- twice and are fine.
+labelClash :: [Text] -> Maybe String
+labelClash written
+  | length (nub (labelKind <$> written)) < 2 = Nothing
+  | otherwise = Just $ concat
+      [ "the header labels this column ", enumerate (describe <$> nub written), "."
+      , " A column is an input, an output or a comment, never two of them,"
+      , " and dmnmd does not choose between the labels. Keep one." ]
+  where
+    describe w = show (T.unpack w) ++ " (" ++ kindWord (labelKind w) ++ ")"
+    kindWord DTCH_In      = "an input"
+    kindWord DTCH_Out     = "an output"
+    kindWord DTCH_Comment = "a comment"
+    enumerate [a, b] = a ++ " and " ++ b
+    enumerate xs     = intercalate ", " (init xs) ++ " and " ++ last xs
 
 -- | Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
 parseTypeDecl :: Parser (Maybe DMNType)
@@ -80,22 +136,11 @@ parseType
   <|> (DMN_Boolean <$    lexeme "Boolean"                       <?> "boolean type")
   -- need to check what the official DMN names are for these
     
+-- | The label a column gets from the labels written on it, assuming they do not
+-- disagree ('labelClash'): a pre-label if there is one, else a post-label, else
+-- an input.
 mkHeaderLabel :: Maybe Text -> Maybe Text -> DTCH_Label
-mkHeaderLabel (Just "//") _        = DTCH_Comment
-mkHeaderLabel (Just "#" ) _        = DTCH_Comment
-mkHeaderLabel (Just "<" ) _        = DTCH_In
-mkHeaderLabel (Just ">" ) _        = DTCH_Out
-mkHeaderLabel _ (Just "(comment)") = DTCH_Comment
-mkHeaderLabel _ (Just "(out)")     = DTCH_Out
-mkHeaderLabel _ (Just "(in)")      = DTCH_In
-mkHeaderLabel _  Nothing           = DTCH_In
--- 'parseLabelPre' and 'parseLabelPost' are the only producers, and each is an
--- alternation over exactly the literals matched above, so this is unreachable
--- unless one of those alternations grows a case this function was not told
--- about. Naming the pair beats a bare @Non-exhaustive patterns@.
-mkHeaderLabel pre post = error $ unwords
-  [ "mkHeaderLabel: unrecognised column label", show pre, show post
-  , "-- parseLabelPre/parseLabelPost gained a literal this function does not handle" ]
+mkHeaderLabel pre post = maybe DTCH_In labelKind (pre <|> post)
 
 parseLabelPre :: Parser (Maybe Text)
 parseLabelPre  = Mega.optional $ lexeme ("//" <|> "#" <|> "<" <|> ">")
@@ -111,12 +156,22 @@ parseHitPolicy =
 
 parseHeaderRow :: Parser HeaderRow
 parseHeaderRow = do
+  (hr, clashes) <- parseHeaderRowL
+  case clashes of
+    []           -> pure hr
+    (col, msg) : _ -> fail ("column " ++ show col ++ ": " ++ msg)
+
+-- | A header row, and the columns whose labels disagree with the reason, in
+-- column order. 'parseTableD' turns those into located diagnostics.
+parseHeaderRowL :: Parser (HeaderRow, [(String, String)])
+parseHeaderRowL = do
   pipeSeparator <?> "pipeSeparator"
   myhitpolicy <- parseHitPolicy  <?> "hitPolicy"
   pipeSeparator <?> "pipeSeparator"
-  mychs <- many (parseColHeader <* pipeSeparator <?> "parseColHeader" ) <?> "mychs"
+  mychs <- many (parseColHeaderL <* pipeSeparator <?> "parseColHeader" ) <?> "mychs"
   endOfLine <|> endOfInput
-  return $ DTHR myhitpolicy mychs
+  return ( DTHR myhitpolicy (fst <$> mychs)
+         , [ (varname ch, msg) | (ch, written) <- mychs, Just msg <- [labelClash written] ] )
 
 mkHitPolicy_ :: Char -> HitPolicy
 mkHitPolicy_ 'U' = HP_Unique
@@ -186,7 +241,22 @@ parseTableD tableName = do
   input <- Mega.lookAhead Mega.takeRest
   doTrace ("parseTable: starting. input =\n" ++ T.unpack input)
   doTrace ("parseTable: end of input")
-  headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
+  (headerRow_0, labelClashes) <- parseHeaderRowL <?> "parseHeaderRow"
+  if not (null labelClashes)
+    -- A column the header labels two ways has no meaning to read the rest of
+    -- the table against, so the rest is skipped rather than read as whichever
+    -- label happened to win. The Error means no table, as for every other
+    -- pass-1 refusal; the input is consumed because 'parseOnly' wants it all.
+    then do
+      _ <- Mega.takeRest
+      pure ( [ errorAt (showSite (CellSite tableName col Nothing) ++ msg) | (col, msg) <- labelClashes ]
+           , [] )
+    else parseTableBody tableName (reviseInOut headerRow_0)
+
+-- | Everything in 'parseTableD' after the header row, which is where the
+-- columns' meanings are fixed.
+parseTableBody :: String -> HeaderRow -> Parser ([Diagnostic], [DecisionTable])
+parseTableBody tableName headerRow_1 = do
   doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
   let columnSignatures = columnSigs headerRow_1
   subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"

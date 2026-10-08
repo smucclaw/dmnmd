@@ -1,0 +1,2 @@
+error: input.md: table "Contradictory": column "Dish": the header labels this column ">" (an output) and "(comment)" (a comment). A column is an input, an output or a comment, never two of them, and dmnmd does not choose between the labels. Keep one.
+dmnmd: one or more decision tables in input.md could not be read

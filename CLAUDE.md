@@ -185,6 +185,12 @@ Things that are only apparent across several files:
   `evalTable` implements all of them, but the transpilers do not.
   What makes their first-match code right for `U` and `A` is the reader, since D-22 rule 2: it refuses a `U` table in which two rules can both match (a trailing catch-all aside, which is the default) and an `A` table in which two that can both match disagree.
   See the `DMN.Regions` bullet below for what that check cannot analyse.
+- **A column header has one meaning.**
+  A column is an input, an output or a comment, written as a prefix (`<`, `>`, `//`, `#`) or as a post-label (`(in)`, `(out)`, `(comment)`) on either side of the `: Type`.
+  `ParseTable.labelClash` refuses a header whose labels name more than one of the three, located at the column; labels that agree (`> Dish (out)`) are accepted.
+  Before it, the label written first won and the rest were dropped: `mylabel_postA <|> mylabel_postB` for two post-labels, and a prefix label that beat a post-label in `mkHeaderLabel`.
+  Once a header is refused the rows below it are not read, because they would be read against a label dmnmd had to guess.
+  Pinned by `policy/md-header-in-and-out-refused`, `policy/struct-label-pre-post-clash-refused` and `policy/md-header-agreeing-labels-accepted`.
 - **The sub-header row is a checked domain, and it goes *below* the `|---|`.** A row whose
   first cell is blank, before the first numbered row, declares what its columns may hold
   (`README.md` Example 3; DMN 1.3 fig 8.19). `DecisionTable.domainErrors` refuses a table

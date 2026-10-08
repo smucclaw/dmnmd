@@ -57,6 +57,38 @@ tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
       messages = map diagMessage . fst
       refused (ds, ts) = not (null ds) && all ((== Error) . diagSeverity) ds && null ts
 
+  describe "a column header has one meaning (f7)" $ do
+    let table hdr = tableWith hdr [ "| 1 | Fall   | Stew            | 5           |" ]
+        tableWith hdr rows = T.unlines
+          ( [ hdr, "|---|--------|-----------------|-------------|" ] ++ rows )
+        kinds = map (\ch -> (varname ch, label ch)) . header
+    it "refuses (in) and (out) on one column, naming both and locating the column" $ do
+      let r = readTable "T" (table "| U | Season | Dish (in) (out) | Price (out) |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Dish\": the header labels this column \"(in)\" (an input) and \"(out)\" (an output)." `isPrefixOf`) ms)
+    it "refuses the other order too, where the post-label written first used to win" $
+      refused (readTable "T" (table "| U | Season | Dish (out) (in) | Price (out) |")) `shouldBe` True
+    it "refuses post-labels either side of the type declaration that disagree" $
+      refused (readTable "T" (table "| U | Season | Dish (out) : String (in) | Price (out) |")) `shouldBe` True
+    it "refuses a prefix label against a post-label" $ do
+      let r = readTable "T" (table "| U | Season | > Dish (comment) | Price (out) |")
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Dish\": the header labels this column \">\" (an output) and \"(comment)\" (a comment)." `isPrefixOf`) ms)
+      refused r `shouldBe` True
+    it "reports each column whose labels disagree" $
+      length (messages (readTable "T" (table "| U | Season (in) (out) | Dish (in) (out) | Price (out) |"))) `shouldBe` 2
+    it "skips the rows below a disagreeing header, which would be read against a guessed label" $
+      -- Row 2 is short and would be a second error if the rows were read.
+      messages (readTable "T" (tableWith "| U | Season | Dish (in) (out) | Price (out) |"
+                                 [ "| 1 | Fall   | Stew            | 5           |", "| 2 | Winter |" ]))
+        `shouldSatisfy` (\ms -> length ms == 1 && all ("the header labels this column" `isInfixOf`) ms)
+    it "accepts labels that agree, and reads them as before" $
+      case readTable "T" (T.unlines
+             [ "| U | Season | > Dish (out) | Price (out) : Number (out) |"
+             , "|---|--------|--------------|----------------------------|"
+             , "| 1 | Fall   | Stew         | 5                          |" ]) of
+        ([], [t]) -> kinds t `shouldBe` [("Season", DTCH_In), ("Dish", DTCH_Out), ("Price", DTCH_Out)]
+        other -> expectationFailure ("expected one table and no diagnostics, got " ++ show other)
+
   describe "the sub-header row has one cell per column (f1)" $ do
     let table subhead = T.unlines
           [ "| U | Colour : String | Price : Number (out) |"
@@ -275,6 +307,11 @@ spec3 = do
     it "should fail on a blank string"                    $ parseVarname `shouldFailOn` ("" :: Text)
   describe "parseColHeader" $ do
     it "should parse just a column header"                $ ("varname" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_In"varname" Nothing Nothing)
+    it "should parse a pre-label and a post-label that agree" $ ("> varname (out)" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_Out "varname" Nothing Nothing)
+    it "should parse the same post-label on both sides of the type" $ ("varname (out) : Number (out)" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_Out "varname" (Just DMN_Number) Nothing)
+    it "should fail on two post-labels that disagree"     $ parseColHeader `shouldFailOn` ("varname (in) (out)" :: Text)
+    it "should fail on post-labels either side of the type that disagree" $ parseColHeader `shouldFailOn` ("varname (out) : Number (in)" :: Text)
+    it "should fail on a pre-label and a post-label that disagree" $ parseColHeader `shouldFailOn` ("> varname (comment)" :: Text)
   describe "pipeSeparator" $ do
     it "should parse just a single pipe"                  $ (getpipeSeparator >> endOfInput) `shouldSucceedOn` ("|" :: Text)
     it "should not parse more than one pipe"              $ (getpipeSeparator >> endOfInput) `shouldFailOn`    ("||" :: Text)

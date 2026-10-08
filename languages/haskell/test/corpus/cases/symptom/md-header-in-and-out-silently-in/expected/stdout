@@ -1,9 +1,0 @@
-export function BothLabels ( Season : string, Dish : string ) {
-  if (Season === "Fall" && Dish === "Stew") { // 1
-    return {"Price":5.0};
-  }
-  else if (Season === "Winter" && Dish === "Soup") { // 2
-    return {"Price":7.0};
-  }
-}
-

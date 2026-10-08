@@ -239,3 +239,9 @@ The binary was compared with a trunk binary (`e368344`, named `dmnmd`) on each o
 No other fixture moved, so no existing fixture has a short row beyond these three.
 In the manifest, 16 entries left and 16 arrived, and 8 changed in place.
 
+**f7, a column header with two meanings (`ParseTable.labelClash`).**
+Before the corpus cases were moved, `--check` printed `checked 1276 run(s): 16 changed`, and the 16 were the two fixtures whose header labels disagree: `symptom/md-header-in-and-out-silently-in` and `symptom/struct-label-pre-wins`, every format, stdout and stderr, from exit 0 with a function to exit 1 with the clash error.
+No other fixture in the set has a header with two meanings.
+After the moves and the new control, `--check` printed `checked 1280 run(s): 24 changed`, all `MISSING FROM MANIFEST`.
+In the manifest, 16 entries left (the two symptoms) and 24 arrived: `policy/md-header-in-and-out-refused`, `policy/struct-label-pre-post-clash-refused`, which is `symptom/struct-label-pre-wins` renamed, and the control `policy/md-header-agreeing-labels-accepted`, which is accepted.
+
