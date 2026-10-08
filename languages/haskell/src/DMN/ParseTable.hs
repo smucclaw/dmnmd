@@ -325,7 +325,7 @@ subHeaderArityDiags tableName csigs cells
 -- Cells are matched to columns by position, and 'zipWith' stops at the shorter list at three places downstream ('parseDataRow' itself, then @getInputs@\/@getOutputs@, then 'DMN.DecisionTable.matches').
 -- So a missing input cell was not a wildcard written down: it was a guard that was never emitted, and the rule fired for any value of that column.
 -- A missing output cell became an empty answer.
--- When no row reached the last columns, 'DMN.BuildTable.mkDTable' dropped their headers as well, and the table lost its output column (the corpus case @md-all-short-rows-drop-output-header@).
+-- When no row reached the last columns, 'DMN.BuildTable.mkDTable' dropped their headers as well, and the table lost its output column (the corpus case @md-all-short-rows-refused@).
 -- Padding with @-@ would WIDEN the rule in silence, which is why @--to=xml@ and the XML reader already refuse a short row; this refuses it at the source, for every backend.
 --
 -- A row is as wide as its widest physical line, because a continuation row may add cells to the logical row.

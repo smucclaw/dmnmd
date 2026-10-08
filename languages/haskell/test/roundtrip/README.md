@@ -53,15 +53,17 @@ The list shipped **empty** and was filled in only after the emitter was measured
 whole reason to trust it: an entry written before the emitter existed would have been a guess, and
 a guessed XFAIL is indistinguishable from a loosened comparison.
 
-Eight entries, in three groups, each a construct dmnmd accepts that DMN genuinely cannot express:
+Eight entries, in four groups (`run-roundtrip.sh` holds the list):
 
 * **no output column** (4). `tDecisionTable` is `output+`. Refused with a located error.
-* **short row** (2). `tDecisionRule` wants one entry per column; padding with `-` would widen the
-  rule in a valid document at exit 0.
 * **authored rule numbers not `1..n`** (2). DMN identifies a `<rule>` by position. Warned, then
   renumbered.
+* **`= v` outside a declared domain** (1). Correct DMN, which dmnmd's own domain check then refuses.
+* **a unary test in an output cell** (1). The reverse case: DMN is right and the markdown reader is wrong.
 
-Four of the eight are REFUSALS, so `expected_divergence` is consulted at the failing LEG and not
+A short markdown row used to be a group of its own (2). The markdown reader now refuses a short row, so those fixtures fail the direct `--to=ts` run and are skipped, and the entries were deleted.
+
+Six of the eight are REFUSALS, so `expected_divergence` is consulted at the failing LEG and not
 only at the final diff — otherwise the only honest answer available (refusing a construct DMN
 cannot express) would be permanently red.
 
