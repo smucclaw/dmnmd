@@ -93,8 +93,10 @@ Markdown file
   → app/ParseMarkdown.hs   grepMarkdown: slice the file into InputChunks (runs of
                            pipe-prefixed lines), naming each from the preceding heading
   → DMN/ParseTable.hs      parseTable: one chunk → DecisionTable
+  → DMN/BuildTable.hs      mkDTable (type inference, then tableErrors, the refusals both readers share)
   → DMN/Types.hs           the IR: DecisionTable / ColHeader / DTrow / FEELexp
-  → DMN/DecisionTable.hs   evalTable (interpreter) + mkDTable (type inference)
+  → DMN/DecisionTable.hs   evalTable (interpreter), inference, and each check tableErrors runs
+  → DMN/Regions.hs         regions of the input space; tableErrors refuses a conflict region (D-22)
   → DMN/Translate/*.hs     JS.hs (serves both --to=js and --to=ts), PY.hs, L4.hs,
                            XML.hs (--to=xml, which pickles back through DMN/XML/ParseDMN.hs)
 ```
@@ -181,6 +183,8 @@ Things that are only apparent across several files:
   before the first `:`. `--pick` matches those names.
 - **Hit policy is the top-left cell** (`U A P F O R C`, `mkHitPolicy_` in `ParseTable.hs`);
   `evalTable` implements all of them, but the transpilers do not.
+  What makes their first-match code right for `U` and `A` is the reader, since D-22 rule 2: it refuses a `U` table in which two rules can both match (a trailing catch-all aside, which is the default) and an `A` table in which two that can both match disagree.
+  See the `DMN.Regions` bullet below for what that check cannot analyse.
 - **The sub-header row is a checked domain, and it goes *below* the `|---|`.** A row whose
   first cell is blank, before the first numbered row, declares what its columns may hold
   (`README.md` Example 3; DMN 1.3 fig 8.19). `DecisionTable.domainErrors` refuses a table
@@ -303,13 +307,20 @@ Things that are only apparent across several files:
   `policy/md-quoted-literal-all-or-nothing` and `symptom/xml-comma-split-negation`.
 - **The parser is megaparsec.** `DMN/ParsingUtils.hs` holds attoparsec-shaped shims
   (`many1`, `anyChar`, `notChar`, `parseOnly`) left over from an atto→mega migration.
-- **`DMN.Regions` cuts a table's input space into regions, and nothing in the binary calls it yet.**
+- **`DMN.Regions` cuts a table's input space into regions, and both readers use it to refuse conflicts (D-22 rule 2).**
   A block is a set of values of one input column on which every cell gives the same answer; a region is one block per input column, with the rules live throughout it and a concrete input (`regionInput`) to evaluate there.
-  It is the groundwork for D-22 (refuse conflict regions under `U` and `A`; a `MAYBE` result only where a no-match region exists) and for D-21's `emitAsserts` (one `#ASSERT` per region).
+  `conflictErrors`, a summand of `tableErrors` beside D-13's `uniquenessErrors`, refuses every conflict region; the rest of the module is also the groundwork for D-22 part 3 (a `MAYBE` result only where a no-match region exists) and for D-21's `emitAsserts` (one `#ASSERT` per region).
   Liveness is decided by `fEvals`, the matcher `evalTable` uses, and a `U` table's default by `uniqueCatchAll`, the function `evalTable` asks, so a trailing catch-all is the default even beside a declared one.
   `test/RegionsSpec.hs` checks, at every region representative of every table the round-trip script reads that `regionMap` accepts, that the matcher selects exactly the live set and that `evalTable` answers as the region says.
   It refuses rather than approximates: `regionMap` returns a `Left`, and `UnsupportedKind` names the eight shapes it refuses.
-  The corpus test pins the set of tables with a conflict region: the seven that ROOTSTOCK step 0 found, plus `policy/md-eval-unique-conflict`, which D-22 part 1 re-fixtured with a genuine overlap.
+  **Where `regionMap` refuses, `conflictErrors` says nothing**, so a list-valued hit policy, a collection column, a String cell holding FEEL test syntax, a short row or a computed cell leaves a table refused or accepted exactly as before D-22 part 2; not being able to analyse a table is not a reason to refuse it.
+  That is how collection-input `U` and `A` tables keep their overlap warning (`tableWarnings`), and the interpreter's run-time conflict refusals are now reached through the binary only by such tables (`policy/eval-unique-collection-overlap-at-runtime`, `policy/eval-hp-any-collection-disagree-at-runtime`).
+  `conflicts` is pairwise, not an enumeration: for each rule, the first earlier rule it conflicts with, and the first region the two share, which is one pass over the blocks per pair where enumerating conflict regions can cost the product of the block counts.
+  **A row D-13 reports is not reported again.** `uniquenessErrors` still refuses identical guards under `U`, and its message says what the other cannot: that the later row "can never match", and that two cells spelled differently for one value "(1.1 and 1.10, say) are the same guard".
+  `conflictErrors` skips exactly the rows `identicalGuards` names, so one row never gets two messages.
+  D-13 also still refuses an all-wildcard row followed by a trailing catch-all, which is not a conflict region because the catch-all is the default, but leaves that default unreachable.
+  `mkDTable` and `tableErrors` live in `DMN.BuildTable` because the gate needs `DMN.Regions`, which is built on `DMN.DecisionTable`'s matcher; the individual checks stay in `DMN.DecisionTable`.
+  The corpus test pins the list of fixtures the markdown reader refuses for a conflict region, which are the eight D-22 listed (four of them now under new `policy/hp-unique-overlap-*` names, their old slugs re-fixtured), and that no table it accepts has one.
   If that set moves, read the tables before updating the list.
   To read the corpus with the binary's own reader, the test suite compiles `app/ParseMarkdown.hs` and `app/Options.hs` (`hs-source-dirs: test app`).
 
@@ -444,6 +455,7 @@ dispatch. **`--check` only** — re-recording after a change launders a regressi
 > Before that it had last been recorded at `8c18f22`, and `--check` printed `checked 1224 run(s): 883 changed` (883 files, stdout and stderr counted separately: 599 of the 1,224 runs).
 > After it, `--check` printed `checked 1224 run(s): 0 changed`, both with the full outputs present and against the manifest alone.
 > It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures; no emitter output changed, and `--check` printed `checked 1228 run(s): 0 changed` (`test/roundtrip/baseline-audit/README.md`).
+> D-22 part 2 re-recorded it again on purpose, after `--check` printed `checked 1260 run(s): 116 changed`; every changed run is listed by fixture in that file, including `safe2.dmn`'s new refusals, and `--check` then printed `checked 1260 run(s): 0 changed`.
 >
 > Every change the re-record absorbed is audited in `test/roundtrip/baseline-audit/README.md`.
 > Each was classified by shape, bisected to the commit that introduced it, and attributed to D-6, D-7, D-9, D-13, D-15, D-16, D-17, D-18, D-19 or PR #58, and none was left over.
@@ -521,7 +533,7 @@ been silently widened, is a wrong answer that exits 0.
 `error`, so one rule had two mechanisms and a bad markdown cell arrived with a Haskell
 `CallStack` and a four-frame `HasCallStack backtrace:` of ghc-internal positions attached.
 `app/ParseMarkdown.parseMarkdown` returns `([Diagnostic], [DecisionTable])`, fed by
-`DMN.ParseTable.parseTableD` and `DMN.DecisionTable.mkDTable`, which have the same
+`DMN.ParseTable.parseTableD` and `DMN.BuildTable.mkDTable`, which have the same
 `([Diagnostic], 0-or-1 tables)` shape `convTable` always had.
 
 **The list is the gate, and that is the whole safety argument.** An `Error` means the table is
@@ -585,7 +597,7 @@ faithfully is refused, and then nothing at all is emitted for any table in the f
 | a document mixing two releases' namespaces | 1 |
 | a table refused by the converter | 1 |
 | a table whose cell violates its own declared domain — either reader | 1 |
-| a `U` table with two rows whose guards are identical — either reader (D-13) | 1 |
+| a `U` table with two rules that can both match, a trailing catch-all aside, or an `A` table with two that can both match and disagree — either reader (D-13, D-22 rule 2) | 1 |
 | markdown where *some* tables parsed and others did not | 1, and nothing is emitted |
 | an output format the binary cannot write (`--to=md`) | 1, refused before anything is read |
 | `--to=xml` over an input with no tables | 0, and an empty `<definitions/>` is written |

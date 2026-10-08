@@ -9,10 +9,15 @@
 --  * a property, run over those tables and over every markdown fixture
 --    @test\/roundtrip\/run-roundtrip.sh@ iterates: at every region's
 --    representative, dmnmd's OWN row matcher ('matches', which is 'fEvals' and
---    so 'fEval') selects exactly the region's live set, and the pruned
---    enumerations agree with filtering the full one;
---  * the corpus measurement, which pins the set of tables with a conflict
---    region to the seven that ROOTSTOCK step 0 found.
+--    so 'fEval') selects exactly the region's live set, the pruned
+--    enumerations agree with filtering the full one, and 'conflicts' agrees
+--    with working the pairs out from every region;
+--  * the corpus measurement, which pins the fixtures the reader refuses for a
+--    conflict region (D-22 rule 2) and checks that no table it accepts has one.
+--
+-- The refusal itself, 'conflictErrors', is tested between the two, on
+-- hand-written tables and through the markdown reader; @DmnXmlSpec@ covers the
+-- XML reader.
 --
 -- The corpus is read with @app\/ParseMarkdown@, the binary's own reader, so a
 -- table means here what it means to @dmnmd@.
@@ -22,7 +27,7 @@ import           Control.Applicative  ((<|>))
 import           Control.Exception    (SomeException, bracket, displayException, evaluate, try)
 import           Control.Monad        (filterM, forM)
 import           Data.Either          (isLeft)
-import           Data.List            (isPrefixOf, nub, sort)
+import           Data.List            (isInfixOf, isPrefixOf, nub, sort)
 import           Data.Maybe           (listToMaybe)
 import qualified Data.Map.Strict      as M
 import qualified Data.Text            as T
@@ -33,8 +38,11 @@ import           System.IO            (IOMode (WriteMode), hClose, openFile, std
 import           Test.Hspec
 import           Text.RawString.QQ
 
-import           DMN.DecisionTable    (evalTable, fEvals, fNEval, matches, mkFsEither, outputOrder)
-import           DMN.ParseTable       (parseTable)
+import           DMN.BuildTable       (tableErrors)
+import           DMN.DecisionTable    (evalTable, fEvals, fNEval, matches, mkFsEither, outputOrder,
+                                       tableWarnings, uniquenessErrors)
+import           DMN.Diagnostic       (Diagnostic (..), Severity (..))
+import           DMN.ParseTable       (parseTable, parseTableD)
 import           DMN.ParsingUtils     (parseOnly)
 import           DMN.Regions
 import           DMN.Types
@@ -45,12 +53,27 @@ regionsSpec :: Spec
 regionsSpec = describe "DMN.Regions" $ do
   handCounted
   unsupported
+  refusing
   corpus
 
 -- * Helpers
 
+-- | A table as the markdown reader builds it, whether or not the reader would
+-- then refuse it for a conflict region.
+--
+-- Since D-22 part 2 the reader refuses a @U@ or @A@ table with a conflict
+-- region, and several tables below exist precisely to have one. So a @U@ or
+-- @A@ table is parsed under @F@, which the reader refuses for nothing that
+-- depends on the hit policy here, and its own hit policy is put back. The
+-- hit policy reaches nothing else the reader does to the cells: inference,
+-- re-typing and the cell checks are the same under every letter.
 table :: String -> DecisionTable
-table = either error id . parseOnly (parseTable "T") . T.pack . dropWhile (== '\n')
+table src = case dropWhile (== '\n') src of
+  '|' : ' ' : c : ' ' : '|' : rest
+    | c == 'U' -> (parse ("| F |" ++ rest)) { hitpolicy = HP_Unique }
+    | c == 'A' -> (parse ("| F |" ++ rest)) { hitpolicy = HP_Any }
+  s' -> parse s'
+  where parse = either error id . parseOnly (parseTable "T") . T.pack
 
 mapOf :: DecisionTable -> RegionMap
 mapOf dt = either (error . unsupportedMessage) id (regionMap dt)
@@ -79,6 +102,12 @@ selfCheck rm = concat
       || map regionInput (conflictRegions rm) /= map regionInput (filter (isConflict rm) rs) ]
   , [ "noMatchRegions disagrees with filtering regions"
     | map regionInput (noMatchRegions rm) /= map regionInput (filter (isNoMatch rm) rs) ]
+  , [ "conflicts says " ++ show got ++ ", where enumerating the regions says " ++ show want
+    | let got  = [ (conflictEarlier c, conflictLater c, regionInput (conflictRegion c)) | c <- conflicts rm ]
+          want = conflictOracle rm
+    , got /= want ]
+  , [ "conflicts and conflictRegions disagree about whether there is a conflict"
+    | null (conflicts rm) /= null (conflictRegions rm) ]
   , [ "regionCount " ++ show (regionCount rm) ++ " but " ++ show (length rs) ++ " regions"
     | regionCount rm /= toInteger (length rs) ]
   , [ "column " ++ show (varname (cbHeader c)) ++ ": block " ++ showBlock b
@@ -103,6 +132,27 @@ selfCheck rm = concat
   where
     dt = rmTable rm
     rs = regions rm
+
+-- | What 'conflicts' must say, worked out the slow way from every region: for
+-- each rule, the lowest-numbered earlier rule it clashes with somewhere, and
+-- the representative of the first region in which both are live. Under @U@ two
+-- rules clash when neither is the trailing catch-all; under @A@, when their
+-- outputs differ as written; under anything else, never.
+conflictOracle :: RegionMap -> [(RuleIx, RuleIx, [FEELexp])]
+conflictOracle rm =
+  [ (i, j, regionInput r)
+  | j <- [0 .. length rows - 1]
+  , (i, r) <- take 1 [ (i, r) | i <- [0 .. j - 1], clash i j
+                              , r <- take 1 [ r | r <- regions rm, i `elem` liveRules r, j `elem` liveRules r ] ]
+  ]
+  where
+    dt   = rmTable rm
+    rows = allrows dt
+    answering k = rmDefault rm /= TrailingCatchAll k
+    clash i j = case hitpolicy dt of
+      HP_Unique -> answering i && answering j
+      HP_Any    -> row_outputs (rows !! i) /= row_outputs (rows !! j)
+      _         -> False
 
 -- | Does 'evalTable', at the region's representative, answer as the region
 -- says it must? 'Nothing' if it does, else what the region expected.
@@ -193,7 +243,8 @@ endpoints = table [r|
 | 4 | > 30       | d          |
 |]
 
--- | @symptom/l4-hitpolicy-unique-silently-first@'s table.
+-- | @policy/l4-hitpolicy-unique-silently-first@'s table, which the reader
+-- refuses since D-22 part 2.
 uniqueOverlap :: DecisionTable
 uniqueOverlap = table [r|
 | U | Age   | Fee : Number |
@@ -219,7 +270,8 @@ anyAgree = table [r|
 | 2 | < 20 | ok            |
 |]
 
--- | @policy/hp-unique-near-duplicate-rows-accepted@'s table: rows 3 and 4
+-- | @policy/hp-unique-overlap-shared-member-refused@'s table, which was
+-- @policy/hp-unique-near-duplicate-rows-accepted@'s before D-22 part 2: rows 3 and 4
 -- overlap on Winter, and row 5 is a trailing catch-all.
 nearMiss :: DecisionTable
 nearMiss = table [r|
@@ -506,6 +558,202 @@ unsupported = describe "unsupported shapes are a Left, never a partial answer" $
 | 1 | not(Fall)       | stew       |
 |])) `shouldSatisfy` ("table \"T\": column \"Season\": row 1: " `isPrefixOf`)
 
+-- * Refusing conflicts
+
+-- | @policy/md-eval-unique-conflict@'s table.
+overlapping :: DecisionTable
+overlapping = table [r|
+| U | Season | Guests | Dish (out) |
+|---|--------|--------|------------|
+| 1 | Fall   | <= 20  | Spareribs  |
+| 2 | Fall   | >= 10  | Stew       |
+|]
+
+-- | @policy/hp-unique-overlap-comparisons-refused@'s table, which was
+-- @policy/md-prefix-comparisons@'s before D-22 part 2: two separate
+-- overlaps, with a trailing catch-all that is in neither.
+prefixComparisons :: DecisionTable
+prefixComparisons = table [r|
+| U | Age   | Band (out) |
+|---|-------|------------|
+| 1 | < 18  | minor      |
+| 2 | <= 21 | young      |
+| 3 | > 65  | senior     |
+| 4 | >= 40 | middle     |
+| 5 | -     | adult      |
+|]
+
+-- | @policy/hp-unique-overlap-multivalue-dash-refused@'s table, which was
+-- @policy/md-multivalue-dash-reprocessed@'s before D-22 part 2.
+multiDash :: DecisionTable
+multiDash = table [r|
+| U | Guest Count | Dish (out) |
+|---|-------------|------------|
+| 1 | 4, -        | Spareribs  |
+| 2 | 8           | Stew       |
+|]
+
+-- | @policy/hp-unique-overlap-negation-refused@'s table, which was
+-- @policy/md-negation-in-numeric-column-emitted@'s before D-22 part 2.
+notRange :: DecisionTable
+notRange = table [r|
+| U | Age         | Band (out) |
+|---|-------------|------------|
+| 1 | not([1..5]) | outside    |
+| 2 | [10..20]    | either     |
+|]
+
+-- | Two negated String cells, built directly for the reason 'negatedString' is.
+twoNegations :: DecisionTable
+twoNegations = negatedString
+  { allrows = [ DTrow (Just 1) [[FNot (FNullary (VS "Fall"))]]   [[FNullary (VS "stew")]] []
+              , DTrow (Just 2) [[FNot (FNullary (VS "Winter"))]] [[FNullary (VS "salad")]] [] ] }
+
+-- | A U table with no input column, and @n@ rows.
+noInputs :: Int -> DecisionTable
+noInputs n = DTable "Z" HP_Unique [DTCH DTCH_Out "o" (Just DMN_String) Nothing]
+  [ DTrow (Just k) [] [[FNullary (VS (show k))]] [] | k <- [1 .. n] ] Nothing
+
+refusing :: Spec
+refusing = describe "refusing conflict regions (D-22 rule 2)" $ do
+  let pairs rm = [ (conflictEarlier c, conflictLater c) | c <- conflicts rm ]
+      uniqueAdvice = ": a table with hit policy Unique must not contain overlapping rules"
+        ++ " (DMN 1.3 §8.2.10). Change an input cell of row 1 or row 2 so that the two"
+        ++ " rules select different inputs or, if the earlier rule is meant to win,"
+        ++ " make the hit policy F (First)."
+      startsWith prefixes msgs = length msgs == length prefixes && and (zipWith isPrefixOf prefixes msgs)
+
+  describe "conflicts" $ do
+    it "pairs each later rule with the first earlier rule it can match alongside" $ do
+      let rm = mapOf (table [r|
+| U | Age   | Band (out) |
+|---|-------|------------|
+| 1 | <= 20 | a          |
+| 2 | >= 10 | b          |
+| 3 | 15    | c          |
+|])
+      pairs rm `shouldBe` [(0, 1), (0, 2)]
+      selfCheck rm `shouldBe` []
+    it "takes its witness from the first region in which both rules are live" $
+      map (regionInput . conflictRegion) (conflicts (mapOf uniqueOverlap)) `shouldBe` [[FNullary (VN 10)]]
+    it "never pairs a rule with a trailing catch-all, which D-22 reads as the default" $
+      pairs (mapOf nearMiss) `shouldBe` [(2, 3)]
+    it "under A, pairs only rules whose outputs differ" $ do
+      pairs (mapOf anyDisagree) `shouldBe` [(0, 1)]
+      pairs (mapOf anyAgree) `shouldBe` []
+    it "under F and P, pairs nothing" $ do
+      pairs (mapOf regCF) `shouldBe` []
+      pairs (mapOf anyDisagree { hitpolicy = HP_Priority }) `shouldBe` []
+    it "agrees with enumerating every region, on every hand-written table" $
+      concatMap selfCheck (mapOf <$> [ uniqueOverlap, anyDisagree, anyAgree, nearMiss, overlapping
+                                     , prefixComparisons, multiDash, notRange, twoNegations, noInputs 3 ])
+        `shouldBe` []
+
+  describe "conflictErrors" $ do
+    it "under U, names both rules, one witness input, and where they overlap" $
+      conflictErrors uniqueOverlap `shouldBe`
+        [ "row 1 and row 2 both match Age = 10 (they overlap wherever Age is in [10..20])" ++ uniqueAdvice ]
+    it "under A, also names the outputs that disagree" $
+      conflictErrors anyDisagree `shouldBe`
+        [ "row 1 and row 2 both match Age = 9 (they overlap wherever Age < 10) and disagree on"
+          ++ " Verdict (\"ok\" against \"deny\"): under hit policy A (Any), rules may overlap only"
+          ++ " where their outputs agree (DMN 1.3 §8.2.10). Give the two rules the same outputs,"
+          ++ " or change an input cell of row 1 or row 2 so that they select different inputs." ]
+    it "names only the output columns that disagree" $
+      conflictErrors (table [r|
+| A | Age  | Verdict (out) | Fee : Number (out) |
+|---|------|---------------|--------------------|
+| 1 | < 10 | ok            | 5                  |
+| 2 | < 20 | ok            | 10                 |
+|]) `shouldSatisfy` startsWith ["row 1 and row 2 both match Age = 9 (they overlap wherever Age < 10) and disagree on Fee (5 against 10): "]
+    it "gives the witness in every input column, and the overlap in each column it narrows" $
+      conflictErrors overlapping `shouldSatisfy` startsWith
+        ["row 1 and row 2 both match Season = \"Fall\", Guests = 10 (they overlap wherever Season = \"Fall\" and Guests is in [10..20]): "]
+    it "leaves the overlap out when it is the witness and nothing more" $
+      conflictErrors nearMiss `shouldSatisfy` startsWith
+        ["row 3 and row 4 both match Version = 1.2, Tier = \"premium\", Season = \"Winter\": "]
+    it "reports every conflicting pair, and leaves the trailing catch-all out of all of them" $
+      conflictErrors prefixComparisons `shouldSatisfy` startsWith
+        [ "row 1 and row 2 both match Age = 17 (they overlap wherever Age < 18): "
+        , "row 3 and row 4 both match Age = 66 (they overlap wherever Age > 65): " ]
+    it "reads a multi-value cell holding a dash as matching everything" $
+      conflictErrors multiDash `shouldSatisfy` startsWith ["row 1 and row 2 both match Guest Count = 8: "]
+    it "reads a negation as its complement" $
+      conflictErrors notRange `shouldSatisfy` startsWith
+        ["row 1 and row 2 both match Age = 10 (they overlap wherever Age is in [10..20]): "]
+    it "describes a String overlap by what it leaves out" $
+      conflictErrors twoNegations `shouldSatisfy` startsWith
+        ["row 1 and row 2 both match Season = \"other\" (they overlap wherever Season is none of \"Fall\", \"Winter\"): "]
+    it "describes a Number overlap of several intervals as a list of tests" $
+      conflictErrors (table [r|
+| U | Age       | Band (out) |
+|---|-----------|------------|
+| 1 | < 5, > 10 | a          |
+| 2 | -         | b          |
+| 3 | 7         | c          |
+|]) `shouldSatisfy` startsWith
+        [ "row 1 and row 2 both match Age = 4 (they overlap wherever Age matches < 5, > 10): "
+        , "row 2 and row 3 both match Age = 7: " ]
+    it "says every input when the table has no input column, and counts the last row as the default" $ do
+      conflictErrors (noInputs 3) `shouldSatisfy` startsWith ["row 1 and row 2 both match every input: "]
+      conflictErrors (noInputs 2) `shouldBe` []
+
+  describe "beside D-13's uniquenessErrors, in tableErrors" $ do
+    it "leaves two rows with identical guards to D-13, which says more about them" $ do
+      let dup = table [r|
+| U | Season | Dish (out) |
+|---|--------|------------|
+| 1 | Fall   | stew       |
+| 2 | Fall   | salad      |
+|]
+      conflictErrors dup `shouldBe` []
+      tableErrors dup `shouldBe` uniquenessErrors dup
+      length (tableErrors dup) `shouldBe` 1
+    it "says nothing about a row D-13 reports, even to pair it with a different row" $ do
+      let t = table [r|
+| U | Age   | Band (out) |
+|---|-------|------------|
+| 1 | <= 20 | a          |
+| 2 | 5     | b          |
+| 3 | 5     | c          |
+|]
+      map (take 17) (uniquenessErrors t) `shouldBe` ["row 2 and row 3 h"]
+      map (take 17) (conflictErrors t) `shouldBe` ["row 1 and row 2 b"]
+      length (tableErrors t) `shouldBe` 2
+    it "is silent where regions cannot be computed, and D-13 still refuses identical guards there" $ do
+      let coll = table [r|
+| U | tags : [Number] | grade (out) |
+|---|-----------------|-------------|
+| 1 | 5               | pass        |
+| 2 | 5               | fail        |
+|]
+      conflictErrors coll `shouldBe` []
+      tableErrors coll `shouldBe` uniquenessErrors coll
+      length (tableErrors coll) `shouldBe` 1
+    it "keeps the collection-input overlap warning under U and A, and refuses neither" $
+      mapM_ (\hp -> do
+        let coll = (table [r|
+| U | tags : [Number] | grade (out) |
+|---|-----------------|-------------|
+| 1 | 5               | pass        |
+| 2 | 7               | fail        |
+|]) { hitpolicy = hp }
+        tableErrors coll `shouldBe` []
+        tableWarnings coll `shouldSatisfy` any ("membership tests over disjoint values still overlap" `isInfixOf`))
+        [HP_Unique, HP_Any]
+
+  describe "the markdown reader" $
+    it "refuses the table with a located Error, and returns no table" $ do
+      let (diags, tables) = either error id (parseOnly (parseTableD "T") (T.pack (dropWhile (== '\n') [r|
+| U | Age   | Fee : Number |
+|---|-------|--------------|
+| 1 | <= 20 | 5            |
+| 2 | >= 10 | 10           |
+|])))
+      map tableName tables `shouldBe` []
+      [ diagMessage d | d <- diags, diagSeverity d == Error ] `shouldBe`
+        [ "table \"T\": row 1 and row 2 both match Age = 10 (they overlap wherever Age is in [10..20])" ++ uniqueAdvice ]
+
 -- * The corpus
 
 -- | The fixtures @test/roundtrip/run-roundtrip.sh@ iterates, in its
@@ -542,30 +790,34 @@ quietly act = bracket acquire release (const act)
     release saved = hDuplicateTo saved stderr >> hClose saved
 
 -- | Enough forcing that a reader exception surfaces inside the 'try'.
-force' :: [DecisionTable] -> [DecisionTable]
-force' ts = length (show ts) `seq` ts
+force' :: ([Diagnostic], [DecisionTable]) -> ([Diagnostic], [DecisionTable])
+force' r@(ds, ts) = length (show ts) `seq` length (concatMap diagMessage ds) `seq` r
 
-readFixture :: FilePath -> IO [DecisionTable]
-readFixture path = snd <$> parseMarkdown ArgOptions
+readFixture :: FilePath -> IO ([Diagnostic], [DecisionTable])
+readFixture path = parseMarkdown ArgOptions
   { verbose = False, query = False, propstyle = False, informat = Md
   , outformat = Unknown, out = "-", pick = "", input = [path] }
 
--- | The seven tables ROOTSTOCK step 0 found with a conflict region, which D-22
--- lists as the cases that move when part 2 lands, and one more.
--- @policy\/md-eval-unique-conflict@ held a catch-all when step 0 ran; D-22
--- part 1 re-fixtured it with a genuine overlap (@<= 20@ \/ @>= 10@) so that
--- the run-time refusal stays pinned, and its old table survives, conflict-free,
--- as @policy\/md-eval-unique-catchall-default@.
-expectedConflictTables :: [(String, String)]
-expectedConflictTables = sort
-  [ ("policy/md-eval-unique-conflict",                "Overlapping")
-  , ("policy/hp-unique-near-duplicate-rows-accepted", "NearMiss")
-  , ("policy/md-prefix-comparisons",                  "PrefixComparisons")
-  , ("policy/md-multivalue-dash-reprocessed",         "MultiDash")
-  , ("policy/md-negation-in-numeric-column-emitted",  "NotRange")
-  , ("policy/eval-hp-any-two-rows-disagree",          "AnyDisagree")
-  , ("symptom/l4-hitpolicy-unique-silently-first",    "UniqueOverlap")
-  , ("symptom/hp-any-duplicate-rows-disagree-silent", "AnyDup")
+-- | The fixtures the reader refuses for a conflict region (D-22 rule 2).
+--
+-- ROOTSTOCK step 0 found seven tables with a conflict region, and D-22 part 1
+-- re-fixtured an eighth (@policy\/md-eval-unique-conflict@) to have one. Part 2
+-- made the reader refuse all eight. Four of them had been written to pin
+-- something else, so each was re-fixtured without its overlap and its old
+-- table moved to a new @hp-unique-overlap-*@ case; the other four are refusal
+-- cases now. The XML reader's copy of the refusal is
+-- @policy\/xml-unique-overlap-refused@, which this markdown-only walk does not
+-- read.
+expectedConflictRefusals :: [String]
+expectedConflictRefusals = sort
+  [ "policy/md-eval-unique-conflict"
+  , "policy/eval-hp-any-two-rows-disagree"
+  , "policy/l4-hitpolicy-unique-silently-first"
+  , "policy/hp-any-duplicate-rows-disagree-silent"
+  , "policy/hp-unique-overlap-shared-member-refused"
+  , "policy/hp-unique-overlap-comparisons-refused"
+  , "policy/hp-unique-overlap-multivalue-dash-refused"
+  , "policy/hp-unique-overlap-negation-refused"
   ]
 
 corpus :: Spec
@@ -575,8 +827,12 @@ corpus = describe "the round-trip fixture corpus" $ do
     r <- try (readFixture p >>= evaluate . force')
     pure $ case r of
       Left (e :: SomeException) -> Left (s, displayException e)
-      Right ts                  -> Right [ (s, tableName dt, regionMap dt) | dt <- ts ]
-  let tables      = concat [ ts | Right ts <- results ]
+      Right (ds, ts)            -> Right (s, ds, [ (s, tableName dt, regionMap dt) | dt <- ts ])
+  let tables      = concat [ ts | Right (_, _, ts) <- results ]
+      -- A conflict refusal is the one Error whose text says two rows "both match".
+      refusedForConflict = sort
+        [ s | Right (s, ds, _) <- results
+            , any (\d -> diagSeverity d == Error && " both match " `isInfixOf` diagMessage d) ds ]
       analysed    = [ (s, n, rm) | (s, n, Right rm) <- tables ]
       refused     = [ unsupportedKind u | (_, _, Left u) <- tables ]
       byKind      = M.toList (M.fromListWith (+) [ (k, 1 :: Int) | k <- refused ])
@@ -589,9 +845,10 @@ corpus = describe "the round-trip fixture corpus" $ do
         ++ show (length analysed) ++ " tables, " ++ show nRegions ++ " regions") $ do
     [ e | Left e <- results ] `shouldBe` []
     length analysed `shouldSatisfy` (> 100)
-  it ("finds conflict regions in exactly step 0's seven tables and D-22's re-fixtured one ("
-        ++ show nConflicts ++ " conflict regions)") $
-    conflicted `shouldBe` expectedConflictTables
+  it "refuses, for a conflict region, exactly the fixtures that have one" $
+    refusedForConflict `shouldBe` expectedConflictRefusals
+  it ("leaves no conflict region in any table it accepts (" ++ show nConflicts ++ " found)") $
+    conflicted `shouldBe` []
   it ("finds " ++ show nNoMatch ++ " no-match regions in " ++ show (length noMatchers) ++ " tables") $
     length noMatchers `shouldSatisfy` (> 0)
   -- The kinds, not the counts: a new fixture should not break this, but a new

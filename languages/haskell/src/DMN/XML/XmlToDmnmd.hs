@@ -27,7 +27,8 @@ import qualified DMN.Types as T
 import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
 import Data.Maybe (fromMaybe, isNothing)
-import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, tableErrors, tableWarnings, trim)
+import DMN.BuildTable (tableErrors)
+import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, tableWarnings, trim)
 import DMN.ParsingUtils (Parser, parseOnly)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as M
@@ -597,7 +598,7 @@ data ResolvedCol = ResolvedCol
 -- Type inference is applied to a column only when it has no usable @typeRef@.
 -- DMN carries the types explicitly, so guessing at a declared column — and
 -- worse, letting a guess override or truncate it, which is what running
--- markdown's whole-table 'DMN.DecisionTable.mkDTable' pass over XML did — is
+-- markdown's whole-table 'DMN.BuildTable.mkDTable' pass over XML did — is
 -- never right.
 resolveColumn :: (String -> String) -> [String] -> Col -> [String] -> ResolvedCol
 resolveColumn inTable ruleIdents col texts = ResolvedCol

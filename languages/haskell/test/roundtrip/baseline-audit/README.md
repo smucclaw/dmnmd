@@ -162,3 +162,27 @@ All 20 are fixture changes, not emitter changes, and `--record` followed by `--c
 - `md-eval-unique-catchall-default` is new: 8 entries, and its four stdout hashes are exactly the old `md-eval-unique-conflict` hashes, because it is that table byte for byte.
 - `md-eval-unique-conflict` was re-fixtured with a genuine overlap, so its four stdout hashes changed and its stderr did not.
 
+## Extension for D-22 part 2 (refusing conflict regions), 2026-09-29
+
+Branch `feat/d22-refuse-conflicts`, on #64 (`b2b7e83`).
+Before recording, `--check` printed `checked 1260 run(s): 116 changed`: 36 `CHANGED (sha)` files and 80 `MISSING FROM MANIFEST` files.
+After `--record`, it printed `checked 1260 run(s): 0 changed`.
+In the manifest, 52 entries left and 116 arrived.
+
+**Changed runs of existing fixtures: 28 runs, 36 files.**
+- `policy/eval-hp-any-two-rows-disagree` and `policy/md-eval-unique-conflict`: 4 runs each, stdout and stderr.
+  Each table is now refused when it is read, so stdout becomes `### exit 1` and stderr gains the conflict error.
+- `policy/hp-unique-near-duplicate-rows-accepted`, `policy/md-prefix-comparisons`, `policy/md-multivalue-dash-reprocessed` and `policy/md-negation-in-numeric-column-emitted`: 4 runs each, stdout only.
+  Each was re-fixtured without its overlap, so the emitted code differs; each still exits 0 with empty stderr.
+- `safe2.dmn`: 4 runs, **stderr only**.
+  It gains 7 errors, for three `U` tables whose rules overlap: `type of event`, `is liquidity event` and `is dissolution event`.
+  Its stdout and exit status are unchanged, because another table in the same file was already refused.
+  It is not a corpus case, so D-22's list of what moves did not name it, but its refusal follows from rule 2 as the listed ones do.
+
+**Moved fixtures: 2, with 16 entries leaving and 16 arriving.**
+`symptom/l4-hitpolicy-unique-silently-first` and `symptom/hp-any-duplicate-rows-disagree-silent` moved to `policy/`.
+Their hashes changed as well as their paths, because both tables are now refused: stdout was code and is now `### exit 1`, and stderr was empty and now holds the conflict error.
+
+**New fixtures: 8, with 64 entries arriving.**
+They are `dmn13/bad-overlapping-unique-rules.dmn`, `policy/xml-unique-overlap-refused`, the four `policy/hp-unique-overlap-*-refused` cases, `policy/eval-unique-collection-overlap-at-runtime` and `policy/eval-hp-any-collection-disagree-at-runtime`.
+

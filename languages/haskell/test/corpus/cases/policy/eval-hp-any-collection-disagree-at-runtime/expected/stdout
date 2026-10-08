@@ -1,0 +1,6 @@
+Scores> problem running [5, 7] against table Scores: multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!
+[DTrow {row_number = Just 1, row_inputs = [[FNullary (VN 5.0)]], row_outputs = [[FNullary (VS "pass")]], row_comments = []},DTrow {row_number = Just 2, row_inputs = [[FNullary (VN 7.0)]], row_outputs = [[FNullary (VS "fail")]], row_comments = []}]
+
+Scores> Scores: "grade":"pass"
+
+Scores>

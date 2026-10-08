@@ -822,6 +822,7 @@ identically under both. Exactly one table newly refuses and it is that fixture. 
   `<= 20` versus `>= 10`, which is `symptom/l4-hitpolicy-unique-silently-first` and stays a
   symptom. The check is an under-approximation: it never refuses a table that is fine, and it does
   not claim to catch every table that is not.
+  **Since D-22 part 2 (2026-09-29)** a separate check refuses both, and that case is `policy/l4-hitpolicy-unique-silently-first`; this check is unchanged and still owns identical guards.
 
 **Full overlap analysis is deferred, not forgotten.** The prior art is Calvanese, Dumas, Laurson,
 Maggi, Montali & Teinemaa, *Semantics and Analysis of DMN Decision Tables*, BPM 2016, LNCS 9850
@@ -838,7 +839,7 @@ approximation over the whole tree and reported 55 non-identical overlapping pair
 141 `U` tables, of which about forty involve an all-wildcard catch-all row. Those figures are that
 survey's and are **not** re-derived here — treat them as an order of magnitude, not a count. What
 does not depend on them, and is checked directly: `symptom/l4-hitpolicy-unique-silently-first`
-already names four `policy/l4-*` recordings that are `U` tables ending in a catch-all row
+(`policy/` since D-22 part 2) already names four `policy/l4-*` recordings that are `U` tables ending in a catch-all row
 (`md-backend-l4`, `l4-sumtype-emitted`, `md-l4-ditto-wide-chars`,
 `l4-keyword-column-names-quoted`). So the wider check is not a drop-in: it needs its own ruling
 first — *is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?* That
@@ -1615,7 +1616,7 @@ Meng marked the card "accept" with no note.
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
 
-### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Part 1 (the interpreter) landed; parts 2 and 3 not implemented.**
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). Parts 1 (the interpreter) and 2 (refusing conflict regions) landed; part 3 not implemented.**
 
 This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
 It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
@@ -1680,3 +1681,54 @@ No emitter output changed: an A/B against trunk `ea4df4a` over 191 fixtures and 
 `symptom/eval-collect-min-empty-crash` is a different defect (`Prelude.minimum`, not `head0`) and is untouched.
 §10.3.2.10 step 2 would also make its answer null, but this ruling covers only the single-hit policies.
 Still to do: rule 2's static refusal of conflict regions, which needs a region enumerator, and `NOTHING`/`MAYBE` in L4.
+
+**Implementation, part 2: refusing conflict regions (2026-09-29, branch `feat/d22-refuse-conflicts`, on #64).**
+Rule 2 is implemented; the L4 half of rule 3 is not.
+`DMN.Regions.conflictErrors` is a summand of `tableErrors`, after D-13's `uniquenessErrors`, so the markdown reader and `--from=xml` both refuse such a table and exit 1 with nothing emitted.
+Under `U` it refuses two rules that can both match, not counting a trailing catch-all; under `A`, two that can both match and whose outputs differ as the cells state them.
+Each message names the two rules by the row numbers the author wrote, one witness input, and, where the overlap is larger than that one input, the overlap column by column.
+The witness is the representative of the first region the two rules share.
+An example: `row 1 and row 2 both match Age = 10 (they overlap wherever Age is in [10..20])`.
+Under `A` the message also names the output columns that disagree.
+Each later rule is reported once, against the first earlier rule it conflicts with, which is the shape D-13 already had.
+`conflicts` finds those pairs one pair at a time over the blocks, not by enumerating regions, and the test suite checks it against enumeration on every hand-written table.
+
+**Subsumption: D-13 stays, and the two never both speak about one row.**
+The new check would refuse every table D-13 refuses, and more.
+But D-13's message says two things the new one does not: that the later row can never match at all, and that dmnmd compares values, not text, so `1.1` and `1.10` are one guard.
+So `conflictErrors` is silent about exactly the rows `identicalGuards` reports, and D-13's recordings did not move.
+D-13 is also what still runs where regions cannot be computed.
+It also still refuses an all-wildcard row followed by a trailing catch-all, which is not a conflict region, since the catch-all is the default, but leaves that default unreachable.
+
+**Where regions cannot be computed, nothing changed.**
+`regionMap` declines list-valued hit policies, collection columns, String cells holding FEEL test syntax, short rows and computed cells, and for those tables `conflictErrors` says nothing.
+Collection-input `U` and `A` tables keep the overlap warning, as rule 2 says.
+The interpreter's run-time conflict refusals stay too, and two new cases reach them through a collection column: `policy/eval-unique-collection-overlap-at-runtime` and `policy/eval-hp-any-collection-disagree-at-runtime`.
+**A known gap follows from this.** A table with a collection column is not analysed at all, so an overlap on its other, scalar columns is not caught either.
+Closing it needs regions that model membership, which rule 2 already names as the condition for dropping the warning.
+
+**The gate moved module.**
+`mkDTable` and `tableErrors` are now in `DMN.BuildTable`, because the gate needs `DMN.Regions` and `DMN.Regions` is built on `DMN.DecisionTable`'s matcher.
+The individual checks stayed in `DMN.DecisionTable`.
+
+**What moved in the corpus was exactly the list above.**
+- `policy/hp-unique-near-duplicate-rows-accepted`, `policy/md-prefix-comparisons`, `policy/md-multivalue-dash-reprocessed` and `policy/md-negation-in-numeric-column-emitted` were re-fixtured without their overlaps, each keeping what it pins.
+  Their old tables are four new refusal cases, `policy/hp-unique-overlap-{shared-member,comparisons,multivalue-dash,negation}-refused`.
+- `policy/md-eval-unique-conflict` and `policy/eval-hp-any-two-rows-disagree` are now refused when read, before `-q` evaluates anything.
+- `symptom/l4-hitpolicy-unique-silently-first` and `symptom/hp-any-duplicate-rows-disagree-silent` now refuse, and moved to `policy/` under their old slugs.
+- `policy/l4-otherwise-sentinel-not-last-row`, `policy/list-output-l4-literal` and `policy/list-input-membership-l4` did not move, so they belong to part 3.
+  The first two have no conflict region, and the third has a collection column, which regions do not analyse.
+
+Also new: `policy/xml-unique-overlap-refused`, from the new `test/dmn13/bad-overlapping-unique-rules.dmn`.
+Before recording, `run-corpus.sh` reported exactly the eight listed cases changed out of 245, and nothing else.
+`make roundtrip` went from 191 fixtures (137 pass, 10 xfail, 44 skipped) to 197 (135 pass, 10 xfail, 52 skipped).
+The eight new skips are the four listed cases that now refuse and the four new refusal cases; the two new run-time cases pass.
+
+**Outside the corpus, one fixture moved.**
+`test/safe2.dmn`, which is not in the corpus, gains 7 refusals across three `U` tables for the same reason, with stdout and exit status unchanged.
+The tables are `type of event`, `is liquidity event` and `is dissolution event`.
+In `is liquidity event`, rules 1 to 3 each require `Yes` on a different one of three inputs and leave the other two blank, so an input with two of them `Yes` matches two rules.
+Rule 2 refuses a `U` overlap even where the outputs agree, as DMN 1.3 §8.2.10 does.
+Stdout and exit status stay the same because another table in the same file was already refused.
+The ruling's list of what moves named only corpus recordings, so this follows from the ruling rather than leaking past it.
+The backend baseline was re-recorded for this change, and every changed run is listed by fixture in `test/roundtrip/baseline-audit/README.md`.
