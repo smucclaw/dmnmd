@@ -28,7 +28,7 @@ import Data.Char (toLower, digitToInt)
 import Data.List (transpose, intercalate)
 import Data.Maybe (fromMaybe, isNothing)
 import DMN.BuildTable (tableErrors)
-import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, tableWarnings, trim)
+import DMN.DecisionTable (inferTypes, mkFs, mkFsEither, mkFsKeepingQuotes, tableWarnings, trim)
 import DMN.ParsingUtils (Parser, parseOnly)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as M
@@ -265,6 +265,7 @@ convTable :: TypeEnv -> String -> Maybe TypeRef -> X.DecisionTable -> ([Diagnost
 convTable env name decVarType X.DecisionTable
   { X.dtHitPolicy
   , X.dtOutputLabel
+  , X.dtTypeRef
   , X.dtInput
   , X.dtOutput
   , X.dtAnnotations
@@ -302,8 +303,9 @@ convTable env name decVarType X.DecisionTable
     -- specify a name", "SHALL NOT specify a typeRef"). A conformant document
     -- therefore says both somewhere else, and this is where they are collected
     -- for 'convOutputCol': the TYPE on the enclosing decision's @<variable>@
-    -- (see the note on 'X.Decision'\'s pickler), read through 'T.resultShape',
-    -- and the NAME on @decisionTable/\@outputLabel@ (see 'X.dtOutputLabel').
+    -- (see the note on 'X.Decision'\'s pickler) or on @decisionTable/\@typeRef@
+    -- (see 'X.dtTypeRef'), read through 'T.resultShape', and the NAME on
+    -- @decisionTable/\@outputLabel@ (see 'X.dtOutputLabel').
     -- Reading them is the difference between honouring what the document states
     -- and guessing — a column named @output1@ with a type inferred from its
     -- cells.
@@ -311,12 +313,14 @@ convTable env name decVarType X.DecisionTable
     -- __Only when there is exactly one output.__ With two or more, the outputs
     -- are keyed by name and each carries its own @typeRef@; the decision
     -- variable then names the composite, whose type is an @<itemDefinition>@
-    -- and not any one column's, and @outputLabel@ describes the output as a
-    -- whole rather than any one column. Applying either there would give every
-    -- column the same wrong type, or one column a name it was never given.
+    -- and not any one column's, the table's own @typeRef@ likewise names the
+    -- whole result, and @outputLabel@ describes the output as a whole rather
+    -- than any one column. Applying any of them there would give every column
+    -- the same wrong type, or one column a name it was never given.
     singleOutput = case dtOutput of
       [_] -> Just SingleOutput
                { soVarType = decVarType
+               , soTableType = dtTypeRef
                , soShape = T.resultShape dtHitPolicy
                , soOutputLabel = dtOutputLabel
                }
@@ -448,6 +452,10 @@ data SingleOutput = SingleOutput
   { soVarType :: Maybe TypeRef
     -- ^ the enclosing decision's @<variable typeRef>@: the type of the
     -- decision's RESULT (§6.3.7), which is not always the column's
+  , soTableType :: Maybe TypeRef
+    -- ^ @decisionTable/\@typeRef@: DMN 1.3 §7.3.1 says it SHALL be the same as
+    -- the type of the containing Decision, so it is the same statement as
+    -- 'soVarType' made in a second place, and goes through the same 'soShape'
   , soShape :: T.ResultShape
     -- ^ 'T.resultShape' of the hit policy: is that result the column's type, a
     -- LIST of it, or a COUNT, which says nothing about the column at all?
@@ -478,8 +486,13 @@ data SingleOutput = SingleOutput
 --
 -- __The type__: a @typeRef@ on the clause wins, being the more specific
 -- statement, and refusing it would reject documents that read correctly today.
--- Without one, a single-output column reads the decision's @<variable>@
--- through 'T.resultShape', the classifier the writer used to write it:
+-- Without one, a single-output column reads the type the document states for
+-- the decision's RESULT, through 'T.resultShape', the classifier the writer used
+-- to write it. That statement is the decision's @<variable>@ or
+-- @decisionTable/\@typeRef@, which DMN 1.3 §7.3.1 says SHALL be the decision's
+-- type and is therefore the same statement made in a second place; a document
+-- that carries both must agree, and is refused if it does not
+-- ('resultColumnType'). Then:
 --
 --  * 'T.ResultIsColumn' (@U A P F@, @C+ C< C>@): the variable's type IS the
 --    column's.
@@ -519,18 +532,88 @@ convOutputCol env inTable single ix TableOutput { toutName, toutLabel, toutTypeR
     locate = inTable . (("output column " ++ show nm ++ ": ") ++)
     (diags, ty, inherited) = case (toutTypeRef, single) of
       (Just own, _) -> resolveType env locate (Just own)
-      (Nothing, Just so) -> case soShape so of
-        T.ResultIsColumn -> resolveType env locate (soVarType so)
-        T.ResultIsListOfColumn -> resolveElementType env locate (soVarType so)
-        T.ResultIsCount -> ([], Nothing, Nothing)
+      (Nothing, Just so) -> resultColumnType env locate so
       (Nothing, Nothing) -> ([], Nothing, Nothing)
     (domDiags, domain) =
       pickDomain locate "<outputValues>"
         (fmap (innerText . utText . unOutputValues) toutValues) inherited
 
+-- | Which of the two places a single-output table can state its result type a
+-- statement came from. Only so a diagnostic can name it.
+data TypeSource = FromVariable | FromTable
+
+sourceWords :: TypeSource -> String
+sourceWords FromVariable = "the decision's <variable>"
+sourceWords FromTable    = "the <decisionTable>"
+
+-- | The type of a single-output column when its own @<output>@ clause states none.
+--
+-- The document can state the decision's result type in two places, the
+-- decision's @<variable>@ and @decisionTable/\@typeRef@, and DMN 1.3 §7.3.1
+-- requires them to agree: "the referenced type SHALL be the same as the type of
+-- the containing Decision element". So they are one statement, and whichever is
+-- present goes through the same 'T.resultShape' dispatch.
+--
+-- __When both are present__ (assumed, not ruled) they are compared AFTER they are
+-- resolved, not as text, so @number@ and @integer@ agree and a refusal is never
+-- made over a spelling:
+--
+--  * the same type: the variable's reading is used;
+--  * one of them declares nothing (@Any@, or a scalar the hit policy rejects and
+--    'resolveElementType' warned about): the other is used, because an absent
+--    declaration is exactly what @Any@ says and the more informative statement
+--    does not contradict it;
+--  * two different types: the document breaks the SHALL above, and dmnmd will not
+--    pick one. A silent pick is the defect this function exists to remove, in the
+--    other direction. The table is refused, with both statements quoted;
+--  * either does not resolve: its own error, and nothing else, since the type
+--    that failed cannot be compared with anything.
+--
+-- Under 'T.ResultIsCount' neither is applied, so there is nothing to compare and
+-- nothing is refused.
+resultColumnType :: TypeEnv -> (String -> String) -> SingleOutput -> (Diagnostics, Maybe T.DMNType, Maybe String)
+resultColumnType env locate so = case (soVarType so, soTableType so) of
+    (Nothing, Nothing) -> none
+    (Just v,  Nothing) -> from FromVariable v
+    (Nothing, Just t)  -> from FromTable t
+    (Just v,  Just t)
+      | sameText v t   -> from FromVariable v
+      | otherwise      -> reconcile v t (from FromVariable v) (from FromTable t)
+  where
+    none = ([], Nothing, Nothing)
+
+    from src ref = case soShape so of
+      T.ResultIsColumn       -> resolveType env locate (Just ref)
+      T.ResultIsListOfColumn -> resolveElementType env locate src (Just ref)
+      T.ResultIsCount        -> none
+
+    sameText (TypeRef a) (TypeRef b) = trim a == trim b
+
+    reconcile (TypeRef v) (TypeRef t) (dsV, tyV, domV) (dsT, tyT, domT)
+      | anyErrors both               = (both, Nothing, Nothing)
+      | Just a <- tyV, Just b <- tyT = if a == b then (both, tyV, domV `orElse` domT) else (disagree, Nothing, Nothing)
+      | Just _ <- tyV                = (both, tyV, domV)
+      | Just _ <- tyT                = (both, tyT, domT)
+      | otherwise                    = (both, Nothing, Nothing)
+      where
+        both = dsV ++ dsT
+        disagree =
+          [ errorAt . locate $
+              "the decision's <variable> declares typeRef " ++ show v
+                ++ " but its <decisionTable> declares typeRef " ++ show t
+                ++ ", and these are different types. DMN 1.3 section 7.3.1: when the"
+                ++ " expression that defines a decision's output carries a typeRef, \"the"
+                ++ " referenced type SHALL be the same as the type of the containing"
+                ++ " Decision element\", and the decision's type is its <variable>'s."
+                ++ " dmnmd will not choose between them: either choice would type the"
+                ++ " column, and read every cell in it, on a guess."
+                ++ " Refusing to convert this table." ]
+
+    orElse a b = maybe b Just a
+
 -- | The output column's type under 'T.ResultIsListOfColumn', where the
--- decision's @<variable>@ types the LIST of results, so the column's type is
--- that list's ELEMENT type.
+-- decision's result type (its @<variable>@, or @decisionTable/\@typeRef@) types
+-- the LIST of results, so the column's type is that list's ELEMENT type.
 --
 -- A collection type loses exactly its outermost layer and keeps its
 -- @\<allowedValues\>@, which constrain the elements. What it does NOT do any
@@ -550,15 +633,15 @@ convOutputCol env inTable single ix TableOutput { toutName, toutLabel, toutTypeR
 --  * A type that resolves to a SINGLE value contradicts the hit policy. dmnmd
 --    does not pick a reading of a self-contradictory document: it warns, and the
 --    column is inferred.
-resolveElementType :: TypeEnv -> (String -> String) -> Maybe TypeRef -> (Diagnostics, Maybe T.DMNType, Maybe String)
-resolveElementType _ _ Nothing = ([], Nothing, Nothing)
-resolveElementType env locate (Just (TypeRef raw)) = case resolveTypeRefFrom env True raw of
+resolveElementType :: TypeEnv -> (String -> String) -> TypeSource -> Maybe TypeRef -> (Diagnostics, Maybe T.DMNType, Maybe String)
+resolveElementType _ _ _ Nothing = ([], Nothing, Nothing)
+resolveElementType env locate src (Just (TypeRef raw)) = case resolveTypeRefFrom env True raw of
     (ds, ty, dom, True)     -> (located ds, ty, dom)
     (ds, Nothing, _, False) -> (located ds, Nothing, Nothing)
     (ds, Just _, _, False)  ->
       ( located ds ++
         [ warnAt . locate $
-            "the decision's <variable> declares typeRef " ++ show raw
+            sourceWords src ++ " declares typeRef " ++ show raw
               ++ ", a single value, but under this table's hit policy the decision's"
               ++ " result is a list with one entry per matching rule, so that type"
               ++ " cannot be the result's. dmnmd does not apply it to the output column"
@@ -623,6 +706,14 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
     -- evidence inferType wants — in particular the FEEL quotes are still on
     -- "2020", which is the only thing that distinguishes it from the number.
     --
+    -- 'mkFsKeepingQuotes', not 'mkFsEither': that runs 'unquoteCell' first, so
+    -- this comment was true of the intent and false of the code, and "2020" was
+    -- graded exactly like 2020 and "yes" like the boolean word yes. The column
+    -- was then typed Number or Boolean and every cell in it rewritten, at exit 0
+    -- (audit finding f4). Only this pre-pass keeps the quotes. The cells that are
+    -- BUILT, below, go through 'mkCells' at the settled type, which parses a
+    -- string column's literals itself.
+    --
     -- A cell that will not read at all contributes no evidence and is DROPPED
     -- here rather than raised. It is not thereby accepted: this is a pre-pass
     -- over the same texts 'mkCells' is about to read for real, and 'mkCells'
@@ -631,16 +722,32 @@ resolveColumn inTable ruleIdents col texts = ResolvedCol
     -- id` — the last unlocated user-facing abort in the tool (D-7), reachable
     -- from any untyped <inputEntry> containing a thousands-grouped number,
     -- because that guard fires before any type dispatch.
-    firstPass = [ fs | Right fs <- mkFsEither Nothing <$> texts ]
+    firstPass = [ fs | Right fs <- mkFsKeepingQuotes <$> texts ]
 
     ty = case colDeclared col of
       Just t -> Just t
       Nothing -> T.vartype (inferTypes (T.DTCH (colKind col) (colName col) Nothing Nothing) firstPass)
 
     built =
-      [ mkCells (\m -> where_ (atRule rid ++ m)) ty t
+      [ cellsAt (\m -> where_ (atRule rid ++ m)) t
       | (rid, t) <- zip (ruleIdents ++ repeat "") texts
       ]
+
+    -- An UNSETTLED column keeps its cells' quotes. Inference can fail to settle a
+    -- column in exactly three ways, and only the last leaves a table that can be
+    -- emitted: the cells disagree (a conflict), a cell is an ambiguous numeral,
+    -- or every cell is a wildcard. The first two are refused by 'tableErrors',
+    -- which is handed THESE cells and asks 'columnVerdict' the same question
+    -- the pre-pass above asked — so they must still carry the quotes the
+    -- pre-pass graded, or "2020" mixed with a bare 2021 reads as two numerals
+    -- to the check and the conflict the pre-pass found goes unreported. The
+    -- third has no quoted cell to keep. A settled column is built at its type.
+    cellsAt locate t
+      | isNothing ty = case mkFsKeepingQuotes t of
+          Right fs -> ([], fs)
+          Left msg -> ([errorAt (locate msg)], [])
+      | otherwise    = mkCells locate ty t
+
     atRule "" = ""
     atRule rid = rid ++ ": "
 

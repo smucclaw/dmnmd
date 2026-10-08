@@ -1,0 +1,9 @@
+export function Flag ( Tier : string ) {
+  if (Tier === "gold") { // 1
+    return {"Flag":"5"};
+  }
+  if (Tier === "silver") { // 2
+    return {"Flag":"6"};
+  }
+}
+

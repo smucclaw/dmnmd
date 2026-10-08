@@ -130,6 +130,13 @@ Things that are only apparent across several files:
   `parseNumberCell`'s arithmetic arm accepts bare FEEL names and so accepts `Non-Participating`
   and `n/a`); and none (a wildcard).
 
+  **Quoted-string evidence reaches inference only on the XML path (audit finding f4).**
+  A double-quoted cell is hard String evidence, but only if inference sees the quotes.
+  The XML reader's pre-pass grades cells with `DecisionTable.mkFsKeepingQuotes`, so `"2020"` and `"yes"` are String there, and the cells of a column it could not settle are built with their quotes too, because `tableErrors` asks `columnVerdict` the same question of the built cells.
+  The markdown reader's pass 1 builds the cells it infers from with `mkFsEither`, whose `unquoteCell` strips a well-formed quoted cell first, so an undeclared markdown column of `"2020"` is still Number and one of `"yes"` is Boolean, and `"007"` is refused as ambiguous.
+  That is not fixed: `symptom/md-quoted-literal-inferred-by-content`.
+  The quoted-string clause of `inferEvidence` fires on markdown only for a cell `unquoteCell` leaves quoted, such as `"2020", 5`.
+
   **A `Left` from the oracle is not always "not a number".** Its two NAMED refusals — FEEL
   negation and invocation — mean "unmistakably numeric, and dmnmd does not implement it", so
   `DMN.ParseCell.namedRefusal` reads them back as Number evidence. Without that, `not([1..5])`
@@ -237,7 +244,8 @@ Things that are only apparent across several files:
   NOT specify a name. A single-output table states its result type on the enclosing
   `<decision>`'s own `<variable>` instead — "the instance of InformationItem that **stores the
   result of this Decision**" — so for such a table that is not merely *a* place the type may
-  appear, it is the only one left. (**Mind that number.** l4-ide's `Emit.hs` cites §8.2.11, and
+  appear, it is the primary one left (the table's own `typeRef`, below, is the same statement
+  made again). (**Mind that number.** l4-ide's `Emit.hs` cites §8.2.11, and
   D-13 established against the OMG PDF that §8.2.11 is *Default output values*. This repo has
   had to correct that number once before, in D-13, where it had been cited for a different rule,
   hit-policy uniqueness (§8.2.10); an earlier version of this sentence said "corrected twice",
@@ -298,6 +306,16 @@ Things that are only apparent across several files:
   Multi-output tables never use `outputLabel` for a column: it describes the output as a whole.
   `ParseDMN.DecisionTable` models it as `dtOutputLabel` (it was an `xpIgnoredAttrs` entry).
   `policy/xml-output-label-names-single-output`, from `test/dmn13/output-label.dmn`.
+
+  **`decisionTable/@typeRef` is the same statement as the variable's, made in a second place (audit finding f3; assumed, not ruled).**
+  `tDecisionTable` extends `tExpression`, which declares an optional `typeRef`, and DMN 1.3 §7.3.1 says of an Expression that defines the output of a Decision that "the referenced type SHALL be the same as the type of the containing Decision element".
+  It was an `xpIgnoredAttrs` entry, so a type the document declared was parsed and dropped, and a `string` table over the cells `1` and `2` came out as `1.0` and `2.0` at exit 0.
+  `ParseDMN.DecisionTable` now models it as `dtTypeRef`, and `resultColumnType` reads whichever of the two the document states through the same `T.resultShape` dispatch and under the same exactly-one-output guard.
+  So under a list-valued policy a collection `typeRef` gives the column its element type and a scalar one warns (naming the `<decisionTable>`), and under `C#` it is never the column's.
+  A document that states both must agree, and the comparison is on resolved types, so `number` and `integer` agree and `Any` yields to a concrete statement; two different types are refused with an error that quotes both, because picking one would be a silent choice.
+  Under `C#` nothing is compared, since neither is applied.
+  The OMG's own Chapter 11 examples write it, and the writer does not.
+  `policy/xml-decision-table-typeref-types-single-output`, with `policy/xml-decision-table-typeref-not-applied-multi-output`, `policy/xml-decision-table-typeref-collect-is-list` and `policy/xml-decision-table-typeref-collect-scalar-warned` as its guards, and `policy/xml-decision-table-typeref-disagreement-refused` for the refusal.
 
   **`typeRef="Any"` is a declaration that declares nothing, and infers.** It is FEEL's top
   type, so it says exactly what an absent `typeRef` says. It is deliberately not routed to the
@@ -411,7 +429,7 @@ validator catches that.
   **Under `C#` the variable says `number`, whatever the column holds.** DMN 1.3 §8.2.10: "# (count): the result of the decision table is the number of outputs", and §6.3.7 makes the variable "the instance of InformationItem that stores the result of this Decision".
   The counted column's own type is then written nowhere, and the reader infers it from the cells.
   That changes nothing a count depends on, but dmnmd's `--to=ts` does not count — it returns each matching rule's cell — so what inference gets wrong shows there.
-  Measured: a `C#` table with a declared `String` column whose cells are `5` and `6` is written as the FEEL strings `"5"` and `"6"` and read back as the numbers `5.0` and `6.0`, because the XML reader's inference pre-pass strips the quotes it is documented to keep; that is a pre-existing reader defect, recorded as `symptom/xml-untyped-quoted-numeral-inferred-number`, which this rule makes reachable from dmnmd's own output.
+  Measured: a `C#` table with a declared `String` column whose cells are `5` and `6` is written as the FEEL strings `"5"` and `"6"`, and was read back as the numbers `5.0` and `6.0`, because the XML reader's inference pre-pass stripped the quotes it is documented to keep (audit finding f4); a pre-existing reader defect that this rule made reachable from dmnmd's own output, fixed since, and pinned by `policy/xml-untyped-quoted-numeral-output-stays-string` and `policy/md-count-string-numerals-roundtrip`.
   An all-wildcard declared column comes back untyped, and a column of ordinary strings comes back `String`.
   Pinned by `policy/xml-list-valued-variable-names-list-type`, `policy/xml-count-variable-number-column-inferred`, the §8.3.2 block and the per-hit-policy round trips in `TranslateXMLSpec`, and the per-hit-policy reader block in `DmnXmlSpec`.
 - **Refused, because DMN has no document for them:** a table with no output column
@@ -468,7 +486,7 @@ Measured during the §8.3.2 follow-up: with only the writer half landed (the typ
 The writer quotes every string cell and a quoted cell is hard String evidence to inference, so on every eligible fixture the type came back anyway.
 The gate that does see it is in-process: `TranslateXMLSpec`'s "survives --to=xml | --from=xml" block round-trips one table per hit policy whose output column is **declared but all-wildcard**, so inference has nothing to go on — and it went red on exactly those seven.
 `C#` has since left that promise on purpose: its variable types the count, so its column is inferred, and the block says so in the name of its own `C#` example rather than dropping it.
-The same blind spot hides the quoted-numeral case above, which no fixture in the harness exercises.
+The same blind spot hid the quoted-numeral case above until `policy/md-count-string-numerals-roundtrip` put a `C#` table with a `String` column of numerals in the harness; it fails there against a binary built before the fix.
 
 `backend-baseline.sh` is the other half: every fixture × `ts js py l4`, byte for byte, stdout and stderr and exit status.
 Adding a `FileFormat` constructor is exactly the kind of edit that perturbs an unrelated format's
@@ -512,10 +530,13 @@ status header saying so.
   The `OTHERWISE` returns the trailing catch-all row's output, else the declared default (`dtDefaultOutput`).
   With neither, it must **not** reuse the last data row's output, and what it says depends on whether an input can reach it, which `noRuleMayMatch` decides.
   If one can, the result is `GIVETH A MAYBE T`, every arm is `JUST v`, and the `OTHERWISE` is `NOTHING`; a multi-output table wraps its whole record, `JUST (mk<Name> …)`.
-  If none can, the table is total, stays bare, and its dead `OTHERWISE` returns a typed sentinel (`0`, `""`, `FALSE`, `EMPTY`) that only has to typecheck.
+  If none can, the table is total, stays bare, and its dead `OTHERWISE` returns a typed sentinel (`0`, `""`, `FALSE`, `EMPTY`) that only has to typecheck, unless the result is a sum type (below).
   `noRuleMayMatch` says no for a default row or an all-wildcard arm (an `IF TRUE`, as under `P`), and otherwise asks `DMN.Regions.noMatchRegions`.
   **Where `regionMap` cannot analyse the table** (a collection column, a String cell holding FEEL test syntax, a short row, …) **it says yes**: a `MAYBE` on a total table costs an unwrap, and a sentinel on a partial one is a wrong answer at exit 0.
-  One older case also gives `MAYBE` to a total table: a sum-typed result with no catch-all row or default, because a sum type has no sentinel (`policy/l4-priority-reorders-arms`).
+  **A sum-typed result has no sentinel** (a String output column with a declared domain), so when `noRuleMayMatch` proves such a table total, with no catch-all row and no default, the **last arm supplies the `OTHERWISE` and its guard is dropped** (`promoted` in `toL4`; D-22 part 4, assumed and not ruled).
+  "Last" is last in emission order, so under `P` it is the last of the arms sorted by `outputOrder`.
+  A sum-typed table `noRuleMayMatch` cannot prove total keeps its `MAYBE`; `policy/l4-sumtype-total-bare` and its negative control `policy/l4-sumtype-partial-maybe` pin the two sides.
+  `DMN.Regions` treats a declared Number domain as closed and the L4 input type does not, so an input outside such a domain reaches that `OTHERWISE` (`DECISIONS.md` D-22 part 4 records the measurement).
   `MAYBE (LIST OF T)` is parenthesised (`typeAtom`), because `MAYBE LIST OF T` does not parse.
   There is no `wrapMaybe` option any more; `defaultResult`, which no caller sets, still overrides the `OTHERWISE` and keeps the result bare.
 - **The ditto grid is column-alignment-critical.** `renderDittoGrid` collapses a guard token

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An UNTYPED output column of FEEL string literals with leading zeros:
+     "007" and "008", the shape of a product code, a postcode or a flight number.
+
+     The quotes make them strings, so the column is a String column and there is
+     nothing to refuse. dmnmd refuses a bare 007 in an undeclared column, because
+     it cannot tell the number 7 from an identifier that happens to be digits and
+     asks the author to declare the column. That refusal is about an UNQUOTED
+     cell. A quoted one has already said which it is.
+
+     Inference has to read the cell with its quotes. If it does not see them, the
+     leading-zero refusal fires on a document that is perfectly clear, and its
+     advice is markdown header syntax ("code : String") that means nothing in a DMN
+     document. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="untypedQuotedLeadingZero" name="Untyped Quoted Leading Zero"
+             namespace="https://example.org/dmnmd/test/untypedQuotedLeadingZero">
+  <decision id="Decision_code" name="Code">
+    <variable id="Variable_code" name="Code"/>
+    <decisionTable id="DecisionTable_code" hitPolicy="FIRST">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_code"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"007"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"008"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

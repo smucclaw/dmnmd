@@ -255,7 +255,8 @@ toL4 opts dt =
     -- A table with no catch-all row used to be excluded too, because the
     -- synthesized `OTHERWISE ""` is a *check error* against a sum-typed GIVETH
     -- and omitting OTHERWISE is a *parse error*. That restriction is gone:
-    -- 'maybeResult' below wraps the result type instead.
+    -- 'maybeResult' below wraps the result type where an input may match no rule,
+    -- and a table proven total promotes its last arm to the OTHERWISE instead.
     --
     -- The gate itself lives in 'enumOutsOf', because 'toL4File' has to apply
     -- exactly the same one when it collects the file's domains — a table whose
@@ -293,36 +294,45 @@ toL4 opts dt =
       _   -> recName
 
     -- The result is `MAYBE T`, its arms `JUST v` and its OTHERWISE `NOTHING`,
-    -- in exactly two cases, and both are about what the OTHERWISE would
-    -- otherwise have to say. Neither applies when the caller supplied the
-    -- OTHERWISE ('defaultResult'), since the caller has then said what no match
-    -- answers.
+    -- where some input may match no rule ('noRuleMayMatch', D-22 rule 3). The
+    -- OTHERWISE is then reachable, and the typed sentinel it used to return
+    -- (`0`, `""`, `FALSE`, `EMPTY`) was an answer the table never gave, at exit
+    -- 0. A table no input can fall through stays bare, as the ruling says. A
+    -- caller that supplied the OTHERWISE ('defaultResult') has said what no
+    -- match answers, so the result stays bare then too.
     --
-    -- 1. D-22 rule 3: some input may match no rule ('noRuleMayMatch'). The
-    --    OTHERWISE is then reachable, and the typed sentinel it used to return
-    --    (`0`, `""`, `FALSE`, `EMPTY`) was an answer the table never gave, at
-    --    exit 0. A total table stays bare, as the ruling says.
+    -- A total table's OTHERWISE is dead, but it must still typecheck, and a
+    -- sum-typed result is the one type with no value to put there: `""` is a
+    -- check error, fabricating a member is forbidden by CLAUDE.md, and adding a
+    -- sentinel member to the enum is worse still, because where one table's
+    -- output domain is another's input domain it silently widens the OTHER
+    -- table's declared domain. Until D-22 part 4 such a table, one with a
+    -- sum-typed result, no catch-all row and no declared default, kept a
+    -- `MAYBE T` whose NOTHING could never happen
+    -- (policy/l4-priority-reorders-arms was one).
     --
-    -- 2. A sum-typed result with nothing to fall back on, even when the table
-    --    is total. This predates D-22. The OTHERWISE is then unreachable, but
-    --    it must still typecheck, and a sum type has no sentinel: `""` is a
-    --    check error, fabricating a member is forbidden by CLAUDE.md, and adding
-    --    a sentinel member to the enum is worse still, because where one table's
-    --    output domain is another's input domain it silently widens the OTHER
-    --    table's declared domain. So a total sum-typed table with no catch-all
-    --    row and no declared default, such as policy/l4-priority-reorders-arms,
-    --    still gets `MAYBE T` whose NOTHING can never happen. Removing that
-    --    means giving the dead OTHERWISE a value of the type, for example the
-    --    last arm's, which changes the output of total tables and is not part of
-    --    D-22 part 3.
+    -- Part 4 (ASSUMED, NOT RULED) PROMOTES THE LAST ARM: when 'noRuleMayMatch'
+    -- has proved the table total, the last arm of 'branchRows' supplies the
+    -- OTHERWISE value and its guard is dropped ('promoted'). That is the same
+    -- function for a total table: an input that reaches the OTHERWISE matched
+    -- no earlier arm, and some arm matches it, so the last one does. "Last" is
+    -- last in emission order, so under HP_Priority it is the last of the arms
+    -- sorted by 'outputOrder'. Where the table is NOT proven total, the MAYBE
+    -- stays: promoting an arm there would answer an unmatched input with a
+    -- confident value the table never gave, which is what rule 3 removes.
     --
-    -- Case 2 keys on `defaultRow`, not on `catchAll`, because since D-16 phase
-    -- 2 a table may carry a §8.2.11 default output value with no catch-all row
-    -- (what the XML reader builds from <defaultOutputEntry>), and otherwiseExpr
-    -- consults defaultRow, so this must too.
+    -- 'needsValue' keys on `defaultRow`, not on `catchAll`, because since D-16
+    -- phase 2 a table may carry a §8.2.11 default output value with no catch-all
+    -- row (what the XML reader builds from <defaultOutputEntry>), and
+    -- otherwiseExpr consults defaultRow, so this must too.
+    mayFallThrough = noRuleMayMatch dt defaultRow branchRows
+    needsValue     = null defaultResultStr && not (null enumOuts) && isNothing defaultRow
+    -- The second disjunct is a guard that should never fire: with no arm and no
+    -- default row the table has no rules, and a table with no rules is never
+    -- proven total. If it ever did, there would be no arm to promote and the
+    -- OTHERWISE would have no value of the type, so the answer is MAYBE.
     maybeResult = null defaultResultStr
-               && (noRuleMayMatch dt defaultRow armRows || sumTypeWithoutFallback)
-    sumTypeWithoutFallback = not (null enumOuts) && isNothing defaultRow
+               && (mayFallThrough || (needsValue && isNothing promoted))
 
     givethType
       | maybeResult = "MAYBE " ++ typeAtom baseGiveth
@@ -341,11 +351,21 @@ toL4 opts dt =
     --     like any other, landing at its output's priority position.
     --   * everything else (First/Unique/Any): row order, with a TRAILING
     --     all-wildcard row lifted into the OTHERWISE.
-    (armRows, catchAll) = case hitpolicy dt of
+    (branchRows, catchAll) = case hitpolicy dt of
       HP_Priority -> (outputOrder (header dt) (allrows dt), Nothing)
       _           -> case reverse (allrows dt) of
         (lastR : rest) | isCatchAll lastR -> (reverse rest, Just lastR)
         _                                 -> (allrows dt, Nothing)
+
+    -- D-22 part 4: the arms that are rendered with a guard. Same as
+    -- 'branchRows', less the last arm when a proven-total sum-typed table
+    -- promotes it to the OTHERWISE ('promoted'). The ditto grid below is built
+    -- from these alone, so dropping the last arm re-measures every column and
+    -- THEN still lines up. Nothing in the grid refers forward, so the arms
+    -- above the dropped one render as they would have.
+    (armRows, promoted) = case reverse branchRows of
+      (lastR : rest) | needsValue && not mayFallThrough -> (reverse rest, Just lastR)
+      _                                                 -> (branchRows, Nothing)
 
     -- Render the arms through the ditto grid (BUILD-SPEC §3): one [Maybe Cell]
     -- per arm, column-aligned, with repeated guard tokens collapsed to ^ when
@@ -365,7 +385,8 @@ toL4 opts dt =
       | all (== ' ') gl = rpad (length gl) "TRUE"
       | otherwise       = gl
 
-    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr maybeResult multiOut mkName outs' defaultRow defaultResultStr
+    otherwiseLine = "    OTHERWISE " ++ otherwiseExpr maybeResult multiOut mkName outs' otherwiseRow defaultResultStr
+                 ++ maybe "" (commentSuffix . row_comments) promoted
     -- The synthesized OTHERWISE only ever returns an EXPLICIT catch-all row's
     -- output (the all-wildcard row, when present) or the declared default. With
     -- neither, the table says nothing about unmatched inputs, so we must NOT
@@ -373,13 +394,20 @@ toL4 opts dt =
     -- confidently-wrong answer — BUILD-SPEC §1.5). Where an input can get there,
     -- it says NOTHING (D-22 rule 3, 'maybeResult'), unless the caller set
     -- L4Opts.defaultResult, which it then returns. Where none can, the table is
-    -- total, the OTHERWISE is dead, and a type-default sentinel (BUILD-SPEC
-    -- §4.3) only has to typecheck.
+    -- total and the OTHERWISE is dead: a type-default sentinel (BUILD-SPEC
+    -- §4.3) only has to typecheck, except for a sum-typed result, which has no
+    -- sentinel, and which returns the value of the last arm ('promoted', D-22
+    -- part 4). The one value taken from a data row is therefore the last arm's,
+    -- for a table proven total, where it cannot be wrong.
     -- An explicit catch-all row wins over the table-level default only in the
     -- sense that the two cannot coexist honestly — a table with both has an
     -- unreachable default, and the catch-all is the statement nearer the rules.
     defaultRow = (row_outputs <$> catchAll) <|> dtDefaultOutput dt
     defaultResultStr = defaultResult opts
+    -- The output row the OTHERWISE returns: `defaultRow`, else the promoted last
+    -- arm's. A promoted arm is a real rule, not a catch-all, so its row comment
+    -- goes with it (above).
+    otherwiseRow = defaultRow <|> (row_outputs <$> promoted)
 
 -- | Can some input reach the synthesized @OTHERWISE@ with no rule matching it?
 -- @DECISIONS.md@ D-22 rule 3 renders exactly that case as @NOTHING@, under a

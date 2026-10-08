@@ -1436,6 +1436,27 @@ A collection of `Any` still infers silently: the list-ness is the hit policy's, 
 The writer's `inputVars` had the same shape: one `<inputData>` per name took the first column's type, so an untyped first column hid a later table's declared type; it now takes the first declared one.
 `policy/xml-collect-variable-element-temporal-refused`, `policy/xml-collect-variable-scalar-warned`, `policy/xml-emit-inputdata-typed-from-later-table`; 3 new corpus cases, no existing recording changed.
 
+*2026-10-08, audit finding f3 (assumed, not ruled): `decisionTable/@typeRef` is the same statement as the variable's.*
+The attribute was an `xpIgnoredAttrs` entry, so a type the document declared there was parsed and thrown away.
+`tDecisionTable` extends `tExpression`, which declares it (`xsd/DMN13.xsd`), and DMN 1.3 §7.3.1 says it SHALL be the same as the type of the containing Decision.
+So a single-output table has two places that can state its column's type, and the sentence above that calls the variable "the only one left" is true of the `<output>` clause alone.
+The reader now models the attribute as `dtTypeRef` and sends it through the same `resultShape` dispatch as the variable, under the same exactly-one-output guard.
+A document that states both is compared on resolved types: the same type, two spellings of one, or `Any` against a concrete type read without complaint, and two different types are refused with an error quoting both.
+Three choices in that were not ruled on: that the table's `typeRef` follows the variable's list-valued handling (a collection gives the element type, a scalar warns) rather than being dropped under `C`, `R` and `O`; that a disagreement is a refusal and not a preference for the variable; and that `Any` yields to a concrete statement.
+Each is its own commit, labelled so, and reverts alone.
+The OMG Chapter 11 examples under `test/examples` carry `decisionTable typeRef`, but dmnmd refuses all three at document level (boxed invocations, contexts and relations), before any table is read, so they cannot exercise this change and no fixture in the tree did before it.
+`policy/xml-decision-table-typeref-types-single-output`, `-not-applied-multi-output`, `-collect-is-list`, `-collect-scalar-warned`, `-disagreement-refused`.
+
+*2026-10-08, audit finding f4: the XML inference pre-pass keeps the quotes.*
+The defect the `C#` paragraph above records as "not fixed here" is fixed.
+`resolveColumn`'s pre-pass used `mkFsEither`, whose `unquoteCell` strips a double-quoted cell before `inferEvidence` sees it, so the quoted-string clause there, and the two comments saying the pre-pass keeps the quotes, described nothing that ran.
+The pre-pass now calls `mkFsKeepingQuotes`.
+The cells of a column inference could not settle are built with their quotes as well, because `tableErrors` asks `columnVerdict` the same question of the BUILT cells and would otherwise see two numerals where the pre-pass saw a string and a number.
+Three further shapes of the one cause were measured on trunk and are fixed with it: a quoted boolean word (`"yes"`) came back as a boolean, a quoted leading-zero numeral (`"007"`) was refused as ambiguous with advice in markdown header syntax, and a quoted numeral mixed with a bare one was read as all-Number instead of refused.
+The `C#` round trip measured above is exact now, and `policy/md-count-string-numerals-roundtrip` puts it under `run-roundtrip.sh`, where it fails against the pre-fix binary.
+The markdown reader has the same defect and is NOT fixed: its pass 1 unquotes the cell before inference, so a quoted numeral in an undeclared markdown column is Number and a quoted `yes` is Boolean (`symptom/md-quoted-literal-inferred-by-content`).
+`policy/xml-untyped-quoted-numeral-output-stays-string` (the old `symptom/xml-untyped-quoted-numeral-inferred-number`), `policy/xml-untyped-quoted-literals-stay-strings`, `-quoted-leading-zero-accepted`, `-quoted-and-bare-refused`, and the control `policy/xml-untyped-bare-literals-stay-typed`.
+
 ### D-18 — `<decisionService>` is packaging, not logic. **RULED: read and drop with a warning. LANDED.**
 
 **The defect.** `<decisionService>` sat in `unmodelledDrgElements` beside `<businessKnowledgeModel>`,
@@ -1622,7 +1643,7 @@ Meng marked the card "accept" with no note.
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
 
-### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). All three parts landed: 1 (the interpreter), 2 (refusing conflict regions) and 3 (`NOTHING` in L4).**
+### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). All three parts landed: 1 (the interpreter), 2 (refusing conflict regions) and 3 (`NOTHING` in L4). A part 4 closed the one gap part 3 left.**
 
 This is the ruling D-13 deferred: *"is a trailing catch-all in a `U` table an authoring error, or an accepted idiom?"*
 It was posed on the "Tables, Trees, Prose" bench as card T6, and Meng marked it "accept" with no note.
@@ -1770,6 +1791,7 @@ What it did beyond this ruling was wrap total tables too, which rule 3 rules out
 A sum-typed result, a String output column with a declared domain, with no catch-all row and no default, has no sentinel: `""` does not typecheck against a sum type, and a made-up member would widen the domain.
 So such a table keeps the `MAYBE` it already had, even when it is total, as `policy/l4-priority-reorders-arms` is.
 Removing it means giving the dead `OTHERWISE` a value of the type, for example the last arm's, which changes total tables and is not part of this ruling.
+Part 4, below, does that.
 
 **The DMN and prose halves of rule 3 needed nothing here.**
 A table with no `<defaultOutputEntry>` answers null on no match (§10.3.2.10), and `--to=xml` writes one only for a declared default or a promoted catch-all.
@@ -1786,3 +1808,43 @@ dmnmd has no prose backend, so "no rule applies" has nowhere to go yet.
 - The root `README.md`'s `--pick="Example 2" --to=l4` example, which the baseline does not run: the table has no-match regions (a Spring party of 4.5 guests, for one), so it now reads `MAYBE STRING`.
 - `make roundtrip` is unchanged: 197 fixtures, 135 pass, 10 xfail, 52 skipped, and 0 XSD-invalid with `--xsd`.
   Both sides of its L4 comparison move together, because the XML read back has no default where the markdown had no catch-all.
+
+**Implementation, part 4: a total table with a sum-typed result is bare (2026-10-08, branch `fix/d22-sum-type-total-bare`, cut from trunk after #66 merged).**
+Rule 3 says "total tables stay bare", and part 3 left one exception to it: the sum-typed case described above.
+Part 4 removes the exception.
+**The last arm supplies the `OTHERWISE`, and its guard is dropped. That choice is assumed, not ruled.**
+`toL4` promotes the last arm when four things hold: a result column is a sum type (`enumOutsOf`), there is no catch-all row and no declared default, the caller set no `defaultResult`, and `noRuleMayMatch` says no.
+For a total table that is the same function: an input that reaches the `OTHERWISE` matched no earlier arm, and some arm matches it, so the last one does.
+"Last" is last in emission order, so under `P` it is the last of the arms sorted by `outputOrder`, not the last row.
+The promoted arm's row comment moves to the `OTHERWISE` line, because the arm is a real rule and not a catch-all.
+The ditto grid is built from the arms that remain, so `THEN` stays aligned after the dropped guard.
+A table `noRuleMayMatch` cannot prove total keeps its `MAYBE`, which includes a table `regionMap` cannot analyse and a table with a real no-match region.
+Promoting an arm there would answer an unmatched input with a value the table never gives, at exit 0.
+`policy/l4-sumtype-total-bare` is the positive case and `policy/l4-sumtype-partial-maybe` its negative control, the same table without its `Winter` row.
+
+**Not chosen: keep the last arm's guard and repeat its value after `OTHERWISE`.**
+That is the same function with one dead line more, and it keeps the last rule's condition visible in the emitted L4.
+It is a small change to `toL4` if a visible guard is preferred to a shorter table.
+
+**Two consequences to know before ruling on it.**
+- Under `P`, an all-wildcard arm sorts in among the others, and every arm after it is dead.
+  `policy/l4-priority-reorders-arms` now reads `IF TRUE THEN Stew`, `IF Guests <= 8 THEN Spareribs`, `OTHERWISE kids`.
+  The `OTHERWISE` is dead there, as the `NOTHING` before it was, and it is not a claim that `kids` is the default.
+- `DMN.Regions` treats a declared Number domain as closed, and the L4 input type does not: it stays `NUMBER`.
+  So a table that is total only because of such a domain is bare now, and the last arm answers an input outside the domain.
+  Measured with `l4 run`: `< 18` and `[18..150]` over a declared `[0..150]`, with a sum-typed result, answers `Bracket 200` with `adult` where it answered `NOTHING` before.
+  With a plain String result, part 3 had already given that input the typed sentinel, `""`.
+  A declared String domain does not have this problem, because it is a sum type in L4 and closes the input there.
+
+**What moved.**
+- Seven fixtures' `--to=l4` stdout, all by the same rule: `GIVETH A MAYBE T` becomes `GIVETH A T`, each `JUST v` becomes `v`, and the last arm becomes the `OTHERWISE`.
+  They are `policy/eval-hp-priority`, `policy/l4-priority-reorders-arms`, `policy/l4-input-sum-type-composes`, `policy/l4-param-renamed-to-avoid-capture`, `policy/xml-output-values`, `policy/xml-typeref-inherits-allowedvalues` and `dmn13/output-values.dmn`.
+- Four corpus recordings were re-recorded after reading their diffs: `policy/l4-input-sum-type-composes`, `policy/l4-param-renamed-to-avoid-capture`, `policy/l4-priority-reorders-arms` and `policy/xml-typeref-inherits-allowedvalues`.
+  The other three changed fixtures are recorded through `-q`, `--to=ts` or not at all.
+- Six sum-typed `MAYBE` blocks in four fixtures did not move, and `DMN.Regions` reports a no-match region for each.
+- The backend baseline: `--check` printed `checked 1268 run(s): 23 changed` before recording, 7 changed and 16 for the two new fixtures, and 0 after.
+  `test/roundtrip/baseline-audit/README.md` has the audit.
+- An A/B against a binary built at `e368344` ran 317 fixtures in `ts js py xml l4`, 1,585 runs: only 8 `--to=l4` stdouts differ.
+- `l4 check` succeeds on both sides of those 8, and 28 `#EVAL`s over 7 of them agree apart from the `JUST` wrapper.
+- `make roundtrip`: 199 fixtures, 137 pass, 0 fail, 10 xfail, 52 skipped; it was 197, 135, 0, 10, 52 before the two new fixtures.
+- The root `README.md` `--pick="Example 2" --to=l4` example is unchanged: its table has no-match regions and its result is a plain `STRING`, not a sum type.

@@ -1,0 +1,9 @@
+export function Band ( tier : string ) {
+  if (tier === "gold") { // 1
+    return {"rank":7.0, "name":"silver"};
+  }
+  else if (tier === "silver") { // 2
+    return {"rank":8.0, "name":"bronze"};
+  }
+}
+

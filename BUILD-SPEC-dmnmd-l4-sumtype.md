@@ -309,6 +309,8 @@ always passes `defaultL4Opts`.
 (`IF TRUE THEN "Stew"`), so the table is total and the `OTHERWISE` is dead. Test
 `any isCatchAll armRows` too.
 
+> **Superseded (2026-10-08).** `noRuleMayMatch` tests `any isCatchAll armRows`, and since `DECISIONS.md` D-22 part 4 a total table with a sum-typed result is bare: its last arm supplies the dead `OTHERWISE`. `policy/l4-priority-reorders-arms` now reads `GIVETH A Dish`.
+
 **`feelValL4` (`L4.hs:227-232`) is missing from the threading list**, as is `typeDefaultL4`
 (`:378-383`). Reached under `useElem`.
 

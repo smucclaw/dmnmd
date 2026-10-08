@@ -1,0 +1,21 @@
+DECLARE Season
+  IS ONE OF
+    `Spring`
+    `Summer`
+    `Fall`
+    `Winter`
+
+DECLARE Dish
+  IS ONE OF
+    `Salad`
+    `Roast`
+    `Stew`
+
+GIVEN season IS A Season
+GIVETH A Dish
+Menu season MEANS
+  BRANCH
+    IF (season EQUALS `Spring` OR season EQUALS `Summer`)               THEN `Salad`
+    IF season                                             EQUALS `Fall` THEN `Roast`
+    OTHERWISE `Stew`
+

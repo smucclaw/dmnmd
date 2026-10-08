@@ -214,6 +214,48 @@ Three of those are the undeclared result type of a table with no output column (
 72 of the 77 corpus cases record another backend or the `-q` evaluator (58 `--to=ts`, 6 `-q`, 5 `--to=xml`, 2 `--to=js`, 1 `--to=py`), so their corpus recordings did not move.
 The five whose recordings run `--to=l4` did, and were re-recorded in the same change: the three D-22 names, and `symptom/l4-output-range-upper-bound-dropped` and `symptom/l4-zero-output-dangling-giveth`, whose defects are unchanged.
 
+## Extension for D-22 part 4 (a total table with a sum-typed result is bare), 2026-10-08
+
+Branch `fix/d22-sum-type-total-bare`, on trunk `e368344` (#66).
+Before recording, `--check` printed `checked 1268 run(s): 23 changed`: 7 `CHANGED (sha)` files, every one `--to=l4` stdout, and 16 `MISSING FROM MANIFEST` files.
+After `--record`, it printed `checked 1268 run(s): 0 changed`.
+In the manifest, 7 entries changed, 16 arrived and none left.
+
+**How each run was checked.**
+The manifest holds only checksums, so the full outputs came from an A/B: binaries built at `e368344` and at this branch, run over the same 317 fixtures in `ts js py xml l4`, 1,585 runs.
+Exit statuses are identical in all 1,585.
+Stdout differs in exactly 8 runs, all `--to=l4`: the 7 runs `--check` named, and the new fixture `policy/l4-sumtype-total-bare`, which `e368344` renders as a `MAYBE`.
+Stderr is identical once the binary's own file name is normalised out (1,585 files compared, 0 differ).
+Every changed output differs only by this rule: `GIVETH A MAYBE T` becomes `GIVETH A T`, each `THEN JUST v` becomes `THEN v`, and the last arm becomes the `OTHERWISE`, with its guard line gone.
+The guard grid is built from the remaining arms, so a `THEN` column moves left where the dropped guard was the widest in its column.
+`l4 check` succeeds on both sides of all 8.
+28 `#EVAL`s over 7 of the 8 outputs (`xml-output-values` and `dmn13/output-values` are one table) give the same answer on both sides, apart from the `JUST` wrapper.
+
+**The 7 changed runs.**
+- `policy/eval-hp-priority` and `policy/l4-priority-reorders-arms`: one `P` table with an all-wildcard arm. The last arm in priority order, `kids`, becomes the `OTHERWISE`, which no input reaches because `IF TRUE` comes first.
+- `policy/l4-input-sum-type-composes`: `CardToUse`, over a declared `{Dining, Grocery}` input that its two rules cover.
+- `policy/l4-param-renamed-to-avoid-capture`: `Categorize`, over a declared `{Route, Grab}` input that its two rules cover.
+- `policy/xml-output-values` and `dmn13/output-values.dmn`: one table, `Band`, with `< 18`, `[18..65]` and `> 65`.
+- `policy/xml-typeref-inherits-allowedvalues`: `Routing`, with `< 100` and `>= 100`.
+
+**What the changed tables have in common.**
+They are exactly the tables the promotion selects: a sum-typed result, no catch-all row, no declared default, and `noRuleMayMatch` false.
+`DMN.Regions` was asked directly about `CardToUse`, about the `Menu` fixture and about a hand-typed copy of `Band`, and reports no no-match region for each; the `P` table has an all-wildcard arm.
+
+**What did not change.**
+Six sum-typed `MAYBE` blocks in 4 fixtures still read `MAYBE`, and `DMN.Regions` reports a no-match region for each.
+They are `Band` in `policy/enum-domain-test-not-checked` (4 regions), and, with 1 region each, an open `STRING` input: `Categorize` and `Reclassify` in `policy/l4-conflicting-domains-get-distinct-types`, `Categorize` and `Recategorize` in `policy/l4-shared-declare-across-tables`, and `NoCatchAll` in `policy/l4-sumtype-maybe-when-no-catchall`.
+No `ts`, `js`, `py` or `xml` run changed.
+
+**New fixtures: 2, with 16 entries arriving.**
+`policy/l4-sumtype-total-bare` and its negative control `policy/l4-sumtype-partial-maybe`.
+
+**Corpus.**
+Four recordings run `--to=l4` over a changed fixture and were re-recorded after reading their diffs: `l4-input-sum-type-composes`, `l4-param-renamed-to-avoid-capture`, `l4-priority-reorders-arms` and `xml-typeref-inherits-allowedvalues`.
+The other three changed fixtures are recorded through `-q` (`eval-hp-priority`), `--to=ts` (`xml-output-values`), or not at all (`dmn13/output-values.dmn`), so their recordings did not move.
+`make corpus` reports 254 cases, 254 unchanged.
+
+
 ## Extension for audit 10, the parser's silent drops (2026-10-08, branch `fix/audit10-parser-silent-drops`)
 
 One paragraph per fix, in commit order.
