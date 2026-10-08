@@ -328,7 +328,8 @@ same across several rules.
 
 The result is a `MAYBE` because some inputs match no rule: a Season other than the four, or a Spring party of 4.5 guests.
 `OTHERWISE NOTHING` says so, where it used to answer `""`, a value the table never gives.
-A table that ends in an all-`-` catch-all row keeps a bare result type, and so does one whose rules cover every input, unless its result is an L4 sum type (a String output column with a declared domain), which has no value to put after a dead `OTHERWISE` (`DECISIONS.md` D-22 rule 3).
+A table that ends in an all-`-` catch-all row keeps a bare result type, and so does one whose rules cover every input.
+Where the second kind has an L4 sum type as its result (a String output column with a declared domain), there is no value to put after a dead `OTHERWISE`, so its last arm becomes the `OTHERWISE` and loses its guard (`DECISIONS.md` D-22 rule 3 and part 4).
 
 The alignment is not cosmetic: L4 resolves `^` by absolute source column, so the emitter measures
 every token's display width — including East Asian wide characters — against the same table the L4
