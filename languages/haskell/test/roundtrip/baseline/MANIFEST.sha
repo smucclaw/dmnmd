@@ -2318,6 +2318,14 @@ c37810995aea8b766c29ff2550b2e66942ccc119  ./symptom__md-error-position-misreport
 c37810995aea8b766c29ff2550b2e66942ccc119  ./symptom__md-error-position-misreported.py.err
 458a78ee7eb88541c6d5831a744a0f8337a532ec  ./symptom__md-error-position-misreported.ts
 c37810995aea8b766c29ff2550b2e66942ccc119  ./symptom__md-error-position-misreported.ts.err
+a31d83c7cd1a25bbb8c9281da4aec6267fc5b34c  ./symptom__md-header-in-and-out-silently-in.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-header-in-and-out-silently-in.js.err
+ef5265db3df829f347ea12f1af52dc1e5c83498f  ./symptom__md-header-in-and-out-silently-in.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-header-in-and-out-silently-in.l4.err
+5315d4f49de303a6fd2cba5b1f2ff9cd8e43e71c  ./symptom__md-header-in-and-out-silently-in.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-header-in-and-out-silently-in.py.err
+4ac1eee4597d6a3294202fa848c50b20fee10a7e  ./symptom__md-header-in-and-out-silently-in.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./symptom__md-header-in-and-out-silently-in.ts.err
 458a78ee7eb88541c6d5831a744a0f8337a532ec  ./symptom__md-nbsp-refused-input.js
 b9cbc14865c4700c9a7e2d385a5f3eca11e939b5  ./symptom__md-nbsp-refused-input.js.err
 458a78ee7eb88541c6d5831a744a0f8337a532ec  ./symptom__md-nbsp-refused-input.l4
