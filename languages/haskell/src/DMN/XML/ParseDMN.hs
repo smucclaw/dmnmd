@@ -899,6 +899,20 @@ data DecisionTable = DecisionTable
     -- stopped repeating @name@ on that clause dmnmd writes it there too.
     -- 'DMN.XML.XmlToDmnmd.convOutputCol' reads it, after the clause's own
     -- @label@ and @name@.
+    dtTypeRef :: Maybe TypeRef,
+    -- ^ @\@typeRef@, inherited from @tExpression@ (xsd\/DMN13.xsd). DMN 1.3
+    -- §7.3.1: "If an instance of Expression that defines the output of a
+    -- Decision element includes a typeRef, the referenced type SHALL be the same
+    -- as the type of the containing Decision element." So for a table that is a
+    -- decision's logic it is the same statement as the decision's @\<variable\>@,
+    -- and 'DMN.XML.XmlToDmnmd.convOutputCol' reads it as one.
+    --
+    -- Modelled rather than ignored because §8.3.2, Table 34 bars the
+    -- @\<output\>@ clause of a SINGLE-output table from carrying a @typeRef@, so
+    -- in a conformant document the @\<variable\>@ and this attribute are the only
+    -- places left that can state the column's type. It was an 'xpIgnoredAttrs'
+    -- entry, which parsed a declared type and threw it away. The OMG's own
+    -- Chapter 11 examples write it (@typeRef="tStrategy"@).
     dtInput :: [TableInput],
     dtOutput :: [TableOutput], -- TODO: Should be NonEmpty
     dtAnnotations :: [AnnotationClause],
@@ -917,11 +931,12 @@ makePrisms ''DecisionTable
 instance DmnPU DecisionTable where
   dmnPU r =
     xpDMNElem r "decisionTable" _DecisionTable
-      . xpIgnoredAttrs ["label", "typeRef", "preferredOrientation"]
-      $ xp7Tuple
+      . xpIgnoredAttrs ["label", "preferredOrientation"]
+      $ xp8Tuple
         (dmnPU r)
         xpHitPolicy
         (xpOption (xpAttr "outputLabel" xpText))
+        (xpOption (dmnPU r))
         (xpSeq' (xpDmnAnnotations r) (dmnPU r))
         (xpList1 (dmnPU r))
         (dmnPU r)
@@ -945,8 +960,8 @@ instance DmnPU Expression where
 -- | @tInformationItem@ in the @<variable>@ position. On an @<inputData>@ node
 -- it is that node's name and type ('InputData'); on a @<decision>@ it is the
 -- name and type of the decision's RESULT, which for a single-output decision
--- table is the only place DMN lets the output type be written
--- ('Decision').
+-- table is, with @decisionTable/\@typeRef@ ('dtTypeRef'), one of the only two
+-- places DMN lets the output type be written ('Decision').
 --
 -- Defined here rather than beside 'InputData' because a top-level Template
 -- Haskell splice ends a declaration group: 'Decision' mentions this type, so
@@ -969,9 +984,9 @@ data Decision = Decision
   { decLabel :: DmnNamed, -- This should be tNamedElement (or tDRGElement)
     decVariable :: Maybe InformationItem,
     -- ^ @<variable>@: the name and type of the value this decision produces.
-    -- Kept, not ignored, because for a table with a SINGLE output it is the
-    -- only place the output's type may be written — see 'Decision'\'s
-    -- 'DmnPU' instance.
+    -- Kept, not ignored, because for a table with a SINGLE output it is, with
+    -- 'dtTypeRef', one of the only two places the output's type may be written
+    -- — see 'Decision'\'s 'DmnPU' instance.
     decInfoReq :: [InformationRequirement],
     decDTable :: Maybe Expression -- Schema says this could be any "expression", not just table
   }
@@ -991,7 +1006,8 @@ makePrisms ''Decision
 -- __The @<variable>@ is kept.__ It used to be an 'xpIgnoredElemOpt' beside
 -- @question@ and @allowedAnswers@, which is right for those two and wrong for
 -- this one: a decision table with a single output carries its result type
--- __only__ here. @tOutputClause@ does declare a @typeRef@ attribute, but DMN 1.3
+-- here or on @decisionTable/\@typeRef@ ('dtTypeRef'), and not on its
+-- @\<output\>@. @tOutputClause@ does declare a @typeRef@ attribute, but DMN 1.3
 -- __§8.3.2__, Table 34 says "The OutputClause of a single output decision table
 -- SHALL NOT specify a typeRef" (and likewise SHALL NOT specify a name), so a
 -- conformant producer must leave it off — which the @l4-ide@ DMN exporter does,
@@ -1000,10 +1016,14 @@ makePrisms ''Decision
 -- @ILLEGAL_USE_OF_TYPEREF@ on one that has it). Dropping this element left
 -- dmnmd inferring a type that the document had stated.
 --
--- The same section is why the type is HERE and nowhere else: @Decision.variable@
--- is "the instance of InformationItem that stores the result of this Decision",
--- and §7's Expression clause adds that a @typeRef@ on the expression defining a
--- decision's output SHALL be the same as the containing decision's type.
+-- The same section is why the variable is the statement the reader prefers:
+-- @Decision.variable@ is "the instance of InformationItem that stores the result
+-- of this Decision", and §7.3.1's Expression clause adds that a @typeRef@ on the
+-- expression defining a decision's output SHALL be the same as the containing
+-- decision's type. So @decisionTable/\@typeRef@ ('dtTypeRef') is that same
+-- statement made again: it is read when the variable says nothing, and compared
+-- with the variable when both are present
+-- ('DMN.XML.XmlToDmnmd.resultColumnType').
 --
 -- __That number was hard-won and is worth not re-breaking.__ @Emit.hs@ attributes
 -- the rule to §8.2.11; @DECISIONS.md@ D-13 established against the OMG PDF that

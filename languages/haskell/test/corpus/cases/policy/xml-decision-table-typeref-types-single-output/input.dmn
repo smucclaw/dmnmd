@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A SINGLE-output decision table whose result type is written on the
+     <decisionTable> itself, as a typeRef, and nowhere else.
+
+     tDecisionTable extends tExpression, and tExpression declares an optional
+     typeRef (xsd/DMN13.xsd). DMN 1.3 section 7.3.1 gives it a meaning: "If an
+     instance of Expression that defines the output of a Decision element
+     includes a typeRef, the referenced type SHALL be the same as the type of the
+     containing Decision element." So for a single-output table it is one more
+     place the column's type may be stated, beside the decision's <variable>
+     (decision-variable-typeref.dmn) and, in a multi-output table, the <output>
+     clause. The OMG's own Chapter 11 examples write it: test/examples/Chapter 11
+     Example 1 Originations has <decisionTable ... typeRef="tStrategy">.
+
+     The two cells DISCRIMINATE, which is the point of the fixture, in the same way
+     decision-variable-typeref.dmn's do. Read the typeRef and the column is a
+     string: the outputs are the text "1" and "2". Ignore it and inference sees two
+     bare numerals and calls the column Number: the outputs become the numbers 1
+     and 2. Both exit 0, so nothing but a comparison of the emitted text catches
+     the difference.
+
+     Neither the <variable> nor the <output> says anything about the type here, so
+     this is the only statement of it in the document. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="decisionTableTypeRef" name="Decision Table TypeRef"
+             namespace="https://example.org/dmnmd/test/decisionTableTypeRef">
+  <decision id="Decision_band" name="Band">
+    <variable id="Variable_band" name="Band"/>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST" typeRef="string">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>1</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>2</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

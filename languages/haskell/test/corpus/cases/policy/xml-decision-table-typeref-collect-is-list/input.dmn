@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A COLLECT table whose <decisionTable> typeRef is declared as a COLLECTION.
+
+     The table-level typeRef is the same statement as the decision variable's
+     (DMN 1.3 section 7.3.1: it SHALL be the same as the type of the containing
+     Decision), so it is read through the same classifier, DMN.Types.resultShape.
+     Under a list-valued hit policy (bare C, R, O) the decision's result IS a list,
+     so the typeRef describes the collection of results ACROSS RULES and the
+     column takes its ELEMENT type: string, here. Applying the collection to the
+     column would double-count the list-ness (collect-variable-is-list.dmn is the
+     same lesson for the variable).
+
+     The cells DISCRIMINATE. Read the typeRef's element type and the outputs are
+     the text "1" and "2". Ignore the typeRef and inference sees bare numerals and
+     calls the column Number: 1 and 2. Both exit 0.
+
+     The <variable> carries no typeRef, so the table's is the only statement. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="dtCollectList" name="DT Collect List"
+             namespace="https://example.org/dmnmd/test/dtCollectList">
+  <itemDefinition name="BandList" isCollection="true"><typeRef>string</typeRef></itemDefinition>
+  <decision id="D_bands" name="Bands">
+    <variable id="V_bands" name="Bands"/>
+    <decisionTable id="DT_bands" hitPolicy="COLLECT" typeRef="BandList">
+      <input id="I1" label="age">
+        <inputExpression id="IE1" typeRef="number"><text>age</text></inputExpression>
+      </input>
+      <output id="O1"/>
+      <rule id="R1"><inputEntry id="U1"><text>&lt; 18</text></inputEntry><outputEntry id="L1"><text>1</text></outputEntry></rule>
+      <rule id="R2"><inputEntry id="U2"><text>&lt; 21</text></inputEntry><outputEntry id="L2"><text>2</text></outputEntry></rule>
+    </decisionTable>
+  </decision>
+</definitions>

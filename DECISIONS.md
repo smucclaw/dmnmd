@@ -1430,6 +1430,27 @@ A collection of `Any` still infers silently: the list-ness is the hit policy's, 
 The writer's `inputVars` had the same shape: one `<inputData>` per name took the first column's type, so an untyped first column hid a later table's declared type; it now takes the first declared one.
 `policy/xml-collect-variable-element-temporal-refused`, `policy/xml-collect-variable-scalar-warned`, `policy/xml-emit-inputdata-typed-from-later-table`; 3 new corpus cases, no existing recording changed.
 
+*2026-10-08, audit finding f3 (assumed, not ruled): `decisionTable/@typeRef` is the same statement as the variable's.*
+The attribute was an `xpIgnoredAttrs` entry, so a type the document declared there was parsed and thrown away.
+`tDecisionTable` extends `tExpression`, which declares it (`xsd/DMN13.xsd`), and DMN 1.3 §7.3.1 says it SHALL be the same as the type of the containing Decision.
+So a single-output table has two places that can state its column's type, and the sentence above that calls the variable "the only one left" is true of the `<output>` clause alone.
+The reader now models the attribute as `dtTypeRef` and sends it through the same `resultShape` dispatch as the variable, under the same exactly-one-output guard.
+A document that states both is compared on resolved types: the same type, two spellings of one, or `Any` against a concrete type read without complaint, and two different types are refused with an error quoting both.
+Three choices in that were not ruled on: that the table's `typeRef` follows the variable's list-valued handling (a collection gives the element type, a scalar warns) rather than being dropped under `C`, `R` and `O`; that a disagreement is a refusal and not a preference for the variable; and that `Any` yields to a concrete statement.
+Each is its own commit, labelled so, and reverts alone.
+The OMG Chapter 11 examples under `test/examples` carry `decisionTable typeRef`, but dmnmd refuses all three at document level (boxed invocations, contexts and relations), before any table is read, so they cannot exercise this change and no fixture in the tree did before it.
+`policy/xml-decision-table-typeref-types-single-output`, `-not-applied-multi-output`, `-collect-is-list`, `-collect-scalar-warned`, `-disagreement-refused`.
+
+*2026-10-08, audit finding f4: the XML inference pre-pass keeps the quotes.*
+The defect the `C#` paragraph above records as "not fixed here" is fixed.
+`resolveColumn`'s pre-pass used `mkFsEither`, whose `unquoteCell` strips a double-quoted cell before `inferEvidence` sees it, so the quoted-string clause there, and the two comments saying the pre-pass keeps the quotes, described nothing that ran.
+The pre-pass now calls `mkFsKeepingQuotes`.
+The cells of a column inference could not settle are built with their quotes as well, because `tableErrors` asks `columnVerdict` the same question of the BUILT cells and would otherwise see two numerals where the pre-pass saw a string and a number.
+Three further shapes of the one cause were measured on trunk and are fixed with it: a quoted boolean word (`"yes"`) came back as a boolean, a quoted leading-zero numeral (`"007"`) was refused as ambiguous with advice in markdown header syntax, and a quoted numeral mixed with a bare one was read as all-Number instead of refused.
+The `C#` round trip measured above is exact now, and `policy/md-count-string-numerals-roundtrip` puts it under `run-roundtrip.sh`, where it fails against the pre-fix binary.
+The markdown reader has the same defect and is NOT fixed: its pass 1 unquotes the cell before inference, so a quoted numeral in an undeclared markdown column is Number and a quoted `yes` is Boolean (`symptom/md-quoted-literal-inferred-by-content`).
+`policy/xml-untyped-quoted-numeral-output-stays-string` (the old `symptom/xml-untyped-quoted-numeral-inferred-number`), `policy/xml-untyped-quoted-literals-stay-strings`, `-quoted-leading-zero-accepted`, `-quoted-and-bare-refused`, and the control `policy/xml-untyped-bare-literals-stay-typed`.
+
 ### D-18 — `<decisionService>` is packaging, not logic. **RULED: read and drop with a warning. LANDED.**
 
 **The defect.** `<decisionService>` sat in `unmodelledDrgElements` beside `<businessKnowledgeModel>`,

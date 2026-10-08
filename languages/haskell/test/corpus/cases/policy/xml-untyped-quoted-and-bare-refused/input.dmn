@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An UNTYPED input column whose cells disagree about what they are: "2020" is a
+     FEEL string literal and 2021 is a number.
+
+     A column has one type, so a document that mixes the two is not describing one.
+     Inference refuses a column whose cells disagree (D-2), and it can only do that
+     if it sees the quotes: with them stripped, "2020" and 2021 are the same
+     evidence, the column is quietly Number, and the string 2020 is rewritten as the
+     number 2020 at exit 0. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="untypedQuotedAndBare" name="Untyped Quoted And Bare"
+             namespace="https://example.org/dmnmd/test/untypedQuotedAndBare">
+  <decision id="Decision_label" name="Label">
+    <variable id="Variable_label" name="Label" typeRef="string"/>
+    <decisionTable id="DecisionTable_label" hitPolicy="FIRST">
+      <input id="Input_year" label="year">
+        <inputExpression id="InputExpression_year">
+          <text>year</text>
+        </inputExpression>
+      </input>
+      <output id="Output_label"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"2020"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"old"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>2021</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"new"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

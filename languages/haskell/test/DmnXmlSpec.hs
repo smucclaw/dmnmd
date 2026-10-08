@@ -9,6 +9,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import DMN.XML.ParseDMN
 import System.Directory (createDirectoryIfMissing)
 import DMN.XML.XmlToDmnmd (convertAll, Diagnostic (..), Severity (..))
+import DMN.DecisionTable (mkFsEither, mkFsKeepingQuotes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
@@ -123,6 +124,31 @@ oneDecisionXml itemDefs variable dtAttrs outputs = concat
       ++ [ "<outputEntry id=\"L" ++ n ++ "_" ++ show k ++ "\"><text>" ++ o ++ "</text></outputEntry>"
          | k <- [1 .. length outputs] ]
       ++ [ "</rule>" ]
+
+-- | A one-decision DMN 1.3 document whose single INPUT column is UNTYPED (its
+-- @\<inputExpression\>@ has no @typeRef@, which the XSD allows), so that its type
+-- is inferred from the given @\<inputEntry\>@ texts alone. The output column is
+-- typed by the variable and plays no part.
+untypedInputXml :: [String] -> String
+untypedInputXml entries = concat
+  [ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+  , "<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\""
+  , " id=\"u\" name=\"U\" namespace=\"https://example.org/dmnmd/test/u\">"
+  , "<decision id=\"D\" name=\"U\"><variable id=\"V\" name=\"U\" typeRef=\"string\"/>"
+  , "<decisionTable id=\"DT\" hitPolicy=\"FIRST\">"
+  , "<input id=\"I1\" label=\"x\"><inputExpression id=\"IE1\"><text>x</text></inputExpression></input>"
+  , "<output id=\"O1\"/>"
+  , concat [ "<rule id=\"R" ++ n ++ "\"><inputEntry id=\"E" ++ n ++ "\"><text>" ++ e ++ "</text></inputEntry>"
+             ++ "<outputEntry id=\"L" ++ n ++ "\"><text>\"r" ++ n ++ "\"</text></outputEntry></rule>"
+           | (i, e) <- zip [1 :: Int ..] entries, let n = show i ]
+  , "</decisionTable></decision></definitions>\n"
+  ]
+
+-- | The input column of whatever tables came back: its type and its cells.
+inputColumn :: [DT.DecisionTable] -> ([Maybe DMNType], [[[FEELexp]]])
+inputColumn tables =
+  ( [ vartype ch | t <- tables, ch <- header t, label ch == DTCH_In ]
+  , [ row_inputs r | t <- tables, r <- allrows t ] )
 
 -- | The output columns of whatever tables came back: names, types, cells.
 outputColumns :: [DT.DecisionTable] -> ([String], [Maybe DMNType], [[[FEELexp]]])
@@ -441,8 +467,9 @@ dmn13Spec = describe "DMN 1.3" $ do
       names `shouldBe` ["output1", "output2"]
 
   -- The TYPE half, across every hit policy. With the clause's typeRef gone the
-  -- <variable> is the only statement of the column's type left in the document,
-  -- so the reader has to read it back exactly as the writer wrote it -- one
+  -- <variable> is the statement of the column's type that dmnmd's own writer
+  -- leaves in the document (decisionTable/@typeRef, which it does not write, is
+  -- the other), so the reader has to read it back exactly as the writer wrote it -- one
   -- classifier, DMN.Types.resultShape, decides both directions.
   describe "a single-output column's type comes from the <variable> under every hit policy" $ do
     let typeOf slug dtAttrs itemDefs varTypeRef = do
@@ -576,6 +603,192 @@ dmn13Spec = describe "DMN 1.3" $ do
           let (_, types, _) = outputColumns tables
           types `shouldBe` [Just DMN_Number]
 
+  -- Audit 2026-09-26, finding f3. @decisionTable/\@typeRef@ was an
+  -- xpIgnoredAttrs entry, so a type the document declared was parsed and thrown
+  -- away. DMN 1.3 §7.3.1 makes it the same statement as the decision's
+  -- <variable> ("SHALL be the same as the type of the containing Decision"), so
+  -- it goes through the same resultShape dispatch, with the same guards.
+  describe "a single-output column's type comes from decisionTable/@typeRef when the variable states none (§7.3.1)" $ do
+    let slugOf = map (\c -> if c == ' ' then '-' else c)
+        -- No typeRef on the <variable>, none on the <output>: the table's is the
+        -- only statement of the type in the document.
+        run slug dtAttrs itemDefs tableTypeRef =
+          readDmnText slug $
+            oneDecisionXml itemDefs "<variable id=\"V\" name=\"Band\"/>"
+              (dtAttrs ++ " typeRef=\"" ++ tableTypeRef ++ "\" outputLabel=\"band\"")
+              ["<output id=\"O1\"/>"]
+        typeOf slug dtAttrs itemDefs tableTypeRef = do
+          (_, tables) <- run slug dtAttrs itemDefs tableTypeRef
+          let (_, types, cells) = outputColumns tables
+          pure (types, cells)
+        asStrings = ( [Just DMN_String]
+                    , [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ] )
+        asNumbers = ( [Just DMN_Number]
+                    , [ [[FNullary (VN 1)]], [[FNullary (VN 2)]] ] )
+        bandList = "<itemDefinition name=\"BandList\" isCollection=\"true\">"
+                   ++ "<typeRef>string</typeRef></itemDefinition>"
+
+    it "types the column from the fixture, where inference would call the bare numerals Number" $ do
+      (diags, tables) <- readDmn13 "decision-table-typeref"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      outputColumns tables
+        `shouldBe` ( ["output1"], [Just DMN_String]
+                   , [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ] )
+
+    forM_ [ ("UNIQUE", ""), ("FIRST", "hitPolicy=\"FIRST\"")
+          , ("ANY", "hitPolicy=\"ANY\""), ("PRIORITY", "hitPolicy=\"PRIORITY\"")
+          , ("COLLECT SUM", "hitPolicy=\"COLLECT\" aggregation=\"SUM\"")
+          , ("COLLECT MIN", "hitPolicy=\"COLLECT\" aggregation=\"MIN\"")
+          , ("COLLECT MAX", "hitPolicy=\"COLLECT\" aggregation=\"MAX\"") ] $
+      \(hp, attrs) ->
+        it ("reads it as the column's type under " ++ hp) $
+          typeOf ("tt-" ++ slugOf hp) attrs "" "string" `shouldReturn` asStrings
+
+    -- Same rule as the variable's: §8.2.10 makes the result of a C# table "the
+    -- number of outputs", so a typeRef on the table types the COUNT and says
+    -- nothing about the column, which is inferred.
+    it "does not apply it to the column under COLLECT COUNT, whatever type it names" $
+      typeOf "tt-count" "hitPolicy=\"COLLECT\" aggregation=\"COUNT\"" "" "string"
+        `shouldReturn` asNumbers
+
+    -- Under C, R and O the decision's result IS a list, so a conformant typeRef
+    -- names a COLLECTION and the column takes its ELEMENT type.
+    forM_ [ ("COLLECT", "hitPolicy=\"COLLECT\"")
+          , ("RULE ORDER", "hitPolicy=\"RULE ORDER\"")
+          , ("OUTPUT ORDER", "hitPolicy=\"OUTPUT ORDER\"") ] $
+      \(hp, attrs) -> do
+        it ("takes the ELEMENT type of a collection typeRef under " ++ hp) $
+          typeOf ("tt-list-" ++ slugOf hp) attrs bandList "BandList"
+            `shouldReturn` asStrings
+
+        -- Negative control: a SCALAR typeRef on a list-valued decision is not
+        -- applied to the column, but not dropped in silence either, and the
+        -- warning names the <decisionTable> rather than the <variable>.
+        it ("does not apply a SCALAR typeRef under " ++ hp ++ ", and says so") $ do
+          (diags, tables) <- run ("tt-scalar-" ++ slugOf hp) attrs "" "string"
+          let (_, types, _) = outputColumns tables
+          types `shouldBe` [Just DMN_Number]
+          diags `shouldSatisfy` hasDiag Warning "the <decisionTable> declares typeRef \"string\", a single value"
+
+    -- The output-count guard. With two or more outputs each <output> carries its
+    -- own typeRef and the table's names a composite, so it is no column's type.
+    it "does not apply it to a column of a MULTI-output table (fixture)" $ do
+      (_, tables) <- readDmn13 "decision-table-typeref-multi-output"
+      outputColumns tables
+        `shouldBe` ( ["rank", "name"]
+                   , [Just DMN_Number, Just DMN_String]
+                   , [ [[FNullary (VN 7)], [FNullary (VS "silver")]]
+                     , [[FNullary (VN 8)], [FNullary (VS "bronze")]] ] )
+
+    -- The precedence: a typeRef on the clause is the more specific statement and
+    -- wins, exactly as it beats the variable's.
+    it "yields to a typeRef on the <output> clause itself" $ do
+      (_, tables) <- readDmnText "tt-vs-clause" $
+        oneDecisionXml "" "<variable id=\"V\" name=\"Band\"/>"
+          "typeRef=\"string\" outputLabel=\"band\"" ["<output id=\"O1\" typeRef=\"number\"/>"]
+      let (_, types, _) = outputColumns tables
+      types `shouldBe` [Just DMN_Number]
+
+    -- A declared type dmnmd cannot model is refused when it is the table's, as
+    -- it is when it is the variable's or the clause's.
+    it "refuses a temporal typeRef, as it refuses a temporal variable" $ do
+      (diags, tables) <- run "tt-date" "" "" "date"
+      diags `shouldSatisfy` hasDiag Error "temporal"
+      tables `shouldBe` []
+
+    it "refuses a typeRef naming a type dmnmd does not model" $ do
+      (diags, tables) <- run "tt-unknown" "" "" "tFoo"
+      diags `shouldSatisfy` hasDiag Error "unknown typeRef"
+      tables `shouldBe` []
+
+    -- typeRef="Any" declares nothing, so it infers, exactly as on the variable.
+    it "reads typeRef=\"Any\" as no declaration, and infers the column" $
+      typeOf "tt-any" "" "" "Any" `shouldReturn` asNumbers
+
+  -- Assumed, not ruled (audit finding f3). DMN 1.3 §7.3.1 says the table's
+  -- typeRef SHALL be the decision's type, so a document that states a type on
+  -- both the <variable> and the <decisionTable> states it twice, and the two
+  -- must agree. They are compared once resolved, not as text.
+  describe "when the <variable> and decisionTable/@typeRef both state a type (§7.3.1)" $ do
+    let run slug dtAttrs itemDefs varTypeRef tableTypeRef =
+          readDmnText slug $
+            oneDecisionXml itemDefs
+              ("<variable id=\"V\" name=\"Band\" typeRef=\"" ++ varTypeRef ++ "\"/>")
+              (dtAttrs ++ " typeRef=\"" ++ tableTypeRef ++ "\" outputLabel=\"band\"")
+              ["<output id=\"O1\"/>"]
+        typeOf slug dtAttrs itemDefs varTypeRef tableTypeRef = do
+          (diags, tables) <- run slug dtAttrs itemDefs varTypeRef tableTypeRef
+          let (_, types, cells) = outputColumns tables
+          pure (diags, types, cells)
+        list name ty = "<itemDefinition name=\"" ++ name ++ "\" isCollection=\"true\">"
+                       ++ "<typeRef>" ++ ty ++ "</typeRef></itemDefinition>"
+        asStrings = [ [[FNullary (VS "1")]], [[FNullary (VS "2")]] ]
+
+    it "refuses a table whose two statements name different types (fixture), quoting both" $ do
+      (diags, tables) <- readDmn13 "decision-table-typeref-disagrees"
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "the decision's <variable> declares typeRef \"number\" but its <decisionTable> declares typeRef \"string\""
+      diags `shouldSatisfy` hasDiag Error "SHALL be the same as the type of the containing Decision"
+
+    it "reads two statements of the same type as one, with no diagnostic" $ do
+      (diags, types, cells) <- typeOf "both-same" "" "" "string" "string"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    -- Compared once resolved: three spellings of Number are one type, so a
+    -- refusal is never made over a spelling.
+    it "reads two spellings of one type as agreeing" $ do
+      (diags, types, _) <- typeOf "both-spelling" "" "" "number" "integer"
+      (diags, types) `shouldBe` ([], [Just DMN_Number])
+
+    -- Any declares nothing, so it contradicts nothing: the informative one wins.
+    it "lets a typeRef of Any on the variable yield to the table's" $ do
+      (diags, types, cells) <- typeOf "both-any-var" "" "" "Any" "string"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    it "lets a typeRef of Any on the table yield to the variable's" $ do
+      (diags, types, cells) <- typeOf "both-any-table" "" "" "string" "Any"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    -- A type that does not resolve says so itself; the disagreement is not
+    -- reported on top of it, because it cannot be compared with anything.
+    it "reports an unresolvable statement's own error, not a disagreement" $ do
+      (diags, tables) <- run "both-unknown" "" "" "string" "tFoo"
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "unknown typeRef"
+      diags `shouldNotSatisfy` hasDiag Error "different types"
+
+    -- Under a list-valued policy it is the ELEMENT types that are compared.
+    it "refuses two collections whose element types differ, under COLLECT" $ do
+      (diags, tables) <- run "both-list-differ" "hitPolicy=\"COLLECT\""
+        (list "StrList" "string" ++ list "NumList" "number") "StrList" "NumList"
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "different types"
+
+    it "reads two collections of one element type as agreeing, under COLLECT" $ do
+      (diags, types, cells) <- typeOf "both-list-same" "hitPolicy=\"COLLECT\""
+        (list "StrList" "string" ++ list "Names" "string") "StrList" "Names"
+      (diags, types, cells) `shouldBe` ([], [Just DMN_String], asStrings)
+
+    -- Under C# neither statement is the column's type, so nothing is compared.
+    it "does not compare them under COLLECT COUNT, where neither is applied" $ do
+      (diags, types, _) <- typeOf "both-count" "hitPolicy=\"COLLECT\" aggregation=\"COUNT\""
+        "" "number" "string"
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      types `shouldBe` [Just DMN_Number]
+
+    -- The output-count guard again: a multi-output table's variable and table
+    -- typeRef both name a composite, so they are neither applied nor compared.
+    it "ignores a variable and a table typeRef that differ on a MULTI-output table" $ do
+      (diags, tables) <- readDmnText "both-multi" $
+        oneDecisionXml ""
+          "<variable id=\"V\" name=\"Band\" typeRef=\"number\"/>"
+          "typeRef=\"string\""
+          [ "<output id=\"O1\" name=\"a\" typeRef=\"string\"/>"
+          , "<output id=\"O2\" name=\"b\" typeRef=\"string\"/>" ]
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      let (names, types, _) = outputColumns tables
+      (names, types) `shouldBe` (["a", "b"], [Just DMN_String, Just DMN_String])
+
   -- The five DMN 1.3 global elements in the "expression" substitution group that
   -- dmnmd has never modelled. (Seven substitute for @expression@ in DMN13.xsd;
   -- dmnmd models <decisionTable> and <literalExpression>.) These used to fall
@@ -655,6 +868,96 @@ dmn13Spec = describe "DMN 1.3" $ do
       (_, tables) <- readDmn13 "baseline"
       concatMap (concatMap concat . map row_outputs . allrows) tables
         `shouldBe` [FNullary (VS "minor"), FNullary (VS "adult"), FNullary (VS "senior")]
+
+  -- Audit 2026-09-26, finding f4. In DMN XML a string is written WITH its quotes,
+  -- and the quotes are the only thing that tells the string "2020" from the number
+  -- 2020, or "yes" from the boolean word yes. The inference pre-pass in
+  -- XmlToDmnmd.resolveColumn used mkFsEither, whose unquoteCell strips them first,
+  -- so a column of FEEL string literals was typed by what was INSIDE the quotes.
+  describe "inference over an untyped column reads FEEL string literals with their quotes (f4)" $ do
+    let typed entries = do
+          (diags, tables) <- readDmnText "u-untyped" (untypedInputXml entries)
+          pure (diags, inputColumn tables)
+        strings names = ( [Just DMN_String], [ [[FNullary (VS s)]] | s <- names ] )
+
+    it "types a column of quoted numerals String, and builds the cells without their quotes" $ do
+      (diags, col) <- typed ["\"2020\"", "\"2021\""]
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      col `shouldBe` strings ["2020", "2021"]
+
+    it "types a column of quoted boolean words String" $ do
+      (_, col) <- typed ["\"yes\"", "\"no\""]
+      col `shouldBe` strings ["yes", "no"]
+
+    it "types a column of quoted true and false String" $ do
+      (_, col) <- typed ["\"true\"", "\"false\""]
+      col `shouldBe` strings ["true", "false"]
+
+    -- The loud form of the same cause: a quoted "007" was refused as an
+    -- ambiguous leading-zero numeral.
+    it "accepts quoted numerals with leading zeros, as strings" $ do
+      (diags, col) <- typed ["\"007\"", "\"008\""]
+      diags `shouldBe` []
+      col `shouldBe` strings ["007", "008"]
+
+    it "types a quoted numeral String when the column also holds a wildcard" $ do
+      (_, col) <- typed ["-", "\"2020\""]
+      col `shouldBe` ( [Just DMN_String], [ [[FAnything]], [[FNullary (VS "2020")]] ] )
+
+    -- A comma inside the quotes is not a second alternative: the pre-pass splits
+    -- on commas like every cell reader, but the second pass parses the literal.
+    it "keeps a comma inside the quotes in one string" $ do
+      (diags, col) <- typed ["\"1, 2\"", "\"3\""]
+      filter ((== Error) . diagSeverity) diags `shouldBe` []
+      col `shouldBe` strings ["1, 2", "3"]
+
+    -- Negative controls: BARE cells keep the types they always had.
+    it "still types a column of bare numerals Number" $ do
+      (_, col) <- typed ["2020", "2021"]
+      col `shouldBe` ( [Just DMN_Number], [ [[FNullary (VN 2020)]], [[FNullary (VN 2021)]] ] )
+
+    it "still types a column of bare yes and no Boolean" $ do
+      (_, col) <- typed ["yes", "no"]
+      col `shouldBe` ( [Just DMN_Boolean], [ [[FNullary (VB True)]], [[FNullary (VB False)]] ] )
+
+    it "still refuses a column of bare leading-zero numerals as ambiguous" $ do
+      (diags, tables) <- readDmnText "u-bare-zero" (untypedInputXml ["007", "008"])
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "a leading zero has no numeric meaning"
+
+    -- The consequence for a column that mixes the two: it cannot be both, and
+    -- D-2 refuses it, which needs the quotes in the check that follows the
+    -- pre-pass as well as in the pre-pass.
+    it "refuses a column that mixes a quoted numeral with a bare one" $ do
+      (diags, tables) <- readDmnText "u-mixed" (untypedInputXml ["\"2020\"", "2021"])
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "dmnmd cannot infer a type for this column"
+      diags `shouldSatisfy` hasDiag Error "reads as Number"
+      diags `shouldSatisfy` hasDiag Error "reads as String"
+
+    it "refuses a quoted boolean word mixed with a bare one" $ do
+      (diags, tables) <- readDmnText "u-mixed-bool" (untypedInputXml ["\"yes\"", "no"])
+      tables `shouldBe` []
+      diags `shouldSatisfy` hasDiag Error "dmnmd cannot infer a type for this column"
+
+    -- A DECLARED type never reaches inference: the document says what it is.
+    it "leaves a declared column alone" $ do
+      (_, tables) <- readDmnText "u-declared" $
+        T.unpack (T.replace "<inputExpression id=\"IE1\">" "<inputExpression id=\"IE1\" typeRef=\"string\">"
+                   (T.pack (untypedInputXml ["\"2020\"", "\"2021\""])))
+      inputColumn tables `shouldBe` strings ["2020", "2021"]
+
+  describe "mkFsKeepingQuotes, the inference pre-pass reader" $ do
+    it "keeps the quotes that mkFsEither strips" $ do
+      mkFsEither Nothing "\"2020\"" `shouldBe` Right [FNullary (VS "2020")]
+      mkFsKeepingQuotes "\"2020\"" `shouldBe` Right [FNullary (VS "\"2020\"")]
+
+    it "splits and trims exactly as mkFsEither does" $ do
+      mkFsKeepingQuotes "a,  b ,c" `shouldBe` mkFsEither Nothing "a,  b ,c"
+      mkFsKeepingQuotes "-" `shouldBe` Right [FAnything]
+
+    it "keeps the thousands-separator refusal" $
+      mkFsKeepingQuotes "1,000" `shouldBe` mkFsEither Nothing "1,000"
 
   dmn15Spec
 
@@ -1064,7 +1367,7 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [], dtOutputLabel = Nothing,
+                            { dtLabel = dmnWithId "DecisionTable_07q05jb", dtAnnotations = [], dtOutputLabel = Nothing, dtTypeRef = Nothing,
                               dtHitPolicy = HP_Collect Collect_All,
                               dtInput =
                                 [ TableInput
@@ -1259,7 +1562,7 @@ simulationDmn =
                   Just
                     ( ExprDTable
                         ( DecisionTable
-                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [], dtOutputLabel = Nothing,
+                            { dtLabel = dmnWithId "DecisionTable_040j91i", dtAnnotations = [], dtOutputLabel = Nothing, dtTypeRef = Nothing,
                               dtHitPolicy = HP_Unique,
                               dtInput =
                                 [ TableInput

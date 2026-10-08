@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A decision whose <variable> says number and whose <decisionTable> says string.
+
+     DMN 1.3 section 7.3.1: "If an instance of Expression that defines the output
+     of a Decision element includes a typeRef, the referenced type SHALL be the
+     same as the type of the containing Decision element." The decision's type is
+     what its <variable> declares (section 6.3.7: the InformationItem that "stores
+     the result of this Decision"), so this document breaks a SHALL: it states the
+     column's type twice and the two statements contradict each other.
+
+     dmnmd does not pick one. Reading the variable and ignoring the table's typeRef
+     would be a silent choice, and so would the reverse; either way the outputs 1
+     and 2 come out as numbers or as text on the strength of a guess, at exit 0.
+     So the table is refused, with a located error that quotes both. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="decisionTableTypeRefDisagrees" name="Decision Table TypeRef Disagrees"
+             namespace="https://example.org/dmnmd/test/decisionTableTypeRefDisagrees">
+  <decision id="Decision_band" name="Band">
+    <variable id="Variable_band" name="Band" typeRef="number"/>
+    <decisionTable id="DecisionTable_band" hitPolicy="FIRST" typeRef="string">
+      <input id="Input_tier" label="tier">
+        <inputExpression id="InputExpression_tier" typeRef="string">
+          <text>tier</text>
+        </inputExpression>
+      </input>
+      <output id="Output_band"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"gold"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>1</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"silver"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>2</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

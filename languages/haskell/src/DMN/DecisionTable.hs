@@ -420,12 +420,36 @@ locateCell st = either (Left . errorAt . (showSite st ++)) Right
 -- a located 'Diagnostic'. Do not reintroduce a second copy of these guards elsewhere:
 -- a validator that drifts from the constructor is worse than no validator.
 mkFsEither :: Maybe DMNType -> String -> Either String [FEELexp]
-mkFsEither dmntype args
+mkFsEither = mkFsEitherWith unquoteCell
+
+-- | 'mkFsEither' with the quoting policy as a parameter, so the one split and the
+-- one thousands guard stay in one place.
+--
+-- The only caller that passes anything but 'unquoteCell' is 'mkFsKeepingQuotes'.
+mkFsEitherWith :: ([String] -> [String]) -> Maybe DMNType -> String -> Either String [FEELexp]
+mkFsEitherWith unquote dmntype args
   -- Checked BEFORE the split and independently of the column type, because the
   -- split happens before anything knows the type — a String column is shredded
   -- identically. See 'DMN.ParseCell.thousandsGrouped'.
   | thousandsGrouped args = Left (thousandsMsg args)
-  | otherwise = traverse (mkFEither dmntype) (unquoteCell (cellFragments args))
+  | otherwise = traverse (mkFEither dmntype) (unquote (cellFragments args))
+
+-- | A cell of an UNDECLARED column as type inference must read it: split exactly
+-- as 'mkFsEither' splits it, with its FEEL quotes still on.
+--
+-- The quotes are the only thing that tells the string @"2020"@ from the number
+-- @2020@, or @"yes"@ from the boolean word @yes@, so 'inferEvidence' has to see
+-- them: a quoted fragment is hard String evidence whatever is inside the quotes.
+-- 'mkFsEither' strips them first ('unquoteCell'), which is right for building a
+-- cell at a settled type and wrong for deciding what the type is. The XML
+-- reader's inference pre-pass is the caller, because it grades every cell of an
+-- untyped column before any type exists ('DMN.XML.XmlToDmnmd.resolveColumn').
+--
+-- The markdown reader does not use this: its pass 1 builds the cells it infers
+-- from with 'mkFsEither', so a quoted numeral in an undeclared markdown column is
+-- still inferred Number (symptom\/md-quoted-literal-inferred-by-content).
+mkFsKeepingQuotes :: String -> Either String [FEELexp]
+mkFsKeepingQuotes = mkFsEitherWith id Nothing
 
 -- | Note what this message does NOT say: that the old parse was wrong.
 --
