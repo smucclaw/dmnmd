@@ -116,8 +116,9 @@ data Default
   | DeclaredDefault
     -- ^ the table carries a §8.2.11 default output value ('dtDefaultOutput')
   | TrailingCatchAll RuleIx
-    -- ^ a @U@ table whose last rule is @-@ in every input column (vacuously so
-    -- when there are none). D-22 part 1 reads that rule as the default, so it
+    -- ^ a @U@ table whose last rule is @-@ in every input column, and which has
+    -- an input column (a table with none has no such rule: audit 10 f8, see
+    -- 'uniqueCatchAll'). D-22 part 1 reads that rule as the default, so it
     -- answers where no other rule does and conflicts with none of them. It
     -- wins over a declared default, which is then unreachable.
     --
@@ -178,7 +179,10 @@ data UnsupportedKind
   | RowArity
     -- ^ a row with more or fewer input cells than there are input columns.
     -- 'DMN.DecisionTable.matches' pairs them with 'zipWith', so a missing cell
-    -- tests nothing (@symptom\/struct-short-row-truncated@).
+    -- tests nothing. The markdown reader refuses a row short of an input or
+    -- output column since audit 10 f2 (the corpus case
+    -- @struct-short-row-refused@), so this is reached only by a table built
+    -- some other way.
   | CollectionColumn
     -- ^ an input column declared @[T]@. Its cells test membership, and a block
     -- would have to describe sets of collections. D-22 keeps dmnmd's overlap
@@ -721,16 +725,21 @@ conflictMessage rm c = case hitpolicy dt of
   HP_Any -> concat
     [ li, " and ", lj, " both match ", whereText, " and disagree on ", disagreement
     , ": under hit policy A (Any), rules may overlap only where their outputs agree"
-    , " (DMN 1.3 §8.2.10). Give the two rules the same outputs, or change an input"
-    , " cell of ", li, " or ", lj, " so that they select different inputs." ]
+    , " (DMN 1.3 §8.2.10). Give the two rules the same outputs, or "
+    , if noInputColumn
+        then "add an input column that tells them apart."
+        else concat ["change an input cell of ", li, " or ", lj, " so that they select different inputs."] ]
   _ -> concat
     [ li, " and ", lj, " both match ", whereText
     , ": a table with hit policy Unique must not contain overlapping rules"
-    , " (DMN 1.3 §8.2.10). Change an input cell of ", li, " or ", lj, " so that the"
-    , " two rules select different inputs or, if the earlier rule is meant to win,"
-    , " make the hit policy F (First)." ]
+    , " (DMN 1.3 §8.2.10). "
+    , if noInputColumn
+        then "This table has no input column, so every rule matches every input. Add an input column that tells the rules apart or,"
+        else concat ["Change an input cell of ", li, " or ", lj, " so that the two rules select different inputs or,"]
+    , " if the earlier rule is meant to win, make the hit policy F (First)." ]
   where
     dt = rmTable rm
+    noInputColumn = null (getInputHeaders (header dt))
     i  = conflictEarlier c
     j  = conflictLater c
     li = ruleLabel dt i

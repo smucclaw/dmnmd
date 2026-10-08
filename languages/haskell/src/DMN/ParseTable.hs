@@ -4,11 +4,11 @@ module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
 import DMN.BuildTable ( mkDTable )
-import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, trim )
-import DMN.Diagnostic ( Diagnostic, anyErrors, renderDiagnostic )
+import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, showSite, trim )
+import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
-import Data.List (transpose)
+import Data.List (find, intercalate, nub, transpose)
 import Data.Either (isLeft)
 import Control.Applicative ( Alternative((<|>)) )
 import Data.Text (Text)
@@ -51,8 +51,24 @@ getpipeSeparator = skipHorizontalSpace *> "|" <* skipHorizontalSpace
 
 -- | parse column header.
 -- (//|#|>|<) *([a-zA-Z0-9_ ]+?( *: *[a-z]+) *
+--
+-- Fails, with a message, on a header whose labels disagree ('labelClash');
+-- the reader goes through 'parseColHeaderL' instead, so that the disagreement
+-- becomes a located 'Diagnostic' and not a parse error.
 parseColHeader :: Parser ColHeader
 parseColHeader = do
+  (ch, written) <- parseColHeaderL
+  maybe (pure ch) (fail . (("column " ++ show (varname ch) ++ ": ") ++)) (labelClash written)
+
+-- | A column header, and every label that was written on it, in the order
+-- they were written.
+--
+-- The header's own 'label' is only meaningful when 'labelClash' says nothing:
+-- 'mkHeaderLabel' resolves a pre-label and a post-label by letting the first
+-- one that is present win, which is a rule for choosing among labels that agree
+-- and the very thing that used to hide the ones that did not.
+parseColHeaderL :: Parser (ColHeader, [Text])
+parseColHeaderL = do
   mylabel_pre   <- parseLabelPre <?> "pre-label"
   myvarname     <- parseVarname <?> "variable name"
   doTrace $ "parseColHeader: done with parseVarname, got: \"" ++ T.unpack myvarname ++ "\""
@@ -66,7 +82,47 @@ parseColHeader = do
   return ( DTCH
            (mkHeaderLabel mylabel_pre (mylabel_postA <|> mylabel_postB))
            (T.unpack myvarname)
-           mytype Nothing )
+           mytype Nothing
+         , catMaybes [mylabel_pre, mylabel_postA, mylabel_postB] )
+
+-- | What a label literal says a column is. The one table 'mkHeaderLabel' and
+-- 'labelClash' share, so the two cannot disagree about a literal.
+labelKind :: Text -> DTCH_Label
+labelKind "//"        = DTCH_Comment
+labelKind "#"         = DTCH_Comment
+labelKind "<"         = DTCH_In
+labelKind ">"         = DTCH_Out
+labelKind "(comment)" = DTCH_Comment
+labelKind "(out)"     = DTCH_Out
+labelKind "(in)"      = DTCH_In
+-- 'parseLabelPre' and 'parseLabelPost' are the only producers, and each is an
+-- alternation over exactly the literals above.
+labelKind other = error $ unwords
+  [ "labelKind: unrecognised column label", show other
+  , "-- parseLabelPre/parseLabelPost gained a literal this function does not handle" ]
+
+-- | Why a column's labels cannot be reconciled, or 'Nothing' when they can.
+--
+-- A column is an input, an output or a comment. A header that says two of those
+-- about one column, @Dish (in) (out)@ or @> Dish (comment)@, used to resolve
+-- silently to whichever label was written first, and the other was dropped: the
+-- column became an input or an output with no word to the author. Two labels
+-- that agree, @> Dish (out)@ or @Dish (out) : Number (out)@, say the same thing
+-- twice and are fine.
+labelClash :: [Text] -> Maybe String
+labelClash written
+  | length (nub (labelKind <$> written)) < 2 = Nothing
+  | otherwise = Just $ concat
+      [ "the header labels this column ", enumerate (describe <$> nub written), "."
+      , " A column is an input, an output or a comment, never two of them,"
+      , " and dmnmd does not choose between the labels. Keep one." ]
+  where
+    describe w = show (T.unpack w) ++ " (" ++ kindWord (labelKind w) ++ ")"
+    kindWord DTCH_In      = "an input"
+    kindWord DTCH_Out     = "an output"
+    kindWord DTCH_Comment = "a comment"
+    enumerate [a, b] = a ++ " and " ++ b
+    enumerate xs     = intercalate ", " (init xs) ++ " and " ++ last xs
 
 -- | Nothing means it's up to some later code to infer the type. Usually it gets treated just like a String.
 parseTypeDecl :: Parser (Maybe DMNType)
@@ -80,22 +136,11 @@ parseType
   <|> (DMN_Boolean <$    lexeme "Boolean"                       <?> "boolean type")
   -- need to check what the official DMN names are for these
     
+-- | The label a column gets from the labels written on it, assuming they do not
+-- disagree ('labelClash'): a pre-label if there is one, else a post-label, else
+-- an input.
 mkHeaderLabel :: Maybe Text -> Maybe Text -> DTCH_Label
-mkHeaderLabel (Just "//") _        = DTCH_Comment
-mkHeaderLabel (Just "#" ) _        = DTCH_Comment
-mkHeaderLabel (Just "<" ) _        = DTCH_In
-mkHeaderLabel (Just ">" ) _        = DTCH_Out
-mkHeaderLabel _ (Just "(comment)") = DTCH_Comment
-mkHeaderLabel _ (Just "(out)")     = DTCH_Out
-mkHeaderLabel _ (Just "(in)")      = DTCH_In
-mkHeaderLabel _  Nothing           = DTCH_In
--- 'parseLabelPre' and 'parseLabelPost' are the only producers, and each is an
--- alternation over exactly the literals matched above, so this is unreachable
--- unless one of those alternations grows a case this function was not told
--- about. Naming the pair beats a bare @Non-exhaustive patterns@.
-mkHeaderLabel pre post = error $ unwords
-  [ "mkHeaderLabel: unrecognised column label", show pre, show post
-  , "-- parseLabelPre/parseLabelPost gained a literal this function does not handle" ]
+mkHeaderLabel pre post = maybe DTCH_In labelKind (pre <|> post)
 
 parseLabelPre :: Parser (Maybe Text)
 parseLabelPre  = Mega.optional $ lexeme ("//" <|> "#" <|> "<" <|> ">")
@@ -111,12 +156,22 @@ parseHitPolicy =
 
 parseHeaderRow :: Parser HeaderRow
 parseHeaderRow = do
+  (hr, clashes) <- parseHeaderRowL
+  case clashes of
+    []           -> pure hr
+    (col, msg) : _ -> fail ("column " ++ show col ++ ": " ++ msg)
+
+-- | A header row, and the columns whose labels disagree with the reason, in
+-- column order. 'parseTableD' turns those into located diagnostics.
+parseHeaderRowL :: Parser (HeaderRow, [(String, String)])
+parseHeaderRowL = do
   pipeSeparator <?> "pipeSeparator"
   myhitpolicy <- parseHitPolicy  <?> "hitPolicy"
   pipeSeparator <?> "pipeSeparator"
-  mychs <- many (parseColHeader <* pipeSeparator <?> "parseColHeader" ) <?> "mychs"
+  mychs <- many (parseColHeaderL <* pipeSeparator <?> "parseColHeader" ) <?> "mychs"
   endOfLine <|> endOfInput
-  return $ DTHR myhitpolicy mychs
+  return ( DTHR myhitpolicy (fst <$> mychs)
+         , [ (varname ch, msg) | (ch, written) <- mychs, Just msg <- [labelClash written] ] )
 
 mkHitPolicy_ :: Char -> HitPolicy
 mkHitPolicy_ 'U' = HP_Unique
@@ -186,10 +241,34 @@ parseTableD tableName = do
   input <- Mega.lookAhead Mega.takeRest
   doTrace ("parseTable: starting. input =\n" ++ T.unpack input)
   doTrace ("parseTable: end of input")
-  headerRow_1 <- reviseInOut <$> parseHeaderRow <?> "parseHeaderRow"
+  (headerRow_0, labelClashes) <- parseHeaderRowL <?> "parseHeaderRow"
+  if not (null labelClashes)
+    -- A column the header labels two ways has no meaning to read the rest of
+    -- the table against, so the rest is skipped rather than read as whichever
+    -- label happened to win. The Error means no table, as for every other
+    -- pass-1 refusal; the input is consumed because 'parseOnly' wants it all.
+    then do
+      _ <- Mega.takeRest
+      pure ( [ errorAt (showSite (CellSite tableName col Nothing) ++ msg) | (col, msg) <- labelClashes ]
+           , [] )
+    else parseTableBody tableName (reviseInOut headerRow_0)
+
+-- | Everything in 'parseTableD' after the header row, which is where the
+-- columns' meanings are fixed.
+parseTableBody :: String -> HeaderRow -> Parser ([Diagnostic], [DecisionTable])
+parseTableBody tableName headerRow_1 = do
   doTrace ("parseTable: parseHeaderRow gave: " ++ show headerRow_1)
   let columnSignatures = columnSigs headerRow_1
-  subHeadRow <- parseContinuationRows <?> "parseSubHeadRows"
+  subHeadRow0 <- parseContinuationRows <?> "parseSubHeadRows"
+  let subHeadShape = subHeaderArityDiags tableName columnSignatures subHeadRow0
+      -- A sub-header short only by comment columns passes the check above, and
+      -- is padded with the empty cells it left out. An empty sub-header cell
+      -- declares no domain, which is all a comment column ever declares. (A
+      -- sub-header that misses an input or output column is an Error, so the
+      -- table is dropped and what it was padded with is never read.)
+      subHeadRow = if null subHeadRow0
+                   then subHeadRow0
+                   else subHeadRow0 ++ replicate (length columnSignatures - length subHeadRow0) ""
   -- merge headerRow with subHeadRows
   -- siteRow = Nothing: the sub-header row has no rule number.
   let subHeadCells = zipWith (\cs cell -> mkFsAt (CellSite tableName (csName cs) Nothing) (csType cs) cell)
@@ -205,11 +284,98 @@ parseTableD tableName = do
                   else headerRow_1
   (rowDiags, dataRows) <- parseDataRows tableName columnSignatures <?> "parseDataRows"
   -- when our type inference is stronger, let's make the cells all just strings, and let the inference engine validate all the cells first, then infer, then construct.
-  let pass1 = subHeadDiags ++ rowDiags
+  let pass1 = subHeadShape ++ subHeadDiags ++ rowDiags
   pure $ if anyErrors pass1
          then (pass1, [])
          else let (ds, ts) = mkDTable tableName (hrhp headerRow) (cols headerRow) dataRows
               in (pass1 ++ ds, ts)
+
+-- | A sub-header row has one cell per column, and a blank cell for a column
+-- that declares no domain.
+--
+-- Cells are matched to columns by position, and 'zipWith' stops at the shorter list.
+-- 'parseTableD' merges the sub-header into the header that way.
+-- So a sub-header shorter than the header did not leave its last columns without a domain: it deleted them from the table.
+-- A table with its output column gone emitted rules that return nothing, at exit 0 (the corpus case @md-short-subheader-refused@ pins the refusal).
+-- A sub-header longer than the header lost its surplus cells the same way.
+-- Neither is guessed at.
+--
+-- __A sub-header short only by comment columns is not refused.__
+-- A sub-header cell declares the domain of its column, and a comment column declares none, so leaving those cells out loses nothing.
+-- 'parseTableBody' pads the row with empty cells, which declare no domain, and the corpus case @md-short-subheader-annotation-only-accepted@ pins it.
+-- The row is refused when ANY column it does not reach is an input or an output, located at the first of those.
+--
+-- No sub-header row (@null cells@) is the ordinary case and says nothing.
+-- Neither does a surplus of blank cells, which holds nothing to lose.
+-- Located at the first input or output column the row does not reach, or, for a surplus, at the table.
+subHeaderArityDiags :: String -> [ColumnSignature] -> [String] -> [Diagnostic]
+subHeaderArityDiags tableName csigs cells
+  | null cells || n == m = []
+  | n < m = case firstNonComment n csigs of
+      Nothing -> []
+      Just cs ->
+        [ errorAt $ concat
+            [ showSite (CellSite tableName (csName cs) Nothing)
+            , "the sub-header row has ", countOf n "cell", " but the header declares "
+            , countOf m "column", ", so this column has no sub-header cell."
+            , " A sub-header cell declares the domain of the column at its position,"
+            , " and dmnmd does not guess which columns a short row was meant to cover."
+            , " Write one cell per column, leaving the cell empty for a column that"
+            , " declares no domain." ] ]
+  | all null (drop m cells) = []
+  | otherwise =
+      [ errorAt $ concat
+          [ "table ", show tableName, ": the sub-header row has ", countOf n "cell"
+          , " but the header declares only ", countOf m "column"
+          , ", so the cells after the last column belong to no column."
+          , " Delete them, or add the columns they were meant for." ] ]
+  where
+    n = length cells
+    m = length csigs
+
+-- | The first column among those a row of @n@ cells does not reach that is an
+-- input or an output, if there is one.
+--
+-- A column's kind is its 'DTCH_Label', which 'labelKind' derived from the
+-- label the author wrote, so this never looks at label text. A row short only
+-- by comment columns has no such column.
+firstNonComment :: Int -> [ColumnSignature] -> Maybe ColumnSignature
+firstNonComment n = find ((/= DTCH_Comment) . csLabel) . drop n
+
+-- | A data row has one cell for each input and output column.
+--
+-- Cells are matched to columns by position, and 'zipWith' stops at the shorter list at three places downstream ('parseDataRow' itself, then @getInputs@\/@getOutputs@, then 'DMN.DecisionTable.matches').
+-- So a missing input cell was not a wildcard written down: it was a guard that was never emitted, and the rule fired for any value of that column.
+-- A missing output cell became an empty answer.
+-- When no row reached the last columns, 'DMN.BuildTable.mkDTable' dropped their headers as well, and the table lost its output column (the corpus case @md-all-short-rows-refused@).
+-- Padding with @-@ would WIDEN the rule in silence, which is why @--to=xml@ and the XML reader already refuse a rule short of an input or output entry; this refuses it at the source, for every backend.
+--
+-- __A row short only by comment columns is not refused.__
+-- A comment cell cannot change any answer, so leaving it out cannot widen a rule, and a GFM renderer shows the missing cell as an empty one.
+-- Trunk accepted such a row and this check had refused it with a reason that is false of a comment; 'parseDataRow' now pads the row with empty cells, and the corpus case @md-short-row-annotation-only-accepted@ pins that its output is the same as the explicitly-blank row\'s.
+-- The row is refused when ANY column it does not reach is an input or an output, whatever comment columns follow, and the message names the first of those and gives the reason that is true of it.
+--
+-- A row is as wide as its widest physical line, because a continuation row may add cells to the logical row.
+rowArityDiags :: String -> Maybe Int -> [ColumnSignature] -> [String] -> [Diagnostic]
+rowArityDiags tableName myrow csigs cells = case firstNonComment n csigs of
+  Nothing -> []
+  Just cs ->
+    [ errorAt $ concat
+        [ showSite (CellSite tableName (csName cs) myrow)
+        , "the row has ", countOf n "cell", " but the header declares ", countOf m "column"
+        , ", so the row ends before this column."
+        , case csLabel cs of
+            DTCH_In ->
+              " dmnmd does not pad a row that stops before an input column: an input cell left out would match every value of its column. Fill in the missing cells, writing - for an input that should match anything."
+            _ ->
+              " dmnmd does not pad a row that stops before an output column: an output cell left out would give an empty answer. Fill in the missing cells." ] ]
+  where
+    n = length cells
+    m = length csigs
+
+-- | @countOf 1 "cell"@ is @"1 cell"@, @countOf 2 "cell"@ is @"2 cells"@.
+countOf :: Int -> String -> String
+countOf k noun = show k ++ " " ++ noun ++ (if k == 1 then "" else "s")
 
 grep_out_dashes :: String -> String
 grep_out_dashes x = unlines ( filter ( \str -> isLeft $ runParser parseDThr "internal" $ T.pack str ) ( lines x ) )
@@ -268,7 +434,17 @@ parseDataRow tableName csigs =
       firstrowtail <- parseTail
       doTrace $ unlines [ "ParseDataRows: calling parseDThr and parseContinuationRow" ]
       morerows <- many (try ((many parseDThr <?> "parseDThr") >> parseContinuationRow))
-      let transposed = map (trim . unwords) $ transpose (firstrowtail : morerows)
+      let transposed0 = map (trim . unwords) $ transpose (firstrowtail : morerows)
+          shapeDiags  = rowArityDiags tableName myrow csigs transposed0
+          -- A row short only by comment columns passes 'rowArityDiags', and is
+          -- padded with the empty cells it left out, which is what a GFM
+          -- renderer shows and what an explicit blank cell reads as. A row
+          -- short of an input or output column is an Error, and is not padded:
+          -- the table is dropped, and padding would only invite follow-on
+          -- complaints about cells the author never wrote.
+          transposed  = if null shapeDiags
+                        then transposed0 ++ replicate (length csigs - length transposed0) ""
+                        else transposed0
           -- Bound once and used both for the DTrow and for the CellSite of every
           -- cell in it, so a diagnostic can never name a different row from the
           -- one the row records. `many1 digit` cannot return "", so the Nothing
@@ -277,7 +453,7 @@ parseDataRow tableName csigs =
           -- parseContinuationRow (symptom/struct-blank-rownum-swallowed).
           myrow = if not (null myrownumber) then Just $ (\n -> read n :: Int) myrownumber else Nothing
           colResults = zipWith (mkFEELCol tableName myrow) csigs transposed
-          cellDiags = concatMap fst colResults
+          cellDiags = shapeDiags ++ concatMap fst colResults
           datacols = snd <$> colResults
       doTrace $ unlines [ "parseDataRows: mkFEELCol running on"
                         , "    csigs = " <> show csigs

@@ -1,0 +1,2 @@
+error: input.md: table "Annotated": column "Price": row 2: the row has 1 cell but the header declares 3 columns, so the row ends before this column. dmnmd does not pad a row that stops before an output column: an output cell left out would give an empty answer. Fill in the missing cells.
+dmnmd: one or more decision tables in input.md could not be read

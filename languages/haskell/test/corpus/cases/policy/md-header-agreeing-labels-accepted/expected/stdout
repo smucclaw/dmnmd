@@ -1,0 +1,7 @@
+export function AgreeingLabels ( Season : string ) {
+  if (Season === "Fall") { // 1
+    return {"Dish":"Stew", "Price":5.0};
+    // warm
+  }
+}
+

@@ -1,0 +1,2 @@
+error: input.md: table "ShortSubHeader": column "Price": the sub-header row has 1 cell but the header declares 2 columns, so this column has no sub-header cell. A sub-header cell declares the domain of the column at its position, and dmnmd does not guess which columns a short row was meant to cover. Write one cell per column, leaving the cell empty for a column that declares no domain.
+dmnmd: one or more decision tables in input.md could not be read

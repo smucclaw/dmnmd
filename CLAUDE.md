@@ -191,7 +191,14 @@ Things that are only apparent across several files:
 - **Hit policy is the top-left cell** (`U A P F O R C`, `mkHitPolicy_` in `ParseTable.hs`);
   `evalTable` implements all of them, but the transpilers do not.
   What makes their first-match code right for `U` and `A` is the reader, since D-22 rule 2: it refuses a `U` table in which two rules can both match (a trailing catch-all aside, which is the default) and an `A` table in which two that can both match disagree.
+  A catch-all needs an input column to be a wildcard in, so a `U` table with no input column and two rules is refused too: both rules match every input (`policy/md-zero-input-unique-refused`).
   See the `DMN.Regions` bullet below for what that check cannot analyse.
+- **A column header has one meaning.**
+  A column is an input, an output or a comment, written as a prefix (`<`, `>`, `//`, `#`) or as a post-label (`(in)`, `(out)`, `(comment)`) on either side of the `: Type`.
+  `ParseTable.labelClash` refuses a header whose labels name more than one of the three, located at the column; labels that agree (`> Dish (out)`) are accepted.
+  Before it, the label written first won and the rest were dropped: `mylabel_postA <|> mylabel_postB` for two post-labels, and a prefix label that beat a post-label in `mkHeaderLabel`.
+  Once a header is refused the rows below it are not read, because they would be read against a label dmnmd had to guess.
+  Pinned by `policy/md-header-in-and-out-refused`, `policy/struct-label-pre-post-clash-refused` and `policy/md-header-agreeing-labels-accepted`.
 - **The sub-header row is a checked domain, and it goes *below* the `|---|`.** A row whose
   first cell is blank, before the first numbered row, declares what its columns may hold
   (`README.md` Example 3; DMN 1.3 fig 8.19). `DecisionTable.domainErrors` refuses a table
@@ -201,6 +208,22 @@ Things that are only apparent across several files:
   drift from it and a declared numeric range constrains numeric cells for free. Both readers
   share it; the XML reader calls it directly because `convTable` bypasses `mkDTable` on
   purpose. Above the `|---|`, GFM does not render a table at all.
+
+  **It has one cell per column, unless the missing cells are comment cells.**
+  `ParseTable.subHeaderArityDiags` refuses a sub-header that does not reach an input or an output column, or that has a non-blank surplus.
+  The merge into the header is positional, and a short sub-header used to delete the columns it did not reach, output column included, at exit 0.
+  A blank cell declares no domain and is the repair (`policy/md-short-subheader-refused`, `policy/md-subheader-blank-cell-declares-no-domain`).
+  A sub-header short only by comment columns is padded with empty cells, because a comment column declares no domain (`policy/md-short-subheader-annotation-only-accepted`).
+
+  **A data row has one cell per input and output column too.**
+  `ParseTable.rowArityDiags` refuses a row that does not reach some input or output column, located at the first such column and at the row number the author wrote, and gives the reason that is true of that column's kind.
+  A row is as wide as its widest physical line, so a continuation line may supply the later cells.
+  Cells are paired with columns by `zipWith` in `parseDataRow` and again in `matches`, and `zipWith` stops at the shorter list, so a missing input cell was a guard never emitted (the rule fired for any value), a missing output cell was an empty answer, and a table whose rows were all short lost its output column in `mkDTable`.
+  A row short only by comment columns (`#`, `//`, `(comment)`, read from `DTCH_Comment`, never from the label text) is accepted and padded with empty cells.
+  A comment cell cannot change an answer, so leaving it out cannot widen a rule, and trunk accepted such a row before the arity check existed.
+  The refusal is in pass 1, so it covers every backend and the `-q` evaluator; `--to=xml` and the XML reader had refused a rule short of an input or output entry already, and still do for a table built any other way.
+  Pinned by `policy/struct-short-row-refused`, `policy/md-all-short-rows-refused` and `policy/xml-short-row-refused`, with `policy/md-short-row-annotation-only-accepted` and its negative control `policy/md-short-row-annotation-and-output-refused` on the other side of the boundary.
+  A row with MORE cells than the header is not covered: its surplus is still dropped without a word (measured on a `| 1 | Fall | Stew | extra |` row, which `--to=ts` emitted at exit 0).
 
   **"Bypasses `mkDTable`" is not "is unaffected by inference", and D-2 widened the gap.**
   `XmlToDmnmd` calls `inferTypes` directly (`:408`) for any column whose `<inputExpression>`
@@ -331,7 +354,8 @@ Things that are only apparent across several files:
   Liveness is decided by `fEvals`, the matcher `evalTable` uses, and a `U` table's default by `uniqueCatchAll`, the function `evalTable` asks, so a trailing catch-all is the default even beside a declared one.
   `test/RegionsSpec.hs` checks, at every region representative of every table the round-trip script reads that `regionMap` accepts, that the matcher selects exactly the live set and that `evalTable` answers as the region says.
   It refuses rather than approximates: `regionMap` returns a `Left`, and `UnsupportedKind` names the eight shapes it refuses.
-  **Where `regionMap` refuses, `conflictErrors` says nothing**, so a list-valued hit policy, a collection column, a String cell holding FEEL test syntax, a short row or a computed cell leaves a table refused or accepted exactly as before D-22 part 2; not being able to analyse a table is not a reason to refuse it.
+  **Where `regionMap` refuses, `conflictErrors` says nothing**, so a list-valued hit policy, a collection column, a String cell holding FEEL test syntax or a computed cell leaves a table refused or accepted exactly as before D-22 part 2; not being able to analyse a table is not a reason to refuse it.
+  A row short of an input column is on `regionMap`'s list too, but the markdown reader refuses one before regions are computed (`ParseTable.rowArityDiags`), so only a table built some other way reaches it.
   That is how collection-input `U` and `A` tables keep their overlap warning (`tableWarnings`), and the interpreter's run-time conflict refusals are now reached through the binary only by such tables (`policy/eval-unique-collection-overlap-at-runtime`, `policy/eval-hp-any-collection-disagree-at-runtime`).
   `conflicts` is pairwise, not an enumeration: for each rule, the first earlier rule it conflicts with, and the first region the two share, which is one pass over the blocks per pair where enumerating conflict regions can cost the product of the block counts.
   **A row D-13 reports is not reported again.** `uniquenessErrors` still refuses identical guards under `U`, and its message says what the other cannot: that the later row "can never match", and that two cells spelled differently for one value "(1.1 and 1.10, say) are the same guard".

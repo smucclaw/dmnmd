@@ -40,8 +40,195 @@ dTable n hp chs rows = DTable n hp chs rows Nothing
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec, tableShapeSpec] $ hspec
   return ()
+
+-- | What the markdown reader does with a table whose rows are not one cell
+-- per column, or whose header says two things about one column. Audit 10,
+-- findings f1, f2, f7 and f8: each used to leave the reader as a table that
+-- exits 0 and answers differently from what the author wrote.
+--
+-- Read through 'parseTableD', the function the binary calls, so a refusal is
+-- checked as the 'Diagnostic' list the CLI prints and not as a parse error.
+tableShapeSpec :: Spec
+tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
+  let readTable :: String -> Text -> ([Diagnostic], [DecisionTable])
+      readTable name = either error id . parseOnly (parseTableD name)
+      messages = map diagMessage . fst
+      refused (ds, ts) = not (null ds) && all ((== Error) . diagSeverity) ds && null ts
+
+  describe "a column header has one meaning (f7)" $ do
+    let table hdr = tableWith hdr [ "| 1 | Fall   | Stew            | 5           |" ]
+        tableWith hdr rows = T.unlines
+          ( [ hdr, "|---|--------|-----------------|-------------|" ] ++ rows )
+        kinds = map (\ch -> (varname ch, label ch)) . header
+    it "refuses (in) and (out) on one column, naming both and locating the column" $ do
+      let r = readTable "T" (table "| U | Season | Dish (in) (out) | Price (out) |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Dish\": the header labels this column \"(in)\" (an input) and \"(out)\" (an output)." `isPrefixOf`) ms)
+    it "refuses the other order too, where the post-label written first used to win" $
+      refused (readTable "T" (table "| U | Season | Dish (out) (in) | Price (out) |")) `shouldBe` True
+    it "refuses post-labels either side of the type declaration that disagree" $
+      refused (readTable "T" (table "| U | Season | Dish (out) : String (in) | Price (out) |")) `shouldBe` True
+    it "refuses a prefix label against a post-label" $ do
+      let r = readTable "T" (table "| U | Season | > Dish (comment) | Price (out) |")
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Dish\": the header labels this column \">\" (an output) and \"(comment)\" (a comment)." `isPrefixOf`) ms)
+      refused r `shouldBe` True
+    it "reports each column whose labels disagree" $
+      length (messages (readTable "T" (table "| U | Season (in) (out) | Dish (in) (out) | Price (out) |"))) `shouldBe` 2
+    it "skips the rows below a disagreeing header, which would be read against a guessed label" $
+      -- Row 2 is short and would be a second error if the rows were read.
+      messages (readTable "T" (tableWith "| U | Season | Dish (in) (out) | Price (out) |"
+                                 [ "| 1 | Fall   | Stew            | 5           |", "| 2 | Winter |" ]))
+        `shouldSatisfy` (\ms -> length ms == 1 && all ("the header labels this column" `isInfixOf`) ms)
+    it "accepts labels that agree, and reads them as before" $
+      case readTable "T" (T.unlines
+             [ "| U | Season | > Dish (out) | Price (out) : Number (out) |"
+             , "|---|--------|--------------|----------------------------|"
+             , "| 1 | Fall   | Stew         | 5                          |" ]) of
+        ([], [t]) -> kinds t `shouldBe` [("Season", DTCH_In), ("Dish", DTCH_Out), ("Price", DTCH_Out)]
+        other -> expectationFailure ("expected one table and no diagnostics, got " ++ show other)
+
+  describe "a table with no input column (f8)" $ do
+    let table hp rows = T.unlines
+          ( [ "| " <> hp <> " | Dish (out) |", "|---|------------|" ] ++ rows )
+        stew = "| 1 | Stew       |"
+        soup = "| 2 | Soup       |"
+        roast = "| 3 | Roast      |"
+        ok (ds, ts) = null ds && length ts == 1
+    it "refuses a U table of two rules, which both match every input" $ do
+      let r = readTable "T" (table "U" [stew, soup])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": row 1 and row 2 both match every input: a table with hit policy Unique" `isPrefixOf`) ms)
+      messages r `shouldSatisfy` all ("This table has no input column, so every rule matches every input." `isInfixOf`)
+    it "refuses each later rule of a U table of three, against the first" $
+      length (messages (readTable "T" (table "U" [stew, soup, roast]))) `shouldBe` 2
+    it "accepts a U table of one rule, which is a constant" $
+      readTable "T" (table "U" [stew]) `shouldSatisfy` ok
+    it "accepts an F table of two rules, where the first answers and the second is dead by design" $
+      readTable "T" (table "F" [stew, soup]) `shouldSatisfy` ok
+    it "refuses an A table of two rules that disagree, and accepts two that agree" $ do
+      refused (readTable "T" (table "A" [stew, soup])) `shouldBe` True
+      readTable "T" (table "A" [stew, "| 2 | Stew       |"]) `shouldSatisfy` ok
+
+  describe "a row short only by comment columns is padded, not refused" $ do
+    -- A comment cell cannot change an answer, so leaving it out cannot widen a
+    -- rule. Trunk accepted such a row, and the arity check refused it with a
+    -- reason (a missing input or output cell) that is false for a comment.
+    let table hdr rows = T.unlines ([ hdr, "|---|--------|-------------|--------------|" ] ++ rows)
+        std = "| U | Colour | Price (out) | # Annotation |"
+        r1 = "| 1 | red    | 5           | cheap        |"
+        ok (ds, ts) = null ds && length ts == 1
+    it "accepts a data row that stops before a trailing annotation column, and reads it as the empty cell" $ do
+      let short = readTable "T" (table std [r1, "| 2 | blue   | 6           |"])
+      short `shouldSatisfy` ok
+      short `shouldBe` readTable "T" (table std [r1, "| 2 | blue   | 6           |              |"])
+    it "does the same for each comment label: #, // and (comment), and for two comment columns" $ do
+      forM_ ["// Annotation", "Annotation (comment)", "# Annotation"] $ \c ->
+        readTable "T" (table ("| U | Colour | Price (out) | " <> c <> " |") [r1, "| 2 | blue   | 6           |"])
+          `shouldSatisfy` ok
+      readTable "T" (T.unlines [ "| U | Colour | Price (out) | # Note | // Memo |"
+                               , "|---|--------|-------------|--------|--------|"
+                               , "| 1 | red    | 5           | a      | b      |"
+                               , "| 2 | blue   | 6           |" ])
+        `shouldSatisfy` ok
+    it "refuses a row that misses an output cell as well, naming the output column and giving the reason that is true of an output" $ do
+      let r = readTable "T" (table std [r1, "| 2 | blue   |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1
+        && all ("table \"T\": column \"Price\": row 2: the row has 1 cell but the header declares 3 columns" `isPrefixOf`) ms
+        && all ("an output cell left out would give an empty answer" `isInfixOf`) ms
+        && not (any ("input cell" `isInfixOf`) ms))
+    it "names the first input or output column it misses, even when a comment column comes before it" $ do
+      let r = readTable "T" (T.unlines [ "| U | Colour | # Annotation | Price (out) |"
+                                       , "|---|--------|--------------|-------------|"
+                                       , "| 1 | red    |" ])
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Price\": row 1:" `isPrefixOf`) ms)
+    it "gives the reason that is true of an input when the first column it misses is an input" $ do
+      let r = readTable "T" (T.unlines [ "| U | Season | Guests | Dish (out) | # Note |"
+                                       , "|---|--------|--------|------------|--------|"
+                                       , "| 1 | Fall   |" ])
+      messages r `shouldSatisfy` (\ms -> length ms == 1
+        && all ("table \"T\": column \"Guests\": row 1:" `isPrefixOf`) ms
+        && all ("an input cell left out would match every value of its column" `isInfixOf`) ms
+        && not (any ("output cell" `isInfixOf`) ms))
+
+  describe "a sub-header short only by comment columns is padded, not refused" $ do
+    let table sub = T.unlines
+          [ "| U | Colour : String | Price : Number (out) | # Annotation |"
+          , "|---|-----------------|----------------------|--------------|"
+          , sub
+          , "| 1 | red             | 5                    | cheap        |" ]
+        ok (ds, ts) = null ds && length ts == 1
+        comments = map varname . getCommentHeaders . header
+    it "accepts it, keeps every column including the annotation, and reads it as the empty cell" $ do
+      let short = readTable "T" (table "|   | red, blue       |                      |")
+      short `shouldSatisfy` ok
+      short `shouldBe` readTable "T" (table "|   | red, blue       |                      |              |")
+      case short of
+        (_, [t]) -> (map varname (getOutputHeaders (header t)), comments t) `shouldBe` (["Price"], ["Annotation"])
+        other -> expectationFailure ("expected one table, got " ++ show other)
+    it "still refuses a sub-header that misses an output column, naming it" $ do
+      let r = readTable "T" (table "|   | red, blue       |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Price\": the sub-header row has 1 cell but the header declares 3 columns" `isPrefixOf`) ms)
+
+  describe "the sub-header row has one cell per column (f1)" $ do
+    let table subhead = T.unlines
+          [ "| U | Colour : String | Price : Number (out) |"
+          , "|---|-----------------|----------------------|"
+          , subhead
+          , "| 1 | Red             | 5                    |"
+          , "| 2 | Blue            | 7                    |" ]
+        outs = map varname . getOutputHeaders . header
+    it "refuses a sub-header shorter than the header, locating the first column it does not reach" $ do
+      let r = readTable "T" (table "|   | Red, Blue |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` all ("table \"T\": column \"Price\": the sub-header row has 1 cell but the header declares 2 columns" `isPrefixOf`)
+      length (messages r) `shouldBe` 1
+    it "keeps the output column when the missing cell is written as a blank one, and the domain is still read" $
+      case readTable "T" (table "|   | Red, Blue |   |") of
+        ([], [t]) -> do
+          outs t `shouldBe` ["Price"]
+          (enums <$> getInputHeaders (header t)) `shouldBe` [Just [FNullary (VS "Red"), FNullary (VS "Blue")]]
+        other -> expectationFailure ("expected one table and no diagnostics, got " ++ show other)
+    it "refuses a sub-header longer than the header, which would lose its surplus cells" $ do
+      let r = readTable "T" (table "|   | Red, Blue |   | Pending |")
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` all ("table \"T\": the sub-header row has 3 cells but the header declares only 2 columns" `isPrefixOf`)
+    it "lets a surplus of blank cells pass, because it holds nothing to lose" $
+      readTable "T" (table "|   | Red, Blue |   |   |") `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "says nothing about a table with no sub-header row" $
+      readTable "T" (T.unlines
+        [ "| U | Colour : String | Price : Number (out) |"
+        , "|---|-----------------|----------------------|"
+        , "| 1 | Red             | 5                    |" ])
+        `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+
+  describe "a data row has one cell per column (f2)" $ do
+    let table rows = T.unlines
+          ( [ "| U | Season | Guests | Dish (out) |"
+            , "|---|--------|--------|------------|" ] ++ rows )
+        full = "| 1 | Fall   | <= 8   | Stew       |"
+    it "refuses a short row, locating the first column it does not reach and the number the author wrote" $ do
+      let r = readTable "T" (table [full, "| 7 | Winter |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": column \"Guests\": row 7: the row has 1 cell but the header declares 3 columns" `isPrefixOf`) ms)
+    it "refuses a row that stops before the output column, which is where the cell is missing" $ do
+      let r = readTable "T" (table ["| 1 | Fall   | <= 8   |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` all ("table \"T\": column \"Dish\": row 1: the row has 2 cells but the header declares 3 columns" `isPrefixOf`)
+    it "refuses every row when all of them are short, and does not let mkDTable drop the output column instead" $ do
+      let r = readTable "T" (table ["| 1 | Fall   |", "| 2 | Winter |"])
+      refused r `shouldBe` True
+      length (messages r) `shouldBe` 2
+      messages r `shouldSatisfy` all (\m -> "column \"Guests\": row " `isInfixOf` m)
+    it "reads a continuation line as part of its logical row, so a row spread over two lines is not short" $
+      readTable "T" (table [ "| 1 | Fall   |        |            |"
+                           , "|   |        | <= 8   | Stew       |" ])
+        `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "accepts a full row" $
+      readTable "T" (table [full]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
 
 -- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
 -- §8.2.11 default output value (rule 1), and a single-hit table with no
@@ -101,10 +288,21 @@ noMatchSpec = describe "evalTable under D-22 — a trailing catch-all under U, a
         `shouldBe` "multiple distinct rows returned -- an Any lookup may return multiple matches but they should all be the same!"
     it "wins over a declared default, as it does in --to=l4's OTHERWISE and js/ts/py's first match" $
       evalTable (withDefault "Declared" catchAllU) (q "Winter" 5) `shouldBe` ans "Takeaway"
-    it "holds vacuously with no input columns: the last row is the default and the first answers, as in --to=l4" $
-      -- Markdown writes this by marking every column (out).
-      evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
-                                               , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) []
+    -- Markdown writes a table with no input column by marking every column
+    -- (out). Until audit 10 f8 this was pinned the other way: "holds vacuously
+    -- with no input columns: the last row is the default and the first
+    -- answers". That made the second rule dead code under U, and the readers
+    -- accepted the table; a catch-all needs an input column to be a wildcard in.
+    it "has no catch-all when there is no input column: two rules both match, which U refuses" $
+      firstLine (evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
+                                                          , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) [])
+        `shouldBe` uniqueConflict
+    it "answers the one rule of a table with no input column" $
+      evalTable (DTable "NoIn" HP_Unique [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] [] ] Nothing) []
+        `shouldBe` ans "Stew"
+    it "leaves the first rule answering under First, where the second is dead by design" $
+      evalTable (DTable "NoIn" HP_First [dish] [ DTrow (Just 1) [] [[FNullary (VS "Stew")]] []
+                                              , DTrow (Just 2) [] [[FNullary (VS "Takeaway")]] [] ] Nothing) []
         `shouldBe` ans "Stew"
 
   describe "rule 3: a single-hit table with no match and no default answers null (Right [])" $ do
@@ -204,6 +402,11 @@ spec3 = do
     it "should fail on a blank string"                    $ parseVarname `shouldFailOn` ("" :: Text)
   describe "parseColHeader" $ do
     it "should parse just a column header"                $ ("varname" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_In"varname" Nothing Nothing)
+    it "should parse a pre-label and a post-label that agree" $ ("> varname (out)" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_Out "varname" Nothing Nothing)
+    it "should parse the same post-label on both sides of the type" $ ("varname (out) : Number (out)" :: Text) ~> parseColHeader `shouldParse` (DTCH DTCH_Out "varname" (Just DMN_Number) Nothing)
+    it "should fail on two post-labels that disagree"     $ parseColHeader `shouldFailOn` ("varname (in) (out)" :: Text)
+    it "should fail on post-labels either side of the type that disagree" $ parseColHeader `shouldFailOn` ("varname (out) : Number (in)" :: Text)
+    it "should fail on a pre-label and a post-label that disagree" $ parseColHeader `shouldFailOn` ("> varname (comment)" :: Text)
   describe "pipeSeparator" $ do
     it "should parse just a single pipe"                  $ (getpipeSeparator >> endOfInput) `shouldSucceedOn` ("|" :: Text)
     it "should not parse more than one pipe"              $ (getpipeSeparator >> endOfInput) `shouldFailOn`    ("||" :: Text)

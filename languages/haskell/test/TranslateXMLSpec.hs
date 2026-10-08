@@ -21,6 +21,7 @@ import Control.Monad (forM_)
 import Data.List (isInfixOf, isPrefixOf, tails)
 import System.Directory (createDirectoryIfMissing)
 
+import DMN.Diagnostic (Diagnostic (..), Severity (..))
 import DMN.Translate.XML (cellText, defaultXMLOpts, fidelityDiags, showFeelXML, toXMLDoc, toXMLFile)
 import DMN.Types
 import DMN.XML.ParseDMN (parseDMNEither)
@@ -281,6 +282,29 @@ xmlEmitSpec = describe "DMN.Translate.XML" $ do
                             , DTrow (Just 2) [[FSection Fgte (VN 5)]] [[FNullary (VS "member")]] [] ] }
       (_, back) <- roundTrip "rt-Ccnt-cells" [t]
       outCols back `shouldBe` [("band", Just DMN_String)]
+
+  -- A short rule has no DMN spelling (tDecisionRule wants one entry per column),
+  -- and padding it with "-" would widen it. The markdown reader refuses a row
+  -- short of an input or output column itself since audit 10 f2
+  -- (ParseTable.rowArityDiags), so this refusal is reached only by a table
+  -- built some other way, which is what this builds.
+  describe "DMN.Translate.XML.fidelityDiags — a rule with fewer cells than columns" $ do
+    let inC n  = DTCH DTCH_In  n (Just DMN_String) Nothing
+        outC n = DTCH DTCH_Out n (Just DMN_String) Nothing
+        lit s' = [FNullary (VS s')]
+        short = DTable "T" HP_Unique [inC "Season", inC "Guests", outC "Dish"]
+                  [ DTrow (Just 1) [lit "Fall", lit "8"] [lit "Stew"] []
+                  , DTrow (Just 2) [lit "Winter"] [] [] ] Nothing
+        errs = [ diagMessage d | d <- fidelityDiags defaultXMLOpts short, diagSeverity d == Error ]
+    it "refuses a rule that is short on both sides, once per side, naming the rule the author wrote" $ do
+      length errs `shouldBe` 2
+      errs `shouldSatisfy` all ("rule 2 has " `isInfixOf`)
+      errs `shouldSatisfy` any ("has 1 input cell but the table declares 2 input columns" `isInfixOf`)
+      errs `shouldSatisfy` any ("has 0 output cells but the table declares 1 output column" `isInfixOf`)
+    it "says nothing about a table whose rules are full" $
+      [ d | d <- fidelityDiags defaultXMLOpts
+                   short { allrows = [ DTrow (Just 1) [lit "Fall", lit "8"] [lit "Stew"] [] ] }
+          , diagSeverity d == Error ] `shouldBe` []
 
   -- D-16 phase 1. The catch-all 'uniquenessErrors' deliberately leaves alone
   -- (it is legal, unambiguous, and dmnmd evaluates it first-match) becomes a

@@ -255,3 +255,48 @@ Four recordings run `--to=l4` over a changed fixture and were re-recorded after 
 The other three changed fixtures are recorded through `-q` (`eval-hp-priority`), `--to=ts` (`xml-output-values`), or not at all (`dmn13/output-values.dmn`), so their recordings did not move.
 `make corpus` reports 254 cases, 254 unchanged.
 
+
+## Extension for audit 10, the parser's silent drops (2026-10-08, branch `fix/audit10-parser-silent-drops`)
+
+One paragraph per fix, in commit order.
+Every figure was read from `--check` before `--record`, and each `--record` was followed by a `--check` that printed `0 changed`.
+The binary has to be named `dmnmd`: a refused `.dmn` fixture's stderr begins with the program name, so a binary copied under another name (`dmnmd-before:` was seen) changes those fixtures' stderr checksums.
+
+**f1, a short sub-header row (`ParseTable.subHeaderArityDiags`).**
+Before recording, `--check` printed `checked 1268 run(s): 16 changed`, all `MISSING FROM MANIFEST`.
+No run of an existing fixture changed.
+In the manifest, 8 entries left and 16 arrived.
+The 8 that left are `symptom/md-short-subheader-drops-column`, `git mv`d and renamed to `policy/md-short-subheader-refused`; its four formats now exit 1 with the sub-header error on stderr.
+The 16 that arrived are that fixture and the new `policy/md-subheader-blank-cell-declares-no-domain`, which is accepted.
+
+**f2, a short data row (`ParseTable.rowArityDiags`).**
+Before recording, `--check` printed `checked 1272 run(s): 24 changed`: 8 `CHANGED` files and 16 `MISSING FROM MANIFEST`.
+Only three fixtures in the whole set contain a short row, and the three are the only ones that moved.
+The binary was compared with a trunk binary (`e368344`, named `dmnmd`) on each of the three, in `ts js py l4 xml`:
+- `policy/xml-short-row-refused`, 8 files changed in place.
+  `ts`, `js`, `py` and `l4` exited 0 with a function (159 to 253 bytes of stdout) and empty stderr, and now exit 1 with empty stdout and the reader's one error on stderr.
+  `--to=xml`, which is not in the baseline, exited 1 before and after, with a different message.
+- `symptom/struct-short-row-truncated`, now `policy/struct-short-row-refused`: 8 entries left and 8 arrived, with the same change from exit 0 to exit 1.
+- `symptom/md-all-short-rows-drop-output-header`, now `policy/md-all-short-rows-refused`: 8 entries left and 8 arrived, the same way, with one error per row.
+No other fixture moved, so no existing fixture has a short row beyond these three.
+In the manifest, 16 entries left and 16 arrived, and 8 changed in place.
+
+**f7, a column header with two meanings (`ParseTable.labelClash`).**
+Before the corpus cases were moved, `--check` printed `checked 1276 run(s): 16 changed`, and the 16 were the two fixtures whose header labels disagree: `symptom/md-header-in-and-out-silently-in` and `symptom/struct-label-pre-wins`, every format, stdout and stderr, from exit 0 with a function to exit 1 with the clash error.
+No other fixture in the set has a header with two meanings.
+After the moves and the new control, `--check` printed `checked 1280 run(s): 24 changed`, all `MISSING FROM MANIFEST`.
+In the manifest, 16 entries left (the two symptoms) and 24 arrived: `policy/md-header-in-and-out-refused`, `policy/struct-label-pre-post-clash-refused`, which is `symptom/struct-label-pre-wins` renamed, and the control `policy/md-header-agreeing-labels-accepted`, which is accepted.
+
+**f8, a `U` table with no input column (`uniqueCatchAll` asks for an input column).**
+After the case was `git mv`d and the two controls added, `--check` printed `checked 1292 run(s): 24 changed`, all `MISSING FROM MANIFEST`: the three policy fixtures, since the symptom's old slug no longer exists to be compared.
+No run of any fixture already in the manifest changed, so no other fixture in the set is a `U` table with no input column and two or more rules.
+In the manifest, 8 entries left (the symptom, whose four formats went from a function at exit 0 to exit 1 with the conflict error) and 24 arrived: `policy/md-zero-input-unique-refused`, which is that fixture renamed, and the two controls `policy/md-zero-input-single-rule-accepted` and `policy/md-zero-input-first-hit-accepted`, which are accepted.
+
+**f1 and f2 again: a row short only by comment columns is padded (`ParseTable.firstNonComment`).**
+This restores what trunk did for that one case, and rewrites the refusal message for the others, so the stderr of every refused short row changed text and nothing else.
+Before recording, `--check` printed `checked 1308 run(s): 44 changed`: 12 `CHANGED` files and 32 `MISSING FROM MANIFEST`.
+The 12 are the `.err` files of `policy/struct-short-row-refused`, `policy/xml-short-row-refused` and `policy/md-all-short-rows-refused`, four formats each.
+Their stdout is still `### exit 1`, and the diff of each shows the message only: the old text said an input cell and an output cell are both at risk, and the new text names the kind of the column it points at.
+`policy/md-short-subheader-refused` did not change, because its message is the sub-header's.
+The 32 are four new fixtures, eight files each: `policy/md-short-row-annotation-only-accepted`, `policy/md-blank-annotation-cell-accepted`, `policy/md-short-row-annotation-and-output-refused` and `policy/md-short-subheader-annotation-only-accepted`.
+In the manifest, 12 entries changed and 32 arrived; none left.
