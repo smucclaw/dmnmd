@@ -1,0 +1,9 @@
+export function Label ( year : number ) {
+  if (year === 2020.0) { // 1
+    return {"output1":"old"};
+  }
+  else if (year === 2021.0) { // 2
+    return {"output1":"new"};
+  }
+}
+

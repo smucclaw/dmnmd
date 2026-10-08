@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An UNTYPED input column and an UNTYPED output column whose cells are FEEL
+     string literals that happen to look like something else.
+
+     In DMN XML a string is written with its quotes: <text>"2020"</text> is the
+     four-character STRING 2020, and <text>2020</text> is the number. The quotes
+     are the only thing that tells them apart. Neither the <inputExpression> nor
+     the <output> carries a typeRef (the XSD makes both optional, and DMN 1.3
+     section 8.3.2 bars the <output> of a single-output table from carrying one),
+     so dmnmd infers each column's type from its cells.
+
+     Inference must therefore read the cells WITH their quotes. A quoted cell is a
+     string literal: hard evidence of String, whatever is inside the quotes.
+     Reading "2020" as the number 2020, or "yes" as the boolean true, types the
+     column wrongly and rewrites every cell in it, at exit 0 - the emitted guard is
+     `year === 2020.0` where the document says `year === "2020"`, and the output
+     "yes" comes back as the boolean true.
+
+     Two columns, two different looks-like-something-else: "2020" looks like a
+     number and "yes" looks like a boolean word. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="untypedQuotedLiterals" name="Untyped Quoted Literals"
+             namespace="https://example.org/dmnmd/test/untypedQuotedLiterals">
+  <decision id="Decision_label" name="Label">
+    <variable id="Variable_label" name="Label"/>
+    <decisionTable id="DecisionTable_label" hitPolicy="FIRST">
+      <input id="Input_year" label="year">
+        <inputExpression id="InputExpression_year">
+          <text>year</text>
+        </inputExpression>
+      </input>
+      <output id="Output_flag"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>"2020"</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>"yes"</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>"2021"</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>"no"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

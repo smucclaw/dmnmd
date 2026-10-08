@@ -1,0 +1,9 @@
+export function Label ( Year : number ) {
+  if (Year === 2020.0) { // 1
+    return {"Flag":true};
+  }
+  else if (Year === 2021.0) { // 2
+    return {"Flag":false};
+  }
+}
+

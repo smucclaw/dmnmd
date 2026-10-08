@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The negative control for untyped-quoted-literals.dmn: the same two columns with
+     BARE cells, no quotes. 2020 is the number and true is the boolean, and an
+     untyped column of them is inferred Number and Boolean.
+
+     If reading quotes as hard String evidence ever swallows the bare numeral, this
+     is the document that notices: the guard must stay `year === 2020.0` and the
+     output must stay the unquoted boolean true. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="untypedBareNumeral" name="Untyped Bare Numeral"
+             namespace="https://example.org/dmnmd/test/untypedBareNumeral">
+  <decision id="Decision_label" name="Label">
+    <variable id="Variable_label" name="Label"/>
+    <decisionTable id="DecisionTable_label" hitPolicy="FIRST">
+      <input id="Input_year" label="year">
+        <inputExpression id="InputExpression_year">
+          <text>year</text>
+        </inputExpression>
+      </input>
+      <output id="Output_flag"/>
+      <rule id="Rule_1">
+        <inputEntry id="UnaryTests_1"><text>2020</text></inputEntry>
+        <outputEntry id="LiteralExpression_1"><text>true</text></outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="UnaryTests_2"><text>2021</text></inputEntry>
+        <outputEntry id="LiteralExpression_2"><text>false</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
