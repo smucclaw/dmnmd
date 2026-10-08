@@ -74,9 +74,9 @@ declared sub-header domains — all were suspected, all have exact DMN spellings
 
 ## `backend-baseline.sh` — did anything else change?
 
-Every fixture (238, `.md` **and** `.dmn`) × every implemented output format, byte for byte,
-plus stderr and exit status: **952 runs**. Adding a `FileFormat` constructor and an `outputTo`
-clause is exactly the kind of edit that perturbs an unrelated format's dispatch.
+Every fixture (306, `.md` **and** `.dmn`) × `ts js py l4`, byte for byte, plus stderr and exit status: **1,224 runs**.
+(This sentence said 238 fixtures and 952 runs when the script was written.)
+Adding a `FileFormat` constructor and an `outputTo` clause is exactly the kind of edit that perturbs an unrelated format's dispatch.
 
 ```
 ./test/roundtrip/backend-baseline.sh --record   # from the PRE-change binary
@@ -85,13 +85,21 @@ clause is exactly the kind of edit that perturbs an unrelated format's dispatch.
 
 Formats are `ts js py l4` and no more. **There is no `json` backend**: `showToJSON` in
 `app/Main.hs` is, despite its name, the interactive `-q` REPL's result printer and has no
-`FileFormat` constructor. `md` and `xml` are `FileFormat` constructors with no implementation.
+`FileFormat` constructor.
+`md` is a `FileFormat` constructor with no implementation.
+`xml` was one when this script was written, and has been implemented since D-8, but it is still not in `FORMATS`; `run-roundtrip.sh` above is its gate.
 
-`baseline/MANIFEST.sha` is committed and is the record; the 1,900 output files are bulky
-(5.4 MB) and gitignored. `--check` diffs full files when they are present and falls back to
+`baseline/MANIFEST.sha` is committed and is the record; the 2,448 output files are bulky
+(7.5 MB) and gitignored. `--check` diffs full files when they are present and falls back to
 comparing checksums against the manifest when they are not, so the baseline survives a clean
-checkout. It was recorded at `3f174f4` and re-verified `0 changed` on a second run, so it is
-deterministic.
+checkout.
+It was re-recorded on 2026-09-26 with a binary built at trunk `ea4df4a`, and `--check` then reported `0 changed` both with the full outputs present and against the manifest alone.
+It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures, and `--check` again reported `0 changed` over 1,228 runs.
+Every change that re-record absorbed is audited in [`baseline-audit/README.md`](baseline-audit/README.md).
+(The previous recording was committed at `8c18f22`; this paragraph said it was made at `3f174f4`.)
+
+`--check` never reports a manifest entry whose fixture has gone.
+A renamed or deleted fixture drops out of the check with nothing printed, which is how 7 renames went unreported before that re-record.
 
 ## How this differs from `test/corpus/`
 

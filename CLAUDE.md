@@ -426,20 +426,27 @@ The gate that does see it is in-process: `TranslateXMLSpec`'s "survives --to=xml
 `C#` has since left that promise on purpose: its variable types the count, so its column is inferred, and the block says so in the name of its own `C#` example rather than dropping it.
 The same blind spot hides the quoted-numeral case above, which no fixture in the harness exercises.
 
-`backend-baseline.sh` is the other half: every fixture × every implemented format, byte for byte.
+`backend-baseline.sh` is the other half: every fixture × `ts js py l4`, byte for byte, stdout and stderr and exit status.
 Adding a `FileFormat` constructor is exactly the kind of edit that perturbs an unrelated format's
 dispatch. **`--check` only** — re-recording after a change launders a regression.
 
-> **This gate is currently dead, and you should not read a red run as a finding.** `test/roundtrip/
-> baseline/` was last recorded at `8c18f22`, before D-1 (number rendering), D-2 (inference), D-7
-> (diagnostic framing) and D-15 (message text) each changed output on purpose. `--check` now
-> reports ~487 of 1,072 runs changed, essentially all of them already-reviewed landed work, which
-> means a genuine cross-backend regression would be invisible in the noise.
+> **This gate is live again, so a red `--check` is a finding.**
+> `test/roundtrip/baseline/MANIFEST.sha` was re-recorded on 2026-09-26 with a binary built at trunk `ea4df4a`.
+> Before that it had last been recorded at `8c18f22`, and `--check` printed `checked 1224 run(s): 883 changed` (883 files, stdout and stderr counted separately: 599 of the 1,224 runs).
+> After it, `--check` printed `checked 1224 run(s): 0 changed`, both with the full outputs present and against the manifest alone.
+> It was then extended by 20 manifest entries for the three fixtures D-22 part 1 (#62) moves, adds or re-fixtures; no emitter output changed, and `--check` printed `checked 1228 run(s): 0 changed` (`test/roundtrip/baseline-audit/README.md`).
 >
-> The fix is a deliberate re-record on trunk, audited against those four rulings — **not** a
-> re-record folded into whatever change happens to notice. Until then, A/B against a binary built
-> from `HEAD` for the change in hand, which is what D-16 did (1,520 paired invocations, and the
-> point of the exercise was proving the 41 diffs were all `--to=xml`).
+> Every change the re-record absorbed is audited in `test/roundtrip/baseline-audit/README.md`.
+> Each was classified by shape, bisected to the commit that introduced it, and attributed to D-6, D-7, D-9, D-13, D-15, D-16, D-17, D-18, D-19 or PR #58, and none was left over.
+> This paragraph used to say the old recording predated D-1 and D-2; both landed before `8c18f22`, and neither moved a run.
+>
+> **Run `--check` for any change that could move another backend's output.**
+> That includes a new `FileFormat` constructor, a `renderAll`/`renderOne` clause, and anything in the shared cell, inference or diagnostic paths.
+> When a change moves output on purpose, read the diff before re-recording, and say in the commit what moved and why.
+>
+> Two blind spots, both measured during the audit.
+> `--check` walks the current fixtures, so a manifest entry whose fixture was renamed or deleted drops out with nothing printed.
+> And `--to=xml` is implemented but is not in the script's `FORMATS`, so this gate says nothing about the XML writer; `run-roundtrip.sh` is the gate for that.
 
 ## The L4 backend (`src/DMN/Translate/L4.hs`)
 
