@@ -230,6 +230,49 @@ tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
     it "accepts a full row" $
       readTable "T" (table [full]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
 
+  -- #71 section 2. GFM ignores the cells of a row past the header's last column, and
+  -- so did dmnmd, silently: `| 1 | Fall | Spareribs | Stew |` under a two-column header
+  -- read as `Fall` giving `Spareribs`, with no trace of `Stew`. The author may have
+  -- meant another column, or a stray pipe may have split a cell. A surplus of BLANK
+  -- cells is not refused (a stray `| |` holds nothing to lose), which is what the
+  -- sub-header row has always done.
+  describe "a data row has no more cells than the header (#71 section 2)" $ do
+    let table rows = T.unlines
+          ( [ "| U | Season | Dish (out) |"
+            , "|---|--------|------------|" ] ++ rows )
+        full = "| 1 | Fall   | Spareribs  |"
+    it "refuses a row with one surplus cell, locating the table and the number the author wrote" $ do
+      let r = readTable "T" (table [full, "| 7 | Winter | Stew | Extra |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": row 7: the row has 3 cells but the header declares only 2 columns" `isPrefixOf`) ms)
+    it "refuses a row with two surplus cells" $ do
+      let r = readTable "T" (table ["| 1 | Fall | Stew | one | two |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": row 1: the row has 4 cells but the header declares only 2 columns" `isPrefixOf`) ms)
+    it "refuses a surplus on every row that has one, and says nothing of the others" $ do
+      let r = readTable "T" (table ["| 1 | Fall | Stew | x |", full, "| 3 | Winter | Roast | y |"])
+      refused r `shouldBe` True
+      length (messages r) `shouldBe` 2
+    it "refuses a surplus supplied by a continuation line, because a row is as wide as its widest line" $ do
+      let r = readTable "T" (table [ "| 1 | Fall   | Stew       |"
+                                   , "|   |        |            | Extra |" ])
+      refused r `shouldBe` True
+    it "still refuses a short row beside it, once each" $ do
+      let r = readTable "T" (table ["| 1 | Fall |", "| 2 | Winter | Stew | Extra |"])
+      refused r `shouldBe` True
+      length (messages r) `shouldBe` 2
+    it "accepts a trailing blank cell, which holds nothing to lose" $
+      readTable "T" (table ["| 1 | Fall   | Spareribs  | |"]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "accepts several trailing blank cells" $
+      readTable "T" (table ["| 1 | Fall   | Spareribs  |  |   |"]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "accepts a full row (negative control)" $
+      readTable "T" (table [full]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "does not count a comment column's cell as surplus" $
+      readTable "T" (T.unlines [ "| U | Season | Dish (out) | # Note |"
+                               , "|---|--------|------------|--------|"
+                               , "| 1 | Fall   | Spareribs  | cheap  |" ])
+        `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+
 -- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
 -- §8.2.11 default output value (rule 1), and a single-hit table with no
 -- matching rule and no default answers null (rule 3), which 'evalTable'

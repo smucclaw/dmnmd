@@ -223,7 +223,11 @@ Things that are only apparent across several files:
   A comment cell cannot change an answer, so leaving it out cannot widen a rule, and trunk accepted such a row before the arity check existed.
   The refusal is in pass 1, so it covers every backend and the `-q` evaluator; `--to=xml` and the XML reader had refused a rule short of an input or output entry already, and still do for a table built any other way.
   Pinned by `policy/struct-short-row-refused`, `policy/md-all-short-rows-refused` and `policy/xml-short-row-refused`, with `policy/md-short-row-annotation-only-accepted` and its negative control `policy/md-short-row-annotation-and-output-refused` on the other side of the boundary.
-  A row with MORE cells than the header is not covered: its surplus is still dropped without a word (measured on a `| 1 | Fall | Stew | extra |` row, which `--to=ts` emitted at exit 0).
+  A row with MORE cells than the header is refused too, when any cell past the last column is not blank (#71 section 2; assumed, not ruled).
+  GFM ignores the excess, and so did dmnmd, with no diagnostic, so a cell the author wrote vanished and the table read as well formed.
+  A surplus of blank cells is accepted, as the sub-header row's has always been, because a stray `| |` holds nothing to lose.
+  It is located at the table and the row number the author wrote, since no column owns a surplus cell.
+  Pinned by `policy/md-surplus-row-cell-refused` and its control `policy/md-surplus-blank-cell-accepted`.
 
   **"Bypasses `mkDTable`" is not "is unaffected by inference", and D-2 widened the gap.**
   `XmlToDmnmd` calls `inferTypes` directly (`:408`) for any column whose `<inputExpression>`

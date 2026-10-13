@@ -300,3 +300,12 @@ Their stdout is still `### exit 1`, and the diff of each shows the message only:
 `policy/md-short-subheader-refused` did not change, because its message is the sub-header's.
 The 32 are four new fixtures, eight files each: `policy/md-short-row-annotation-only-accepted`, `policy/md-blank-annotation-cell-accepted`, `policy/md-short-row-annotation-and-output-refused` and `policy/md-short-subheader-annotation-only-accepted`.
 In the manifest, 12 entries changed and 32 arrived; none left.
+
+## Extension for #71 section 2 (a data row with a cell past the last column is refused), 2026-10-13
+
+**`rowArityDiags` also refuses a surplus.**
+Before any new case existed, `--check` printed `checked 1396 run(s): 0 changed` with the refusal in place, so no fixture in the set has a data row with a non-blank cell past the last column, and none had a blank one that the control now depends on.
+That includes `README.md`, which this script reads.
+The two new cases are `policy/md-surplus-row-cell-refused` (exit 1, nothing emitted) and its control `policy/md-surplus-blank-cell-accepted` (exit 0, the same output as the table without its trailing blank cells).
+In the manifest, nothing changed and 16 entries arrived, 8 for each case.
+
