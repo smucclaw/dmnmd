@@ -66,6 +66,7 @@ module DMN.Regions
   , regionInput
   , regions
   , regionAt
+  , firstRegionOf
   , regionCount
   , isConflict
   , isNoMatch
@@ -82,7 +83,7 @@ import           Data.Char          (isSpace)
 import           Data.Function      (on)
 import           Data.IntSet        (IntSet)
 import qualified Data.IntSet        as IS
-import           Data.List          (find, intercalate, isPrefixOf, nub, transpose)
+import           Data.List          (find, findIndex, intercalate, isPrefixOf, nub, transpose)
 import qualified Data.List.NonEmpty as NE
 import           Data.Maybe         (isJust, listToMaybe, mapMaybe)
 import           Data.Scientific    (Scientific)
@@ -596,12 +597,30 @@ regionAt rm k
   | otherwise = Just (Region blocks (foldr (IS.intersection . blockMembers) everyRule blocks))
   where
     cols      = cbBlocks <$> rmColumns rm
-    -- strides !! j is how many regions share one block of column j: the
-    -- product of the column counts after it. 'scanr' leaves a trailing 1.
-    strides   = drop 1 (scanr (\c n -> n * toInteger (length c)) 1 cols)
     blocks    = [ bs !! fromInteger ((k `div` stride) `mod` toInteger (length bs))
-                | (bs, stride) <- zip cols strides ]
+                | (bs, stride) <- zip cols (columnStrides cols) ]
     everyRule = IS.fromList [0 .. length (allrows (rmTable rm)) - 1]
+
+-- | @columnStrides cols !! j@ is how many regions share one block of column
+-- @j@: the product of the block counts of the columns after it. 'scanr' leaves
+-- a trailing 1 that has no column.
+columnStrides :: [[Block]] -> [Integer]
+columnStrides cols = drop 1 (scanr (\c n -> n * toInteger (length c)) 1 cols)
+
+-- | The position in 'regions' (counting from 0, as 'regionAt' does) of the first
+-- region in which rule @i@ is live, or 'Nothing' when it is live in none.
+--
+-- A rule is live in a region exactly when every column's block admits it, so the
+-- columns are independent: the first such region, in an order with the first
+-- column outermost, takes in each column the first block that admits the rule.
+-- That is one pass over the blocks and a position computed as 'regionAt' reads
+-- one, so it costs nothing on a table of 2^40 regions. L4's @emitAsserts@ uses it
+-- to make sure a sample of the regions exercises every rule that can fire.
+firstRegionOf :: RegionMap -> RuleIx -> Maybe Integer
+firstRegionOf rm i = do
+  idxs <- traverse (findIndex (IS.member i . blockMembers)) cols
+  pure (sum (zipWith (\ix stride -> toInteger ix * stride) idxs (columnStrides cols)))
+  where cols = cbBlocks <$> rmColumns rm
 
 -- | How many regions there are, without enumerating them.
 regionCount :: RegionMap -> Integer

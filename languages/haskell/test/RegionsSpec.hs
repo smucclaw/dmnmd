@@ -27,7 +27,7 @@ import           Control.Applicative  ((<|>))
 import           Control.Exception    (SomeException, bracket, displayException, evaluate, try)
 import           Control.Monad        (filterM, forM)
 import           Data.Either          (isLeft)
-import           Data.List            (isInfixOf, isPrefixOf, nub, sort)
+import           Data.List            (find, isInfixOf, isPrefixOf, nub, sort)
 import           Data.Maybe           (isJust, listToMaybe)
 import qualified Data.Map.Strict      as M
 import qualified Data.Text            as T
@@ -113,6 +113,11 @@ selfCheck rm = concat
     | regionCount rm /= toInteger (length rs) ]
   , [ "regionAt " ++ show k ++ " is not the " ++ show k ++ "th region of regions"
     | (k, r) <- zip [0 ..] rs, regionAt rm k /= Just r ]
+  , [ "firstRegionOf " ++ show i ++ " is " ++ show got ++ ", where the first region with that rule live is " ++ show want
+    | i <- [0 .. length (allrows dt) - 1]
+    , let got  = firstRegionOf rm i
+          want = fst <$> find ((i `elem`) . liveRules . snd) (zip [0 ..] rs)
+    , got /= want ]
   , [ "regionAt answers outside 0 .. regionCount - 1"
     | any (isJust . regionAt rm) [-1, regionCount rm, regionCount rm + 1] ]
   , [ "column " ++ show (varname (cbHeader c)) ++ ": block " ++ showBlock b
@@ -329,6 +334,13 @@ regionAtSpec = describe "regionAt" $ do
   it "agrees with regions on a table with a different shape" $ do
     let rm' = mapOf endpoints
     map (regionAt rm') [0 .. regionCount rm' - 1] `shouldBe` map Just (regions rm')
+  it "names the first region in which each rule is live" $
+    map (firstRegionOf rm) [0 .. 3] `shouldBe` [Just 0, Just 0, Just 1, Just 0]
+  it "names no region for a rule that is live in none, and does not list regions to find one" $ do
+    let cols = [ ColumnBlocks (DTCH DTCH_In ("c" ++ show i) (Just DMN_Boolean) Nothing)
+                   [ Block (Values [VB True]) mempty (VB True), Block (Values [VB False]) mempty (VB False) ]
+               | i <- [1 .. 40 :: Int] ]
+    firstRegionOf rm { rmColumns = cols } 0 `shouldBe` Nothing
   it "finds the last region of a product too big to list" $ do
     -- 40 columns of 2 blocks each: 2^40 regions, which `regions` could not list
     let cols = [ ColumnBlocks (DTCH DTCH_In ("c" ++ show i) (Just DMN_Boolean) Nothing)

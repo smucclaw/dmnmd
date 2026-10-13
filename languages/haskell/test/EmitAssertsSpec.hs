@@ -23,7 +23,7 @@
 module EmitAssertsSpec (emitAssertsSpec) where
 
 import           Control.Monad        (forM)
-import           Data.List            (isInfixOf, isPrefixOf, tails)
+import           Data.List            (isInfixOf, isPrefixOf, isSuffixOf, nub, tails)
 import           Data.Maybe           (isJust)
 import           Data.Text            (Text)
 import qualified Data.Text            as T
@@ -36,7 +36,7 @@ import           Text.RawString.QQ
 import           DMN.Diagnostic       (Diagnostic (..), Severity (..))
 import           DMN.ParseTable       (parseTable)
 import           DMN.ParsingUtils     (parseOnly)
-import           DMN.Regions          (regionCount, regionMap)
+import           DMN.Regions          (firstRegionOf, regionCount, regionMap)
 import           DMN.Translate.L4
 import           DMN.Types
 
@@ -152,25 +152,39 @@ emitAssertsSpec = describe "DMN.Translate.L4 emitAsserts (D-21 step 2)" $ do
 positions :: Spec
 positions = describe "assertPositions" $ do
   it "takes every region when they fit under the cap" $ do
-    assertPositions 5 3 `shouldBe` [0, 1, 2]
-    assertPositions 3 3 `shouldBe` [0, 1, 2]
+    assertPositions 5 3 [] `shouldBe` [0, 1, 2]
+    assertPositions 3 3 [1] `shouldBe` [0, 1, 2]
   it "is empty for a table with no regions or a cap of 0" $ do
-    assertPositions 5 0 `shouldBe` []
-    assertPositions 0 7 `shouldBe` []
+    assertPositions 5 0 [] `shouldBe` []
+    assertPositions 0 7 [] `shouldBe` []
   it "takes the first region alone for a cap of 1" $
-    assertPositions 1 9 `shouldBe` [0]
-  it "spreads a cap's worth evenly, the first and last included" $
-    assertPositions 4 10 `shouldBe` [0, 3, 6, 9]
-  it "gives exactly cap distinct, increasing, in-range positions, first and last included" $
+    assertPositions 1 9 [4] `shouldBe` [0]
+  it "spreads a cap's worth evenly, the first and last included, when no rule has a witness" $
+    assertPositions 4 10 [] `shouldBe` [0, 3, 6, 9]
+  it "adds the witnesses of the first rules, and spaces the rest of the cap" $
+    assertPositions 10 100 [5, 40, 77] `shouldBe` [0, 5, 16, 33, 40, 49, 66, 77, 82, 99]
+  it "gives the witnesses at most half the cap, so the spread is never crowded out" $
+    assertPositions 4 100 [10, 20, 30] `shouldBe` [0, 10, 20, 99]
+  it "does not repeat a position that a witness and the spread share" $
+    assertPositions 4 10 [0] `shouldBe` [0, 4, 9]
+  it "gives at most cap increasing, in-range positions, with the first included and, when the witnesses leave room, the last" $
     sequence_
-      [ do length ps `shouldBe` fromInteger cap
+      [ do length ps `shouldSatisfy` (<= fromInteger cap)
            and (zipWith (<) ps (drop 1 ps)) `shouldBe` True
-           head ps `shouldBe` 0
-           last ps `shouldBe` n - 1
+           take 1 ps `shouldBe` [0]
+           -- the last region is spaced in unless witnesses leave room for one position alone
+           (drop (length ps - 1) ps == [n - 1] || room < 2) `shouldBe` True
            all (\p -> 0 <= p && p < n) ps `shouldBe` True
+           all (`elem` ps) (take (fromInteger cap `div` 2) ws) `shouldBe` True
       | cap <- [2, 3, 7, 200]
       , n <- [cap + 1, cap + 2, 2 * cap, 1000, 10 ^ (30 :: Int)]
-      , let ps = assertPositions cap n ]
+      , ws <- [[], [n `div` 2], [n - 1, 3, n `div` 3]]
+      , let ps   = assertPositions cap n ws
+            room = cap - min (cap `div` 2) (toInteger (length (nub ws))) ]
+  it "gives exactly cap positions when there is no witness" $
+    sequence_
+      [ length (assertPositions cap n []) `shouldBe` fromInteger cap
+      | cap <- [2, 3, 7, 200], n <- [cap + 1, 1000, 10 ^ (30 :: Int)] ]
 
 text :: Spec
 text = describe "the assertions for each kind of result" $ do
@@ -258,21 +272,30 @@ capping = describe "assertCap" $ do
       emitAt cap = toL4 withAsserts { assertCap = cap } dt
       all'   = assertsOf (emitAt 4000)
       sample = assertsOf (emitAt 5)
+      rm     = either (error . show) id (regionMap dt)
   it "asserts every region when they fit" $ do
-    fmap regionCount (either (const Nothing) Just (regionMap dt)) `shouldBe` Just 3375
+    regionCount rm `shouldBe` 3375
     length all' `shouldBe` 3375
   it "asserts a cap's worth when they do not, and says how many exist and how many were skipped" $ do
     length sample `shouldBe` 5
     notesOf (emitAt 5) `shouldBe`
-      [ "-- emitAsserts: table \"Big\": 3375 regions, 5 asserted (assertCap is 5; they are chosen evenly"
-        ++ " through positions 0 .. 3374 of the sequence of regions, first and last included,"
-        ++ " so the other 3370 are not asserted)." ]
+      [ "-- emitAsserts: table \"Big\": 3375 regions, 5 asserted (assertCap is 5; they are the first region"
+        ++ " in which each of the first rules is live, and the rest evenly spaced through positions"
+        ++ " 0 .. 3374 of the sequence of regions, first and last included, so the other 3370 are not asserted)." ]
   it "chooses from the whole sequence: the first region, the last, and others between" $ do
-    head sample `shouldBe` head all'
-    last sample `shouldBe` last all'
+    take 1 sample `shouldBe` take 1 all'
+    drop 4 sample `shouldBe` drop 3374 all'
     all (`elem` all') sample `shouldBe` True
     -- the middle ones differ from the first few regions, which share their first column's first block
     take 5 all' `shouldNotBe` sample
+  it "includes the first region of each rule when the cap leaves room, so a sparse table is not sampled where nothing fires" $ do
+    let witnesses = [ k | i <- [0 .. 6], Just k <- [firstRegionOf rm i] ]
+        big       = assertsOf (emitAt 50)
+    length witnesses `shouldBe` 7
+    -- row i is the rule whose three cells are all i, and these are its regions
+    [ all' !! fromInteger k | k <- witnesses ] `shouldSatisfy` all (`elem` big)
+    -- and they are the lines where a rule fires: the other regions are no-match
+    length [ () | l <- big, not ("EQUALS NOTHING" `isSuffixOf` l) ] `shouldBe` 7
 
 -- * The cross-check against the real l4
 

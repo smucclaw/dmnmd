@@ -17,11 +17,11 @@ module DMN.Translate.L4 where
 
 import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder, evalTable)
 import DMN.Diagnostic
-import DMN.Regions (regionMap, noMatchRegions, regionAt, regionCount, regionInput, Region, Unsupported (..))
+import DMN.Regions (regionMap, noMatchRegions, regionAt, regionCount, regionInput, firstRegionOf, Region, Unsupported (..))
 import DMN.Types
 import Control.Applicative ((<|>))
 import Data.Char (isAlpha, isAlphaNum, toUpper)
-import Data.List (intercalate, isPrefixOf)
+import Data.List (intercalate, isPrefixOf, nub, sort)
 import Data.Maybe (isJust, isNothing, catMaybes, mapMaybe)
 import DMN.Number (showNumPlain)
 import Data.Scientific (Scientific)
@@ -531,6 +531,7 @@ assertLines opts dt sh
       Right rm ->
         let n        = regionCount rm
             picks    = assertPositions (toInteger (assertCap opts)) n
+                         (mapMaybe (firstRegionOf rm) [0 .. length (allrows dt) - 1])
             outcomes = [ (k, maybe (Skipped "no such region") outcomeAt (regionAt rm k)) | k <- picks ]
             nAsserted = length [ () | (_, o) <- outcomes, isAsserted o ]
             nSkipped  = length [ () | (_, Skipped _) <- outcomes ]
@@ -548,9 +549,10 @@ assertLines opts dt sh
     headerLines n nAsserted nSkipped picks sampled =
       [ prefix ++ tableLabel ++ ": " ++ plural n "region" ++ ", " ++ show nAsserted ++ " asserted"
           ++ (if sampled
-                then " (assertCap is " ++ show (assertCap opts) ++ "; they are chosen evenly through"
-                     ++ " positions 0 .. " ++ show (n - 1) ++ " of the sequence of regions, first and last"
-                     ++ " included, so the other " ++ show (n - toInteger (length picks)) ++ " are not asserted)"
+                then " (assertCap is " ++ show (assertCap opts) ++ "; they are the first region in which each"
+                     ++ " of the first rules is live, and the rest evenly spaced through positions 0 .. "
+                     ++ show (n - 1) ++ " of the sequence of regions, first and last included, so the other "
+                     ++ show (n - toInteger (length picks)) ++ " are not asserted)"
                 else "")
           ++ "." ]
       ++ [ prefix ++ tableLabel ++ ": " ++ show nSkipped ++ " of the chosen regions "
@@ -586,18 +588,30 @@ outcomeLines tbl (k, o) = case o of
   Diverged why -> [ "-- emitAsserts: " ++ tbl ++ ": DIVERGENCE at region " ++ show k ++ ": " ++ oneLine why
                   , "#ASSERT FALSE" ]
 
--- | The positions, among @n@ regions numbered from 0, that @cap@ assertions are
--- made at. All of them when they fit; otherwise @cap@ positions evenly spaced
--- through @0 .. n-1@, the first and last included, rounded down. They are
--- distinct because @n > cap@ makes the step more than 1. ASSUMED, NOT RULED
--- (D-21 step 2): taking the first @cap@ regions would be cheaper to describe
+-- | The positions, among @n@ regions numbered from 0, that at most @cap@
+-- assertions are made at, given the position of the first region in which each
+-- rule is live (the @witnesses@, which 'DMN.Regions.firstRegionOf' computes).
+--
+-- All of them when they fit. Otherwise the witnesses of the first @cap \`div\` 2@
+-- rules, so that a sample exercises the rules (a table of a million regions that
+-- are almost all no-match would otherwise be sampled where no rule fires), and
+-- the rest of the @cap@ evenly spaced through @0 .. n-1@, the first and last
+-- included, rounded down. Sorted and without repeats, so a spaced position that
+-- lands on a witness costs one fewer assertion, not a duplicate.
+--
+-- ASSUMED, NOT RULED (D-21 step 2): the cap, the even spread, and the witnesses
+-- are each a choice. Taking the first @cap@ regions would be cheaper to describe
 -- and wrong, since they all share their first column's first blocks.
-assertPositions :: Integer -> Integer -> [Integer]
-assertPositions cap n
+assertPositions :: Integer -> Integer -> [Integer] -> [Integer]
+assertPositions cap n witnesses
   | n <= cap  = [0 .. n - 1]
   | cap <= 0  = []
-  | cap == 1  = [0]
-  | otherwise = [ (i * (n - 1)) `div` (cap - 1) | i <- [0 .. cap - 1] ]
+  | otherwise = sort (nub (chosen ++ spread))
+  where
+    chosen = take (fromInteger (cap `div` 2)) (nub witnesses)
+    room   = cap - toInteger (length chosen)
+    spread | room == 1 = [0]
+           | otherwise = [ (i * (n - 1)) `div` (room - 1) | i <- [0 .. room - 1] ]
 
 -- | A region's value for one input column, as an argument to the function, or
 -- why it has none. A negative number is parenthesised, since @f -1@ is a
