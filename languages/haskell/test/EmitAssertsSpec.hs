@@ -99,6 +99,21 @@ enumTable = T.pack $ dropWhile (== '\n') [r|
 | 2 | Travel         | Amex                |
 |]
 
+-- | The corpus table @md-prefix-comparisons@. 'DMN.Regions' cuts Age at 18 and
+-- 21 and gives each its own point piece, but the pieces [18], (18, 21) and [21]
+-- are live for the same rules, so they are ONE block, [18..21], and a block has
+-- one representative: its lowest named point, 18. Age = 21, the closed upper
+-- bound of rule 3, is a value of that block no assertion visits.
+prefixTable :: Text
+prefixTable = T.pack $ dropWhile (== '\n') [r|
+| U | Age   | Scheme | Band (out) |
+|---|-------|--------|------------|
+| 1 | < 18  | child  | minor      |
+| 2 | >= 18 | child  | adult      |
+| 3 | <= 21 | youth  | young      |
+| 4 | > 21  | youth  | adult      |
+|]
+
 -- | No input column: one region, a function of no arguments.
 noInputTable :: Text
 noInputTable = T.pack $ dropWhile (== '\n') [r|
@@ -221,6 +236,13 @@ text = describe "the assertions for each kind of result" $ do
     notesAndAsserts (emit "Hi" noInputTable) `shouldBe`
       [ "-- emitAsserts: table \"Hi\": 1 region, 1 asserted."
       , "#ASSERT Hi EQUALS \"hello\"" ]
+  it "asserts a block's highest named value as well as its representative, so a closed upper bound is exercised at the bound" $ do
+    let out = assertsOf (emit "PrefixComparisons" prefixTable)
+    -- the block [18..21]: 18 is its representative (the lowest value a cell names), 21 the highest
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 18 \"youth\" EQUALS JUST \"young\"")
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"child\" EQUALS JUST \"adult\"")
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"youth\" EQUALS JUST \"young\"")
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"other\" EQUALS NOTHING")
   it "puts every table's assertions after every table in a file" $ do
     let (_, file) = toL4File withAsserts [parse "FirstGap" gapTable, parse "Hi" noInputTable]
         ls        = lines file
@@ -366,6 +388,19 @@ crossCheck = describe "against the real l4" $ do
       r <- runAsserts l4bin (outDir </> ("pinned-" ++ name ++ ".l4")) src
       pure (name, length (assertsOf src), r)
     [ (name, n, r) | (name, n, r) <- results, r /= Right (n, n, 0, 0) ] `shouldBe` []
+  -- A mutation test: the emitter is imagined to write @<= 21@ as @< 21@, which
+  -- changes the function at Age = 21 and nowhere else. Only an assertion at
+  -- Age = 21 can see it, and before the highest named value of a block was
+  -- asserted none did (the block [18..21] was visited at 18 alone).
+  it "catches a closed upper bound written as an open one (mutation)" $ withL4 $ \l4bin -> do
+    createDirectoryIfMissing True outDir
+    let good = toL4 withAsserts (parse "PrefixComparisons" prefixTable)
+        bad  = replace "<= 21" "<  21" good
+    bad `shouldNotBe` good
+    unmutated <- runAsserts l4bin (outDir </> "prefix-good.l4") good
+    mutated   <- runAsserts l4bin (outDir </> "prefix-bad.l4") bad
+    fmap (\(_, _, f, _) -> f) unmutated `shouldBe` Right 0
+    mutated `shouldSatisfy` either (const False) (\(_, _, f, _) -> f > 0)
   it "reports an assertion the function does not satisfy (canary)" $ withL4 $ \l4bin -> do
     createDirectoryIfMissing True outDir
     let good = toL4 withAsserts (parse "FirstGap" gapTable)
