@@ -313,3 +313,13 @@ No other fixture in the set has a wildcard among the values of a multi-value cel
 In the manifest, 1 entry changed and 8 arrived; none left.
 After recording, `--check` printed `checked 1400 run(s): 0 changed`.
 
+
+## Extension for D-21 step 2 (`--asserts`, `emitAsserts`), 2026-10-13
+
+**No emitter output changed; five fixtures arrived.**
+Before recording, `--check` printed `checked 1420 run(s): 40 changed`, and all 40 were `MISSING FROM MANIFEST`: no `CHANGED` line, so no run of a fixture already in the manifest moved.
+The 40 are five new corpus cases, eight entries each (four formats, stdout and stderr): `policy/l4-asserts-flag-emits-per-region`, `policy/l4-asserts-flag-needs-l4`, `policy/l4-asserts-unanalysable-says-why`, `symptom/l4-asserts-quotient-rounded-vs-exact` and `symptom/l4-exponent-caret-parse-error`.
+The baseline runs `--to=ts`, `--to=js`, `--to=py` and `--to=l4` without `--asserts`, so it records none of the assertion text; the corpus cases do.
+A fresh `--record` into a scratch directory differed from the committed manifest by those 40 lines and no others, and that file is the manifest now.
+In the manifest, 40 entries arrived; none changed and none left.
+After recording, `--check` printed `checked 1420 run(s): 0 changed`.
