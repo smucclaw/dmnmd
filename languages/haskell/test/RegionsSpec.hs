@@ -21,7 +21,7 @@
 --
 -- The corpus is read with @app\/ParseMarkdown@, the binary's own reader, so a
 -- table means here what it means to @dmnmd@.
-module RegionsSpec (regionsSpec) where
+module RegionsSpec (regionsSpec, roundtripFixtures, quietly, force', readFixture) where
 
 import           Control.Applicative  ((<|>))
 import           Control.Exception    (SomeException, bracket, displayException, evaluate, try)

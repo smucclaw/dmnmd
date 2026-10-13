@@ -15,9 +15,9 @@ model is in "DMN.Types"; the catch-all/output-header helpers come from
 
 module DMN.Translate.L4 where
 
-import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder)
+import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder, evalTable)
 import DMN.Diagnostic
-import DMN.Regions (regionMap, noMatchRegions)
+import DMN.Regions (regionMap, noMatchRegions, regionAt, regionCount, regionInput, Region, Unsupported (..))
 import DMN.Types
 import Control.Applicative ((<|>))
 import Data.Char (isAlpha, isAlphaNum, toUpper)
@@ -44,7 +44,17 @@ data L4Opts = L4Opts
     -- catch-all row nor a declared default. A caller that sets it has said what
     -- "no rule matched" answers, so the result stays bare. Empty by default, and
     -- no caller sets it.
-  , emitAsserts   :: Bool    -- ^ append @#EVAL@/@#ASSERT@ lines from the evalTable oracle (TODO)
+  , emitAsserts   :: Bool
+    -- ^ after the table (after the whole file, under 'toL4File'), append one
+    -- @#ASSERT@ per region of "DMN.Regions", saying that the emitted function at
+    -- 'DMN.Regions.regionInput' equals what 'DMN.DecisionTable.evalTable' answers
+    -- there, so that @l4 run@ cross-checks this emitter against the interpreter.
+    -- See 'assertLines'. A table 'DMN.Regions.regionMap' cannot analyse gets one
+    -- comment line saying why instead, never a sample.
+  , assertCap     :: Int
+    -- ^ the most regions of one table 'emitAsserts' asserts. Over it, that many
+    -- are chosen evenly through the whole sequence of regions and a comment says
+    -- how many there are. ASSUMED, NOT RULED (D-21 step 2).
   , enumEnv       :: Maybe EnumEnv
     -- ^ the file's sum-type name assignment. 'Nothing' means "this table is on
     -- its own": name types after my own columns and emit my own @DECLARE@s, which
@@ -60,13 +70,15 @@ data L4Opts = L4Opts
 type EnumEnv = [((String, [String]), String)]
 
 -- | Default options: ditto on (BUILD-SPEC §3), no @elem@, no caller-supplied
--- @OTHERWISE@, no asserts.
+-- @OTHERWISE@, no asserts (and a cap of 200 regions a table if they are asked
+-- for).
 defaultL4Opts :: L4Opts
 defaultL4Opts = L4Opts
   { emitDitto     = True
   , useElem       = False
   , defaultResult = ""
   , emitAsserts   = False
+  , assertCap     = 200
   , enumEnv       = Nothing
   }
 
@@ -112,7 +124,11 @@ toL4File opts dts
     env      = assignEnumNames [ (enumRawName o, ms) | dt <- dts, (o, ms) <- enumColsOf dt ]
     optsEnv  = opts { enumEnv = Just env }
     preamble = unlines (containsHelperFor dts ++ concatMap declareEnum env)
-    body     = concatMap (\dt -> toL4 optsEnv dt ++ "\n") dts
+    parts    = [ toL4Parts optsEnv dt | dt <- dts ]
+    -- Every table's assertions come after every table: they need the sum types
+    -- of the preamble and the functions of all the tables, and nothing else.
+    body     = concat [ b ++ "\n" | (b, _) <- parts ]
+            ++ concat [ unlines as ++ "\n" | (_, as) <- parts, not (null as) ]
 
     -- A rename means two columns spelled the same declare DIFFERENT domains, so
     -- the reader is about to meet a type name that appears in no input file.
@@ -233,10 +249,29 @@ l4Refusal dt = case hitpolicy dt of
 -- other way to say no. Callers that can report a diagnostic should use
 -- 'toL4File', which asks 'l4Refusal' first and never reaches this.
 toL4 :: L4Opts -> DecisionTable -> String
-toL4 opts dt =
+toL4 opts dt = body ++ (if null asserts then "" else "\n" ++ unlines asserts)
+  where (body, asserts) = toL4Parts opts dt
+
+-- | 'toL4', in two pieces: the table's declarations and function, and the
+-- @#ASSERT@ block 'emitAsserts' asks for (empty when it is not set).
+--
+-- The pieces are separate so that 'toL4File' can put every table's assertions
+-- after every table, at the end of the file. L4's top level is order-independent
+-- (an @#ASSERT@ above the function it calls typechecks and runs), but a
+-- generated file reads better, and is easier to strip, with its assertions
+-- together. They are built inside this function because they have to agree with
+-- values computed here: whether the result is a @MAYBE@, the output columns as
+-- the function types them, and the record constructor.
+toL4Parts :: L4Opts -> DecisionTable -> (String, [String])
+toL4Parts opts dt =
   case l4Refusal dt of
     Just why -> error ("DMN.Translate.L4: " ++ why)
-    Nothing  -> unlines (recordDecls ++ [givenBlock opts ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
+    Nothing  ->
+      ( unlines (recordDecls ++ [givenBlock opts ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
+      , if emitAsserts opts
+          then assertLines opts dt AssertShape { shapeOuts = outs', shapeMulti = multiOut, shapeMk = mkName
+                                               , shapeMaybe = maybeResult }
+          else [] )
   where
     -- Parameters are renamed where they would capture a constructor. See
     -- 'renameParams' — this is the ONE place it happens, so everything
@@ -438,6 +473,184 @@ noRuleMayMatch dt defaultRow armRows
   | isJust defaultRow       = False
   | any isCatchAll armRows  = False
   | otherwise               = either (const True) (not . null . noMatchRegions) (regionMap dt)
+
+-- * Oracle assertions (D-21 step 2, BUILD-SPEC §7.4)
+
+-- | What 'toL4Parts' knows about the function it has just emitted and an
+-- assertion has to agree with. 'assertLines' reads these, and does not work them
+-- out again, because a second derivation of 'shapeMaybe' would be a place for it
+-- to drift from the first.
+data AssertShape = AssertShape
+  { shapeOuts  :: [ColHeader]
+    -- ^ the output columns as the function types them: @outs'@ in 'toL4Parts',
+    -- with a column that did not qualify for a sum type already blanked
+  , shapeMulti :: Bool    -- ^ the result is a record built by 'shapeMk'
+  , shapeMk    :: String  -- ^ that record's constructor helper
+  , shapeMaybe :: Bool    -- ^ the result is a @MAYBE@ ('noRuleMayMatch')
+  }
+
+-- | One @#ASSERT@ per region of the table, saying that the emitted function
+-- applied to the region's input equals what 'evalTable' answers there.
+--
+-- __What the check can and cannot see.__ The expected value is the interpreter's:
+-- which rule answers (hit policy, priority, the unique catch-all as a default,
+-- a declared default), whether anything does ('NOTHING'), and the arithmetic of a
+-- computed cell, which 'evalTable' has already evaluated to a literal and which
+-- the emitter has rendered as L4 arithmetic. How a /value/ is spelled is shared
+-- with the emitter ('renderOutCell', 'showValIn'), so a bug in the spelling of
+-- a literal would be on both sides of the @EQUALS@ and is not what this finds.
+--
+-- __Regions are the unit__ (DMN.Regions): inside one every rule matches
+-- throughout or not at all, so one input per region is every distinguishable
+-- behaviour of the table, and the number of assertions is the number of regions,
+-- not of inputs. Region @k@ is the @k@th of 'DMN.Regions.regions' (from 0).
+--
+-- __Nothing is dropped without a line saying so.__
+--
+-- * A table 'regionMap' cannot analyse gets one comment, with its reason, and no
+--   assertions. There is no sampling fallback: a sample of a table whose regions
+--   dmnmd cannot say would be a guess.
+-- * Over 'assertCap' regions, 'assertPositions' picks that many evenly through
+--   the whole sequence, and a comment says how many there are.
+-- * A region whose input has no L4 spelling, or where 'evalTable' refuses (a
+--   division by zero), gets a comment naming it and why.
+-- * A region where the interpreter answers null and the function is not a
+--   @MAYBE@ gets a comment and an @#ASSERT FALSE@, so that @l4 run@ reports it
+--   as failed. The two cannot disagree once 'noRuleMayMatch' has proved the
+--   table total, so this is the case that says it did not.
+--
+-- A table that supplies its own 'defaultResult' gets a comment and no assertions,
+-- since its no-match answer is the caller's and not the interpreter's.
+assertLines :: L4Opts -> DecisionTable -> AssertShape -> [String]
+assertLines opts dt sh
+  | not (null (defaultResult opts)) =
+      [ none "the caller supplied the OTHERWISE (defaultResult), so what an unmatched input answers is not the interpreter's" ]
+  | null (shapeOuts sh) = [ none "the table has no output column" ]
+  | otherwise = case regionMap dt of
+      Left u   -> [ none (oneLine (dropPrefix ("table " ++ show (tableName dt) ++ ": ") (unsupportedMessage u))) ]
+      Right rm ->
+        let n        = regionCount rm
+            picks    = assertPositions (toInteger (assertCap opts)) n
+            outcomes = [ (k, maybe (Skipped "no such region") outcomeAt (regionAt rm k)) | k <- picks ]
+            nAsserted = length [ () | (_, o) <- outcomes, isAsserted o ]
+            nSkipped  = length [ () | (_, Skipped _) <- outcomes ]
+            sampled   = n > toInteger (length picks)
+        in headerLines n nAsserted nSkipped picks sampled ++ concatMap (outcomeLines tableLabel) outcomes
+  where
+    tableLabel = "table " ++ quoted (tableName dt)
+    prefix     = "-- emitAsserts: "
+    none why   = prefix ++ "no asserts for " ++ tableLabel ++ ": " ++ why
+
+    fn      = quoteVar (tableName dt)
+    insH    = getInputHeaders (header dt)
+    call as = unwords (fn : as)
+
+    headerLines n nAsserted nSkipped picks sampled =
+      [ prefix ++ tableLabel ++ ": " ++ plural n "region" ++ ", " ++ show nAsserted ++ " asserted"
+          ++ (if sampled
+                then " (assertCap is " ++ show (assertCap opts) ++ "; they are chosen evenly through"
+                     ++ " positions 0 .. " ++ show (n - 1) ++ " of the sequence of regions, first and last"
+                     ++ " included, so the other " ++ show (n - toInteger (length picks)) ++ " are not asserted)"
+                else "")
+          ++ "." ]
+      ++ [ prefix ++ tableLabel ++ ": " ++ show nSkipped ++ " of the chosen regions "
+             ++ (if nSkipped == 1 then "is" else "are") ++ " not asserted, as each says below."
+         | nSkipped > 0 ]
+
+    outcomeAt :: Region -> Outcome
+    outcomeAt r = case mapM (uncurry renderInputVal) (zip insH (regionInput r)) of
+      Left why   -> Skipped why
+      Right args -> case evalTable dt (regionInput r) of
+        Left why -> Skipped ("the interpreter refuses this input: " ++ oneLine (takeWhile (/= '\n') why))
+        Right []
+          | shapeMaybe sh -> Asserted (call args ++ " EQUALS NOTHING")
+          | otherwise     -> Diverged "the interpreter answers null here, but this function's result is not a MAYBE"
+        Right [routs]
+          | length routs /= length (shapeOuts sh) -> Skipped "the interpreter's row has a different number of cells from the output columns"
+          | otherwise -> Asserted (call args ++ " EQUALS " ++ expectedValue sh routs)
+        Right _ -> Skipped "the interpreter answered with more than one row under a single-hit policy"
+
+-- | What 'assertLines' did with one region.
+data Outcome
+  = Asserted String        -- ^ the assertion, after the @#ASSERT@
+  | Skipped String         -- ^ not asserted, and why
+  | Diverged String        -- ^ asserted, and known false: the interpreter and the function disagree
+
+isAsserted :: Outcome -> Bool
+isAsserted = \case Asserted _ -> True; Diverged _ -> True; Skipped _ -> False
+
+outcomeLines :: String -> (Integer, Outcome) -> [String]
+outcomeLines tbl (k, o) = case o of
+  Asserted a -> ["#ASSERT " ++ a]
+  Skipped why -> [ "-- emitAsserts: " ++ tbl ++ ": region " ++ show k ++ " not asserted: " ++ oneLine why ]
+  Diverged why -> [ "-- emitAsserts: " ++ tbl ++ ": DIVERGENCE at region " ++ show k ++ ": " ++ oneLine why
+                  , "#ASSERT FALSE" ]
+
+-- | The positions, among @n@ regions numbered from 0, that @cap@ assertions are
+-- made at. All of them when they fit; otherwise @cap@ positions evenly spaced
+-- through @0 .. n-1@, the first and last included, rounded down. They are
+-- distinct because @n > cap@ makes the step more than 1. ASSUMED, NOT RULED
+-- (D-21 step 2): taking the first @cap@ regions would be cheaper to describe
+-- and wrong, since they all share their first column's first blocks.
+assertPositions :: Integer -> Integer -> [Integer]
+assertPositions cap n
+  | n <= cap  = [0 .. n - 1]
+  | cap <= 0  = []
+  | cap == 1  = [0]
+  | otherwise = [ (i * (n - 1)) `div` (cap - 1) | i <- [0 .. cap - 1] ]
+
+-- | A region's value for one input column, as an argument to the function, or
+-- why it has none. A negative number is parenthesised, since @f -1@ is a
+-- subtraction; a member of a declared domain is its constructor.
+renderInputVal :: ColHeader -> FEELexp -> Either String String
+renderInputVal ch = \case
+  FNullary (VN n) | Just DMN_Number <- vartype ch -> Right (parenNeg (showNumL4 n))
+  FNullary v@(VB _) | Just DMN_Boolean <- vartype ch -> Right (showValL4 v)
+  FNullary v@(VS s)
+    | isStringTyped (vartype ch) -> case enumCtorsOf ch of
+        Just ms | s `notElem` ms -> Left (here ++ "the region's value " ++ showStrL4 s ++ " is not a member of the declared domain")
+        _                         -> Right (showValIn ch v)
+  other -> Left (here ++ "the region's value " ++ oneLine (show other) ++ " has no L4 spelling for the column's type")
+  where
+    here = "column " ++ quoted (varname ch) ++ ": "
+    isStringTyped = \case Just DMN_String -> True; Nothing -> True; _ -> False
+    parenNeg t = if "-" `isPrefixOf` t then "(" ++ t ++ ")" else t
+
+-- | The value the function should answer, as the right-hand side of an
+-- @EQUALS@: @NOTHING@ is handled by the caller; a match is the record or scalar
+-- the interpreter's row spells, under @JUST@ when the result is a @MAYBE@.
+expectedValue :: AssertShape -> [[FEELexp]] -> String
+expectedValue sh routs = (if shapeMaybe sh then ("JUST " ++) else id) base'
+  where
+    cells = zipWith renderOutCell (shapeOuts sh) routs
+    base' | shapeMulti sh = parenAtom (unwords (shapeMk sh : map parenAtom cells))
+          | otherwise     = parenAtom (concat (take 1 cells))
+
+-- | Parenthesise unless the text is already one token: a string literal, a
+-- backticked constructor, or a word or number that does not start with a sign.
+parenAtom :: String -> String
+parenAtom t
+  | isStringLit t || isCtor t = t
+  | otherwise = case t of
+      c : _ | ' ' `notElem` t && c /= '-' && c /= '(' -> t
+      _                                               -> "(" ++ t ++ ")"
+  where
+    isStringLit = \case '"' : rest@(_ : _) -> last rest == '"'; _ -> False
+    isCtor      = \case '`' : rest@(_ : _) -> last rest == '`' && length (filter (== '`') rest) == 1; _ -> False
+
+-- | Text for the inside of a one-line L4 comment or an error message.
+oneLine :: String -> String
+oneLine = map (\c -> if c `elem` ("\r\n" :: String) then ' ' else c)
+
+quoted :: String -> String
+quoted s = "\"" ++ oneLine s ++ "\""
+
+plural :: Integer -> String -> String
+plural 1 w = "1 " ++ w
+plural n w = show n ++ " " ++ w ++ "s"
+
+dropPrefix :: String -> String -> String
+dropPrefix p s = if p `isPrefixOf` s then drop (length p) s else s
 
 -- * Sum types for domained columns (BUILD-SPEC-dmnmd-l4-sumtype.md Part A)
 

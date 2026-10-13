@@ -17,7 +17,7 @@ Two layers:
   emitter's STRING-world output). This is a SEMANTIC equivalence check, not a
   byte-exact diff against the hand-written @miles-card.l4@. -}
 
-module TranslateL4Spec (l4Spec) where
+module TranslateL4Spec (l4Spec, findL4, withL4) where
 
 import Control.Exception (evaluate)
 import Data.Text (Text)
