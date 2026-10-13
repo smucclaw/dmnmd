@@ -308,12 +308,14 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 -- four-frame @HasCallStack backtrace:@ of ghc-internal positions attached. One
 -- rule, two mechanisms. Now there is one mechanism, and it is the XML reader's.
 --
--- Pass 1 of two. This is the entry point for __every__ markdown cell — the
--- sub-header row and every data cell, single- and multi-valued alike. 'mkFAt' is
--- pass 2, the type-inference re-pass. (This haddock, @CLAUDE.md@,
--- @test\/corpus\/README.md@ and @run-corpus.sh@ all used to call the two "the
--- multi-value and single-value cell paths"; that is retracted, and inverted in
--- the very pair cited as its proof.)
+-- Pass 1 of two. This reads the sub-header row and every data cell of a column
+-- that declares a type, single- and multi-valued alike, and unquotes a
+-- double-quoted cell as it does ('unquoteCell'). A data cell of a column that
+-- declares NO type enters through 'mkDataFsAt', which defers to this everywhere
+-- else. 'mkFAt' is pass 2, the type-inference re-pass. (This haddock,
+-- @CLAUDE.md@, @test\/corpus\/README.md@ and @run-corpus.sh@ all used to call the
+-- two "the multi-value and single-value cell paths"; that is retracted, and
+-- inverted in the very pair cited as its proof.)
 --
 -- 'mkFs' stays for the test suite. It no longer stays "for the XML reader": its
 -- two 'DMN.XML.XmlToDmnmd' call sites were the last unlocated user-facing
@@ -322,7 +324,39 @@ mkFs dmntype args = either error id (mkFsEither dmntype args)
 mkFsAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic [FEELexp]
 mkFsAt st dmntype args = locateCell st (mkFsEither dmntype args)
 
--- | Pass 1 for an INPUT cell: 'mkFsAt', and then — in a column that declares
+-- | Pass 1 for a DATA cell, input or output: 'mkFsAt', except that in a column
+-- that declares no type the cell keeps its double quotes ('mkFsKeepingQuotes').
+--
+-- __The defect.__ 'mkFsAt' unquotes a double-quoted cell first ('unquoteCell'),
+-- so type inference, which runs over the built cells, graded @\"2020\"@ exactly
+-- like @2020@ and @\"yes\"@ like @yes@: an undeclared column of string literals
+-- was typed Number or Boolean, @\"007\"@ was refused as an ambiguous numeral,
+-- and a quoted numeral mixed with a bare one was read as all-Number instead of
+-- refused. The quotes are the author saying string (CLAUDE.md), and they are the
+-- only thing that says it. The XML reader fixed the same thing in its inference
+-- pre-pass; this is the markdown reader's half, with the same function.
+--
+-- __Pass 2 is the other half.__ A cell built here still carries its quotes, and
+-- 'reprocessRows' strips them ('unquoteBuilt') once inference has settled the
+-- column. Inference sees a quoted fragment as hard String evidence, so a settled
+-- column that holds one is String, and a column that cannot be settled
+-- (@VConflict@) keeps the quotes it was graded with, which is what lets
+-- 'inferenceErrors' see the same two cells inference saw. A column that is
+-- untyped after inference and holds a quoted fragment is therefore always
+-- refused.
+--
+-- __The sub-header row is not a data cell and does not come through here.__ It
+-- declares a domain, which is not evidence about the type, so 'mkFsAt' still
+-- unquotes it. 'retypeEnums' rebuilds it at the settled type, as before.
+--
+-- __Only an undeclared column.__ A declared type is the author's answer, so
+-- @Year : Number@ still reads @\"2020\"@ as the number ('mkFsAt', unchanged), and
+-- @Year : String@ still reads a bare @2021@ as the text.
+mkDataFsAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic [FEELexp]
+mkDataFsAt st Nothing args = locateCell st (mkFsKeepingQuotes args)
+mkDataFsAt st ty      args = mkFsAt st ty args
+
+-- | Pass 1 for an INPUT cell: 'mkDataFsAt', and then — in a column that declares
 -- no type — the refusal of a fragment shaped like a comparison or an interval
 -- that dmnmd cannot read ('DMN.ParseCell.unreadableTestShape').
 --
@@ -334,8 +368,8 @@ mkFsAt st dmntype args = locateCell st (mkFsEither dmntype args)
 -- __Why here, and not in 'inferenceErrors' or 'structuralErrors'__, which is
 -- where cell refusals that need a row and a column usually live. Both walk the
 -- BUILT table, and by then the one fact that separates a label from a test is
--- gone: 'unquoteCell' strips a double-quoted cell in pass 1, so @\"\<1 year\"@
--- and @\<1 year@ are the same @FNullary (VS \"\<1 year\")@ afterwards. Pass 1 is
+-- gone: the built table has been unquoted ('unquoteBuilt'), so @\"\<1 year\"@
+-- and @\<1 year@ are the same @FNullary (VS \"\<1 year\")@ in it. Pass 1 is
 -- the last place the raw text exists, and 'DMN.ParseTable.mkFEELCol' — the
 -- caller — knows what 'mkFEither' cannot: that this is an input cell, not an
 -- output cell or a sub-header domain member ('DMN.ParseTable.reviseInOut' has
@@ -349,11 +383,11 @@ mkFsAt st dmntype args = locateCell st (mkFsEither dmntype args)
 -- a declared String column should one day read an unquoted cell as a test is
 -- @symptom\/md-negation-in-string-column-silent@'s question, not this one's.
 --
--- 'mkFsAt' runs first, so a cell it refuses (@>= 1,000@) keeps that message.
+-- 'mkDataFsAt' runs first, so a cell it refuses (@>= 1,000@) keeps that message.
 -- Of several refusable fragments, the first is reported, as 'mkFsEither' does.
 mkInputFsAt :: CellSite -> Maybe DMNType -> String -> Either Diagnostic [FEELexp]
 mkInputFsAt st dmntype args = do
-  fs <- mkFsAt st dmntype args
+  fs <- mkDataFsAt st dmntype args
   case (dmntype, unreadableTests args) of
     (Nothing, (frag, shape) : _) -> locateCell st (Left (unreadableTestMsg (siteColumn st) frag shape))
     _                            -> Right fs
@@ -450,9 +484,9 @@ mkFsEitherWith unquote dmntype args
 -- reader's inference pre-pass is the caller, because it grades every cell of an
 -- untyped column before any type exists ('DMN.XML.XmlToDmnmd.resolveColumn').
 --
--- The markdown reader does not use this: its pass 1 builds the cells it infers
--- from with 'mkFsEither', so a quoted numeral in an undeclared markdown column is
--- still inferred Number (symptom\/md-quoted-literal-inferred-by-content).
+-- The markdown reader's pass 1 uses it for the data cells of an undeclared
+-- column too ('mkDataFsAt'), and strips the quotes again once the column has a
+-- type ('unquoteBuilt', called by 'reprocessRows').
 mkFsKeepingQuotes :: String -> Either String [FEELexp]
 mkFsKeepingQuotes = mkFsEitherWith id Nothing
 
@@ -665,6 +699,29 @@ unquoteCell frags
 isSFeelLiteral :: String -> Bool
 isSFeelLiteral s =
   length s >= 2 && head s == '"' && last s == '"' && '"' `notElem` drop 1 (init s)
+
+-- | 'unquoteCell' over a cell that has already been BUILT, which is what pass 2
+-- has: the fragments of one cell as 'mkDataFsAt' left them, quotes still on.
+--
+-- It asks 'unquoteCell' itself, so the all-or-nothing rule has one definition
+-- and the two passes cannot disagree about which cells are string literals. A
+-- cell with any fragment that is not a plain text fragment (a wildcard, a
+-- number) is left whole, which is what 'unquoteCell' does for a fragment that is
+-- not a literal. It is idempotent, because an unquoted fragment holds no quote
+-- character, so it is safe to run over a cell pass 1 has already unquoted (every
+-- cell of a declared column).
+--
+-- The unquoted fragments are not built again here: 'reprocessRows' hands each to
+-- 'mkFAt' at the column's type, as it does for every other text fragment, so a
+-- quoted @\"-\"@ or @\"\"@ becomes the wildcard it has always become
+-- (symptom\/md-quoted-wildcard-spellings-are-wildcards).
+unquoteBuilt :: [FEELexp] -> [FEELexp]
+unquoteBuilt cell = case traverse text cell of
+  Just frags -> FNullary . VS <$> unquoteCell frags
+  Nothing    -> cell
+  where
+    text (FNullary (VS x)) = Just x
+    text _                 = Nothing
 
 fromVN :: DMNVal -> Either String Scientific
 fromVN (VN n)     = Right n
@@ -1528,7 +1585,7 @@ reprocessRows_ tbl rn =
                       (map (\case c@(FNullary (VS x)) ->
                                     either (\d -> (Just d, c)) ((,) Nothing)
                                            (mkFAt (CellSite tbl (varname ch) rn) (vartype ch) x)
-                                  other -> (Nothing, other)) cells)
+                                  other -> (Nothing, other)) (unquoteBuilt cells))
                else ([], cells))
   where partitionCells cs = (catMaybes (fst <$> cs), snd <$> cs)
                          

@@ -300,3 +300,15 @@ Their stdout is still `### exit 1`, and the diff of each shows the message only:
 `policy/md-short-subheader-refused` did not change, because its message is the sub-header's.
 The 32 are four new fixtures, eight files each: `policy/md-short-row-annotation-only-accepted`, `policy/md-blank-annotation-cell-accepted`, `policy/md-short-row-annotation-and-output-refused` and `policy/md-short-subheader-annotation-only-accepted`.
 In the manifest, 12 entries changed and 32 arrived; none left.
+
+## Extension for audit 10 finding f4, markdown side (quotes reach inference), 2026-10-13
+
+**`mkDataFsAt`, `unquoteBuilt`, and output cells routed through them (`ParseTable.mkFEELCol`).**
+Before the four symptom cases were re-recorded, `--check` printed `checked 1412 run(s): 24 changed`, and the 24 were exactly the four cases that recorded the defect: `symptom/md-quoted-literal-inferred-by-content` (ts, js, py, l4), its `-l4` face (the same four formats), `symptom/md-quoted-and-bare-mix-read-as-one-type` (eight files, stdout and stderr) and `symptom/md-quoted-leading-zero-refused-as-ambiguous` (eight files).
+Each moves toward the documented rule that a double-quoted cell is a string literal: a column of `"2020"` and `"yes"` is String and its guards and results are strings; the quoted-plus-bare mix goes from a typed table at exit 0 to a D-2 refusal naming both cells; and a column of `"007"` goes from a refusal as an ambiguous number to a String column.
+`symptom/md-quoted-wildcard-spellings-are-wildcards` did not change, and stays a symptom.
+No other fixture in the set moved, so no existing fixture has an undeclared column of double-quoted cells whose type depended on what was inside the quotes.
+That includes `README.md`, which this script reads.
+In the manifest against trunk, nothing changed in place; the four cases arrived under new names (`policy/md-quoted-literals-are-strings`, `-l4`, `policy/md-quoted-and-bare-refused`, `policy/md-quoted-leading-zero-accepted`), the old `symptom/md-quoted-literal-inferred-by-content` entries left, and the unchanged wildcard symptom arrived.
+After recording, `--check` printed `checked 1412 run(s): 0 changed`.
+
