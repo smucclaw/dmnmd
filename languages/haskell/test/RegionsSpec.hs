@@ -849,7 +849,7 @@ force' r@(ds, ts) = length (show ts) `seq` length (concatMap diagMessage ds) `se
 readFixture :: FilePath -> IO ([Diagnostic], [DecisionTable])
 readFixture path = parseMarkdown ArgOptions
   { verbose = False, query = False, propstyle = False, informat = Md
-  , outformat = Unknown, out = "-", pick = "", input = [path] }
+  , outformat = Unknown, out = "-", pick = "", asserts = False, input = [path] }
 
 -- | The fixtures the reader refuses for a conflict region (D-22 rule 2).
 --
