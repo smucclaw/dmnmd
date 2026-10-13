@@ -16,6 +16,9 @@
 > got its shape, not a to-do list.
 >
 > Known drift, not worth rewriting the body for:
+> - **`emitAsserts` is described three ways below (§4.1, §7.1, §7.4) and none is what shipped.**
+>   §4.1 says sampled `#EVAL` lines, §7.1's sketch says it carries the golden's hand-written `#ASSERT` block, and §7.4 says it appends `#ASSERT` lines computed from `evalTable`.
+>   Only the last is close. What `DECISIONS.md` D-21 step 2 landed is one `#ASSERT` per region of `DMN.Regions` (not a sample), written by `--asserts`, with the golden's block still checked by `TranslateL4Spec` on its own.
 > - §4.4 says to modify `dmnmd.cabal` directly. That is now **correct advice**: the cabal-only
 >   move has landed, `package.yaml` is gone, and `dmnmd.cabal` is hand-maintained. This bullet
 >   previously said the opposite, and did so accurately at the time.

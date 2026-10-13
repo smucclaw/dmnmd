@@ -300,3 +300,35 @@ Their stdout is still `### exit 1`, and the diff of each shows the message only:
 `policy/md-short-subheader-refused` did not change, because its message is the sub-header's.
 The 32 are four new fixtures, eight files each: `policy/md-short-row-annotation-only-accepted`, `policy/md-blank-annotation-cell-accepted`, `policy/md-short-row-annotation-and-output-refused` and `policy/md-short-subheader-annotation-only-accepted`.
 In the manifest, 12 entries changed and 32 arrived; none left.
+
+## Extension for #70 (a wildcard among the values of a multi-value cell, `--to=l4`), 2026-10-13
+
+**`isWildCell` in `DMN.Translate.L4`.**
+Before recording, `--check` printed `checked 1400 run(s): 9 changed`: one `CHANGED (sha)` and eight `MISSING FROM MANIFEST`.
+The `CHANGED` is `policy/md-multivalue-dash-reprocessed --to=l4`.
+Its input is the table `4, -` and `8`; row 1 used to read `Guest Count EQUALS 4 AND Season EQUALS "Fall"` and now has no `Guest Count` conjunct, which is what its `--to=ts` recording already said.
+The `--to=ts`, `--to=js` and `--to=py` outputs of that fixture did not move.
+The eight are the new policy case `policy/l4-multivalue-dash-matches-every-value`, which is the symptom `l4-multivalue-dash-dropped` after `git mv`.
+No other fixture in the set has a wildcard among the values of a multi-value cell in an input column.
+In the manifest, 1 entry changed and 8 arrived; none left.
+After recording, `--check` printed `checked 1400 run(s): 0 changed`.
+
+
+## Extension for D-21 step 2 (`--asserts`, `emitAsserts`), 2026-10-13
+
+**No emitter output changed; five fixtures arrived.**
+Before recording, `--check` printed `checked 1420 run(s): 40 changed`, and all 40 were `MISSING FROM MANIFEST`: no `CHANGED` line, so no run of a fixture already in the manifest moved.
+The 40 are five new corpus cases, eight entries each (four formats, stdout and stderr): `policy/l4-asserts-flag-emits-per-region`, `policy/l4-asserts-flag-needs-l4`, `policy/l4-asserts-unanalysable-says-why`, `symptom/l4-asserts-quotient-rounded-vs-exact` and `symptom/l4-exponent-caret-parse-error`.
+The baseline runs `--to=ts`, `--to=js`, `--to=py` and `--to=l4` without `--asserts`, so it records none of the assertion text; the corpus cases do.
+A fresh `--record` into a scratch directory differed from the committed manifest by those 40 lines and no others, and that file is the manifest now.
+In the manifest, 40 entries arrived; none changed and none left.
+After recording, `--check` printed `checked 1420 run(s): 0 changed`.
+
+## Extension for the second input of an `--asserts` region, 2026-10-13
+
+**No emitter output changed; one fixture arrived.**
+Before recording, `--check` printed `checked 1424 run(s): 8 changed`, and all 8 were `MISSING FROM MANIFEST`: no `CHANGED` line, so no run of a fixture already in the manifest moved.
+The 8 are the new corpus case `policy/l4-asserts-block-top-asserted`, four formats, stdout and stderr, without `--asserts`, so the baseline records none of the assertion text.
+A fresh `--record` into a scratch directory differed from the committed manifest by those 8 lines and no others, and that file is the manifest now.
+In the manifest, 8 entries arrived; none changed and none left.
+After recording, `--check` printed `checked 1424 run(s): 0 changed`.

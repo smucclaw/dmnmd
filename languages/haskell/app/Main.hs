@@ -42,7 +42,7 @@ import DMN.XML.ParseDMN (parseDMNEither)
 import DMN.XML.XmlToDmnmd (convertAll, renderDiagnostic, isError, anyErrors, Diagnostic)
 
 import Options
-    ( ArgOptions(propstyle, verbose, out, pick, query, informat, input,
+    ( ArgOptions(propstyle, verbose, out, pick, asserts, query, informat, input,
                  outformat),
       parseOptions,
       FileFormat(Py, Md, Xml, Js, Ts, L4) )
@@ -62,6 +62,11 @@ main = do
   -- unimplemented branch, not a decision), and it fired after the -o file had
   -- already been destroyed.
   unless (query opts) $ checkOutFormat (outformat opts)
+  -- Likewise --asserts, which is a statement about L4 output and about nothing
+  -- else. It is refused rather than ignored: a flag that quietly does nothing
+  -- reads as a check that ran. (ASSUMED, NOT RULED, D-21 step 2.)
+  when (asserts opts && outformat opts /= L4) $ crash $
+    "--asserts writes #ASSERT lines into L4 output, so it needs --to=l4"
 
   -- a markdown file could contain multiple tables, so give the user the option of choosing one.
   mydtables <- parseTables opts -- TODO: Don't hardcode markdown here
@@ -257,7 +262,7 @@ checkOutFormat fmt
 -- existed before: @hPutStrLn@ per table is @concatMap (++ "\\n")@, and L4's
 -- @hPutStr src@ is @src@.
 renderAll :: FileFormat -> ArgOptions -> [DecisionTable] -> IO String
-renderAll L4 _opts dtables = fileLevel "L4 file" (toL4File defaultL4Opts dtables)
+renderAll L4 opts dtables = fileLevel "L4 file" (toL4File defaultL4Opts { emitAsserts = asserts opts } dtables)
 renderAll Xml _opts dtables = fileLevel "DMN document" (toXMLFile defaultXMLOpts dtables)
 renderAll fmt opts dtables = pure $ concatMap ((++ "\n") . renderOne fmt opts) dtables
 

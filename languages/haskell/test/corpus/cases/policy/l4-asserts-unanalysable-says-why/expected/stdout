@@ -1,0 +1,30 @@
+GIVEN a IS A TYPE
+      xs IS A LIST OF a
+      x IS AN a
+GIVETH A BOOLEAN
+`dmnmd list contains` xs x MEANS
+  CONSIDER xs
+  WHEN EMPTY THEN FALSE
+  WHEN y FOLLOWED BY ys THEN x EQUALS y OR `dmnmd list contains` ys x
+
+GIVEN roles IS A LIST OF STRING
+GIVETH A STRING
+Access roles MEANS
+  BRANCH
+    IF `dmnmd list contains` roles "admin"   THEN "full"
+    OTHERWISE "none"
+
+GIVEN open IS A BOOLEAN
+GIVETH A STRING
+Gate open MEANS
+  BRANCH
+    IF open EQUALS TRUE  THEN "open"
+    IF ^    ^      FALSE THEN "shut"
+    OTHERWISE ""
+
+-- emitAsserts: no asserts for table "Access": column "roles": the column is a collection ([String]), so its cells test membership, and a region would have to describe which values a collection holds. D-22 keeps dmnmd's overlap warning for collection columns until regions model membership.
+
+-- emitAsserts: table "Gate": 2 regions, 2 asserted.
+#ASSERT Gate TRUE EQUALS "open"
+#ASSERT Gate FALSE EQUALS "shut"
+
