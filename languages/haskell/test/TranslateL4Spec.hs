@@ -872,8 +872,9 @@ l4Spec = do
       let checkLog = cOut ++ cErr
       checkLog `shouldSatisfy` ("Check succeeded" `isInfixOf`)
 
-      -- behavioural gate: l4 run exits 0 even on a failed assertion, so inspect
-      -- stdout for the satisfied/failed markers rather than the exit code.
+      -- behavioural gate: inspect stdout for the satisfied/failed markers
+      -- rather than the exit code (l4 run exits 1 on a failed assertion, measured
+      -- 2026-10-13, but this gate has never depended on that).
       (_rc, rOut, rErr) <- readProcessWithExitCode l4bin ["run", outFile] ""
       let runLog = rOut ++ rErr
       runLog `shouldSatisfy` (not . ("assertion failed" `isInfixOf`))
