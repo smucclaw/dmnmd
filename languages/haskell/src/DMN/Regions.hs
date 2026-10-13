@@ -64,6 +64,7 @@ module DMN.Regions
   , regionBlocks
   , liveRules
   , regionInput
+  , regionTopInput
   , regions
   , regionAt
   , firstRegionOf
@@ -311,6 +312,19 @@ data Block = Block
     -- it, if there is one; else its midpoint, computed exactly. For a String
     -- block of every other value, a string no cell or domain member names
     -- (@other@, or @other 2@, …).
+  , blockTop     :: DMNVal
+    -- ^ one value in the block, chosen to be the other end from 'blockRep': for
+    -- a Number block, the HIGHEST value in it that some cell or domain member
+    -- names; if it names none, 'blockRep'. For a String or Boolean block, which
+    -- has no order, always 'blockRep'.
+    --
+    -- A block is every adjacent piece with the same live rules, so it can hold
+    -- several named points: @< 18@, @>= 18@, @<= 21@ and @> 21@ make [18..21] one
+    -- block, because 18, (18, 21) and 21 are live for the same rules. 'blockRep'
+    -- is 18, so a closed upper bound, 21, is a value of the block that the
+    -- representative never visits. A caller that checks the rules at the
+    -- representative checks them at 'blockTop' too, and sees a bound that is
+    -- closed at one end and open at the other.
   }
   deriving (Eq, Show)
 
@@ -529,10 +543,13 @@ mergeOrdered :: [(Piece, IntSet)] -> [Block]
 mergeOrdered scored =
   [ Block { blockValues  = Numbers (coalesce [ (k, iv) | NumPiece k iv _ <- ps ])
           , blockMembers = snd (NE.head grp)
-          , blockRep     = maybe (pieceRep (NE.head (fst <$> grp))) pieceRep (find isPoint ps) }
+          , blockRep     = repOf grp ps
+          , blockTop     = maybe (repOf grp ps) pieceRep (lastOf (filter isPoint ps)) }
   | grp <- NE.groupBy ((==) `on` snd) scored
   , let ps = fst <$> NE.toList grp ]
   where
+    repOf grp ps = maybe (pieceRep (NE.head (fst <$> grp))) pieceRep (find isPoint ps)
+    lastOf = \case [] -> Nothing; xs -> Just (last xs)
     isPoint = \case
       NumPiece _ (Interval (Just (BClosed, a)) (Just (BClosed, z))) _ -> a == z
       _                                                            -> False
@@ -550,10 +567,12 @@ mergeUnordered :: [(Piece, IntSet)] -> [Block]
 mergeUnordered scored =
   [ Block { blockValues  = if any isOther ps then AllExcept (filter (`notElem` vals) allVals) else Values vals
           , blockMembers = key
-          , blockRep     = maybe (VS "") pieceRep (find isOther ps <|> listToMaybe ps) }
+          , blockRep     = rep
+          , blockTop     = rep }
   | key <- nub (snd <$> scored)
   , let ps   = [ p | (p, m) <- scored, m == key ]
-        vals = [ v | ValPiece v <- ps ] ]
+        vals = [ v | ValPiece v <- ps ]
+        rep  = maybe (VS "") pieceRep (find isOther ps <|> listToMaybe ps) ]
   where
     allVals = [ v | (ValPiece v, _) <- scored ]
     isOther = \case OtherPiece _ -> True; _ -> False
@@ -577,6 +596,16 @@ liveRules = IS.toAscList . regionLive
 -- 'DMN.DecisionTable.evalTable' takes.
 regionInput :: Region -> [FEELexp]
 regionInput = fmap (FNullary . blockRep) . regionBlocks
+
+-- | Another input in the same region, with every column at its block's
+-- 'blockTop'. It is 'regionInput' itself, and nothing new to check, unless some
+-- Number block names a point above its representative.
+--
+-- All the columns move together, so a region has at most two inputs to check
+-- and not a product of them. That is enough to reach any one column's upper
+-- bound: the region's live rules are the same at every input in it.
+regionTopInput :: Region -> [FEELexp]
+regionTopInput = fmap (FNullary . blockTop) . regionBlocks
 
 -- | Every region, in lexicographic order of blocks, first column outermost.
 -- Lazy, and 'regionCount' long; a table with no input column has one region.
