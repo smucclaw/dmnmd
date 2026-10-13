@@ -838,6 +838,14 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-dots-is-str
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-dots-is-string.py.err
 eb80b54a89a2a4843ea8116ac0e9463cdbecaecd  ./policy__infer-prose-with-dots-is-string.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__infer-prose-with-dots-is-string.ts.err
+e33842707764af40938b8fb374d4e3bfdea0f22c  ./policy__l4-asserts-block-top-asserted.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-asserts-block-top-asserted.js.err
+f83e7838a9593b87e88be40ecb9767714cc140dd  ./policy__l4-asserts-block-top-asserted.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-asserts-block-top-asserted.l4.err
+a20cfd3500856f2353e3720982be29b4dabc988c  ./policy__l4-asserts-block-top-asserted.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-asserts-block-top-asserted.py.err
+ea8bd3a9a0550fb73ae967b96cf1d6fc4e6a2507  ./policy__l4-asserts-block-top-asserted.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-asserts-block-top-asserted.ts.err
 538e6087d2313b53d12a6664c99f920d0c22d4fc  ./policy__l4-asserts-flag-emits-per-region.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-asserts-flag-emits-per-region.js.err
 6f640de46c100707f9d3988a3b2c3aa6946875d5  ./policy__l4-asserts-flag-emits-per-region.l4

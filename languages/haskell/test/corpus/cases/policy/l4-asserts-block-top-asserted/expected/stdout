@@ -1,0 +1,25 @@
+GIVEN Age    IS A NUMBER
+      Scheme IS A STRING
+GIVETH A MAYBE STRING
+PrefixComparisons Age Scheme MEANS
+  BRANCH
+    IF Age <  18 AND Scheme EQUALS "child" THEN JUST "minor"
+    IF ^   >= ^  ^   ^      ^      ^       THEN JUST "adult"
+    IF ^   <= 21 ^   ^      ^      "youth" THEN JUST "young"
+    IF ^   >  ^  ^   ^      ^      ^       THEN JUST "adult"
+    OTHERWISE NOTHING
+
+-- emitAsserts: table "PrefixComparisons": 9 regions, 12 asserted (3 at the highest value that a cell names in a block, each marked).
+#ASSERT PrefixComparisons 17 "child" EQUALS JUST "minor"
+#ASSERT PrefixComparisons 17 "youth" EQUALS JUST "young"
+#ASSERT PrefixComparisons 17 "other" EQUALS NOTHING
+#ASSERT PrefixComparisons 18 "child" EQUALS JUST "adult"
+#ASSERT PrefixComparisons 21 "child" EQUALS JUST "adult"  -- region 3, highest named value
+#ASSERT PrefixComparisons 18 "youth" EQUALS JUST "young"
+#ASSERT PrefixComparisons 21 "youth" EQUALS JUST "young"  -- region 4, highest named value
+#ASSERT PrefixComparisons 18 "other" EQUALS NOTHING
+#ASSERT PrefixComparisons 21 "other" EQUALS NOTHING  -- region 5, highest named value
+#ASSERT PrefixComparisons 22 "child" EQUALS JUST "adult"
+#ASSERT PrefixComparisons 22 "youth" EQUALS JUST "adult"
+#ASSERT PrefixComparisons 22 "other" EQUALS NOTHING
+

@@ -323,3 +323,12 @@ The baseline runs `--to=ts`, `--to=js`, `--to=py` and `--to=l4` without `--asser
 A fresh `--record` into a scratch directory differed from the committed manifest by those 40 lines and no others, and that file is the manifest now.
 In the manifest, 40 entries arrived; none changed and none left.
 After recording, `--check` printed `checked 1420 run(s): 0 changed`.
+
+## Extension for the second input of an `--asserts` region, 2026-10-13
+
+**No emitter output changed; one fixture arrived.**
+Before recording, `--check` printed `checked 1424 run(s): 8 changed`, and all 8 were `MISSING FROM MANIFEST`: no `CHANGED` line, so no run of a fixture already in the manifest moved.
+The 8 are the new corpus case `policy/l4-asserts-block-top-asserted`, four formats, stdout and stderr, without `--asserts`, so the baseline records none of the assertion text.
+A fresh `--record` into a scratch directory differed from the committed manifest by those 8 lines and no others, and that file is the manifest now.
+In the manifest, 8 entries arrived; none changed and none left.
+After recording, `--check` printed `checked 1424 run(s): 0 changed`.
