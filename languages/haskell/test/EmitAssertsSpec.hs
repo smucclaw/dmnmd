@@ -114,6 +114,19 @@ prefixTable = T.pack $ dropWhile (== '\n') [r|
 | 4 | > 21  | youth  | adult      |
 |]
 
+-- | Three columns cut like 'prefixTable''s Age: three blocks each, the middle one
+-- [18..21]. 27 regions, and the 19 that are not all in an outer block have a
+-- second input at 21.
+bandsTable :: Text
+bandsTable = T.pack $ dropWhile (== '\n') [r|
+| F | a     | b     | c     | out (out) |
+|---+-------+-------+-------+-----------|
+| 1 | < 18  | < 18  | < 18  | r1        |
+| 2 | >= 18 | >= 18 | >= 18 | r2        |
+| 3 | <= 21 | <= 21 | <= 21 | r3        |
+| 4 | > 21  | > 21  | > 21  | r4        |
+|]
+
 -- | No input column: one region, a function of no arguments.
 noInputTable :: Text
 noInputTable = T.pack $ dropWhile (== '\n') [r|
@@ -162,6 +175,7 @@ emitAssertsSpec = describe "DMN.Translate.L4 emitAsserts (D-21 step 2)" $ do
   text
   unanalysed
   capping
+  secondInputs
   crossCheck
 
 positions :: Spec
@@ -210,10 +224,13 @@ text = describe "the assertions for each kind of result" $ do
     plain `shouldNotContain` "#ASSERT"
     emit "FirstGap" gapTable `shouldSatisfy` (plain `isPrefixOf`)
   it "asserts a MAYBE result with JUST and NOTHING, and parenthesises a negative input" $
+    -- 0 and 10 are named by the cells and live for no rule, so [0..10] is one block:
+    -- 0 is its representative and 10, where > 10 must not match, its highest named value
     notesAndAsserts (emit "FirstGap" gapTable) `shouldBe`
-      [ "-- emitAsserts: table \"FirstGap\": 3 regions, 3 asserted."
+      [ "-- emitAsserts: table \"FirstGap\": 3 regions, 4 asserted (1 at the highest value that a cell names in a block, each marked)."
       , "#ASSERT FirstGap (-1) EQUALS JUST \"negative\""
       , "#ASSERT FirstGap 0 EQUALS NOTHING"
+      , "#ASSERT FirstGap 10 EQUALS NOTHING  -- region 1, highest named value"
       , "#ASSERT FirstGap 11 EQUALS JUST \"big\"" ]
   it "asserts a bare result with the value alone, a boolean input as TRUE and FALSE" $
     notesAndAsserts (emit "Totals" totalTable) `shouldBe`
@@ -240,16 +257,26 @@ text = describe "the assertions for each kind of result" $ do
     let out = assertsOf (emit "PrefixComparisons" prefixTable)
     -- the block [18..21]: 18 is its representative (the lowest value a cell names), 21 the highest
     out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 18 \"youth\" EQUALS JUST \"young\"")
-    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"child\" EQUALS JUST \"adult\"")
-    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"youth\" EQUALS JUST \"young\"")
-    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"other\" EQUALS NOTHING")
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"child\" EQUALS JUST \"adult\"  -- region 3, highest named value")
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"youth\" EQUALS JUST \"young\"  -- region 4, highest named value")
+    out `shouldSatisfy` (elem "#ASSERT PrefixComparisons 21 \"other\" EQUALS NOTHING  -- region 5, highest named value")
+    -- the second inputs are marked, and without them the assertions are the nine
+    -- there were, one per region and in region order
+    length [ l | l <- out, "-- region " `isInfixOf` l ] `shouldBe` 3
+    [ l | l <- out, not ("-- region " `isInfixOf` l) ] `shouldBe`
+      [ "#ASSERT PrefixComparisons " ++ age ++ " \"" ++ scheme ++ "\" EQUALS " ++ ans
+      | (age, scheme, ans) <- [ ("17", "child", "JUST \"minor\""), ("17", "youth", "JUST \"young\""), ("17", "other", "NOTHING")
+                              , ("18", "child", "JUST \"adult\""), ("18", "youth", "JUST \"young\""), ("18", "other", "NOTHING")
+                              , ("22", "child", "JUST \"adult\""), ("22", "youth", "JUST \"adult\""), ("22", "other", "NOTHING") ] ]
+    notesOf (emit "PrefixComparisons" prefixTable) `shouldBe`
+      [ "-- emitAsserts: table \"PrefixComparisons\": 9 regions, 12 asserted (3 at the highest value that a cell names in a block, each marked)." ]
   it "puts every table's assertions after every table in a file" $ do
     let (_, file) = toL4File withAsserts [parse "FirstGap" gapTable, parse "Hi" noInputTable]
         ls        = lines file
         lastDecl  = last [ i | (i, l) <- zip [0 :: Int ..] ls, "OTHERWISE" `isInfixOf` l ]
         firstNote = head [ i | (i, l) <- zip [0 :: Int ..] ls, "-- emitAsserts:" `isPrefixOf` l ]
     firstNote `shouldSatisfy` (> lastDecl)
-    length (assertsOf file) `shouldBe` 4
+    length (assertsOf file) `shouldBe` 5
   where
     notesAndAsserts s = [ l | l <- lines s, "-- emitAsserts:" `isPrefixOf` l || "#ASSERT" `isPrefixOf` l ]
 
@@ -301,9 +328,9 @@ capping = describe "assertCap" $ do
   it "asserts a cap's worth when they do not, and says how many exist and how many were skipped" $ do
     length sample `shouldBe` 5
     notesOf (emitAt 5) `shouldBe`
-      [ "-- emitAsserts: table \"Big\": 3375 regions, 5 asserted (assertCap is 5; they are the first region"
+      [ "-- emitAsserts: table \"Big\": 3375 regions, 5 asserted (assertCap is 5; the regions asserted are the first region"
         ++ " in which each of the first rules is live, and the rest evenly spaced through positions"
-        ++ " 0 .. 3374 of the sequence of regions, first and last included, so the other 3370 are not asserted)." ]
+        ++ " 0 .. 3374 of the sequence of regions, first and last included, so the other 3370 regions are not asserted)." ]
   it "chooses from the whole sequence: the first region, the last, and others between" $ do
     take 1 sample `shouldBe` take 1 all'
     drop 4 sample `shouldBe` drop 3374 all'
@@ -318,6 +345,47 @@ capping = describe "assertCap" $ do
     [ all' !! fromInteger k | k <- witnesses ] `shouldSatisfy` all (`elem` big)
     -- and they are the lines where a rule fires: the other regions are no-match
     length [ () | l <- big, not ("EQUALS NOTHING" `isSuffixOf` l) ] `shouldBe` 7
+
+-- | The second inputs of 'bandsTable' under different caps.
+secondInputs :: Spec
+secondInputs = describe "the second input of a region (assertCap)" $ do
+  let dt         = parse "Bands" bandsTable
+      emitAt cap = toL4 withAsserts { assertCap = cap } dt
+      marked ls  = [ l | l <- ls, "-- region " `isInfixOf` l ]
+  it "asserts all 27 regions and all 19 second inputs when the cap leaves room" $ do
+    let out = assertsOf (emitAt 100)
+    length out `shouldBe` 46
+    length (marked out) `shouldBe` 19
+    notesOf (emitAt 100) `shouldBe`
+      [ "-- emitAsserts: table \"Bands\": 27 regions, 46 asserted (19 at the highest value that a cell names in a block, each marked)." ]
+  it "puts a second input right after its region's first, with every column at the top of its block" $ do
+    -- region 13 is the middle block of all three columns: (18, 18, 18), then (21, 21, 21)
+    let out = assertsOf (emitAt 100)
+        ix  = length (takeWhile (not . ("Bands 21 21 21" `isInfixOf`)) out)
+    take 2 (drop (ix - 1) out) `shouldBe`
+      [ "#ASSERT Bands 18 18 18 EQUALS JUST \"r2\""
+      , "#ASSERT Bands 21 21 21 EQUALS JUST \"r2\"  -- region 13, highest named value" ]
+  it "never makes more assertions than the cap, left-out second inputs counted and said" $ do
+    sequence_
+      [ length (assertsOf (emitAt cap)) `shouldSatisfy` (<= cap)
+      | cap <- [1, 2, 5, 20, 26, 27, 28, 30, 45, 46, 47, 100] ]
+    let out30 = emitAt 30
+    length (assertsOf out30) `shouldBe` 30
+    length (marked (assertsOf out30)) `shouldBe` 3
+    notesOf out30 `shouldBe`
+      [ "-- emitAsserts: table \"Bands\": 27 regions, 30 asserted (3 at the highest value that a cell names in a block, each marked)."
+      , "-- emitAsserts: table \"Bands\": 16 inputs at the highest value that a cell names could not be asserted for want of room under assertCap 30." ]
+  it "keeps a quarter of the cap for them when the regions do not fit, and counts everything under the cap" $ do
+    let out = emitAt 20
+    length (assertsOf out) `shouldSatisfy` (<= 20)
+    length (marked (assertsOf out)) `shouldSatisfy` (> 0)
+    head (notesOf out) `shouldSatisfy` ("27 regions, " `isInfixOf`)
+    -- 15 of the 20 for first inputs, of which 13 distinct positions, and 7 second inputs fill the rest
+    head (notesOf out) `shouldSatisfy` ("so the other 14 regions are not asserted" `isInfixOf`)
+    head (notesOf out) `shouldSatisfy` ("20 asserted (7 at the highest value" `isInfixOf`)
+  it "leaves a table without a higher named point exactly as it was" $
+    notesOf (toL4 withAsserts (parse "Rec" recordTable)) `shouldBe`
+      [ "-- emitAsserts: table \"Rec\": 4 regions, 4 asserted." ]
 
 -- * The cross-check against the real l4
 
