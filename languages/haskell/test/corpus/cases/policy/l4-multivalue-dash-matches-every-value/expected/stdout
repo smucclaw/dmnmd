@@ -3,7 +3,7 @@ GIVEN `Guest Count` IS A NUMBER
 GIVETH A MAYBE STRING
 MultiDash `Guest Count` Season MEANS
   BRANCH
-    IF `Guest Count` EQUALS 4 AND Season EQUALS "Fall"   THEN JUST "Spareribs"
-    IF `Guest Count` ^      8 ^   ^      ^      "Winter" THEN JUST "Stew"
+    IF                            Season EQUALS "Fall"   THEN JUST "Spareribs"
+    IF `Guest Count` EQUALS 8 AND ^      ^      "Winter" THEN JUST "Stew"
     OTHERWISE NOTHING
 
