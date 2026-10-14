@@ -1905,7 +1905,7 @@ It is a small change to `toL4` if a visible guard is preferred to a shorter tabl
 
 Refuse with an error located at the table and the row number the author wrote, exit 1, nothing emitted; a surplus of blank cells stays accepted, and declining would have meant keeping the silent drop that GFM renders (smucclaw/dmnmd#71 section 2, #74).
 
-### D-24 — where L4 and DMN can disagree about a number. **RULED: warn, and say so in the emitted L4 (Meng, 2026-10-15, word FOGHORN, option B; option A, word POKERFACE, was not fired).**
+### D-24 — where L4 and DMN can disagree about a number. **RULED: warn, and say so in the emitted L4 (Meng, 2026-10-15, word FOGHORN, GM's word and card, option B, typed in the dmnmd session after GM relayed it on 2026-10-14 19:49Z; option A, word POKERFACE, was not fired).**
 
 DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant digits.
 L4 divides exactly, so `--to=l4 --asserts` reported an honest table false (`symptom/l4-asserts-quotient-rounded-vs-exact`, D-21 step 2).

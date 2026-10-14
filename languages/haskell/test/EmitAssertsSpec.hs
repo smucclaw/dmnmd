@@ -571,6 +571,16 @@ mixedTable = T.pack $ dropWhile (== '\n') [r|
 | 3 | -            | -              | amt ** (0 - 1)     | c                   |
 |]
 
+-- | A U table whose trailing catch-all is the quotient: the catch-all is the table's default, and it
+-- answers every input the first rule does not.
+catchAllTable :: Text
+catchAllTable = T.pack $ dropWhile (== '\n') [r|
+| U | d : Number | q : Number (out) |
+|---+------------+------------------|
+| 1 | > 10       | 1                |
+| 2 | -          | d / 3            |
+|]
+
 exactness :: Spec
 exactness = describe "where L4 and DMN can disagree about a number (FOGHORN, D-24)" $ do
   let x       = FNF1 "x"
@@ -651,6 +661,10 @@ exactness = describe "where L4 and DMN can disagree about a number (FOGHORN, D-2
       notesOf quot' `shouldSatisfy` any (\l -> "region 1 not asserted: the answer comes from (10 / d). L4 divides exactly" `isInfixOf` l)
     it "still asserts the regions whose answer is exact, under a first-match policy that masks the inexact rules" $
       assertsOf (withA mixedTable "Mixed") `shouldSatisfy` any ("mkMixed (-0.25) \"a\"" `isInfixOf`)
+    it "abstains where the answer is an inexact trailing catch-all under U, and asserts the exact rule above it" $ do
+      let u = withA catchAllTable "Q"
+      assertsOf u `shouldBe` ["#ASSERT Q 11 EQUALS 1"]
+      notesOf u `shouldSatisfy` any ("region 0 not asserted: the answer comes from (d / 3)." `isInfixOf`)
     it "asserts everything in a table with nothing inexact in it, and says nothing about abstaining" $ do
       let ex = withA exactTable "Exact"
       length (assertsOf ex) `shouldSatisfy` (>= 3)

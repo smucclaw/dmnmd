@@ -610,6 +610,7 @@ status header saying so.
   `EmitAssertsSpec` keeps the cross-check: the 220 markdown fixtures `RegionsSpec` walks, 130 cross-checked with 862 assertions, in 7 to 13 seconds depending on load, pending when no `l4` is on `PATH` (`withL4`).
   It does not read the 136 `.dmn` fixtures that the gate above does.
   Its two named exceptions, `knownCheckFailures` and `knownDivergences`, each carry a reason and fail the test when they stop being true; `knownDivergences` has been empty since D-24.
+  Re-run on 2026-10-15 with D-24 in place, over the same kind of set (357 files): 148 are refused, 9 emit nothing, 192 emit a file that checks, and `l4 run --json` reports 1078 assertions, all true, none false and none unevaluable; 8 fail `l4 check` where 11 did, the three exponent fixtures having moved.
 
 - **Where L4 and DMN can disagree about a number, `--to=l4` says so and does not round (D-24, FOGHORN; Meng 2026-10-15, option B).**
   DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant digits.
