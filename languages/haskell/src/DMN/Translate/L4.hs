@@ -542,6 +542,16 @@ ctorL4 s = "`" ++ s ++ "`"
 isCatchAll :: DTrow -> Bool
 isCatchAll row = all (all (== FAnything)) (row_inputs row)
 
+-- | A cell that matches every value: the wildcard @-@, alone or among other
+-- tests. The interpreter's 'DMN.DecisionTable.fEvals' is @or . map fEval@ and
+-- 'DMN.DecisionTable.fEval' answers 'True' to the wildcard, so @4, -@ matches
+-- every value, and @--to=ts@ renders it @(x === 4.0 || (true||x))@. This
+-- backend used to filter the dash out and keep the 4, which narrowed the rule
+-- to one value (@symptom\/l4-multivalue-dash-dropped@). An empty cell is the
+-- same: nothing is left to test.
+isWildCell :: [FEELexp] -> Bool
+isWildCell cell = null cell || FAnything `elem` cell
+
 -- * The GIVEN/GIVETH block (BUILD-SPEC §1.1, §1.4)
 
 -- | Emit the @GIVEN … IS A <type>@ lines plus the @GIVETH@ line. The GIVETH
@@ -627,7 +637,7 @@ renderGuard opts ins row =
 feel2l4In :: L4Opts -> ColHeader -> [FEELexp] -> Maybe String
 feel2l4In opts ch cell =
   case filter (/= FAnything) cell of
-    []   -> Nothing
+    _ | isWildCell cell -> Nothing
     -- A collection column's cell is MEMBERSHIP, whatever the arity. The comma
     -- still means OR, so `clerk, teller` is "contains either".
     fxs | isListCol ch ->
@@ -790,7 +800,7 @@ armCells :: L4Opts -> [ColHeader] -> DTrow -> [Maybe Cell]
 armCells opts ins row =
   concat [ colCells j ch cell | (j, ch, cell) <- zip3 [0 :: Int ..] ins (row_inputs row) ]
   where
-    present = map (any (/= FAnything)) (row_inputs row)
+    present = map (not . isWildCell) (row_inputs row)
     colCells j ch cell
       | j == 0    = conjSubCells opts ch cell
       | otherwise = connector j : conjSubCells opts ch cell
@@ -805,7 +815,7 @@ armCells opts ins row =
 conjSubCells :: L4Opts -> ColHeader -> [FEELexp] -> [Maybe Cell]
 conjSubCells opts ch cell =
   case filter (/= FAnything) cell of
-    []                                            -> [Nothing, Nothing, Nothing]
+    _ | isWildCell cell                           -> [Nothing, Nothing, Nothing]
     -- A collection column never takes the three-token split. Its guard is a
     -- CALL, `\`dmnmd list contains\` roles "admin"`, whose pieces are not a
     -- (field, operator, value) triple — splitting it would put the helper name
