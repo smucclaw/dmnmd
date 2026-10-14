@@ -588,10 +588,10 @@ status header saying so.
   **What it found, 2026-10-13, over the 354 markdown and DMN fixtures** (a script, not part of the tree: each through `dmnmd --to=l4 [--asserts]`, `l4 check`, `l4 run --json`):
   148 are refused by dmnmd, 9 emit nothing, and 197 emit a file.
   186 of the 197 pass `l4 check` with assertions, and hold 1058 `#ASSERT` lines for 193 tables, 42 of them second inputs in 38 files: `l4 run --json` reports 1058 results, 1057 true, 1 false and none unevaluable.
-  The false one is `symptom/l4-asserts-quotient-rounded-vs-exact`: dmnmd rounds a quotient that does not terminate to 34 digits and l4 divides exactly (`1 / 3 EQUALS 0.3333333333333333` is false, `0.1 + 0.2 EQUALS 0.3` is true), so neither side is wrong about the table and they disagree about what a number is.
+  The false one is `symptom/l4-asserts-quotient-rounded-vs-exact` (since D-24 it is `policy/l4-asserts-quotient-abstains`, which skips the region): dmnmd rounds a quotient that does not terminate to 34 digits and l4 divides exactly (`1 / 3 EQUALS 0.3333333333333333` is false, `0.1 + 0.2 EQUALS 0.3` is true), so neither side is wrong about the table and they disagree about what a number is.
   Eleven fail `l4 check` with assertions, and ten of them fail without `--asserts` as well.
-  Three of the ten are the exponent: `policy/num-integral-exponent-exact`, `policy/num-fractional-exponent-refused`, and the new `symptom/l4-exponent-caret-parse-error`.
-  `fnOp2l4` writes `**` as `^`, which is the ditto marker in L4, so `(x ^ 2)` does not parse (`unexpected ^`).
+  Three of the ten are the exponent: `policy/num-integral-exponent-exact`, `policy/num-fractional-exponent-refused`, and the new `symptom/l4-exponent-caret-parse-error` (since D-24 `policy/l4-exponent-prefix-call`).
+  `fnOp2l4` wrote `**` as `^`, which is the ditto marker in L4, so `(x ^ 2)` did not parse (`unexpected ^`); D-24 writes `(EXPONENT x 2)`.
   Six are recorded symptoms: `l4-record-name-keyword-unquoted`, `l4-zero-output-dangling-giveth`, `md-arith-bare-identifiers-referenceerror`, `struct-dup-rightmost-name-two-outputs`, `struct-hitpolicy-only-table-accepted` and `struct-onecol-no-output`.
   One is `policy/xml-no-output-column-refused`, a table with no output column, which `--to=l4` writes as a dangling `GIVETH` like the symptoms of that shape.
   The eleventh, `symptom/struct-tablename-collision`, checks without `--asserts` and fails with it: two tables named `Rates` are two functions, l4 accepts the definitions, and every call is ambiguous.
@@ -602,7 +602,23 @@ status header saying so.
   The pre-#70 `isWildCell` fails 4 assertions in the 2 multi-value-dash fixtures.
   `EmitAssertsSpec` keeps the cross-check: the 220 markdown fixtures `RegionsSpec` walks, 130 cross-checked with 862 assertions, in 7 to 13 seconds depending on load, pending when no `l4` is on `PATH` (`withL4`).
   It does not read the 136 `.dmn` fixtures that the gate above does.
-  Its two named exceptions, `knownCheckFailures` and `knownDivergences`, each carry a reason and fail the test when they stop being true.
+  Its two named exceptions, `knownCheckFailures` and `knownDivergences`, each carry a reason and fail the test when they stop being true; `knownDivergences` has been empty since D-24.
+
+- **Where L4 and DMN can disagree about a number, `--to=l4` says so and does not round (D-24, FOGHORN; Meng 2026-10-15, option B).**
+  DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant digits.
+  L4 divides exactly, so `1 / 3 * 3 EQUALS 1` there and `(10 / 3) EQUALS 3.333333333333333333333333333333333` is false.
+  A power is exact in L4 only at a non-negative integral exponent; with a negative or fractional one L4 computes in binary floating point, which was measured on the installed l4 on 2026-10-15: `(EXPONENT 3 (-1)) * 3 EQUALS 1` and `(EXPONENT 2 0.5) EQUALS 1.4142135623730951` are both false.
+  So for every output cell holding a `/` that `DMN.Translate.L4.inexactNodes` cannot show to terminate, or a power it cannot show exact, `--to=l4` still emits and still exits 0, but prints one located warning per cell on stderr (`dmnmd: warning: table "T": column "C": row N: (10 / d) may not agree with the interpreter. …`) and writes one `-- dmnmd:` comment line per column and expression above the function, with no row in it: the XML writer promotes a trailing catch-all row into a default output value, so a row number would make `--to=xml | --from=xml --to=l4` differ from `--to=l4` (`make roundtrip-xsd` caught it).
+  A division is shown to terminate when its divisor is a nonzero literal whose numerator, in lowest terms, has no prime factor but 2 and 5 (`x / 4`, `x / 0.25`), because the quotient of a terminating decimal by it terminates.
+  A power is shown exact when its exponent is a non-negative integral literal.
+  Everything else is flagged: a division by a name or an expression, by zero or by `3` or `2.4`, and a power with a fractional, negative or non-literal exponent.
+  `**` is written as the prefix call `(EXPONENT x 2)`: it used to be written as `^`, the ditto marker, which does not parse, and the infix form with a variable base is rejected by l4.
+  `--asserts` writes no assertion for a region whose answer comes from such a cell, and says why in the same words as the comment (`policy/l4-asserts-quotient-abstains`); under `F`, `U` and `A` the answer is the first live rule, so an exact rule above an inexact one is still asserted, and under any other policy every live rule is looked at.
+  The check cannot see a width: a terminating quotient of more than 34 significant digits is rounded by DMN and exact in L4, and the emitter knows nothing of how many digits a runtime input has.
+  Only output cells are scanned, since an input entry is a unary test and both readers refuse an operator there.
+  The other backends are not touched: js, ts and py divide in binary floating point already, and D-1 records that.
+  Pinned by `policy/l4-inexact-cells-warned`, its control `policy/l4-terminating-division-silent`, `policy/l4-exponent-prefix-call` and `policy/l4-asserts-quotient-abstains`, and by the `FOGHORN` block in `EmitAssertsSpec`, whose abstention examples fail with the abstention switched off.
+  GM's card for FOGHORN said L4 computes the result "exactly"; that is true of `/` only, and the power sentence says floating point.
 
 ### The golden test shells out to an external binary
 

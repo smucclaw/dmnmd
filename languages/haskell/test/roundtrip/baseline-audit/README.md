@@ -332,3 +332,16 @@ The 8 are the new corpus case `policy/l4-asserts-block-top-asserted`, four forma
 A fresh `--record` into a scratch directory differed from the committed manifest by those 8 lines and no others, and that file is the manifest now.
 In the manifest, 8 entries arrived; none changed and none left.
 After recording, `--check` printed `checked 1424 run(s): 0 changed`.
+
+## Extension for D-24 (FOGHORN: `--to=l4` warns where L4 and DMN can disagree about a number), 2026-10-15
+
+**`inexactNodes` and the comment and warning built from it in `DMN.Translate.L4`, and `**` written as the prefix call `EXPONENT`.**
+Before recording, `--check` printed `checked 1424 run(s): 13 changed`, all `--to=l4`, across seven fixtures; the `--to=ts`, `--to=js` and `--to=py` runs of every fixture are unchanged.
+Five fixtures changed in place, each by the warning on stderr and one `-- dmnmd:` comment above the function, with the rest of the stdout the same (checked by diffing the old and new binary on each input).
+`policy/num-divide-by-zero-refused` and `policy/num-divide-repeating-rounded` divide by an input column, and `symptom/md-arith-bare-identifiers-referenceerror` divides `FALSE` by `a`; none of the three divisors is a literal.
+`policy/num-fractional-exponent-refused` and `policy/num-integral-exponent-exact` take the exponent from an input column, so the power is not shown exact and both are warned about; each also changes `(Base ^ Exponent)` into `(EXPONENT Base Exponent)`, which is the one change to emitted code and fixes a file that did not parse.
+Two symptom cases moved to policy because the behaviour is now right: `symptom/l4-asserts-quotient-rounded-vs-exact` is `policy/l4-asserts-quotient-abstains` (stdout and stderr changed: the warning, the comment and the region left unasserted) and `symptom/l4-exponent-caret-parse-error` is `policy/l4-exponent-prefix-call` (stdout only: `(x ^ 2)` is `(EXPONENT x 2)`, and `x ** 2` has a literal exponent so nothing is said).
+Their `ts`, `js` and `py` recordings have the same hashes under the new names.
+Two cases are new: `policy/l4-inexact-cells-warned` and its control `policy/l4-terminating-division-silent`.
+In the manifest, 10 entries changed in place, 16 left under the two old names and 32 arrived (four fixtures, eight files each, two of them the renamed pair).
+After recording, `--check` printed `checked 1432 run(s): 0 changed`.

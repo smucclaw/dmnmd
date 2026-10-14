@@ -1659,9 +1659,9 @@ Condition 4 is untouched.
 It emitted 1058 assertions for 193 tables in the 186 fixtures whose output passes `l4 check`; `l4 run --json` reported 1057 true, 1 false and none that could not be evaluated.
 (The first version emitted 1016. The 42 added later are second inputs, below.)
 The false one is a number-model difference and not a bug in either side: dmnmd rounds a quotient that does not terminate to 34 digits (D-1) and l4 divides exactly (`symptom/l4-asserts-quotient-rounded-vs-exact`).
-Which way to settle it is not decided here: skip such a region with a comment, assert within a tolerance, or round in the L4 backend, each a ruling.
+Which way to settle it was not decided here: skip such a region with a comment, assert within a tolerance, or round in the L4 backend, each a ruling. D-24 ruled it on 2026-10-15: warn, and skip the region (now `policy/l4-asserts-quotient-abstains`).
 Running it over the fixtures also surfaced two defects of the L4 backend that it did not cause.
-One fails loudly: `**` is written as `^`, the ditto marker, so the file does not parse (`symptom/l4-exponent-caret-parse-error`).
+One fails loudly: `**` is written as `^`, the ditto marker, so the file did not parse (`symptom/l4-exponent-caret-parse-error`, since D-24 `policy/l4-exponent-prefix-call`).
 The other was latent: two tables with one name are two functions, which l4 accepts until something calls the name, so `symptom/struct-tablename-collision` now fails `l4 check` because the assertions call it.
 
 *A blind spot, found after the first version landed.*
@@ -1890,3 +1890,29 @@ It is a small change to `toL4` if a visible guard is preferred to a shorter tabl
 - `l4 check` succeeds on both sides of those 8, and 28 `#EVAL`s over 7 of them agree apart from the `JUST` wrapper.
 - `make roundtrip`: 199 fixtures, 137 pass, 0 fail, 10 xfail, 52 skipped; it was 197, 135, 0, 10, 52 before the two new fixtures.
 - The root `README.md` `--pick="Example 2" --to=l4` example is unchanged: its table has no-match regions and its result is a plain `STRING`, not a sum type.
+
+### D-24 — where L4 and DMN can disagree about a number. **RULED: warn, and say so in the emitted L4 (Meng, 2026-10-15, word FOGHORN, option B; option A, word POKERFACE, was not fired).**
+
+DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant digits.
+L4 divides exactly, so `--to=l4 --asserts` reported an honest table false (`symptom/l4-asserts-quotient-rounded-vs-exact`, D-21 step 2).
+The ruling keeps both behaviours and does not make the L4 backend round.
+For every output cell holding a division it cannot show to terminate, or a power it cannot show exact, `--to=l4` still emits and exits 0, but prints a located warning on stderr and writes a comment above the function saying that the two can differ; `--asserts` abstains on those outputs with the same comment; CLAUDE.md documents the predicate.
+The cost is that `--to=l4` now prints a warning for tables that did not print one before, and every `--to=l4` baseline run of a dividing fixture moved (`test/roundtrip/baseline-audit/README.md`).
+
+**A correction to the text the ruling was carried in.**
+It said L4 computes "exactly where DMN rounds".
+That is true of `/` and false of a power: on the installed l4 `(EXPONENT 3 (-1)) * 3 EQUALS 1` and `(EXPONENT 2 0.5) EQUALS 1.4142135623730951` are both false, because a negative or fractional exponent is computed in binary floating point.
+The comment and the warning for a power say that, and the one for a quotient says "divides exactly".
+
+**The exponent had to change with it.**
+`**` was written as `^`, which is L4's ditto marker, so `(x ^ 2)` did not parse (`symptom/l4-exponent-caret-parse-error`, now `policy/l4-exponent-prefix-call`).
+It is written `(EXPONENT x 2)`, the prefix call, since the infix form with a variable base is rejected by l4.
+That is a fix and not part of the ruling: the output of a table with `**` in an output cell changes in its code as well as its comments.
+
+**What the predicate does not see, and why it is that way.**
+It is syntactic.
+A division is shown to terminate by a nonzero literal divisor whose numerator in lowest terms has no prime factor but 2 and 5; a power by a non-negative integral literal exponent.
+A divisor that is a name warns even if it is always 4 at run time.
+A terminating quotient of more than 34 significant digits is rounded by DMN and exact in L4, and nothing here knows how many digits an input has.
+Under a hit policy other than `F`, `U` and `A`, `--asserts` looks at every live rule and so abstains more often than it must.
+Only output cells are scanned, because an input entry cannot hold an operator.

@@ -1,0 +1,14 @@
+-- dmnmd: table "Third", column "q": (10 / d). L4 divides exactly, where DMN rounds a quotient that does not terminate to 34 significant digits (DECISIONS.md D-1), so the two can differ in the last digits.
+GIVEN d IS A NUMBER
+GIVETH A MAYBE NUMBER
+Third d MEANS
+  BRANCH
+    IF d EQUALS 3 THEN JUST ((10 / d))
+    OTHERWISE NOTHING
+
+-- emitAsserts: table "Third": 3 regions, 2 asserted.
+-- emitAsserts: table "Third": 1 of the chosen regions is not asserted, as each says below.
+#ASSERT Third 2 EQUALS NOTHING
+-- emitAsserts: table "Third": region 1 not asserted: the answer comes from (10 / d). L4 divides exactly, where DMN rounds a quotient that does not terminate to 34 significant digits (DECISIONS.md D-1), so the two can differ in the last digits.
+#ASSERT Third 4 EQUALS NOTHING
+
