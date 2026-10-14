@@ -894,6 +894,14 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multitable-refusal-emits-
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multitable-refusal-emits-nothing.py.err
 6be07700c3c07453dccc75c8e985e4de65d83831  ./policy__l4-multitable-refusal-emits-nothing.ts
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multitable-refusal-emits-nothing.ts.err
+04f4637ea51e95355306ecd1122418de200d55e0  ./policy__l4-multivalue-dash-matches-every-value.js
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multivalue-dash-matches-every-value.js.err
+04b662c185d9c9f8d1241c27d4ec856f48273edb  ./policy__l4-multivalue-dash-matches-every-value.l4
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multivalue-dash-matches-every-value.l4.err
+6238faf3b758de4c771b37968442c282f8252759  ./policy__l4-multivalue-dash-matches-every-value.py
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multivalue-dash-matches-every-value.py.err
+2477acf66f69b4534688a0b16b83bc06df19b15a  ./policy__l4-multivalue-dash-matches-every-value.ts
+da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-multivalue-dash-matches-every-value.ts.err
 606c2648a259b19961f1f5ec34dc2c0a57f1576b  ./policy__l4-negation-parenthesised.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__l4-negation-parenthesised.js.err
 64ea6f4789384528c105efbaaec7cca5cf09307b  ./policy__l4-negation-parenthesised.l4
@@ -1280,7 +1288,7 @@ da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.py.err
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-cell.ts.err
 04f4637ea51e95355306ecd1122418de200d55e0  ./policy__md-multivalue-dash-reprocessed.js
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-dash-reprocessed.js.err
-2a9fd0842e9d9d35695ec2e4911eacc293e7a718  ./policy__md-multivalue-dash-reprocessed.l4
+04b662c185d9c9f8d1241c27d4ec856f48273edb  ./policy__md-multivalue-dash-reprocessed.l4
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-dash-reprocessed.l4.err
 6238faf3b758de4c771b37968442c282f8252759  ./policy__md-multivalue-dash-reprocessed.py
 da39a3ee5e6b4b0d3255bfef95601890afd80709  ./policy__md-multivalue-dash-reprocessed.py.err

@@ -546,6 +546,11 @@ status header saying so.
   East-Asian-Width table; a one-column drift makes a caret copy the wrong token silently.
   A `^` copies exactly one token, so multi-token cells (an `OR`-of-`EQUALS` chain) are never
   dittoed.
+- **A cell that holds the wildcard `-` among other values matches every value, and renders as no conjunct (#70).**
+  `fEvals` is `or` over a cell's fragments and `fEval FAnything _` is `True`, so `4, -` accepts any Guest Count, as `--to=ts` renders it (`policy/md-multivalue-dash-reprocessed`).
+  The L4 backend used to filter the dash out of the cell and keep the 4, so the rule matched one value and a Fall party of 8 got `NOTHING` where `dmnmd -q` answers the rule's output, at exit 0.
+  `isWildCell` is the one predicate now, used by `feel2l4In`, `conjSubCells` and `armCells`, which have to agree or a connector dangles.
+  Pinned by `policy/l4-multivalue-dash-matches-every-value`, and by `TranslateL4Spec`, which runs the emitted L4 under the real `l4` and checks the answer at 4, 8 and 100.
 - Column/table/field names that are L4 keywords get backtick-quoted (`reservedWordsL4`).
 
 ### The golden test shells out to an external binary
