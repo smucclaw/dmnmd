@@ -301,6 +301,29 @@ Their stdout is still `### exit 1`, and the diff of each shows the message only:
 The 32 are four new fixtures, eight files each: `policy/md-short-row-annotation-only-accepted`, `policy/md-blank-annotation-cell-accepted`, `policy/md-short-row-annotation-and-output-refused` and `policy/md-short-subheader-annotation-only-accepted`.
 In the manifest, 12 entries changed and 32 arrived; none left.
 
+## Extension for #70 (a wildcard among the values of a multi-value cell, `--to=l4`), 2026-10-13
+
+**`isWildCell` in `DMN.Translate.L4`.**
+Before recording, `--check` printed `checked 1400 run(s): 9 changed`: one `CHANGED (sha)` and eight `MISSING FROM MANIFEST`.
+The `CHANGED` is `policy/md-multivalue-dash-reprocessed --to=l4`.
+Its input is the table `4, -` and `8`; row 1 used to read `Guest Count EQUALS 4 AND Season EQUALS "Fall"` and now has no `Guest Count` conjunct, which is what its `--to=ts` recording already said.
+The `--to=ts`, `--to=js` and `--to=py` outputs of that fixture did not move.
+The eight are the new policy case `policy/l4-multivalue-dash-matches-every-value`, which is the symptom `l4-multivalue-dash-dropped` after `git mv`.
+No other fixture in the set has a wildcard among the values of a multi-value cell in an input column.
+In the manifest, 1 entry changed and 8 arrived; none left.
+After recording, `--check` printed `checked 1400 run(s): 0 changed`.
+
+## Extension for audit 10 finding f4, markdown side (quotes reach inference), 2026-10-13
+
+**`mkDataFsAt`, `unquoteBuilt`, and output cells routed through them (`ParseTable.mkFEELCol`).**
+Before the four symptom cases were re-recorded, `--check` printed `checked 1412 run(s): 24 changed`, and the 24 were exactly the four cases that recorded the defect: `symptom/md-quoted-literal-inferred-by-content` (ts, js, py, l4), its `-l4` face (the same four formats), `symptom/md-quoted-and-bare-mix-read-as-one-type` (eight files, stdout and stderr) and `symptom/md-quoted-leading-zero-refused-as-ambiguous` (eight files).
+Each moves toward the documented rule that a double-quoted cell is a string literal: a column of `"2020"` and `"yes"` is String and its guards and results are strings; the quoted-plus-bare mix goes from a typed table at exit 0 to a D-2 refusal naming both cells; and a column of `"007"` goes from a refusal as an ambiguous number to a String column.
+`symptom/md-quoted-wildcard-spellings-are-wildcards` did not change, and stays a symptom.
+No other fixture in the set moved, so no existing fixture has an undeclared column of double-quoted cells whose type depended on what was inside the quotes.
+That includes `README.md`, which this script reads.
+In the manifest against trunk, nothing changed in place; the four cases arrived under new names (`policy/md-quoted-literals-are-strings`, `-l4`, `policy/md-quoted-and-bare-refused`, `policy/md-quoted-leading-zero-accepted`), the old `symptom/md-quoted-literal-inferred-by-content` entries left, and the unchanged wildcard symptom arrived.
+After recording, `--check` printed `checked 1412 run(s): 0 changed`.
+
 ## Extension for #71 section 2 (a data row with a cell past the last column is refused), 2026-10-13
 
 **`rowArityDiags` also refuses a surplus.**

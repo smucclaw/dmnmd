@@ -4,7 +4,7 @@ module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
 import DMN.BuildTable ( mkDTable )
-import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, showSite, trim )
+import DMN.DecisionTable ( CellSite(..), mkDataFsAt, mkFsAt, mkInputFsAt, showSite, trim )
 import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
@@ -496,10 +496,15 @@ parseDataRow tableName csigs =
 -- same check would refuse working tables. This is the one place in pass 1 that
 -- knows which is which — 'reviseInOut' has already run — and it is why that
 -- refusal is not in 'DMN.DecisionTable.mkFEither', which cannot tell.
+--
+-- Both read the cell through 'mkDataFsAt', which keeps the double quotes of a
+-- cell in a column that declares no type, so that inference sees a string
+-- literal as one (audit finding f4). An output cell is a value, and the same
+-- two words in quotes are as much a String there as in an input column.
 mkFEELCol :: String -> Maybe Int -> ColumnSignature -> String -> ([Diagnostic], ColBody)
 mkFEELCol _         _     (ColSig DTCH_Comment _  _        ) = (,) [] . mkDataColComment
 mkFEELCol tableName myrow (ColSig DTCH_In      nm maybe_type) = mkDataCol (mkInputFsAt (CellSite tableName nm myrow) maybe_type)
-mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (mkFsAt      (CellSite tableName nm myrow) maybe_type)
+mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (mkDataFsAt  (CellSite tableName nm myrow) maybe_type)
 
 -- | What a data row needs to know about a column: which kind it is, what it is
 -- called, and what type its cells are read at.

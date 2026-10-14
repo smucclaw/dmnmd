@@ -58,6 +58,35 @@ dishTable = T.pack $ dropWhile (== '\n') [r|
 | 4 | -                    | -                    | Light Salad                  | catch all     |
 |]
 
+-- | A multi-value cell holding the wildcard: row 1's @4, -@ means "4, or anything",
+-- so it matches every guest count (symptom\/l4-multivalue-dash-dropped, #70).
+multiDashTable :: Text
+multiDashTable = T.pack $ dropWhile (== '\n') [r|
+| F | Guest Count : Number | Season : String | Dish : String |
+|---+----------------------+-----------------+---------------|
+| 1 | 4, -                 | Fall            | Spareribs     |
+| 2 | 8                    | Winter          | Stew          |
+|]
+
+-- | The same table with the wildcard written alone, which the emitter always
+-- handled. The two must emit the same L4 apart from the cell's own spelling.
+loneDashTable :: Text
+loneDashTable = T.pack $ dropWhile (== '\n') [r|
+| F | Guest Count : Number | Season : String | Dish : String |
+|---+----------------------+-----------------+---------------|
+| 1 | -                    | Fall            | Spareribs     |
+| 2 | 8                    | Winter          | Stew          |
+|]
+
+-- | Negative control: a multi-value cell WITHOUT a wildcard must still narrow.
+multiNoDashTable :: Text
+multiNoDashTable = T.pack $ dropWhile (== '\n') [r|
+| F | Guest Count : Number | Season : String | Dish : String |
+|---+----------------------+-----------------+---------------|
+| 1 | 4, 5                 | Fall            | Spareribs     |
+| 2 | 8                    | Winter          | Stew          |
+|]
+
 -- | A small all-simple-atom First-hit table used to pin the ditto grid shape
 -- (BUILD-SPEC §3). Two input columns, single scalar output. Row 3 / row 5 drop
 -- the @cat@ conjunct (@-@), so the ditto pass must NOT carry a caret across the
@@ -444,6 +473,53 @@ l4Spec = do
   -- helper: an IMPORT drags ~100 prelude names into scope where they can collide
   -- with column and table names taken from the author's markdown, and an IMPORT
   -- that fails to resolve breaks the whole file rather than one guard.
+  -- #70. The interpreter ('fEvals' is `or . map fEval`, and `fEval FAnything _`
+  -- is True) and --to=ts read `4, -` as matching every value; this backend filtered
+  -- the dash out of the cell and kept the 4, so rule 1 matched ONE guest count and
+  -- a Fall party of 8 got NOTHING where `dmnmd -q` gives Spareribs. It type-checked
+  -- and ran, at exit 0, which is why it needs a semantic check and not only a
+  -- string one.
+  describe "DMN.Translate.L4.toL4 — a wildcard among the values of a multi-value cell (#70)" $ do
+    let emit = toL4 defaultL4Opts . parse "MultiDash"
+        dashOut = emit multiDashTable
+    it "emits no conjunct for the column when a cell holds a wildcard among other values" $ do
+      -- The column name is backticked because it has a space, so these strings
+      -- must be too: without the backticks they could match nothing, buggy or not.
+      let rowLine needle = head ([ l | l <- lines dashOut, needle `isInfixOf` l ] ++ [""])
+      rowLine "Spareribs" `shouldNotContain` "Guest Count"
+      rowLine "Spareribs" `shouldContain` "Season EQUALS \"Fall\""
+      -- row 2 is untouched: its own, wildcard-free cell still narrows
+      rowLine "Stew" `shouldContain` "`Guest Count` EQUALS 8"
+    it "renders `4, -` exactly as it renders a lone `-`, apart from nothing" $
+      dashOut `shouldBe` emit loneDashTable
+    it "still narrows a multi-value cell that has no wildcard (negative control)" $
+      emit multiNoDashTable `shouldContain` "(`Guest Count` EQUALS 4 OR `Guest Count` EQUALS 5)"
+    it "keeps the arms aligned: THEN starts in one column on every arm" $ do
+      let thenCol l = T.length (fst (T.breakOn "THEN" (T.pack l)))
+          cols = [ thenCol l | l <- lines dashOut, "THEN" `isInfixOf` l ]
+      length cols `shouldBe` 2
+      all (== head cols) cols `shouldBe` True
+    it "answers the way the interpreter does under the real l4: a Fall party of 8 gets Spareribs" $ withL4 $ \l4bin -> do
+      let emitted = dashOut ++ unlines
+                    [ ""
+                    , "#ASSERT MultiDash 4 \"Fall\" EQUALS JUST \"Spareribs\""
+                    , "#ASSERT MultiDash 8 \"Fall\" EQUALS JUST \"Spareribs\""
+                    , "#ASSERT MultiDash 100 \"Fall\" EQUALS JUST \"Spareribs\""
+                    , "#ASSERT MultiDash 8 \"Winter\" EQUALS JUST \"Stew\""
+                    , "#ASSERT MultiDash 4 \"Winter\" EQUALS NOTHING"
+                    , "#ASSERT MultiDash 8 \"Spring\" EQUALS NOTHING"
+                    ]
+          multiDashOut = outDir ++ "/multidash.l4"
+      createDirectoryIfMissing True outDir
+      writeFile multiDashOut emitted
+      (_cc, cOut, cErr) <- readProcessWithExitCode l4bin ["check", multiDashOut] ""
+      (cOut ++ cErr) `shouldSatisfy` ("Check succeeded" `isInfixOf`)
+      (_rc, rOut, rErr) <- readProcessWithExitCode l4bin ["run", multiDashOut] ""
+      let runLog = rOut ++ rErr
+      runLog `shouldSatisfy` (not . ("assertion failed" `isInfixOf`))
+      runLog `shouldSatisfy` (not . ("could not be evaluated" `isInfixOf`))
+      length (filter ("assertion satisfied" `isInfixOf`) (lines runLog)) `shouldSatisfy` (>= 6)
+
   describe "DMN.Translate.L4.toL4 — useElem option" $
     it "renders multi-value cells through the self-contained membership helper" $ do
       let out = toL4 defaultL4Opts { useElem = True } (parse "dish" dishTable)

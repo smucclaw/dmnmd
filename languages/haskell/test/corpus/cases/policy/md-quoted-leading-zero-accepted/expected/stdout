@@ -1,0 +1,9 @@
+export function Zip ( Code : string ) {
+  if (Code === "007") { // 1
+    return {"Name":"0001"};
+  }
+  else if (Code === "008") { // 2
+    return {"Name":"0002"};
+  }
+}
+
