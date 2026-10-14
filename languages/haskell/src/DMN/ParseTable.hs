@@ -4,7 +4,7 @@ module DMN.ParseTable where
 
 import Prelude hiding (takeWhile)
 import DMN.BuildTable ( mkDTable )
-import DMN.DecisionTable ( CellSite(..), mkFsAt, mkInputFsAt, showSite, trim )
+import DMN.DecisionTable ( CellSite(..), mkDataFsAt, mkFsAt, mkInputFsAt, showSite, trim )
 import DMN.Diagnostic ( Diagnostic, anyErrors, errorAt, renderDiagnostic )
 import DMN.ParseFEEL ( parseVarname )
 import Data.Maybe (catMaybes)
@@ -355,9 +355,23 @@ firstNonComment n = find ((/= DTCH_Comment) . csLabel) . drop n
 -- Trunk accepted such a row and this check had refused it with a reason that is false of a comment; 'parseDataRow' now pads the row with empty cells, and the corpus case @md-short-row-annotation-only-accepted@ pins that its output is the same as the explicitly-blank row\'s.
 -- The row is refused when ANY column it does not reach is an input or an output, whatever comment columns follow, and the message names the first of those and gives the reason that is true of it.
 --
+-- __A row with MORE cells than the header is refused too (#71 section 2; ruled, D-23).__
+-- GFM ignores the excess ("If there are greater, the excess is ignored"), and so did dmnmd, with no diagnostic, so the table read as if it were well formed and a cell the author wrote vanished.
+-- A surplus of blank cells is not refused, because a stray @| |@ holds nothing to lose; that is the sub-header row's rule too ('subHeaderArityDiags').
+-- Located at the table and the row the author wrote, because no column owns a surplus cell.
+--
 -- A row is as wide as its widest physical line, because a continuation row may add cells to the logical row.
 rowArityDiags :: String -> Maybe Int -> [ColumnSignature] -> [String] -> [Diagnostic]
-rowArityDiags tableName myrow csigs cells = case firstNonComment n csigs of
+rowArityDiags tableName myrow csigs cells
+  | n > m, any (not . null) (drop m cells) =
+      [ errorAt $ concat
+          [ "table ", show tableName, maybe "" (\r -> ": row " ++ show r) myrow
+          , ": the row has ", countOf n "cell", " but the header declares only ", countOf m "column"
+          , ", so the cells after the last column belong to no column."
+          , " A GFM renderer ignores them, and so did dmnmd, silently: the author may have meant another column,"
+          , " or a stray | may have split a cell."
+          , " Delete them, or add the columns they were meant for." ] ]
+  | otherwise = case firstNonComment n csigs of
   Nothing -> []
   Just cs ->
     [ errorAt $ concat
@@ -482,10 +496,15 @@ parseDataRow tableName csigs =
 -- same check would refuse working tables. This is the one place in pass 1 that
 -- knows which is which — 'reviseInOut' has already run — and it is why that
 -- refusal is not in 'DMN.DecisionTable.mkFEither', which cannot tell.
+--
+-- Both read the cell through 'mkDataFsAt', which keeps the double quotes of a
+-- cell in a column that declares no type, so that inference sees a string
+-- literal as one (audit finding f4). An output cell is a value, and the same
+-- two words in quotes are as much a String there as in an input column.
 mkFEELCol :: String -> Maybe Int -> ColumnSignature -> String -> ([Diagnostic], ColBody)
 mkFEELCol _         _     (ColSig DTCH_Comment _  _        ) = (,) [] . mkDataColComment
 mkFEELCol tableName myrow (ColSig DTCH_In      nm maybe_type) = mkDataCol (mkInputFsAt (CellSite tableName nm myrow) maybe_type)
-mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (mkFsAt      (CellSite tableName nm myrow) maybe_type)
+mkFEELCol tableName myrow (ColSig DTCH_Out     nm maybe_type) = mkDataCol (mkDataFsAt  (CellSite tableName nm myrow) maybe_type)
 
 -- | What a data row needs to know about a column: which kind it is, what it is
 -- called, and what type its cells are read at.

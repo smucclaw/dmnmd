@@ -1,0 +1,12 @@
+export function Wild ( Year : string ) {
+  if ("default") { // 1
+    return {"Label":"dash"};
+  }
+  else if ("default") { // 2
+    return {"Label":"empty"};
+  }
+  else if (Year === "x") { // 3
+    return {"Label":"text"};
+  }
+}
+

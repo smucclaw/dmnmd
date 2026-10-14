@@ -231,6 +231,49 @@ tableShapeSpec = describe "markdown table shape (audit 10 f1, f2, f7, f8)" $ do
     it "accepts a full row" $
       readTable "T" (table [full]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
 
+  -- #71 section 2. GFM ignores the cells of a row past the header's last column, and
+  -- so did dmnmd, silently: `| 1 | Fall | Spareribs | Stew |` under a two-column header
+  -- read as `Fall` giving `Spareribs`, with no trace of `Stew`. The author may have
+  -- meant another column, or a stray pipe may have split a cell. A surplus of BLANK
+  -- cells is not refused (a stray `| |` holds nothing to lose), which is what the
+  -- sub-header row has always done.
+  describe "a data row has no more cells than the header (#71 section 2)" $ do
+    let table rows = T.unlines
+          ( [ "| U | Season | Dish (out) |"
+            , "|---|--------|------------|" ] ++ rows )
+        full = "| 1 | Fall   | Spareribs  |"
+    it "refuses a row with one surplus cell, locating the table and the number the author wrote" $ do
+      let r = readTable "T" (table [full, "| 7 | Winter | Stew | Extra |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": row 7: the row has 3 cells but the header declares only 2 columns" `isPrefixOf`) ms)
+    it "refuses a row with two surplus cells" $ do
+      let r = readTable "T" (table ["| 1 | Fall | Stew | one | two |"])
+      refused r `shouldBe` True
+      messages r `shouldSatisfy` (\ms -> length ms == 1 && all ("table \"T\": row 1: the row has 4 cells but the header declares only 2 columns" `isPrefixOf`) ms)
+    it "refuses a surplus on every row that has one, and says nothing of the others" $ do
+      let r = readTable "T" (table ["| 1 | Fall | Stew | x |", full, "| 3 | Winter | Roast | y |"])
+      refused r `shouldBe` True
+      length (messages r) `shouldBe` 2
+    it "refuses a surplus supplied by a continuation line, because a row is as wide as its widest line" $ do
+      let r = readTable "T" (table [ "| 1 | Fall   | Stew       |"
+                                   , "|   |        |            | Extra |" ])
+      refused r `shouldBe` True
+    it "still refuses a short row beside it, once each" $ do
+      let r = readTable "T" (table ["| 1 | Fall |", "| 2 | Winter | Stew | Extra |"])
+      refused r `shouldBe` True
+      length (messages r) `shouldBe` 2
+    it "accepts a trailing blank cell, which holds nothing to lose" $
+      readTable "T" (table ["| 1 | Fall   | Spareribs  | |"]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "accepts several trailing blank cells" $
+      readTable "T" (table ["| 1 | Fall   | Spareribs  |  |   |"]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "accepts a full row (negative control)" $
+      readTable "T" (table [full]) `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+    it "does not count a comment column's cell as surplus" $
+      readTable "T" (T.unlines [ "| U | Season | Dish (out) | # Note |"
+                               , "|---|--------|------------|--------|"
+                               , "| 1 | Fall   | Spareribs  | cheap  |" ])
+        `shouldSatisfy` (\(ds, ts) -> null ds && length ts == 1)
+
 -- | D-22 part 1, the interpreter half: a trailing catch-all under @U@ is the
 -- §8.2.11 default output value (rule 1), and a single-hit table with no
 -- matching rule and no default answers null (rule 3), which 'evalTable'
@@ -1083,6 +1126,137 @@ spec3 = do
         ,DTrow (Just 3) [mkFs (Just DMN_Number) ">=18"]      [mkFs (Just DMN_String) "five",  [(FNullary $ VB True )]]    []
         ,DTrow (Just 4) [mkFs (Just DMN_Number) ">=65"]      [mkFs (Just DMN_String) "seven",  [(FNullary $ VB False)]]    []
         ])
+
+  -- Audit 2026-09-26, finding f4, markdown side. A double-quoted cell is a
+  -- string literal (CLAUDE.md), and the quotes are the only thing that tells the
+  -- string "2020" from the number 2020 or "yes" from the boolean word yes. Pass 1
+  -- of the markdown reader used to strip them (unquoteCell) before inference
+  -- graded the cell, so a column of string literals was typed by what was INSIDE
+  -- the quotes. The XML reader was fixed in #68; this is the same fix here, read
+  -- through 'parseTableD', which is the function the binary calls.
+  describe "type inference — a double-quoted cell is a string literal (f4, markdown)" $ do
+    let table ins outs = T.unlines $
+          [ "| F | Year | Flag (out) |", "|---|---|---|" ]
+          ++ [ T.concat ["| ", T.pack (show n), " | ", T.pack i, " | ", T.pack o, " |"]
+             | (n, i, o) <- zip3 [1 :: Int ..] ins outs ]
+        declared hdr ins = T.unlines $
+          [ "| F | " <> hdr <> " | Flag (out) |", "|---|---|---|" ]
+          ++ [ T.concat ["| ", T.pack (show n), " | ", T.pack i, " | x |"] | (n, i) <- zip [1 :: Int ..] ins ]
+        run txt = either (error . errorBundlePretty) id (txt ~> parseTableD "T")
+        errs (ds, _) = [ diagMessage d | d <- ds, diagSeverity d == Error ]
+        only (_, [t]) = t
+        only _        = error "expected exactly one table"
+        inType  = vartype . head . getInputHeaders  . header . only
+        outType = vartype . head . getOutputHeaders . header . only
+        inCells  r = [ c | DTrow _ [c] _ _ <- allrows (only r) ]
+        outCells r = [ c | DTrow _ _ [c] _ <- allrows (only r) ]
+        strs = map (\s -> [FNullary (VS s)])
+        refusedWith r needles = do
+          snd r `shouldBe` []
+          errs r `shouldSatisfy` \ms -> not (null ms) && all (\n -> any (isInfixOf n) ms) needles
+
+    it "types a column of quoted numerals String, and builds the cells without their quotes" $ do
+      let r = run (table ["\"2020\"", "\"2021\""] ["a", "b"])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` strs ["2020", "2021"]
+
+    it "types an output column of quoted boolean words String" $ do
+      let r = run (table ["1", "2"] ["\"yes\"", "\"no\""])
+      errs r `shouldBe` []
+      outType r `shouldBe` Just DMN_String
+      outCells r `shouldBe` strs ["yes", "no"]
+
+    it "types a column of quoted true and false String" $ do
+      let r = run (table ["\"true\"", "\"false\""] ["a", "b"])
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` strs ["true", "false"]
+
+    -- The loud form of the same cause: a quoted "007" was refused as an
+    -- ambiguous leading-zero numeral, at exit 1, with advice to declare a column
+    -- the author had in effect already declared by writing the quotes.
+    it "accepts quoted numerals with leading zeros, input and output, as strings" $ do
+      let r = run (table ["\"007\"", "\"008\""] ["\"0001\"", "\"0002\""])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` strs ["007", "008"]
+      outType r `shouldBe` Just DMN_String
+      outCells r `shouldBe` strs ["0001", "0002"]
+
+    it "types a quoted numeral String when the column also holds a wildcard" $ do
+      let r = run (table ["-", "\"2020\""] ["a", "b"])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` [[FAnything], [FNullary (VS "2020")]]
+
+    -- A column has one type, and D-2 can only refuse a column whose cells
+    -- disagree if it sees the quotes in the check that follows inference too:
+    -- tableErrors asks columnVerdict the same question of the BUILT cells.
+    it "refuses an input column that mixes a quoted numeral with a bare one" $
+      refusedWith (run (table ["\"2020\"", "2021"] ["a", "b"]))
+        [ "table \"T\": column \"Year\": dmnmd cannot infer a type for this column"
+        , "reads as Number", "reads as String" ]
+
+    it "refuses an output column that mixes a quoted boolean word with a bare one" $
+      refusedWith (run (table ["1", "2"] ["\"yes\"", "no"]))
+        [ "table \"T\": column \"Flag\": dmnmd cannot infer a type for this column"
+        , "reads as Boolean", "reads as String" ]
+
+    -- A sub-header domain does not vote on the type, but it is compared with the
+    -- cells once both are built, so a quoted domain must meet quoted cells.
+    it "accepts a quoted sub-header domain beside quoted cells" $ do
+      let r = run (T.unlines [ "| F | Year | Flag (out) |", "|---|---|---|"
+                             , "|   | \"2020\", \"2021\" | |"
+                             , "| 1 | \"2020\" | a |", "| 2 | \"2021\" | b |" ])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_String
+      enums (head (getInputHeaders (header (only r)))) `shouldBe` Just [FNullary (VS "2020"), FNullary (VS "2021")]
+      inCells r `shouldBe` strs ["2020", "2021"]
+
+    -- Negative controls: nothing here may move.
+    it "still types a column of bare numerals Number, and bare yes and no Boolean" $ do
+      let r = run (table ["2020", "2021"] ["yes", "no"])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_Number
+      inCells r `shouldBe` [[FNullary (VN 2020)], [FNullary (VN 2021)]]
+      outType r `shouldBe` Just DMN_Boolean
+      outCells r `shouldBe` [[FNullary (VB True)], [FNullary (VB False)]]
+
+    it "still refuses a column of bare leading-zero numerals as ambiguous" $
+      refusedWith (run (table ["007", "008"] ["a", "b"]))
+        [ "table \"T\": column \"Year\": row 1: the cell reads \"007\"", "a leading zero has no numeric meaning" ]
+
+    it "still unquotes a multi-value cell whose every fragment is a literal" $ do
+      let r = run (table ["\"Fall\", \"Winter\"", "\"Spring\""] ["a", "b"])
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` [[FNullary (VS "Fall"), FNullary (VS "Winter")], [FNullary (VS "Spring")]]
+
+    it "still leaves a partly quoted multi-value cell as written (all or nothing)" $ do
+      let r = run (table ["\"Fall\", Winter", "Spring"] ["a", "b"])
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` [[FNullary (VS "\"Fall\""), FNullary (VS "Winter")], [FNullary (VS "Spring")]]
+
+    it "still reads a quoted word beside a bare word as one String column" $ do
+      let r = run (table ["Fall", "\"Winter\""] ["a", "b"])
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` strs ["Fall", "Winter"]
+
+    it "still refuses a quoted numeral mixed with a bare one inside ONE cell" $
+      refusedWith (run (table ["\"2020\", 5", "7"] ["a", "b"]))
+        [ "dmnmd cannot infer a type for this column", "reads as Number", "reads as String" ]
+
+    -- A declared type is the author's answer, and never reaches inference.
+    it "leaves a declared Number column alone: a quoted cell in it is still read as the number" $ do
+      let r = run (declared "Year : Number" ["\"2020\"", "2021"])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_Number
+      inCells r `shouldBe` [[FNullary (VN 2020)], [FNullary (VN 2021)]]
+
+    it "leaves a declared String column alone: a bare numeral in it is the text" $ do
+      let r = run (declared "Year : String" ["\"2020\"", "2021"])
+      errs r `shouldBe` []
+      inType r `shouldBe` Just DMN_String
+      inCells r `shouldBe` strs ["2020", "2021"]
 
   -- Example 6 was troublesome when switching to megaparsec
   describe "example 6" $ do
