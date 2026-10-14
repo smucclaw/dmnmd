@@ -355,9 +355,23 @@ firstNonComment n = find ((/= DTCH_Comment) . csLabel) . drop n
 -- Trunk accepted such a row and this check had refused it with a reason that is false of a comment; 'parseDataRow' now pads the row with empty cells, and the corpus case @md-short-row-annotation-only-accepted@ pins that its output is the same as the explicitly-blank row\'s.
 -- The row is refused when ANY column it does not reach is an input or an output, whatever comment columns follow, and the message names the first of those and gives the reason that is true of it.
 --
+-- __A row with MORE cells than the header is refused too (#71 section 2; ruled, D-23).__
+-- GFM ignores the excess ("If there are greater, the excess is ignored"), and so did dmnmd, with no diagnostic, so the table read as if it were well formed and a cell the author wrote vanished.
+-- A surplus of blank cells is not refused, because a stray @| |@ holds nothing to lose; that is the sub-header row's rule too ('subHeaderArityDiags').
+-- Located at the table and the row the author wrote, because no column owns a surplus cell.
+--
 -- A row is as wide as its widest physical line, because a continuation row may add cells to the logical row.
 rowArityDiags :: String -> Maybe Int -> [ColumnSignature] -> [String] -> [Diagnostic]
-rowArityDiags tableName myrow csigs cells = case firstNonComment n csigs of
+rowArityDiags tableName myrow csigs cells
+  | n > m, any (not . null) (drop m cells) =
+      [ errorAt $ concat
+          [ "table ", show tableName, maybe "" (\r -> ": row " ++ show r) myrow
+          , ": the row has ", countOf n "cell", " but the header declares only ", countOf m "column"
+          , ", so the cells after the last column belong to no column."
+          , " A GFM renderer ignores them, and so did dmnmd, silently: the author may have meant another column,"
+          , " or a stray | may have split a cell."
+          , " Delete them, or add the columns they were meant for." ] ]
+  | otherwise = case firstNonComment n csigs of
   Nothing -> []
   Just cs ->
     [ errorAt $ concat

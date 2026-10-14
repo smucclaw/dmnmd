@@ -1,0 +1,2 @@
+error: input.md: table "Menu": row 2: the row has 3 cells but the header declares only 2 columns, so the cells after the last column belong to no column. A GFM renderer ignores them, and so did dmnmd, silently: the author may have meant another column, or a stray | may have split a cell. Delete them, or add the columns they were meant for.
+dmnmd: one or more decision tables in input.md could not be read

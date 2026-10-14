@@ -1858,3 +1858,7 @@ It is a small change to `toL4` if a visible guard is preferred to a shorter tabl
 - `l4 check` succeeds on both sides of those 8, and 28 `#EVAL`s over 7 of them agree apart from the `JUST` wrapper.
 - `make roundtrip`: 199 fixtures, 137 pass, 0 fail, 10 xfail, 52 skipped; it was 197, 135, 0, 10, 52 before the two new fixtures.
 - The root `README.md` `--pick="Example 2" --to=l4` example is unchanged: its table has no-match regions and its result is a plain `STRING`, not a sum type.
+
+### D-23 — a markdown data row with a non-blank cell past the header's last column is refused. **RULED: refuse (Meng, 2026-10-15, word FREELOADER, typed in the dmnmd session after GM relayed it on 2026-10-14 19:49Z).**
+
+Refuse with an error located at the table and the row number the author wrote, exit 1, nothing emitted; a surplus of blank cells stays accepted, and declining would have meant keeping the silent drop that GFM renders (smucclaw/dmnmd#71 section 2, #74).

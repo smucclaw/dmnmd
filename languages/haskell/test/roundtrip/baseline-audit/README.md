@@ -324,3 +324,11 @@ That includes `README.md`, which this script reads.
 In the manifest against trunk, nothing changed in place; the four cases arrived under new names (`policy/md-quoted-literals-are-strings`, `-l4`, `policy/md-quoted-and-bare-refused`, `policy/md-quoted-leading-zero-accepted`), the old `symptom/md-quoted-literal-inferred-by-content` entries left, and the unchanged wildcard symptom arrived.
 After recording, `--check` printed `checked 1412 run(s): 0 changed`.
 
+## Extension for #71 section 2 (a data row with a cell past the last column is refused), 2026-10-13
+
+**`rowArityDiags` also refuses a surplus.**
+Before any new case existed, `--check` printed `checked 1396 run(s): 0 changed` with the refusal in place, so no fixture in the set has a data row with a non-blank cell past the last column, and none had a blank one that the control now depends on.
+That includes `README.md`, which this script reads.
+The two new cases are `policy/md-surplus-row-cell-refused` (exit 1, nothing emitted) and its control `policy/md-surplus-blank-cell-accepted` (exit 0, the same output as the table without its trailing blank cells).
+In the manifest, nothing changed and 16 entries arrived, 8 for each case.
+
