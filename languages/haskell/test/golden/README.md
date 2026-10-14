@@ -32,5 +32,6 @@ The test therefore checks **behaviour**, not text:
 5. `l4 run` it with the golden's behavioural `#ASSERT` block adapted to the
    emitter's STRING-world output (must report no `assertion failed`).
 
-`l4 run` exits 0 even when an assertion fails, so the gate inspects stdout for
-`assertion satisfied` / `assertion failed` rather than the process exit code.
+The gate inspects stdout for `assertion satisfied` / `assertion failed` rather than the
+process exit code. (This used to say `l4 run` exits 0 even when an assertion fails;
+measured 2026-10-13 against the `l4` on `PATH` here, it exits 1.)

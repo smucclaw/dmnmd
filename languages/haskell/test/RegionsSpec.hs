@@ -21,14 +21,14 @@
 --
 -- The corpus is read with @app\/ParseMarkdown@, the binary's own reader, so a
 -- table means here what it means to @dmnmd@.
-module RegionsSpec (regionsSpec) where
+module RegionsSpec (regionsSpec, roundtripFixtures, quietly, force', readFixture) where
 
 import           Control.Applicative  ((<|>))
 import           Control.Exception    (SomeException, bracket, displayException, evaluate, try)
 import           Control.Monad        (filterM, forM)
 import           Data.Either          (isLeft)
-import           Data.List            (isInfixOf, isPrefixOf, nub, sort)
-import           Data.Maybe           (listToMaybe)
+import           Data.List            (find, isInfixOf, isPrefixOf, nub, sort)
+import           Data.Maybe           (isJust, listToMaybe)
 import qualified Data.Map.Strict      as M
 import qualified Data.Text            as T
 import           GHC.IO.Handle        (hDuplicate, hDuplicateTo)
@@ -52,6 +52,8 @@ import           ParseMarkdown        (parseMarkdown)
 regionsSpec :: Spec
 regionsSpec = describe "DMN.Regions" $ do
   handCounted
+  regionAtSpec
+  blockTopSpec
   unsupported
   refusing
   corpus
@@ -110,6 +112,18 @@ selfCheck rm = concat
     | null (conflicts rm) /= null (conflictRegions rm) ]
   , [ "regionCount " ++ show (regionCount rm) ++ " but " ++ show (length rs) ++ " regions"
     | regionCount rm /= toInteger (length rs) ]
+  , [ "regionAt " ++ show k ++ " is not the " ++ show k ++ "th region of regions"
+    | (k, r) <- zip [0 ..] rs, regionAt rm k /= Just r ]
+  , [ "top input " ++ show (regionTopInput r) ++ ": matcher says " ++ show m
+        ++ ", region says " ++ show (liveRules r)
+    | r <- rs, let m = matcherLive dt (regionTopInput r), m /= liveRules r ]
+  , [ "firstRegionOf " ++ show i ++ " is " ++ show got ++ ", where the first region with that rule live is " ++ show want
+    | i <- [0 .. length (allrows dt) - 1]
+    , let got  = firstRegionOf rm i
+          want = fst <$> find ((i `elem`) . liveRules . snd) (zip [0 ..] rs)
+    , got /= want ]
+  , [ "regionAt answers outside 0 .. regionCount - 1"
+    | any (isJust . regionAt rm) [-1, regionCount rm, regionCount rm + 1] ]
   , [ "column " ++ show (varname (cbHeader c)) ++ ": block " ++ showBlock b
         ++ " holds " ++ show v ++ ", where the matcher selects rules " ++ show got
         ++ " and the block says " ++ show (blockRules b)
@@ -305,6 +319,77 @@ negatedString = DTable "Neg" HP_Unique
   [ DTrow (Just 1) [[FNot (FNullary (VS "Fall"))]] [[FNullary (VS "stew")]] []
   , DTrow (Just 2) [[FNullary (VS "Fall")]]        [[FNullary (VS "spareribs")]] [] ]
   Nothing
+
+-- | 'regionAt' is random access into 'regions', which L4's @emitAsserts@ uses
+-- to sample a table whose regions are too many to list. The corpus walk below
+-- checks it at every position of every table it analyses, through 'selfCheck';
+-- these are the hand-counted tables, where the answer is written down.
+regionAtSpec :: Spec
+regionAtSpec = describe "regionAt" $ do
+  let rm = mapOf regCF
+  it "is the kth region of regions, counting from 0" $
+    map (regionAt rm) [0 .. regionCount rm - 1] `shouldBe` map Just (regions rm)
+  it "puts the first column outermost, as regions does" $
+    map (fmap (map showBlock . regionBlocks) . regionAt rm) [0, 1, 2, 7] `shouldBe`
+      [ Just ["<= 124000", "true"], Just ["<= 124000", "false"]
+      , Just ["(124000..618000]", "true"], Just ["> 1235000", "false"] ]
+  it "answers Nothing outside 0 .. regionCount - 1" $
+    map (regionAt rm) [-1, 8, 9, 10 ^ (30 :: Int)] `shouldBe` replicate 4 Nothing
+  it "agrees with regions on a table with a different shape" $ do
+    let rm' = mapOf endpoints
+    map (regionAt rm') [0 .. regionCount rm' - 1] `shouldBe` map Just (regions rm')
+  it "names the first region in which each rule is live" $
+    map (firstRegionOf rm) [0 .. 3] `shouldBe` [Just 0, Just 0, Just 1, Just 0]
+  it "names no region for a rule that is live in none, and does not list regions to find one" $ do
+    let cols = [ ColumnBlocks (DTCH DTCH_In ("c" ++ show i) (Just DMN_Boolean) Nothing)
+                   [ Block (Values [VB True]) mempty (VB True) (VB True), Block (Values [VB False]) mempty (VB False) (VB False) ]
+               | i <- [1 .. 40 :: Int] ]
+    firstRegionOf rm { rmColumns = cols } 0 `shouldBe` Nothing
+  it "finds the last region of a product too big to list" $ do
+    -- 40 columns of 2 blocks each: 2^40 regions, which `regions` could not list
+    let cols = [ ColumnBlocks (DTCH DTCH_In ("c" ++ show i) (Just DMN_Boolean) Nothing)
+                   [ Block (Values [VB True]) mempty (VB True) (VB True), Block (Values [VB False]) mempty (VB False) (VB False) ]
+               | i <- [1 .. 40 :: Int] ]
+        big = rm { rmColumns = cols }
+    regionCount big `shouldBe` 2 ^ (40 :: Int)
+    fmap regionInput (regionAt big (regionCount big - 1)) `shouldBe` Just (replicate 40 (FNullary (VB False)))
+    fmap regionInput (regionAt big (2 ^ (39 :: Int))) `shouldBe` Just (FNullary (VB False) : replicate 39 (FNullary (VB True)))
+
+-- | @policy/md-prefix-comparisons@'s table: Age is cut at 18 and 21, and the
+-- pieces [18], (18, 21) and [21] are live for the same rules, so they are one
+-- block with two named points.
+ageBands :: DecisionTable
+ageBands = table [r|
+| U | Age   | Scheme | Band (out) |
+|---|-------|--------|------------|
+| 1 | < 18  | child  | minor      |
+| 2 | >= 18 | child  | adult      |
+| 3 | <= 21 | youth  | young      |
+| 4 | > 21  | youth  | adult      |
+|]
+
+blockTopSpec :: Spec
+blockTopSpec = describe "blockTop and regionTopInput" $ do
+  let pair b = (blockRep b, blockTop b)
+      column dt i = map pair (cbBlocks (rmColumns (mapOf dt) !! i))
+  it "is the highest value a cell names in a Number block, where blockRep is the lowest" $
+    column ageBands 0 `shouldBe` [(VN 17, VN 17), (VN 18, VN 21), (VN 22, VN 22)]
+  it "is the upper bound of a closed interval whose lower bound is the representative" $
+    column endpoints 0 `shouldBe`
+      [ (VN (-1), VN (-1)), (VN 0, VN 0), (VN 10, VN 20), (VN 21, VN 21), (VN 30, VN 30), (VN 31, VN 31) ]
+  it "is blockRep for a block of strings, which has no order" $
+    column ageBands 1 `shouldBe`
+      [ (VS "child", VS "child"), (VS "youth", VS "youth"), (VS "other", VS "other") ]
+  it "makes regionTopInput differ from regionInput exactly in the regions whose Age block names two points" $
+    [ (regionInput r, regionTopInput r)
+    | r <- regions (mapOf ageBands), regionTopInput r /= regionInput r ] `shouldBe`
+      [ ([FNullary (VN 18), FNullary (VS s)], [FNullary (VN 21), FNullary (VS s)]) | s <- ["child", "youth", "other"] ]
+  it "adds nothing where every block names at most one point" $
+    [ r | r <- regions (mapOf regCF), regionTopInput r /= regionInput r ] `shouldBe` []
+  it "stays inside the block: the matcher selects the region's live rules at the top input too" $
+    [ regionTopInput r
+    | r <- regions (mapOf ageBands)
+    , matcherLive ageBands (regionTopInput r) /= liveRules r ] `shouldBe` []
 
 handCounted :: Spec
 handCounted = describe "hand-counted tables" $ do
@@ -804,7 +889,7 @@ force' r@(ds, ts) = length (show ts) `seq` length (concatMap diagMessage ds) `se
 readFixture :: FilePath -> IO ([Diagnostic], [DecisionTable])
 readFixture path = parseMarkdown ArgOptions
   { verbose = False, query = False, propstyle = False, informat = Md
-  , outformat = Unknown, out = "-", pick = "", input = [path] }
+  , outformat = Unknown, out = "-", pick = "", asserts = False, input = [path] }
 
 -- | The fixtures the reader refuses for a conflict region (D-22 rule 2).
 --

@@ -357,7 +357,7 @@ Things that are only apparent across several files:
   (`many1`, `anyChar`, `notChar`, `parseOnly`) left over from an atto→mega migration.
 - **`DMN.Regions` cuts a table's input space into regions, and both readers use it to refuse conflicts (D-22 rule 2).**
   A block is a set of values of one input column on which every cell gives the same answer; a region is one block per input column, with the rules live throughout it and a concrete input (`regionInput`) to evaluate there.
-  `conflictErrors`, a summand of `tableErrors` beside D-13's `uniquenessErrors`, refuses every conflict region, and `DMN.Translate.L4.noRuleMayMatch` asks `noMatchRegions` whether an L4 result must be a `MAYBE` (D-22 part 3); the rest of the module is groundwork for D-21's `emitAsserts` (one `#ASSERT` per region).
+  `conflictErrors`, a summand of `tableErrors` beside D-13's `uniquenessErrors`, refuses every conflict region, and `DMN.Translate.L4.noRuleMayMatch` asks `noMatchRegions` whether an L4 result must be a `MAYBE` (D-22 part 3); `DMN.Translate.L4.assertLines` (D-21 step 2, the L4 backend section below) asks `regionCount`, `regionAt` and `regionInput` for one `#ASSERT` per region.
   Liveness is decided by `fEvals`, the matcher `evalTable` uses, and a `U` table's default by `uniqueCatchAll`, the function `evalTable` asks, so a trailing catch-all is the default even beside a declared one.
   `test/RegionsSpec.hs` checks, at every region representative of every table the round-trip script reads that `regionMap` accepts, that the matcher selects exactly the live set and that `evalTable` answers as the region says.
   It refuses rather than approximates: `regionMap` returns a `Left`, and `UnsupportedKind` names the eight shapes it refuses.
@@ -559,13 +559,82 @@ status header saying so.
   `isWildCell` is the one predicate now, used by `feel2l4In`, `conjSubCells` and `armCells`, which have to agree or a connector dangles.
   Pinned by `policy/l4-multivalue-dash-matches-every-value`, and by `TranslateL4Spec`, which runs the emitted L4 under the real `l4` and checks the answer at 4, 8 and 100.
 - Column/table/field names that are L4 keywords get backtick-quoted (`reservedWordsL4`).
+- **`--asserts` (`L4Opts.emitAsserts`, D-21 step 2) appends one `#ASSERT` per region, and a second where a block names a higher point, so that `l4 run` cross-checks this emitter against the interpreter.**
+  Branch `feat/l4-emit-asserts-per-region`, not merged when this was written.
+  It is off by default, and with it off the output is byte-identical to what it was: `backend-baseline.sh --check` printed `checked 1420 run(s): 0 changed` after the five new corpus cases' 40 entries were added to the manifest, and `checked 1424 run(s): 0 changed` after the sixth's eight.
+  `--asserts` is refused unless the output is `--to=l4`, up front and under `-q` too (`policy/l4-asserts-flag-needs-l4`).
+  The forms, each run under the real `l4`: `#ASSERT Fn 17 "Bob" TRUE EQUALS JUST (mkRec "minor" (-5))`, `... EQUALS NOTHING`, `... EQUALS "open"`, a sum type's member as its backticked constructor on both sides, and `#ASSERT Hi EQUALS "hello"` for a table with no input column.
+  A negative number is parenthesised, and so is every compound argument.
+  `toL4Parts` returns the table's text and its assertion lines separately, and `toL4File` puts every table's assertions after every table.
+  The expected value is `evalTable`'s answer at `regionInput`, never re-derived from the emitter: which rule answers, whether any does, and the arithmetic of a computed cell, which `evalTable` evaluates to a literal and the emitter renders as L4 arithmetic.
+  **A region is checked at one input or two, and that is a limit of what the check sees.**
+  A region's rules are the same at every input in it, so the interpreter has one answer per region; the emitted function has no such guarantee, and `<` written for `<=` differs from it at the bound and nowhere else.
+  The first input is `regionInput`: every column at its block's representative, the lowest value a cell names in it.
+  A block is every adjacent piece with the same live rules, so it can name several values (`< 18`, `>= 18`, `<= 21`, `> 21` make Age one block, [18..21], that names 18 and 21), and the second input, `regionTopInput`, puts every column at the highest.
+  It exists only where some block names a higher value than its representative; all columns move at once, so it is one more assertion per region and not a product, and it follows the first straight after it with a trailing `-- region k, highest named value`.
+  Before it, `<=` written as `<` passed every assertion of `policy/md-prefix-comparisons`, and `>=` written as `>` did not, because a closed lower bound is the representative.
+  `l4 run --json` is the way to read the outcome: one `results` entry per assertion, where the text logs each satisfied assertion twice.
+  An assertion that cannot be evaluated has `"value":null`.
+  Measured 2026-10-13 against the `l4` on `PATH` here, `l4 run` exits 1 when an assertion is false or cannot be evaluated and 0 when every one is true, and `l4 check` exits 0 with a false assertion in the file; the gates read the assertions, not the exit status, so they do not depend on it (see the golden test section for the sentence this corrects).
+
+  **Nothing is dropped without a line saying so.**
+  A table `regionMap` cannot analyse gets one `-- emitAsserts: no asserts for table "T": <reason>` comment and no sample; a sample of regions dmnmd cannot describe would be a guess.
+  A region whose input has no L4 spelling, or where `evalTable` refuses (a division by zero, at the representative `0` that an unconstrained Number column gets), gets `region k not asserted: <reason>`.
+  Over `assertCap` regions (200, no CLI flag) `assertPositions` picks the first region in which each of the first `cap / 2` rules is live (`DMN.Regions.firstRegionOf`, so that a table whose regions are almost all no-match is not sampled where no rule fires), and spaces the rest of the cap evenly through the whole sequence, first and last included; the header comment says how many regions exist and how many are not asserted.
+  `assertCap` bounds the assertions, second inputs included: when every region fits, the slots left under it take as many second inputs as fit, evenly spaced through them, and a comment says how many did not; when the regions do not fit and a block could name a higher value, a quarter of the cap is kept back for them, and a table with no such block is sampled exactly as it was.
+  Where `evalTable` answers null and the function is not a `MAYBE`, the block gets a `DIVERGENCE` comment and `#ASSERT FALSE`, so `l4 run` fails; `noRuleMayMatch` and `regionMap` agree about no-match regions, so this has not happened outside a hand-built test.
+  Eight choices are ASSUMED, NOT RULED, in four commits that can each be reverted alone: the generation (the cap of 200, the even spread, comment-only for an unanalysable table), the rule witnesses, the CLI (the flag name, and refusing the flag for other formats), and the second input (at the top of every block at once, with a quarter of the cap kept back for it).
+
+  **Loud, and silent: the check has both.**
+  Loud: an `l4 check` failure, a false assertion, and every comment above.
+  Silent, exit 0 and no diagnostic:
+  the spelling of a value is shared with the emitter (`renderOutCell`, `showValIn`), so a bug in how a literal is written is on both sides of the `EQUALS` and is not found;
+  each region is checked at one input or two, so a defect confined to the interior of a block, or to a value a cell names strictly between a block's lowest and highest, or to an input that no cell names, is not found (`>` written as `>=` at a boundary that is neither a block's lowest nor its highest named value would be one), nor is one at an input outside a declared Number domain, which regions treat as closed and the L4 input type does not;
+  and a table over `assertCap` has regions nobody asserted, which the header comment says and nothing enforces.
+
+  **What it found, 2026-10-13, over the 354 markdown and DMN fixtures** (a script, not part of the tree: each through `dmnmd --to=l4 [--asserts]`, `l4 check`, `l4 run --json`):
+  148 are refused by dmnmd, 9 emit nothing, and 197 emit a file.
+  186 of the 197 pass `l4 check` with assertions, and hold 1058 `#ASSERT` lines for 193 tables, 42 of them second inputs in 38 files: `l4 run --json` reports 1058 results, 1057 true, 1 false and none unevaluable.
+  The false one is `symptom/l4-asserts-quotient-rounded-vs-exact` (since D-24 it is `policy/l4-asserts-quotient-abstains`, which skips the region): dmnmd rounds a quotient that does not terminate to 34 digits and l4 divides exactly (`1 / 3 EQUALS 0.3333333333333333` is false, `0.1 + 0.2 EQUALS 0.3` is true), so neither side is wrong about the table and they disagree about what a number is.
+  Eleven fail `l4 check` with assertions, and ten of them fail without `--asserts` as well.
+  Three of the ten are the exponent: `policy/num-integral-exponent-exact`, `policy/num-fractional-exponent-refused`, and the new `symptom/l4-exponent-caret-parse-error` (since D-24 `policy/l4-exponent-prefix-call`).
+  `fnOp2l4` wrote `**` as `^`, which is the ditto marker in L4, so `(x ^ 2)` did not parse (`unexpected ^`); D-24 writes `(EXPONENT x 2)`.
+  Six are recorded symptoms: `l4-record-name-keyword-unquoted`, `l4-zero-output-dangling-giveth`, `md-arith-bare-identifiers-referenceerror`, `struct-dup-rightmost-name-two-outputs`, `struct-hitpolicy-only-table-accepted` and `struct-onecol-no-output`.
+  One is `policy/xml-no-output-column-refused`, a table with no output column, which `--to=l4` writes as a dangling `GIVETH` like the symptoms of that shape.
+  The eleventh, `symptom/struct-tablename-collision`, checks without `--asserts` and fails with it: two tables named `Rates` are two functions, l4 accepts the definitions, and every call is ambiguous.
+  To confirm the check can fail, bugs were put back one at a time and the 354 fixtures run again.
+  `>=` written as `>` changes the emitted L4 in 14 fixtures and all 14 fail an assertion.
+  `<=` written as `<` (the `FSection Flte` guard, in both renderers) changes it in 22 and 20 fail: 19 do with the second input switched off, and `policy/md-prefix-comparisons` was the miss; the other two are the Priority tables `eval-hp-priority` and `l4-priority-reorders-arms`, whose first arm is `IF TRUE`, so the arms after it are unreachable and no input can tell.
+  `<=` written as `<` at a closed range's upper bound (`[a..b]`) changes it in 35 and 34 fail; the miss is `num-reversed-range-bounds-preserved`, whose range `[8..5]` matches nothing either way.
+  The pre-#70 `isWildCell` fails 4 assertions in the 2 multi-value-dash fixtures.
+  `EmitAssertsSpec` keeps the cross-check: the 220 markdown fixtures `RegionsSpec` walks, 130 cross-checked with 862 assertions, in 7 to 13 seconds depending on load, pending when no `l4` is on `PATH` (`withL4`).
+  It does not read the 136 `.dmn` fixtures that the gate above does.
+  Its two named exceptions, `knownCheckFailures` and `knownDivergences`, each carry a reason and fail the test when they stop being true; `knownDivergences` has been empty since D-24.
+  Re-run on 2026-10-15 with D-24 in place, over the same kind of set (357 files): 148 are refused, 9 emit nothing, 192 emit a file that checks, and `l4 run --json` reports 1078 assertions, all true, none false and none unevaluable; 8 fail `l4 check` where 11 did, the three exponent fixtures having moved.
+
+- **Where L4 and DMN can disagree about a number, `--to=l4` says so and does not round (D-24, FOGHORN; Meng 2026-10-15, option B).**
+  DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant digits.
+  L4 divides exactly, so `1 / 3 * 3 EQUALS 1` there and `(10 / 3) EQUALS 3.333333333333333333333333333333333` is false.
+  A power is exact in L4 only at a non-negative integral exponent; with a negative or fractional one L4 computes in binary floating point, which was measured on the installed l4 on 2026-10-15: `(EXPONENT 3 (-1)) * 3 EQUALS 1` and `(EXPONENT 2 0.5) EQUALS 1.4142135623730951` are both false.
+  So for every output cell holding a `/` that `DMN.Translate.L4.inexactNodes` cannot show to terminate, or a power it cannot show exact, `--to=l4` still emits and still exits 0, but prints one located warning per cell on stderr (`dmnmd: warning: table "T": column "C": row N: (10 / d) may not agree with the interpreter. …`) and writes one `-- dmnmd:` comment line per column and expression above the function, with no row in it: the XML writer promotes a trailing catch-all row into a default output value, so a row number would make `--to=xml | --from=xml --to=l4` differ from `--to=l4` (`make roundtrip-xsd` caught it).
+  A division is shown to terminate when its divisor is a nonzero literal whose numerator, in lowest terms, has no prime factor but 2 and 5 (`x / 4`, `x / 0.25`), because the quotient of a terminating decimal by it terminates.
+  A power is shown exact when its exponent is a non-negative integral literal.
+  Everything else is flagged: a division by a name or an expression, by zero or by `3` or `2.4`, and a power with a fractional, negative or non-literal exponent.
+  `**` is written as the prefix call `(EXPONENT x 2)`: it used to be written as `^`, the ditto marker, which does not parse, and the infix form with a variable base is rejected by l4.
+  `--asserts` writes no assertion for a region whose answer comes from such a cell, and says why in the same words as the comment (`policy/l4-asserts-quotient-abstains`); under `F`, `U` and `A` the answer is the first live rule, so an exact rule above an inexact one is still asserted, and under any other policy every live rule is looked at.
+  The check cannot see a width: a terminating quotient of more than 34 significant digits is rounded by DMN and exact in L4, and the emitter knows nothing of how many digits a runtime input has.
+  Only output cells are scanned, since an input entry is a unary test and both readers refuse an operator there.
+  The other backends are not touched: js, ts and py divide in binary floating point already, and D-1 records that.
+  Pinned by `policy/l4-inexact-cells-warned`, its control `policy/l4-terminating-division-silent`, `policy/l4-exponent-prefix-call` and `policy/l4-asserts-quotient-abstains`, and by the `FOGHORN` block in `EmitAssertsSpec`, whose abstention examples fail with the abstention switched off.
+  GM's card for FOGHORN said L4 computes the result "exactly"; that is true of `/` only, and the power sentence says floating point.
 
 ### The golden test shells out to an external binary
 
 `test/TranslateL4Spec.hs` runs `l4 check` and `l4 run` over the emitted output, because the
 golden gate is **semantic** — does it typecheck, do the `#ASSERT`s pass — rather than a
-byte-exact diff against the hand-written `test/golden/miles-card.l4`. `l4 run` exits 0 even
-on a failed assertion, so the test greps stdout for `assertion satisfied` / `assertion failed`.
+byte-exact diff against the hand-written `test/golden/miles-card.l4`. The test greps stdout
+for `assertion satisfied` / `assertion failed` and does not read the exit status of `l4 run`.
+(This paragraph used to say `l4 run` exits 0 even on a failed assertion. Measured 2026-10-13 against the `l4` on `PATH` here, it exits 1; the same sentence was in `test/golden/README.md` and a comment in `TranslateL4Spec.hs`, corrected with it, and in `test/corpus/cases/policy/md-prose-only-exits-zero/input.md`, a frozen copy of that README, left as recorded.)
 
 It finds `l4` via `$L4_BIN`, else `findExecutable "l4"` on `PATH`, and when neither yields
 anything it marks those examples **pending** rather than failing them — `l4` is not a build

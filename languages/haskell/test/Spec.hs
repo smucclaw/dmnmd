@@ -30,6 +30,7 @@ import ParserSpecHelpers
 import TranslateL4Spec (l4Spec)
 import TranslateXMLSpec (xmlEmitSpec)
 import RegionsSpec (regionsSpec)
+import EmitAssertsSpec (emitAssertsSpec)
 
 -- * Main content
 
@@ -40,7 +41,7 @@ dTable n hp chs rows = DTable n hp chs rows Nothing
 
 main :: IO ()
 main = do
-  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec, tableShapeSpec] $ hspec
+  forM_ [spec1, spec2, spec3, xmlSpec, feelSpec, l4Spec, xmlEmitSpec, listSpec, defaultOutputSpec, noMatchSpec, regionsSpec, emitAssertsSpec, tableShapeSpec] $ hspec
   return ()
 
 -- | What the markdown reader does with a table whose rows are not one cell

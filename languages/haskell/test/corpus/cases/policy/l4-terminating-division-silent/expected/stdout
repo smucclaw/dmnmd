@@ -1,0 +1,9 @@
+GIVEN d IS A NUMBER
+GIVETH A MAYBE NUMBER
+Exact d MEANS
+  BRANCH
+    IF d EQUALS 3 THEN JUST ((d / 4))
+    IF ^ ^      4 THEN JUST ((d / 0.25))
+    IF ^ ^      5 THEN JUST ((EXPONENT d 2))
+    OTHERWISE NOTHING
+

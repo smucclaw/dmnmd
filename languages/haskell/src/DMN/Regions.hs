@@ -64,7 +64,10 @@ module DMN.Regions
   , regionBlocks
   , liveRules
   , regionInput
+  , regionTopInput
   , regions
+  , regionAt
+  , firstRegionOf
   , regionCount
   , isConflict
   , isNoMatch
@@ -81,7 +84,7 @@ import           Data.Char          (isSpace)
 import           Data.Function      (on)
 import           Data.IntSet        (IntSet)
 import qualified Data.IntSet        as IS
-import           Data.List          (find, intercalate, isPrefixOf, nub, transpose)
+import           Data.List          (find, findIndex, intercalate, isPrefixOf, nub, transpose)
 import qualified Data.List.NonEmpty as NE
 import           Data.Maybe         (isJust, listToMaybe, mapMaybe)
 import           Data.Scientific    (Scientific)
@@ -309,6 +312,19 @@ data Block = Block
     -- it, if there is one; else its midpoint, computed exactly. For a String
     -- block of every other value, a string no cell or domain member names
     -- (@other@, or @other 2@, …).
+  , blockTop     :: DMNVal
+    -- ^ one value in the block, chosen to be the other end from 'blockRep': for
+    -- a Number block, the HIGHEST value in it that some cell or domain member
+    -- names; if it names none, 'blockRep'. For a String or Boolean block, which
+    -- has no order, always 'blockRep'.
+    --
+    -- A block is every adjacent piece with the same live rules, so it can hold
+    -- several named points: @< 18@, @>= 18@, @<= 21@ and @> 21@ make [18..21] one
+    -- block, because 18, (18, 21) and 21 are live for the same rules. 'blockRep'
+    -- is 18, so a closed upper bound, 21, is a value of the block that the
+    -- representative never visits. A caller that checks the rules at the
+    -- representative checks them at 'blockTop' too, and sees a bound that is
+    -- closed at one end and open at the other.
   }
   deriving (Eq, Show)
 
@@ -527,10 +543,13 @@ mergeOrdered :: [(Piece, IntSet)] -> [Block]
 mergeOrdered scored =
   [ Block { blockValues  = Numbers (coalesce [ (k, iv) | NumPiece k iv _ <- ps ])
           , blockMembers = snd (NE.head grp)
-          , blockRep     = maybe (pieceRep (NE.head (fst <$> grp))) pieceRep (find isPoint ps) }
+          , blockRep     = repOf grp ps
+          , blockTop     = maybe (repOf grp ps) pieceRep (lastOf (filter isPoint ps)) }
   | grp <- NE.groupBy ((==) `on` snd) scored
   , let ps = fst <$> NE.toList grp ]
   where
+    repOf grp ps = maybe (pieceRep (NE.head (fst <$> grp))) pieceRep (find isPoint ps)
+    lastOf = \case [] -> Nothing; xs -> Just (last xs)
     isPoint = \case
       NumPiece _ (Interval (Just (BClosed, a)) (Just (BClosed, z))) _ -> a == z
       _                                                            -> False
@@ -548,10 +567,12 @@ mergeUnordered :: [(Piece, IntSet)] -> [Block]
 mergeUnordered scored =
   [ Block { blockValues  = if any isOther ps then AllExcept (filter (`notElem` vals) allVals) else Values vals
           , blockMembers = key
-          , blockRep     = maybe (VS "") pieceRep (find isOther ps <|> listToMaybe ps) }
+          , blockRep     = rep
+          , blockTop     = rep }
   | key <- nub (snd <$> scored)
   , let ps   = [ p | (p, m) <- scored, m == key ]
-        vals = [ v | ValPiece v <- ps ] ]
+        vals = [ v | ValPiece v <- ps ]
+        rep  = maybe (VS "") pieceRep (find isOther ps <|> listToMaybe ps) ]
   where
     allVals = [ v | (ValPiece v, _) <- scored ]
     isOther = \case OtherPiece _ -> True; _ -> False
@@ -576,10 +597,59 @@ liveRules = IS.toAscList . regionLive
 regionInput :: Region -> [FEELexp]
 regionInput = fmap (FNullary . blockRep) . regionBlocks
 
+-- | Another input in the same region, with every column at its block's
+-- 'blockTop'. It is 'regionInput' itself, and nothing new to check, unless some
+-- Number block names a point above its representative.
+--
+-- All the columns move together, so a region has at most two inputs to check
+-- and not a product of them. That is enough to reach any one column's upper
+-- bound: the region's live rules are the same at every input in it.
+regionTopInput :: Region -> [FEELexp]
+regionTopInput = fmap (FNullary . blockTop) . regionBlocks
+
 -- | Every region, in lexicographic order of blocks, first column outermost.
 -- Lazy, and 'regionCount' long; a table with no input column has one region.
 regions :: RegionMap -> [Region]
 regions = walk (\_ _ -> True) (const True)
+
+-- | The region at position @k@ of 'regions' (counting from 0), or 'Nothing'
+-- when @k@ is not in @0 .. regionCount - 1@. It does not enumerate the regions
+-- before it: the position is read as a number whose digits are the blocks
+-- chosen, the first column most significant, so it is as cheap on a table of
+-- 2^40 regions as on a table of 8. That is what lets a caller that can only
+-- afford a sample (L4's @emitAsserts@) pick one spread through the whole
+-- product instead of taking the first few, which share their first column's
+-- first blocks.
+regionAt :: RegionMap -> Integer -> Maybe Region
+regionAt rm k
+  | k < 0 || k >= regionCount rm = Nothing
+  | otherwise = Just (Region blocks (foldr (IS.intersection . blockMembers) everyRule blocks))
+  where
+    cols      = cbBlocks <$> rmColumns rm
+    blocks    = [ bs !! fromInteger ((k `div` stride) `mod` toInteger (length bs))
+                | (bs, stride) <- zip cols (columnStrides cols) ]
+    everyRule = IS.fromList [0 .. length (allrows (rmTable rm)) - 1]
+
+-- | @columnStrides cols !! j@ is how many regions share one block of column
+-- @j@: the product of the block counts of the columns after it. 'scanr' leaves
+-- a trailing 1 that has no column.
+columnStrides :: [[Block]] -> [Integer]
+columnStrides cols = drop 1 (scanr (\c n -> n * toInteger (length c)) 1 cols)
+
+-- | The position in 'regions' (counting from 0, as 'regionAt' does) of the first
+-- region in which rule @i@ is live, or 'Nothing' when it is live in none.
+--
+-- A rule is live in a region exactly when every column's block admits it, so the
+-- columns are independent: the first such region, in an order with the first
+-- column outermost, takes in each column the first block that admits the rule.
+-- That is one pass over the blocks and a position computed as 'regionAt' reads
+-- one, so it costs nothing on a table of 2^40 regions. L4's @emitAsserts@ uses it
+-- to make sure a sample of the regions exercises every rule that can fire.
+firstRegionOf :: RegionMap -> RuleIx -> Maybe Integer
+firstRegionOf rm i = do
+  idxs <- traverse (findIndex (IS.member i . blockMembers)) cols
+  pure (sum (zipWith (\ix stride -> toInteger ix * stride) idxs (columnStrides cols)))
+  where cols = cbBlocks <$> rmColumns rm
 
 -- | How many regions there are, without enumerating them.
 regionCount :: RegionMap -> Integer

@@ -1628,7 +1628,7 @@ The measurement compared all 94 top-level declarations of `DMN15.xsd` and `DMN16
 `readableReleases` now includes DMN 1.6, and 1.6's B-FEEL expression language is refused by URI rather than read as FEEL.
 The ruling is unchanged: `--to=xml` still writes DMN 1.3.
 
-### D-21 — where the table→tree compiler and region checker live. **RULED: C, with four conditions (Meng, 2026-09-26, bench card T4, word DUPLEX). Not implemented.**
+### D-21 — where the table→tree compiler and region checker live. **RULED: C, with four conditions (Meng, 2026-09-26, bench card T4, word DUPLEX). dmnmd's two steps are implemented: the region enumerator with D-22, and `emitAsserts` as step 2 below, on a branch not merged when this was written. The compiler and checker are l4-ide's.**
 
 This is the dmnmd pointer to a ruling recorded in full in `legalese/l4-ide` `specs/todo/INLINE-DMNMD-SPEC.md` §4.1 (legalese/l4-ide#500).
 It states only what binds this repository.
@@ -1652,6 +1652,48 @@ Meng marked the card "accept" with no note.
 **What binds dmnmd, in order.**
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
+
+**Implementation, step 2: `emitAsserts` (2026-10-13, branch `feat/l4-emit-asserts-per-region`, stacked on #72, not merged when this was written).**
+`L4Opts.emitAsserts`, declared since D-16 and read by nothing, now appends one `#ASSERT` per region of `DMN.Regions` after the tables, saying that the emitted function at `regionInput` equals what `evalTable` answers there.
+The CLI flag is `--asserts`, off by default, and refused unless the output is `--to=l4`.
+Its forms, the cap and what it says instead of asserting are in `CLAUDE.md`, The L4 backend.
+
+*Which of the four conditions this discharges.*
+Condition 1 is not discharged, and is not dmnmd's to discharge: the CI gate for l4-ide's compiler and checker is l4-ide's per-region battery.
+What step 2 adds is dmnmd's local leg that condition 1 describes, `EmitAssertsSpec`'s cross-check, which is pending when there is no `l4` on `PATH`, as it must be on dmnmd's CI.
+Condition 2 was discharged by D-22 part 1 before this step began; step 2 came after it, as the condition says.
+Condition 3 is not discharged: `BUILD-SPEC-dmnmd-to-l4.md` still names no canonical copy (`grep -i canonical` finds two unrelated lines), and the l4-ide copy was not looked at.
+Condition 4 is untouched.
+
+*What it found, over 354 markdown and DMN fixtures.*
+It emitted 1058 assertions for 193 tables in the 186 fixtures whose output passes `l4 check`; `l4 run --json` reported 1057 true, 1 false and none that could not be evaluated.
+(The first version emitted 1016. The 42 added later are second inputs, below.)
+The false one is a number-model difference and not a bug in either side: dmnmd rounds a quotient that does not terminate to 34 digits (D-1) and l4 divides exactly (`symptom/l4-asserts-quotient-rounded-vs-exact`).
+Which way to settle it was not decided here: skip such a region with a comment, assert within a tolerance, or round in the L4 backend, each a ruling. D-24 ruled it on 2026-10-15: warn, and skip the region (now `policy/l4-asserts-quotient-abstains`).
+Running it over the fixtures also surfaced two defects of the L4 backend that it did not cause.
+One fails loudly: `**` is written as `^`, the ditto marker, so the file did not parse (`symptom/l4-exponent-caret-parse-error`, since D-24 `policy/l4-exponent-prefix-call`).
+The other was latent: two tables with one name are two functions, which l4 accepts until something calls the name, so `symptom/struct-tablename-collision` now fails `l4 check` because the assertions call it.
+
+*A blind spot, found after the first version landed.*
+A mutation test, `<=` written as `<` in the emitter, passed every assertion of `policy/md-prefix-comparisons`, whose Age rules are `< 18`, `>= 18`, `<= 21` and `> 21`.
+`DMN.Regions` cuts Age at 18 and 21, but the pieces [18], (18, 21) and [21] are live for the same rules, so they are one block, [18..21], and a block has one representative: the lowest value a cell names in it.
+Age = 21, the closed upper bound, was never visited, where the mirror mutation (`>=` as `>`) was caught because a closed lower bound is the representative.
+The doc comment on `assertLines` had said "one input per region is every distinguishable behaviour of the table", which is true of the interpreter and overstates what the check can see of the emitter's function, since a function can be wrong at one input of a region and right at another.
+Fixed with a second input per region where a block names a higher value than its representative: `DMN.Regions.blockTop` and `regionTopInput`, every column at the highest value its block names, all at once, so at most one more assertion per region and not a product.
+`<=` written as `<` is now caught in 20 of the 22 fixtures whose emitted L4 it changes (19 with the second input switched off); the two it cannot be caught in are the Priority tables whose first arm is `IF TRUE`, which makes every later arm unreachable.
+`>=` written as `>` is still caught in all 14.
+
+*What it does not check.*
+How a literal is spelled is shared with the emitter, so a spelling bug is on both sides of the `EQUALS`.
+Each region is checked at one input or two: the lowest value a cell names in each block and, where that differs, the highest.
+A defect confined to the interior of a block, or to a value a cell names strictly between a block's lowest and highest, or to an input that no cell names, is not found; `>` written as `>=` at a boundary that is neither would be one.
+The representative of a Number column that no cell mentions is `0`, so a quotient by it is refused by `evalTable` and the region is named and skipped.
+
+*ASSUMED, NOT RULED, in four commits that can each be reverted alone.*
+The generation: a cap of 200 regions a table, the rest of the cap evenly spaced through the whole sequence with the first and last included (taking the first 200 would share the first column's first block), and one comment line and no assertions for a table `regionMap` cannot analyse, with no sampling fallback for it.
+The witnesses: the first region in which each of the first `cap / 2` rules is live is always asserted, because on a sparse table the even spread alone lands almost wholly on no-match regions (a 10-column table of 7 point rules has 15^10 regions, about 5.8e11, and by counting digits none of the 200 spaced positions is a region where a rule is live).
+The CLI: the flag name `--asserts`, and refusing it for any output but `--to=l4`.
+The second input: one per region, with every column at the top of its block at once, and a quarter of `assertCap` kept back for second inputs when the regions do not all fit.
 
 ### D-22 — a trailing catch-all under `U`, conflict regions, and no-match. **RULED: A (Meng, 2026-09-26, bench card T6, word SHRAPNEL). All three parts landed: 1 (the interpreter), 2 (refusing conflict regions) and 3 (`NOTHING` in L4). A part 4 closed the one gap part 3 left.**
 
@@ -1862,3 +1904,29 @@ It is a small change to `toL4` if a visible guard is preferred to a shorter tabl
 ### D-23 — a markdown data row with a non-blank cell past the header's last column is refused. **RULED: refuse (Meng, 2026-10-15, word FREELOADER, typed in the dmnmd session after GM relayed it on 2026-10-14 19:49Z).**
 
 Refuse with an error located at the table and the row number the author wrote, exit 1, nothing emitted; a surplus of blank cells stays accepted, and declining would have meant keeping the silent drop that GFM renders (smucclaw/dmnmd#71 section 2, #74).
+
+### D-24 — where L4 and DMN can disagree about a number. **RULED: warn, and say so in the emitted L4 (Meng, 2026-10-15, word FOGHORN, GM's word and card, option B, typed in the dmnmd session after GM relayed it on 2026-10-14 19:49Z; option A, word POKERFACE, was not fired).**
+
+DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant digits.
+L4 divides exactly, so `--to=l4 --asserts` reported an honest table false (`symptom/l4-asserts-quotient-rounded-vs-exact`, D-21 step 2).
+The ruling keeps both behaviours and does not make the L4 backend round.
+For every output cell holding a division it cannot show to terminate, or a power it cannot show exact, `--to=l4` still emits and exits 0, but prints a located warning on stderr and writes a comment above the function saying that the two can differ; `--asserts` abstains on those outputs with the same comment; CLAUDE.md documents the predicate.
+The cost is that `--to=l4` now prints a warning for tables that did not print one before, and every `--to=l4` baseline run of a dividing fixture moved (`test/roundtrip/baseline-audit/README.md`).
+
+**A correction to the text the ruling was carried in.**
+It said L4 computes "exactly where DMN rounds".
+That is true of `/` and false of a power: on the installed l4 `(EXPONENT 3 (-1)) * 3 EQUALS 1` and `(EXPONENT 2 0.5) EQUALS 1.4142135623730951` are both false, because a negative or fractional exponent is computed in binary floating point.
+The comment and the warning for a power say that, and the one for a quotient says "divides exactly".
+
+**The exponent had to change with it.**
+`**` was written as `^`, which is L4's ditto marker, so `(x ^ 2)` did not parse (`symptom/l4-exponent-caret-parse-error`, now `policy/l4-exponent-prefix-call`).
+It is written `(EXPONENT x 2)`, the prefix call, since the infix form with a variable base is rejected by l4.
+That is a fix and not part of the ruling: the output of a table with `**` in an output cell changes in its code as well as its comments.
+
+**What the predicate does not see, and why it is that way.**
+It is syntactic.
+A division is shown to terminate by a nonzero literal divisor whose numerator in lowest terms has no prime factor but 2 and 5; a power by a non-negative integral literal exponent.
+A divisor that is a name warns even if it is always 4 at run time.
+A terminating quotient of more than 34 significant digits is rounded by DMN and exact in L4, and nothing here knows how many digits an input has.
+Under a hit policy other than `F`, `U` and `A`, `--asserts` looks at every live rule and so abstains more often than it must.
+Only output cells are scanned, because an input entry cannot hold an operator.
