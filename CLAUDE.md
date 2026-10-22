@@ -130,12 +130,15 @@ Things that are only apparent across several files:
   `parseNumberCell`'s arithmetic arm accepts bare FEEL names and so accepts `Non-Participating`
   and `n/a`); and none (a wildcard).
 
-  **Quoted-string evidence reaches inference only on the XML path (audit finding f4).**
+  **Quoted-string evidence reaches inference on both paths (audit finding f4).**
   A double-quoted cell is hard String evidence, but only if inference sees the quotes.
   The XML reader's pre-pass grades cells with `DecisionTable.mkFsKeepingQuotes`, so `"2020"` and `"yes"` are String there, and the cells of a column it could not settle are built with their quotes too, because `tableErrors` asks `columnVerdict` the same question of the built cells.
-  The markdown reader's pass 1 builds the cells it infers from with `mkFsEither`, whose `unquoteCell` strips a well-formed quoted cell first, so an undeclared markdown column of `"2020"` is still Number and one of `"yes"` is Boolean, and `"007"` is refused as ambiguous.
-  That is not fixed: `symptom/md-quoted-literal-inferred-by-content`.
-  The quoted-string clause of `inferEvidence` fires on markdown only for a cell `unquoteCell` leaves quoted, such as `"2020", 5`.
+  The markdown reader does the same since the markdown half of f4 (assumed, not ruled): pass 1 reads a data cell of a column that declares no type through `mkDataFsAt`, which defers to `mkFsKeepingQuotes`, and `reprocessRows` strips the quotes again (`unquoteBuilt`, which asks `unquoteCell`, so the all-or-nothing rule has one definition) once the column has a type.
+  So an undeclared markdown column of `"2020"` is String, one of `"yes"` is String, `"007"` is accepted, and a quoted numeral mixed with a bare one is refused as a disagreement.
+  A declared column is unchanged: `Year : Number` still reads `"2020"` as the number, and `Year : String` still reads a bare `2021` as text.
+  The sub-header row still goes through `mkFsAt` and is unquoted, because a domain is not evidence about the type.
+  What is NOT changed is that a quoted `"-"` or `""` is still the wildcard, so `symptom/md-quoted-wildcard-spellings-are-wildcards` stays a symptom.
+  Pinned by `policy/md-quoted-literals-are-strings` (and its `-l4` face), `policy/md-quoted-and-bare-refused` and `policy/md-quoted-leading-zero-accepted`.
 
   **A `Left` from the oracle is not always "not a number".** Its two NAMED refusals — FEEL
   negation and invocation — mean "unmistakably numeric, and dmnmd does not implement it", so
@@ -154,7 +157,7 @@ Things that are only apparent across several files:
   **A test-shaped cell dmnmd cannot read is refused in pass 1, before inference sees it.**
   An input cell of an undeclared column shaped like a comparison (`>= date("2026-09-24")`, `>= Age`, `>5 years`, `!= 5`) or an interval (`[date(…)..date(…)]`, `[a..b]`) that `parseNumberCell` refuses used to be String evidence, so the column typed String and the rule became an equality test against the cell's own spelling, at exit 0.
   `DMN.ParseCell.unreadableTestShape` is the predicate, and its haddock states it exactly and says what each clause keeps out; `DecisionTable.mkInputFsAt` applies it, and `ParseTable.mkFEELCol` calls that for input columns only.
-  It is in pass 1 and not in `inferenceErrors` because `unquoteCell` strips quotes in pass 1: afterwards `"<1 year"` and `<1 year` are the same `VS`, so only the raw text can tell a quoted label from a test.
+  It is in pass 1 and not in `inferenceErrors` because the built table has had its quotes stripped (`unquoteCell` in pass 1 for a declared column, `unquoteBuilt` in pass 2 for the rest): there `"<1 year"` and `<1 year` are the same `VS`, so only the raw text can tell a quoted label from a test.
   A declared column is exempt, because `: String` is the repair the refusal names (as `VConflict` and `VAmbiguous` already do), and so is every output cell, which is a value rather than a test.
   The XML reader does not call it: an untyped or `typeRef="string"` `<inputEntry>` reading `>= start` is still kept as text at exit 0, recorded as `symptom/xml-unreadable-test-kept-as-text`.
   Pinned by `policy/md-unreadable-comparison-refused`, `policy/md-unreadable-interval-refused` and the negative controls `policy/md-test-shaped-label-quoted-kept` and `policy/md-test-shaped-label-declared-string-kept`; `symptom/md-dash-written-interval-silent` records the one shape deliberately left out.
@@ -223,7 +226,11 @@ Things that are only apparent across several files:
   A comment cell cannot change an answer, so leaving it out cannot widen a rule, and trunk accepted such a row before the arity check existed.
   The refusal is in pass 1, so it covers every backend and the `-q` evaluator; `--to=xml` and the XML reader had refused a rule short of an input or output entry already, and still do for a table built any other way.
   Pinned by `policy/struct-short-row-refused`, `policy/md-all-short-rows-refused` and `policy/xml-short-row-refused`, with `policy/md-short-row-annotation-only-accepted` and its negative control `policy/md-short-row-annotation-and-output-refused` on the other side of the boundary.
-  A row with MORE cells than the header is not covered: its surplus is still dropped without a word (measured on a `| 1 | Fall | Stew | extra |` row, which `--to=ts` emitted at exit 0).
+  A row with MORE cells than the header is refused too, when any cell past the last column is not blank (#71 section 2; ruled, D-23).
+  GFM ignores the excess, and so did dmnmd, with no diagnostic, so a cell the author wrote vanished and the table read as well formed.
+  A surplus of blank cells is accepted, as the sub-header row's has always been, because a stray `| |` holds nothing to lose.
+  It is located at the table and the row number the author wrote, since no column owns a surplus cell.
+  Pinned by `policy/md-surplus-row-cell-refused` and its control `policy/md-surplus-blank-cell-accepted`.
 
   **"Bypasses `mkDTable`" is not "is unaffected by inference", and D-2 widened the gap.**
   `XmlToDmnmd` calls `inferTypes` directly (`:408`) for any column whose `<inputExpression>`

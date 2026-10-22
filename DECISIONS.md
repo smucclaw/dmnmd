@@ -1454,8 +1454,18 @@ The pre-pass now calls `mkFsKeepingQuotes`.
 The cells of a column inference could not settle are built with their quotes as well, because `tableErrors` asks `columnVerdict` the same question of the BUILT cells and would otherwise see two numerals where the pre-pass saw a string and a number.
 Three further shapes of the one cause were measured on trunk and are fixed with it: a quoted boolean word (`"yes"`) came back as a boolean, a quoted leading-zero numeral (`"007"`) was refused as ambiguous with advice in markdown header syntax, and a quoted numeral mixed with a bare one was read as all-Number instead of refused.
 The `C#` round trip measured above is exact now, and `policy/md-count-string-numerals-roundtrip` puts it under `run-roundtrip.sh`, where it fails against the pre-fix binary.
-The markdown reader has the same defect and is NOT fixed: its pass 1 unquotes the cell before inference, so a quoted numeral in an undeclared markdown column is Number and a quoted `yes` is Boolean (`symptom/md-quoted-literal-inferred-by-content`).
+The markdown reader had the same defect, and it is fixed afterwards (below).
 `policy/xml-untyped-quoted-numeral-output-stays-string` (the old `symptom/xml-untyped-quoted-numeral-inferred-number`), `policy/xml-untyped-quoted-literals-stay-strings`, `-quoted-leading-zero-accepted`, `-quoted-and-bare-refused`, and the control `policy/xml-untyped-bare-literals-stay-typed`.
+
+*2026-10-13, audit finding f4, markdown side (assumed, not ruled).*
+The markdown reader's pass 1 unquoted a well-formed double-quoted cell (`unquoteCell`) before inference graded it, so a quoted numeral in an undeclared column typed as Number, a quoted `yes` as Boolean, `"007"` was refused as an ambiguous numeral, and a quoted numeral mixed with a bare one was read as all-Number instead of refused.
+`CLAUDE.md` says a double-quoted cell is a string literal, and the quotes are the only thing that says it.
+Pass 1 now reads a data cell of a column that declares no type through `mkDataFsAt`, which keeps the quotes (`mkFsKeepingQuotes`, the function the XML reader's pre-pass uses), and `reprocessRows` strips them once the column has a type (`unquoteBuilt`).
+Input and output cells go through it alike, which an earlier cut got wrong for output cells.
+A declared column and the sub-header row are unchanged, and a quoted `"-"` or `""` is still the wildcard (`symptom/md-quoted-wildcard-spellings-are-wildcards`), because moving that is a separate question.
+What a rule author would notice: an undeclared markdown column of quoted numerals or quoted boolean words now emits string comparisons (`Year === "2020"`, `GIVEN Year IS A STRING`) where it emitted numeric or boolean ones, and a table that mixed the two is refused where it was accepted.
+The four cases are `policy/md-quoted-literals-are-strings`, `policy/md-quoted-literals-are-strings-l4`, `policy/md-quoted-and-bare-refused` and `policy/md-quoted-leading-zero-accepted`, promoted from `symptom/` and renamed because their old slugs described the defect.
+No fixture that was not a symptom case moved: `--check` printed `checked 1412 run(s): 24 changed`, all in those four cases, before they were re-recorded.
 
 ### D-18 — `<decisionService>` is packaging, not logic. **RULED: read and drop with a warning. LANDED.**
 
@@ -1890,3 +1900,7 @@ It is a small change to `toL4` if a visible guard is preferred to a shorter tabl
 - `l4 check` succeeds on both sides of those 8, and 28 `#EVAL`s over 7 of them agree apart from the `JUST` wrapper.
 - `make roundtrip`: 199 fixtures, 137 pass, 0 fail, 10 xfail, 52 skipped; it was 197, 135, 0, 10, 52 before the two new fixtures.
 - The root `README.md` `--pick="Example 2" --to=l4` example is unchanged: its table has no-match regions and its result is a plain `STRING`, not a sum type.
+
+### D-23 — a markdown data row with a non-blank cell past the header's last column is refused. **RULED: refuse (Meng, 2026-10-15, word FREELOADER, typed in the dmnmd session after GM relayed it on 2026-10-14 19:49Z).**
+
+Refuse with an error located at the table and the row number the author wrote, exit 1, nothing emitted; a surplus of blank cells stays accepted, and declining would have meant keeping the silent drop that GFM renders (smucclaw/dmnmd#71 section 2, #74).
