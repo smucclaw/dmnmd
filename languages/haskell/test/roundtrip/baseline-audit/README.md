@@ -332,3 +332,22 @@ That includes `README.md`, which this script reads.
 The two new cases are `policy/md-surplus-row-cell-refused` (exit 1, nothing emitted) and its control `policy/md-surplus-blank-cell-accepted` (exit 0, the same output as the table without its trailing blank cells).
 In the manifest, nothing changed and 16 entries arrived, 8 for each case.
 
+
+## Extension for D-21 step 2 (`--asserts`, `emitAsserts`), 2026-10-13
+
+**No emitter output changed; five fixtures arrived.**
+Before recording, `--check` printed `checked 1420 run(s): 40 changed`, and all 40 were `MISSING FROM MANIFEST`: no `CHANGED` line, so no run of a fixture already in the manifest moved.
+The 40 are five new corpus cases, eight entries each (four formats, stdout and stderr): `policy/l4-asserts-flag-emits-per-region`, `policy/l4-asserts-flag-needs-l4`, `policy/l4-asserts-unanalysable-says-why`, `symptom/l4-asserts-quotient-rounded-vs-exact` and `symptom/l4-exponent-caret-parse-error`.
+The baseline runs `--to=ts`, `--to=js`, `--to=py` and `--to=l4` without `--asserts`, so it records none of the assertion text; the corpus cases do.
+A fresh `--record` into a scratch directory differed from the committed manifest by those 40 lines and no others, and that file is the manifest now.
+In the manifest, 40 entries arrived; none changed and none left.
+After recording, `--check` printed `checked 1420 run(s): 0 changed`.
+
+## Extension for the second input of an `--asserts` region, 2026-10-13
+
+**No emitter output changed; one fixture arrived.**
+Before recording, `--check` printed `checked 1424 run(s): 8 changed`, and all 8 were `MISSING FROM MANIFEST`: no `CHANGED` line, so no run of a fixture already in the manifest moved.
+The 8 are the new corpus case `policy/l4-asserts-block-top-asserted`, four formats, stdout and stderr, without `--asserts`, so the baseline records none of the assertion text.
+A fresh `--record` into a scratch directory differed from the committed manifest by those 8 lines and no others, and that file is the manifest now.
+In the manifest, 8 entries arrived; none changed and none left.
+After recording, `--check` printed `checked 1424 run(s): 0 changed`.

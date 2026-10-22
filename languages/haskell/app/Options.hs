@@ -22,6 +22,7 @@ data ArgOptions = ArgOptions
   , outformat :: FileFormat
   , out      :: String
   , pick     :: String
+  , asserts  :: Bool
   , input    :: [String]
   }
   deriving (Show, Eq)
@@ -36,6 +37,7 @@ argOptions = ArgOptions
   <*> ffmtOption (long "to"        <> short 't' <> metavar "OutputFormat" <> value Unknown <> help "output format" )
   <*> strOption (long "out"        <> short 'o' <> metavar "FILE"         <> value "-"   <> help "output file" )
   <*> strOption (long "pick"       <> short 'p' <> metavar "TABLE,..."    <> value ""    <> help "name of desired decision table" )
+  <*> switch    (long "asserts"                                                       <> help "with --to=l4, append one #ASSERT per region of each table, from the interpreter (see CLAUDE.md, The L4 backend)" )
   <*> (OA.some ( argument str (metavar "FILES...")) OA.<|> pure ["-"])
 
 -- | do the actual parsing of options

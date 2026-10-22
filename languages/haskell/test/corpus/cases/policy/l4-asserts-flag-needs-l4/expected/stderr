@@ -1,0 +1,2 @@
+dmnmd: --asserts writes #ASSERT lines into L4 output, so it needs --to=l4
+
