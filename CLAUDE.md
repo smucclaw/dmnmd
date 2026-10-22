@@ -560,7 +560,7 @@ status header saying so.
   Pinned by `policy/l4-multivalue-dash-matches-every-value`, and by `TranslateL4Spec`, which runs the emitted L4 under the real `l4` and checks the answer at 4, 8 and 100.
 - Column/table/field names that are L4 keywords get backtick-quoted (`reservedWordsL4`).
 - **`--asserts` (`L4Opts.emitAsserts`, D-21 step 2) appends one `#ASSERT` per region, and a second where a block names a higher point, so that `l4 run` cross-checks this emitter against the interpreter.**
-  Branch `feat/l4-emit-asserts-per-region`, not merged when this was written.
+  It landed as #75 (merged 2026-10-22, from branch `feat/l4-emit-asserts-per-region`).
   It is off by default, and with it off the output is byte-identical to what it was: `backend-baseline.sh --check` printed `checked 1420 run(s): 0 changed` after the five new corpus cases' 40 entries were added to the manifest, and `checked 1424 run(s): 0 changed` after the sixth's eight.
   `--asserts` is refused unless the output is `--to=l4`, up front and under `-q` too (`policy/l4-asserts-flag-needs-l4`).
   The forms, each run under the real `l4`: `#ASSERT Fn 17 "Bob" TRUE EQUALS JUST (mkRec "minor" (-5))`, `... EQUALS NOTHING`, `... EQUALS "open"`, a sum type's member as its backticked constructor on both sides, and `#ASSERT Hi EQUALS "hello"` for a table with no input column.

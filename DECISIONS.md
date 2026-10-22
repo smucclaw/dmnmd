@@ -1628,7 +1628,7 @@ The measurement compared all 94 top-level declarations of `DMN15.xsd` and `DMN16
 `readableReleases` now includes DMN 1.6, and 1.6's B-FEEL expression language is refused by URI rather than read as FEEL.
 The ruling is unchanged: `--to=xml` still writes DMN 1.3.
 
-### D-21 — where the table→tree compiler and region checker live. **RULED: C, with four conditions (Meng, 2026-09-26, bench card T4, word DUPLEX). dmnmd's two steps are implemented: the region enumerator with D-22, and `emitAsserts` as step 2 below, on a branch not merged when this was written. The compiler and checker are l4-ide's.**
+### D-21 — where the table→tree compiler and region checker live. **RULED: C, with four conditions (Meng, 2026-09-26, bench card T4, word DUPLEX). dmnmd's two steps are implemented: the region enumerator with D-22, and `emitAsserts` as step 2 below, which landed as #75 on 2026-10-22. The compiler and checker are l4-ide's.**
 
 This is the dmnmd pointer to a ruling recorded in full in `legalese/l4-ide` `specs/todo/INLINE-DMNMD-SPEC.md` §4.1 (legalese/l4-ide#500).
 It states only what binds this repository.
@@ -1653,7 +1653,7 @@ Meng marked the card "accept" with no note.
 First, condition 2's no-match fix, which D-22 also requires.
 Only then, `emitAsserts`.
 
-**Implementation, step 2: `emitAsserts` (2026-10-13, branch `feat/l4-emit-asserts-per-region`, stacked on #72, not merged when this was written).**
+**Implementation, step 2: `emitAsserts` (2026-10-13, branch `feat/l4-emit-asserts-per-region`, stacked on #72; merged as #75 on 2026-10-22).**
 `L4Opts.emitAsserts`, declared since D-16 and read by nothing, now appends one `#ASSERT` per region of `DMN.Regions` after the tables, saying that the emitted function at `regionInput` equals what `evalTable` answers there.
 The CLI flag is `--asserts`, off by default, and refused unless the output is `--to=l4`.
 Its forms, the cap and what it says instead of asserting are in `CLAUDE.md`, The L4 backend.
