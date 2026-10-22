@@ -1,0 +1,22 @@
+DECLARE Mixed HAS
+    out  IS A NUMBER
+    note IS A STRING
+
+GIVEN v1 IS A NUMBER
+      v2 IS A STRING
+GIVETH A Mixed
+mkMixed v1 v2 MEANS Mixed WITH
+    out  IS v1
+    note IS v2
+
+-- dmnmd: table "Mixed", column "out": (EXPONENT share 0.5). L4 computes a power with a negative, fractional or non-literal exponent in binary floating point, where dmnmd's own evaluator refuses a fractional exponent and rounds a negative one to 34 digits (D-1), so the two can differ.
+-- dmnmd: table "Mixed", column "out": (EXPONENT amt (0 - 1)). L4 computes a power with a negative, fractional or non-literal exponent in binary floating point, where dmnmd's own evaluator refuses a fractional exponent and rounds a negative one to 34 digits (D-1), so the two can differ.
+GIVEN amt   IS A NUMBER
+      share IS A NUMBER
+GIVETH A Mixed
+Mixed amt share MEANS
+  BRANCH
+    IF amt < 0             THEN mkMixed (amt / 4) "a"
+    IF          share > 10 THEN mkMixed (EXPONENT share 0.5) "b"
+    OTHERWISE mkMixed (EXPONENT amt (0 - 1)) "c"
+

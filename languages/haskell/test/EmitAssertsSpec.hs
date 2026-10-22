@@ -22,7 +22,7 @@
 -- harness reports it.
 module EmitAssertsSpec (emitAssertsSpec) where
 
-import           Control.Monad        (forM)
+import           Control.Monad        (forM, forM_)
 import           Data.List            (isInfixOf, isPrefixOf, isSuffixOf, nub, tails)
 import           Data.Maybe           (isJust)
 import           Data.Text            (Text)
@@ -177,6 +177,7 @@ emitAssertsSpec = describe "DMN.Translate.L4 emitAsserts (D-21 step 2)" $ do
   capping
   secondInputs
   crossCheck
+  exactness
 
 positions :: Spec
 positions = describe "assertPositions" $ do
@@ -402,8 +403,9 @@ knownCheckFailures =
 -- test: delete the line.
 knownDivergences :: [(String, String)]
 knownDivergences =
-  [ ( "symptom/l4-asserts-quotient-rounded-vs-exact"
-    , "dmnmd rounds a quotient that does not terminate to 34 digits and l4 divides exactly (symptom/l4-asserts-quotient-rounded-vs-exact)" ) ]
+  -- Empty since FOGHORN (D-24): the check abstains where a quotient or a power would be rounded
+  -- differently, so policy/l4-asserts-quotient-abstains no longer diverges.
+  []
 
 -- | What one fixture came to.
 data Verdict
@@ -537,3 +539,142 @@ runAsserts l4bin file src = do
         , count "\"kind\":\"error\"" j + count "\"value\":null" j )
   where
     count needle hay = length [ () | t <- tails hay, needle `isPrefixOf` t ]
+
+-- * Where L4 and DMN can disagree about a number (FOGHORN, DECISIONS.md D-24)
+
+-- | A quotient that does not terminate. The one region at d = 3 is the case that
+-- used to be asserted false, 3.333333333333333333333333333333333 against l4's exact 10 / 3.
+thirdTable :: Text
+thirdTable = T.pack $ dropWhile (== '\n') [r|
+| F | d : Number | q : Number (out) |
+|---+------------+------------------|
+| 1 | 3          | 10 / d           |
+|]
+
+-- | Every quotient and power in it terminates in both, so nothing should be said.
+exactTable :: Text
+exactTable = T.pack $ dropWhile (== '\n') [r|
+| F | d : Number | q : Number (out) |
+|---+------------+------------------|
+| 1 | 3          | d / 4            |
+| 2 | 4          | d / 0.25         |
+| 3 | 5          | d ** 2           |
+|]
+
+-- | One exact output rule above two that are not, and a first-match policy.
+mixedTable :: Text
+mixedTable = T.pack $ dropWhile (== '\n') [r|
+| F | amt : Number | share : Number | out : Number (out) | note : String (out) |
+|---+--------------+----------------+--------------------+---------------------|
+| 1 | < 0          | -              | amt / 4            | a                   |
+| 2 | -            | > 10           | share ** 0.5       | b                   |
+| 3 | -            | -              | amt ** (0 - 1)     | c                   |
+|]
+
+-- | A U table whose trailing catch-all is the quotient: the catch-all is the table's default, and it
+-- answers every input the first rule does not.
+catchAllTable :: Text
+catchAllTable = T.pack $ dropWhile (== '\n') [r|
+| U | d : Number | q : Number (out) |
+|---+------------+------------------|
+| 1 | > 10       | 1                |
+| 2 | -          | d / 3            |
+|]
+
+exactness :: Spec
+exactness = describe "where L4 and DMN can disagree about a number (FOGHORN, D-24)" $ do
+  let x       = FNF1 "x"
+      lit     = FNF0 . VN
+      flagged = length . inexactNodes
+      dmnComments = filter ("-- dmnmd:" `isPrefixOf`) . lines
+
+  describe "inexactNodes" $ do
+    it "accepts a division by a nonzero literal whose numerator, in lowest terms, is 2^a 5^b" $
+      mapM_ (\d -> (d, flagged (FNF3 x FNDiv (lit d))) `shouldBe` (d, 0)) [4, 0.25, 0.5, 8, 10, 2.5, 0.2, 125, 0.125]
+    it "flags a division by a literal with any other prime in it, and by zero" $
+      mapM_ (\d -> (d, flagged (FNF3 x FNDiv (lit d))) `shouldBe` (d, 1)) [3, 7, 6, 2.4, 0.3, 0]
+    it "flags a division by a name or by a sub-expression, whatever its value would be" $ do
+      flagged (FNF3 x FNDiv (FNF1 "y")) `shouldBe` 1
+      flagged (FNF3 x FNDiv (FNF3 (lit 2) FNMul (lit 2))) `shouldBe` 1
+    it "accepts a power with a non-negative integral literal exponent" $
+      mapM_ (\e -> (e, flagged (FNF3 x FNExp (lit e))) `shouldBe` (e, 0)) [0, 1, 2, 10]
+    it "flags a power with a fractional, negative or non-literal exponent" $ do
+      mapM_ (\e -> (e, flagged (FNF3 x FNExp (lit e))) `shouldBe` (e, 1)) [0.5, 2.5, -1]
+      flagged (FNF3 x FNExp (FNF1 "n")) `shouldBe` 1
+      flagged (FNF3 x FNExp (FNF3 (lit 0) FNMinus (lit 1))) `shouldBe` 1
+    it "counts every node: a quotient of quotients is two, an exact one inside an inexact one is one" $ do
+      flagged (FNF3 (FNF3 x FNDiv (lit 3)) FNMul (FNF3 x FNDiv (lit 7))) `shouldBe` 2
+      flagged (FNF3 (FNF3 x FNDiv (lit 4)) FNDiv (lit 3)) `shouldBe` 1
+
+  describe "the warning and the comment" $ do
+    let (diags, out) = toL4File defaultL4Opts [parse "Third" thirdTable]
+    it "is one located warning for the cell, naming the table, the column, the row and the expression" $
+      case diags of
+        [Diagnostic Warning m] -> do
+          m `shouldSatisfy` ("table \"Third\": column \"q\": row 1: (10 / d)" `isPrefixOf`)
+          m `shouldSatisfy` ("34 significant digits" `isInfixOf`)
+        other -> expectationFailure ("expected one warning, got " ++ show other)
+    it "puts a comment above the function, naming the column and the expression and no row, and changes nothing else" $ do
+      let ls      = lines out
+          before  = takeWhile (not . ("GIVEN" `isPrefixOf`)) ls
+      length (dmnComments out) `shouldBe` 1
+      before `shouldSatisfy` any ("-- dmnmd: table \"Third\", column \"q\": (10 / d). L4 divides exactly" `isPrefixOf`)
+      filter (not . ("-- dmnmd:" `isPrefixOf`)) ls `shouldSatisfy` any ("IF d EQUALS 3 THEN JUST ((10 / d))" `isInfixOf`)
+    it "stays silent, and writes no comment, for a division by 4 and by 0.25 and a power of 2" $ do
+      let (d2, o2) = toL4File defaultL4Opts [parse "Exact" exactTable]
+      d2 `shouldBe` []
+      dmnComments o2 `shouldBe` []
+    it "warns once per cell, in reading order, and not for the exact output beside it" $ do
+      let (d3, o3) = toL4File defaultL4Opts [parse "Mixed" mixedTable]
+      length d3 `shouldBe` 2
+      and (zipWith isPrefixOf
+             [ "table \"Mixed\": column \"out\": row 2: (EXPONENT share 0.5)"
+             , "table \"Mixed\": column \"out\": row 3: (EXPONENT amt (0 - 1))" ]
+             (map diagMessage d3)) `shouldBe` True
+      length (dmnComments o3) `shouldBe` 2
+    it "says that a power is floating point, not that it is exact" $ do
+      let (_, o4) = toL4File defaultL4Opts [parse "Mixed" mixedTable]
+      concat (dmnComments o4) `shouldSatisfy` ("binary floating point" `isInfixOf`)
+      concat (dmnComments o4) `shouldSatisfy` (not . ("divides exactly" `isInfixOf`))
+
+  describe "an exponent is the prefix call EXPONENT, never a caret" $ do
+    let emitted = toL4 defaultL4Opts (parse "Square" (T.pack (dropWhile (== '\n') [r|
+| F | x : Number | squared : Number (out) |
+|---+------------+------------------------|
+| 1 | -          | x ** 2                 |
+|])))
+    it "renders x ** 2 as (EXPONENT x 2)" $ do
+      emitted `shouldContain` "(EXPONENT x 2)"
+      emitted `shouldSatisfy` (not . ("^" `isInfixOf`))
+    it "typechecks and computes under the real l4" $ withL4 $ \l4bin -> do
+      createDirectoryIfMissing True outDir
+      r' <- runAsserts l4bin (outDir </> "exponent.l4") (emitted ++ unlines
+              [ "", "#ASSERT Square 3 EQUALS 9", "#ASSERT Square (-2) EQUALS 4", "#ASSERT Square 2.5 EQUALS 6.25" ])
+      r' `shouldBe` Right (3, 3, 0, 0)
+
+  describe "--asserts abstains where the answer comes from such a cell" $ do
+    let withA tbl nm = snd (toL4File withAsserts [parse nm tbl])
+        quot'        = withA thirdTable "Third"
+    it "writes no assertion of the quotient, and says why in the words of the comment" $ do
+      assertsOf quot' `shouldSatisfy` all (`elem` ["#ASSERT Third 2 EQUALS NOTHING", "#ASSERT Third 4 EQUALS NOTHING"])
+      assertsOf quot' `shouldSatisfy` (not . any ("FALSE" `isInfixOf`))
+      notesOf quot' `shouldSatisfy` any (\l -> "region 1 not asserted: the answer comes from (10 / d). L4 divides exactly" `isInfixOf` l)
+    it "still asserts the regions whose answer is exact, under a first-match policy that masks the inexact rules" $
+      assertsOf (withA mixedTable "Mixed") `shouldSatisfy` any ("mkMixed (-0.25) \"a\"" `isInfixOf`)
+    it "abstains where the answer is an inexact trailing catch-all under U, and asserts the exact rule above it" $ do
+      let u = withA catchAllTable "Q"
+      assertsOf u `shouldBe` ["#ASSERT Q 11 EQUALS 1"]
+      notesOf u `shouldSatisfy` any ("region 0 not asserted: the answer comes from (d / 3)." `isInfixOf`)
+    it "asserts everything in a table with nothing inexact in it, and says nothing about abstaining" $ do
+      let ex = withA exactTable "Exact"
+      length (assertsOf ex) `shouldSatisfy` (>= 3)
+      concat (notesOf ex) `shouldSatisfy` (not . ("L4 divides" `isInfixOf`))
+    it "leaves no false assertion for the real l4 to find, in the quotient table or the mixed one" $ withL4 $ \l4bin -> do
+      createDirectoryIfMissing True outDir
+      r1 <- runAsserts l4bin (outDir </> "quotient.l4") quot'
+      r1 `shouldBe` Right (2, 2, 0, 0)
+      forM_ [("mixed.l4", withA mixedTable "Mixed"), ("exact.l4", withA exactTable "Exact")] $ \(f', src) -> do
+        r <- runAsserts l4bin (outDir </> f') src
+        case r of
+          Right (n, t, f, other) -> (f, other, t == n, n > 0) `shouldBe` (0, 0, True, True)
+          Left why               -> expectationFailure why

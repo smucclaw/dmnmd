@@ -15,16 +15,17 @@ model is in "DMN.Types"; the catch-all/output-header helpers come from
 
 module DMN.Translate.L4 where
 
-import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder, evalTable)
+import DMN.DecisionTable (getInputHeaders, getOutputHeaders, getCommentHeaders, outputOrder, evalTable, columnRow)
 import DMN.Diagnostic
-import DMN.Regions (regionMap, noMatchRegions, regionAt, regionCount, regionInput, regionTopInput, firstRegionOf, rmColumns, cbBlocks, blockRep, blockTop, Region, Unsupported (..))
+import DMN.Regions (regionMap, noMatchRegions, regionAt, regionCount, regionInput, regionTopInput, firstRegionOf, liveRules, rmColumns, cbBlocks, blockRep, blockTop, Region, RuleIx, Unsupported (..))
 import DMN.Types
 import Control.Applicative ((<|>))
 import Data.Char (isAlpha, isAlphaNum, toUpper)
 import Data.List (intercalate, isPrefixOf, nub, sort)
 import Data.Maybe (isJust, isNothing, catMaybes, mapMaybe)
 import DMN.Number (showNumPlain)
-import Data.Scientific (Scientific)
+import Data.Ratio (numerator)
+import Data.Scientific (Scientific, isInteger)
 import Text.Megaparsec.Unicode (isWideChar)
 
 -- | Options governing L4 emission (see BUILD-SPEC §4.1).
@@ -114,7 +115,7 @@ defaultL4Opts = L4Opts
 toL4File :: L4Opts -> [DecisionTable] -> ([Diagnostic], String)
 toL4File opts dts
   | not (null refusals) = (refusals, "")
-  | otherwise           = (renameDiags, preamble ++ body)
+  | otherwise           = (renameDiags ++ concatMap inexactDiagnostics dts, preamble ++ body)
   where
     refusals =
       [ errorAt ("table " ++ show (tableName dt) ++ ": " ++ why)
@@ -267,7 +268,7 @@ toL4Parts opts dt =
   case l4Refusal dt of
     Just why -> error ("DMN.Translate.L4: " ++ why)
     Nothing  ->
-      ( unlines (recordDecls ++ [givenBlock opts ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
+      ( unlines (recordDecls ++ inexactComments dt ++ [givenBlock opts ins givethType] ++ [fnHeader, "  BRANCH"] ++ armLines ++ [otherwiseLine])
       , if emitAsserts opts
           then assertLines opts dt AssertShape { shapeOuts = outs', shapeMulti = multiOut, shapeMk = mkName
                                                , shapeMaybe = maybeResult }
@@ -562,11 +563,11 @@ assertLines opts dt sh
             picks     = assertPositions budget n
                           (mapMaybe (firstRegionOf rm) [0 .. length (allrows dt) - 1])
             regs      = [ (k, regionAt rm k) | k <- picks ]
-            primaries = [ (k, maybe (Skipped "no such region") (outcomeFor . regionInput) mr) | (k, mr) <- regs ]
-            wanted    = [ (k, regionTopInput r) | (k, Just r) <- regs, regionTopInput r /= regionInput r ]
+            primaries = [ (k, maybe (Skipped "no such region") (\r -> outcomeFor (liveRules r) (regionInput r)) mr) | (k, mr) <- regs ]
+            wanted    = [ (k, (liveRules r, regionTopInput r)) | (k, Just r) <- regs, regionTopInput r /= regionInput r ]
             room      = cap - toInteger (length picks)
             chosen    = spreadOut room wanted
-            seconds   = [ (k, outcomeFor input) | (k, input) <- chosen ]
+            seconds   = [ (k, outcomeFor lv input) | (k, (lv, input)) <- chosen ]
             linesFor k = concat [ outcomeLines tableLabel k False o | (k', o) <- primaries, k' == k ]
                       ++ concat [ outcomeLines tableLabel k True o | (k', o) <- seconds, k' == k ]
             nAsserted = length [ () | (_, o) <- primaries ++ seconds, isAsserted o ]
@@ -616,14 +617,35 @@ assertLines opts dt sh
       | room <= 0                     = []
       | otherwise                     = [ xs !! fromInteger i | i <- assertPositions room (toInteger (length xs)) [] ]
 
-    outcomeFor :: [FEELexp] -> Outcome
-    outcomeFor input = case mapM (uncurry renderInputVal) (zip insH input) of
+    -- FOGHORN (D-24): where the answer comes from a cell whose L4 value dmnmd cannot show to be the
+    -- DMN one, the check abstains, since an @#ASSERT@ of the interpreter's 34-digit quotient would be
+    -- reported false on a table whose logic is right. Under F, U and A the answer is the first live
+    -- rule's, which is what the first-match BRANCH returns; under any other policy every live rule
+    -- is looked at, since which one answers depends on values. With no live rule the answer is the
+    -- declared default.
+    inexactAnswer live
+      | null fns  = Nothing
+      | otherwise = Just ("the answer comes from " ++ spelledL4 fns ++ ". " ++ inexactSentence fns)
+      where
+        rows = allrows dt
+        decisive = case hitpolicy dt of
+          HP_First  -> take 1 live
+          HP_Unique -> take 1 live
+          HP_Any    -> take 1 live
+          _         -> live
+        fns  = concat [ outputRowInexact dt (row_outputs (rows !! i)) | i <- decisive ]
+            ++ (if null live then maybe [] (outputRowInexact dt) (dtDefaultOutput dt) else [])
+
+    outcomeFor :: [RuleIx] -> [FEELexp] -> Outcome
+    outcomeFor live input = case mapM (uncurry renderInputVal) (zip insH input) of
       Left why   -> Skipped why
       Right args -> case evalTable dt input of
         Left why -> Skipped ("the interpreter refuses this input: " ++ oneLine (takeWhile (/= '\n') why))
         Right []
           | shapeMaybe sh -> Asserted (call args ++ " EQUALS NOTHING")
           | otherwise     -> Diverged "the interpreter answers null here, but this function's result is not a MAYBE"
+        Right [_]
+          | Just why <- inexactAnswer live -> Skipped why
         Right [routs]
           | length routs /= length (shapeOuts sh) -> Skipped "the interpreter's row has a different number of cells from the output columns"
           | otherwise -> Asserted (call args ++ " EQUALS " ++ expectedValue sh routs)
@@ -1226,7 +1248,16 @@ fnf2l4 :: FNumFunction -> String
 fnf2l4 = \case
   FNF0 v        -> showValL4 v
   FNF1 s        -> quoteVar s
+  -- A prefix call: the infix form with a variable base is rejected by l4, and a caret is the ditto marker.
+  FNF3 b FNExp e -> "(EXPONENT " ++ operand (fnf2l4 b) ++ " " ++ operand (fnf2l4 e) ++ ")"
   FNF3 l op r   -> "(" ++ fnf2l4 l ++ " " ++ fnOp2l4 op ++ " " ++ fnf2l4 r ++ ")"
+
+-- | An argument of a prefix call: a sub-expression is already parenthesised, an atom or a negative
+-- number is wrapped as 'parenAtom' wraps it.
+operand :: String -> String
+operand t = case t of
+  '(' : _ -> t
+  _       -> parenAtom t
 
 fnOp2l4 :: FNOp2 -> String
 fnOp2l4 = \case
@@ -1234,7 +1265,132 @@ fnOp2l4 = \case
   FNDiv   -> "/"
   FNPlus  -> "+"
   FNMinus -> "-"
-  FNExp   -> "^"
+  -- 'fnf2l4' renders FNExp as a call to EXPONENT; a caret is L4's ditto marker.
+  FNExp   -> "EXPONENT"
+
+-- * Where L4 and DMN can disagree about a number (FOGHORN, DECISIONS.md D-24)
+
+-- | The sub-expressions of a numeric function whose L4 value dmnmd cannot show to be the DMN one.
+--
+-- DMN numbers are decimal128 (D-1): a quotient that does not terminate is rounded to 34 significant
+-- digits ('DMN.Number.divideFeel'). L4 divides exactly, so @1 / 3 * 3 EQUALS 1@ there. A power is
+-- exact in L4 at a non-negative integral exponent (@EXPONENT 10 20@ is 10^20), and only there:
+-- @EXPONENT 3 (-1) * 3 EQUALS 1@ and @EXPONENT 2 0.5 EQUALS 1.4142135623730951@ are both false on the
+-- installed l4, which computes those in binary floating point. Measured 2026-10-15.
+--
+-- What is NOT in the list, because it is shown: a division by a nonzero literal whose numerator, in
+-- lowest terms, has no prime factor but 2 and 5 (@x \/ 4@, @x \/ 0.25@), since the quotient of a
+-- terminating decimal by it terminates; and a power with a non-negative integral literal exponent.
+-- The test cannot see a width: a terminating quotient of more than 34 significant digits is rounded
+-- by DMN and exact in L4, and nothing here knows how many digits a runtime input has.
+inexactNodes :: FNumFunction -> [FNumFunction]
+inexactNodes fnf = here ++ concatMap inexactNodes below
+  where
+    here = case fnf of
+      FNF3 _ FNDiv d | not (terminatingDivisor d) -> [fnf]
+      FNF3 _ FNExp e | not (exactExponent e)      -> [fnf]
+      _                                           -> []
+    below = case fnf of
+      FNF3 l _ r -> [l, r]
+      _          -> []
+
+terminatingDivisor :: FNumFunction -> Bool
+terminatingDivisor = \case
+  FNF0 (VN d) -> d /= 0 && smooth25 (abs (numerator (toRational d)))
+  _           -> False
+
+-- | Whether 2 and 5 are the only primes of a positive integer.
+smooth25 :: Integer -> Bool
+smooth25 n
+  | n <= 0         = False
+  | n == 1         = True
+  | even n         = smooth25 (n `div` 2)
+  | n `mod` 5 == 0 = smooth25 (n `div` 5)
+  | otherwise      = False
+
+exactExponent :: FNumFunction -> Bool
+exactExponent = \case
+  FNF0 (VN e) -> isInteger e && e >= 0
+  _           -> False
+
+-- | Where an inexact expression sits: in a rule, or in the table's declared default output.
+data CellSpot = InRule (Maybe Int) | InDefault
+
+-- | One entry per cell the emitter renders that holds an 'inexactNodes' expression: the column, where
+-- the cell is, and each expression. Only an output cell can hold arithmetic: an input entry is a unary
+-- test (DMN 1.3 rule 12), and both readers refuse an operator there. An output cell renders its first
+-- expression only, or all of them in a collection column ('renderOutCell').
+inexactCells :: DecisionTable -> [(String, CellSpot, [FNumFunction])]
+inexactCells dt = ruleCells ++ defaultCells
+  where
+    outs = getOutputHeaders (header dt)
+    ruleCells =
+      [ (varname ch, InRule (row_number r), fns)
+      | r <- allrows dt
+      , (ch, es) <- [ (o, renderedOutElems o c) | (o, c) <- zip outs (row_outputs r) ]
+      , let fns = concatMap cellInexact es, not (null fns) ]
+    defaultCells =
+      [ (varname o, InDefault, fns)
+      | Just d <- [dtDefaultOutput dt]
+      , (o, c) <- zip outs d
+      , let fns = concatMap cellInexact (renderedOutElems o c), not (null fns) ]
+
+-- | The expressions of an output cell that 'renderOutCell' writes: its first, or every one in a
+-- collection column.
+renderedOutElems :: ColHeader -> [FEELexp] -> [FEELexp]
+renderedOutElems col cell
+  | isListCol col = filter (/= FAnything) cell
+  | otherwise     = take 1 cell
+
+cellInexact :: FEELexp -> [FNumFunction]
+cellInexact = \case
+  FFunction f -> inexactNodes f
+  FNot inner  -> cellInexact inner
+  _           -> []
+
+-- | The inexact expressions in one output row, the cells as 'allrows' or 'dtDefaultOutput' hold them.
+outputRowInexact :: DecisionTable -> [[FEELexp]] -> [FNumFunction]
+outputRowInexact dt cells =
+  concat [ concatMap cellInexact (renderedOutElems o c) | (o, c) <- zip (getOutputHeaders (header dt)) cells ]
+
+-- | What is different, as a sentence. Two kinds of expression, two sentences: a division, and a power.
+inexactSentence :: [FNumFunction] -> String
+inexactSentence fns = intercalate " " $
+  [ "L4 divides exactly, where DMN rounds a quotient that does not terminate to 34 significant digits (DECISIONS.md D-1), so the two can differ in the last digits."
+  | any (isOp FNDiv) fns ] ++
+  [ "L4 computes a power with a negative, fractional or non-literal exponent in binary floating point, where dmnmd's own evaluator refuses a fractional exponent and rounds a negative one to 34 digits (D-1), so the two can differ."
+  | any (isOp FNExp) fns ]
+  where
+    isOp op = \case FNF3 _ o _ -> o == op; _ -> False
+
+-- | The expressions as the emitted file spells them, for a message.
+spelledL4 :: [FNumFunction] -> String
+spelledL4 = intercalate ", " . map fnf2l4
+
+-- | The comment lines above a table's function, one per column and expression, and none when nothing
+-- is inexact.
+--
+-- They carry no row. The XML writer promotes a trailing catch-all row into a default output value, so
+-- @--to=xml | --from=xml --to=l4@ must say the same thing as @--to=l4@, and a row number would make it
+-- say "row 1" in one and "the default output value" in the other. The stderr warning is located by
+-- row, since nothing compares stderr across the two readers.
+inexactComments :: DecisionTable -> [String]
+inexactComments dt = nub
+  [ "-- dmnmd: table " ++ show (tableName dt) ++ ", column " ++ show col ++ ": " ++ spelledL4 fns ++ ". " ++ inexactSentence fns
+  | (col, _, fns) <- inexactCells dt ]
+
+-- | The warning on stderr, one per cell, located like every other diagnostic: the table, the column,
+-- and the rule number the author wrote.
+inexactDiagnostics :: DecisionTable -> [Diagnostic]
+inexactDiagnostics dt =
+  [ warnAt ("table " ++ show (tableName dt) ++ ": " ++ spotText dt col spot ++ ": " ++ spelledL4 fns ++ " may not agree with the interpreter. "
+              ++ inexactSentence fns ++ " The emitted file carries a comment saying so.")
+  | (col, spot, fns) <- inexactCells dt ]
+
+spotText :: DecisionTable -> String -> CellSpot -> String
+spotText _ col = \case
+  InRule rn  -> init (init (columnRow col rn))
+  InDefault  -> "column " ++ show col ++ ": the default output value"
 
 -- * Value rendering (BUILD-SPEC §1.2)
 

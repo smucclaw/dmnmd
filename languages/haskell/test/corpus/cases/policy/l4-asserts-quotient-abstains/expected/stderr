@@ -1,0 +1,1 @@
+dmnmd: warning: table "Third": column "q": row 1: (10 / d) may not agree with the interpreter. L4 divides exactly, where DMN rounds a quotient that does not terminate to 34 significant digits (DECISIONS.md D-1), so the two can differ in the last digits. The emitted file carries a comment saying so.
